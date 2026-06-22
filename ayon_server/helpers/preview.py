@@ -20,7 +20,7 @@ from ayon_server.logging import log_traceback, logger
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 REDIS_NS = "project.file_preview"
-PREVIEW_CACHE_TTL = 3600
+PREVIEW_CACHE_TTL = 3600 * 4
 PREVIEW_SEMAPHORE = asyncio.Semaphore(3)
 
 

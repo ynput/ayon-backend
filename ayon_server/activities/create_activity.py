@@ -348,7 +348,11 @@ async def create_activity(
             if category := data.get("category"):
                 if _prj is None:
                     _prj = await ProjectEntity.load(project_name)
-                _usr = await UserEntity.load(ref.entity_name)
+                try:
+                    _usr = await UserEntity.load(ref.entity_name)
+                except NotFoundException:
+                    # User does not exist, skip notification
+                    continue
                 accessible_categories = (
                     await ActivityCategories.get_accessible_categories(
                         _usr,

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter
@@ -17,6 +18,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -202,19 +204,57 @@ class CreateLinkRequestModel(OPModel):
     )
 
 
-@router.post("/projects/{project_name}/links")
-async def create_entity_link(
+class CreateLinksRequestModel(OPModel):
+    """Request model for creating multiple links at once."""
+
+    links: Annotated[
+        list[CreateLinkRequestModel],
+        Field(
+            title="Links",
+            description="List of links to create.",
+        ),
+    ]
+
+
+class LinkCreatedItem(OPModel):
+    id: Annotated[str, Field(**EntityID.META)]
+    input: Annotated[str, Field(**EntityID.META)]
+    output: Annotated[str, Field(**EntityID.META)]
+    link_type: str
+
+
+class CreateLinksResponseModel(OPModel):
+    created: Annotated[
+        list[LinkCreatedItem],
+        Field(description="List of successfully created links."),
+    ]
+
+
+@dataclass
+class ParsedLink:
+    """Parsed and validated link data."""
+
+    id: str
+    input: str
+    output: str
+    name: str | None
+    link_type: str
+    link_type_name: str
+    input_type: str
+    output_type: str
+    data: dict[str, Any]
+
+
+def _validate_link(
+    link: CreateLinkRequestModel,
     user: CurrentUser,
     project_name: ProjectName,
-    post_data: CreateLinkRequestModel,
-) -> EntityIdResponse:
-    """Create a new entity link."""
+) -> ParsedLink:
+    """Validate a single link request and return parsed link data.
 
-    # TODO: access control. Since we need entity class for that,
-    # we could get rid of the following check and use Entity.load instead
-
-    link_type = post_data.link_type or post_data.link
-
+    Checks link type format, permissions, and self-linking constraints.
+    """
+    link_type = link.link_type or link.link
     if link_type is None:
         raise BadRequestException("Link type is not specified")
 
@@ -226,14 +266,154 @@ async def create_entity_link(
             )
 
     if len(link_type.split("|")) != 3:
-        msg = "Link type must be in the format 'name|input_type|output_type'"
-        raise BadRequestException(msg)
+        raise BadRequestException(
+            "Link type must be in the format 'name|input_type|output_type'"
+        )
 
     link_type_name, input_type, output_type = link_type.split("|")
-    link_id = post_data.id or EntityID.create()
+    link_id = link.id or EntityID.create()
 
-    if input_type == output_type and post_data.input == post_data.output:
+    if input_type == output_type and link.input == link.output:
         raise BadRequestException("Cannot link an entity to itself.")
+
+    return ParsedLink(
+        id=link_id,
+        input=link.input,
+        output=link.output,
+        name=link.name,
+        link_type=link_type,
+        link_type_name=link_type_name,
+        input_type=input_type,
+        output_type=output_type,
+        data=link.data,
+    )
+
+
+@router.post("/projects/{project_name}/links/bulk")
+async def create_entity_links_bulk(
+    user: CurrentUser,
+    project_name: ProjectName,
+    post_data: CreateLinksRequestModel,
+) -> CreateLinksResponseModel:
+    """Create multiple entity links in a single request.
+
+    All links are created within a single transaction — if any link fails
+    validation or insertion, the entire batch is rolled back.
+    """
+
+    # Parse and validate all link entries upfront (before touching the DB)
+    parsed_links: list[ParsedLink] = []
+    for link in post_data.links:
+        parsed_links.append(_validate_link(link, user, project_name))
+
+    # Collect entity IDs grouped by type for bulk existence checks
+    entity_ids_by_type: dict[str, set[str]] = {}
+    for pl in parsed_links:
+        entity_ids_by_type.setdefault(pl.input_type, set()).add(pl.input)
+        entity_ids_by_type.setdefault(pl.output_type, set()).add(pl.output)
+
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+
+        # Validate that all referenced entities exist
+        for entity_type, ids in entity_ids_by_type.items():
+            ids_list = list(ids)
+            rows = await Postgres.fetch(
+                f"SELECT id FROM {entity_type}s WHERE id = ANY($1::uuid[])",
+                ids_list,
+            )
+            found_ids = {str(row["id"]) for row in rows}
+            missing = set(ids_list) - found_ids
+            if missing:
+                raise NotFoundException(
+                    f"{entity_type.capitalize()} entities not found: "
+                    + ", ".join(sorted(missing))
+                )
+
+        # Bulk-insert all links in one round-trip
+        try:
+            await Postgres.executemany(
+                """
+                INSERT INTO links
+                    (id, name, input_id, output_id, link_type, author, data)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                [
+                    (
+                        pl.id,
+                        pl.name,
+                        pl.input,
+                        pl.output,
+                        pl.link_type,
+                        user.name,
+                        pl.data,
+                    )
+                    for pl in parsed_links
+                ],
+            )
+        except Postgres.ForeignKeyViolationError:
+            raise BadRequestException("Unsupported link type.") from None
+        except Postgres.UniqueViolationError:
+            raise ConstraintViolationException(
+                "One or more link IDs already exist."
+            ) from None
+
+        await EventStream.dispatch(
+            "links.created",
+            summary={
+                "count": len(parsed_links),
+                "links": [
+                    {
+                        "id": pl.id,
+                        "linkType": pl.link_type_name,
+                        "inputType": pl.input_type,
+                        "outputType": pl.output_type,
+                        "inputId": pl.input,
+                        "outputId": pl.output,
+                    }
+                    for pl in parsed_links
+                ],
+            },
+            description=f"Created {len(parsed_links)} links.",
+            project=project_name,
+            user=user.name,
+        )
+
+    logger.debug(
+        f"Created {len(parsed_links)} links in bulk for project {project_name}."
+    )
+
+    return CreateLinksResponseModel(
+        created=[
+            LinkCreatedItem(
+                id=pl.id,
+                input=pl.input,
+                output=pl.output,
+                link_type=pl.link_type,
+            )
+            for pl in parsed_links
+        ]
+    )
+
+
+@router.post("/projects/{project_name}/links")
+async def create_entity_link(
+    user: CurrentUser,
+    project_name: ProjectName,
+    post_data: CreateLinkRequestModel,
+) -> EntityIdResponse:
+    """Create a new entity link."""
+
+    # TODO: access control. Since we need entity class for that,
+    # we could get rid of the following check and use Entity.load instead
+
+    parsed = _validate_link(post_data, user, project_name)
+    link_type = parsed.link_type
+    link_type_name = parsed.link_type_name
+    input_type = parsed.input_type
+    output_type = parsed.output_type
+    link_id = parsed.id
 
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
@@ -332,8 +512,14 @@ async def delete_entity_link(
         link_type = res["link_type"]
         link_type_name, input_type, output_type = link_type.split("|")
 
-        if res["author"] != user.name and not user.is_manager:
-            raise ForbiddenException("You do not have permission to delete this link.")
+        await _check_access(
+            user,
+            project_name,
+            input_type,
+            output_type,
+            res["input_id"],
+            res["output_id"],
+        )
 
         query = "DELETE FROM links WHERE id = $1"
         await Postgres.execute(query, link_id)
@@ -357,3 +543,25 @@ async def delete_entity_link(
         )
 
     return EmptyResponse()
+
+
+async def _check_access(
+    user: CurrentUser,
+    project_name: ProjectName,
+    input_type: str,
+    output_type: str,
+    input_id: str,
+    output_id: str,
+):
+    """Checks that user is manager or has access to both sides of link."""
+    if not user.is_manager:
+        input_class = get_entity_class(input_type)
+        input_entity = await input_class.load(project_name, input_id)
+
+        try:
+            await input_entity.ensure_update_access(user)
+        except ForbiddenException:
+            output_class = get_entity_class(output_type)
+            output_entity = await output_class.load(project_name, output_id)
+
+            await output_entity.ensure_update_access(user)
