@@ -601,4 +601,7 @@ async def _get_cdn_link(
         logger.error(f"CDN Error {res.status_code}: {res.text}")
         raise NotFoundException(f"Error {res.status_code} from CDN")
 
-    return res.json()
+    try:
+        return res.json()
+    except ValueError:
+        raise AyonException("Failed to get CDN link") from None
