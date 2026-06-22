@@ -5,6 +5,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
 
+from .ayonconfig import ayonconfig
+
 
 def get_frontend_flags_enum() -> list[EnumItem]:
     return [
@@ -105,6 +107,7 @@ class CDNSettingsModel(BaseSettingsModel):
         str,
         SettingsField(
             title="Default CDN Resolver URL",
+            placeholder=ayonconfig.default_project_storage_cdn_resolver,
         ),
     ] = ""
 
@@ -210,6 +213,17 @@ async def save_server_config_data(data: dict[str, Any]) -> None:
     await build_server_config_cache()
 
 
+def _recursive_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge updates into base dictionary."""
+    result = base.copy()
+    for key, value in updates.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _recursive_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 async def update_server_config(
     updates: dict[str, Any],
 ) -> None:
@@ -220,4 +234,11 @@ async def update_server_config(
     """
 
     current_config = await get_server_config()
-    _ = current_config  # for type checking
+    current_dict = current_config.dict()
+    updated_dict = _recursive_merge(current_dict, updates)
+
+    # Ensure that the updated configuration is valid by
+    # trying to create a new model instance
+    _ = ServerConfigModel(**updated_dict)
+
+    await save_server_config_data(updated_dict)
