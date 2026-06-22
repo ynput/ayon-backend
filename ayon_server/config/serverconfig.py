@@ -229,7 +229,7 @@ async def update_server_config(
 ) -> None:
     """Partially update the server configuration with the given updates.
 
-    Accepts a dictionary of updates in the same structure as the ServerConfigmodel.
+    Accepts a dictionary of updates in the same structure as the ServerConfigModel.
     Keys that are not included in the updates will remain unchanged.
     """
 
