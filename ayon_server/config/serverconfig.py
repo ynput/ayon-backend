@@ -163,7 +163,7 @@ class ServerConfigModel(BaseSettingsModel):
         SettingsField(
             title="CDN Settings",
             description="Settings for the CDN resolver",
-            default_factory=lambda: CDNSettingsModel(),
+            default_factory=CDNSettingsModel,
         ),
     ]
 
