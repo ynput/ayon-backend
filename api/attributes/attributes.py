@@ -98,10 +98,10 @@ async def save_attribute(
 
     payload = {}
     if ayonconfig.audit_trail:
-            payload = {
-                "originalValue": original_data or {},
-                "newValue":  attribute.data.dict(exclude_none=True),
-            }
+        payload = {
+            "originalValue": original_data or {},
+            "newValue":  attribute.data.dict(exclude_none=True),
+        }
 
     event_payload: dict[str, Any] = {
         "description": f"Changed attribute {attribute.name}",
