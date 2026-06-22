@@ -25,17 +25,9 @@ async def process_project_thumbnails(project_name: str) -> None:
             ORDER BY a.entity_id, a.created_at DESC
         )
         SELECT
-            h.path,
             v.id AS version_id,
-            v.thumbnail_id,
             r.reviewable_id
         FROM project_{project_name}.versions v
-
-        JOIN project_{project_name}.products p
-        ON p.id = v.product_id
-
-        JOIN project_{project_name}.hierarchy h
-        ON h.id = p.folder_id
 
         LEFT JOIN reviewables r
         ON r.version_id = v.id
@@ -43,11 +35,9 @@ async def process_project_thumbnails(project_name: str) -> None:
         WHERE v.thumbnail_id IS NULL
         AND r.reviewable_id IS NOT NULL
         ORDER BY v.created_at DESC
-        LIMIT 1000
     """
 
-    rows = await Postgres.fetch(query)
-    for row in rows:
+    async for row in Postgres.iterate(query):
         version_id = row["version_id"]
         reviewable_id = row["reviewable_id"]
 
