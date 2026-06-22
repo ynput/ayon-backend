@@ -1,3 +1,5 @@
+import asyncio
+import os
 import time
 from typing import Any
 
@@ -94,15 +96,20 @@ class SystemMetrics:
         mem = psutil.virtual_memory()
         mem_usage = 100 * ((mem.total - mem.available) / mem.total)
 
+        process = psutil.Process(os.getpid())
+
         redis_size = await Redis.get_total_size()
 
         return [
             Metric("cpu_usage", psutil.cpu_percent()),
             Metric("memory_usage", mem_usage),
+            Metric("process_memory_rss", process.memory_info().rss),
+            Metric("process_memory_vms", process.memory_info().vms),
             Metric("swap_usage", psutil.swap_memory().percent),
             Metric("uptime_seconds", time.time() - self.boot_time),
             Metric("runtime_seconds", time.time() - self.run_time),
             Metric("redis_size_total", redis_size),
+            Metric("asyncio_tasks_total", len(asyncio.all_tasks())),
         ]
 
     async def render_prometheus(self) -> str:
