@@ -92,7 +92,7 @@ ViewPatchModel = Annotated[
         discriminator="view_type",
         title="View model",
     ),
-]
+ViewPatchModel = GenericViewPatchModel
 
 
 def construct_view_model(**data: Any) -> ViewModel:
