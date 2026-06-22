@@ -84,13 +84,7 @@ ViewModel = Annotated[
     ),
 ]
 
-ViewPostModel = Annotated[
-    GenericViewPostModel,
-    Field(
-        discriminator="view_type",
-        title="View post model",
-    ),
-]
+ViewPostModel = GenericViewPostModel
 
 ViewPatchModel = Annotated[
     GenericViewPatchModel,
