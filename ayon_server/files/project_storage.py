@@ -531,12 +531,11 @@ async def _get_default_project_storage(project_name: str) -> "ProjectStorage":
             project_name,
             "local",
             ayonconfig.default_project_storage_root,
-            cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
         )
     elif ayonconfig.default_project_storage_type == "s3":
         server_config = await get_server_config()
         cdn_resolver = (
-            server_config.cdn.resolver_url
+            server_config.cdn.default_cdn_resolver_url
             or ayonconfig.default_project_storage_cdn_resolver
             or None
         )
@@ -555,7 +554,7 @@ async def _get_default_project_storage(project_name: str) -> "ProjectStorage":
 @Redis.cached(
     "cdn-link",
     "{project_name}:{project_timestamp}:{file_id}:{ynput_shared}",
-    ttl=60,
+    ttl=120,
 )
 async def _get_cdn_link(
     cdn_resolver,
