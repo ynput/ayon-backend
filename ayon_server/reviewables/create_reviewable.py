@@ -10,6 +10,9 @@ from ayon_server.helpers.preview import get_file_preview
 from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
     invalidate_thumbnail_by_entity,
 )
+from ayon_server.helpers.thumbnails.thumbnail_from_reviewable import (
+    assign_version_thumbnail_from_reviewable,
+)
 from ayon_server.logging import logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
 
@@ -134,6 +137,15 @@ async def create_reviewable(
     # Ensure the file preview is generated and cached,
     # so it is not generated when the client requests it for the first time,
     # which would cause a delay for the user.
+
+    if not version.thumbnail_id:
+        await assign_version_thumbnail_from_reviewable(
+            project_name,
+            file_id,
+            user=user_name,
+            version=version,
+        )
+
     try:
         await get_file_preview(project_name, file_id)
     except Exception as e:

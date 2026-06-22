@@ -47,6 +47,9 @@ async def store_thumbnail(
         )
         mime = guessed_mime
 
+    else:
+        mime = guessed_mime
+
     if mime not in ["image/png", "image/jpeg"]:
         raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
 
