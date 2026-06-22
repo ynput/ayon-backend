@@ -94,7 +94,7 @@ async def get_config_value(
     return value
 
 
-@router.patch("/config")
+@router.patch("/config", status_code=204)
 async def update_server_config(
     user: CurrentUser,
     payload: dict[str, Any],

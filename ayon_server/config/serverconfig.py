@@ -4,6 +4,7 @@ from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
+from ayon_server.settings.overrides import extract_overrides
 
 from .ayonconfig import ayonconfig
 
@@ -238,5 +239,8 @@ async def update_server_config(
     updated_dict = _recursive_merge(current_dict, updates)
 
     # Validate and normalize; also drops any unknown keys
+    original = ServerConfigModel()  # type: ignore[call-arg]
     validated = ServerConfigModel(**updated_dict)
-    await save_server_config_data(validated.dict())
+
+    data = extract_overrides(original, validated)
+    await save_server_config_data(data)
