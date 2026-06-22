@@ -175,7 +175,7 @@ class ProjectStorage:
 
         coalesce = RequestCoalescer()
 
-        return await coalesce(
+        data = await coalesce(
             _get_cdn_link,
             self.cdn_resolver,
             self.project_name,
@@ -183,6 +183,19 @@ class ProjectStorage:
             file_id,
             ynput_shared=ynput_shared,
         )
+
+        url = data["url"]
+        cookies = data.get("cookies", {})
+        response = RedirectResponse(url=url, status_code=302)
+        for key, value in cookies.items():
+            response.set_cookie(
+                key,
+                value,
+                httponly=True,
+                secure=True,
+                samesite="none",
+            )
+        return response
 
     #
     # Putting files into the storage
@@ -526,20 +539,20 @@ class ProjectStorage:
 
 
 async def _get_default_project_storage(project_name: str) -> "ProjectStorage":
+    server_config = await get_server_config()
+    cdn_resolver = (
+        server_config.cdn.default_cdn_resolver_url
+        or ayonconfig.default_project_storage_cdn_resolver
+        or None
+    )
     if ayonconfig.default_project_storage_type == "local":
         return ProjectStorage(
             project_name,
             "local",
             ayonconfig.default_project_storage_root,
+            cdn_resolver=cdn_resolver,
         )
     elif ayonconfig.default_project_storage_type == "s3":
-        server_config = await get_server_config()
-        cdn_resolver = (
-            server_config.cdn.default_cdn_resolver_url
-            or ayonconfig.default_project_storage_cdn_resolver
-            or None
-        )
-
         return ProjectStorage(
             project_name,
             "s3",
@@ -562,7 +575,7 @@ async def _get_cdn_link(
     project_timestamp,
     file_id,
     ynput_shared=False,
-):
+) -> dict[str, Any]:
     payload = {
         "projectName": project_name,
         "projectTimestamp": project_timestamp,
@@ -588,18 +601,4 @@ async def _get_cdn_link(
         logger.error(f"CDN Error {res.status_code}: {res.text}")
         raise NotFoundException(f"Error {res.status_code} from CDN")
 
-    data = res.json()
-    url = data["url"]
-    cookies = data.get("cookies", {})
-
-    response = RedirectResponse(url=url, status_code=302)
-    for key, value in cookies.items():
-        response.set_cookie(
-            key,
-            value,
-            httponly=True,
-            secure=True,
-            samesite="none",
-        )
-
-    return response
+    return res.json()
