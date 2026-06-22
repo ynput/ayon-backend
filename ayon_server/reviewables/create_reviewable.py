@@ -8,7 +8,7 @@ from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.helpers.thumbnails.thumbnail_from_reviewable import (
     assign_version_thumbnail_from_reviewable,
 )
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
 
 
@@ -132,12 +132,18 @@ async def create_reviewable(
     # If a version doesn't have a thumbnail, assign the reviewable as a thumbnail.
 
     if not version.thumbnail_id:
-        await assign_version_thumbnail_from_reviewable(
-            project_name,
-            file_id,
-            user=user_name,
-            version=version,
-        )
+        try:
+            await assign_version_thumbnail_from_reviewable(
+                project_name,
+                file_id,
+                user=user_name,
+                version=version,
+            )
+        except Exception:
+            log_traceback(
+                f"Unable to assign reviewable {file_id} "
+                "as thumbnail for version {version.id}"
+            )
 
     return ReviewableModel(
         file_id=file_id,

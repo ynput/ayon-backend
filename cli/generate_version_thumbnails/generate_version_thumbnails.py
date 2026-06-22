@@ -10,7 +10,9 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 
-async def process_project_thumbnails(project_name: str) -> None:
+async def process_project_thumbnails(
+    project_name: str, limit: int | None = None
+) -> None:
     query = f"""
         WITH reviewables AS (
             SELECT DISTINCT ON (a.entity_id)
@@ -37,19 +39,31 @@ async def process_project_thumbnails(project_name: str) -> None:
         ORDER BY v.created_at DESC
     """
 
+    if limit is not None:
+        query += f" LIMIT {limit}"
+
     async for row in Postgres.iterate(query):
         version_id = row["version_id"]
         reviewable_id = row["reviewable_id"]
 
-        await assign_version_thumbnail_from_reviewable(
-            project_name,
-            reviewable_id,
-            version=version_id,
-        )
+        try:
+            await assign_version_thumbnail_from_reviewable(
+                project_name,
+                reviewable_id,
+                version=version_id,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to assign thumbnail for version {version_id} "
+                f"in project {project_name}: {e}"
+            )
 
 
 @app.command()
-async def generate_version_thumbnails(project_name: str | None = None) -> None:
+async def generate_version_thumbnails(
+    project_name: str | None = None,
+    limit: int | None = None,
+) -> None:
     """Create thumbnails for versions with reviewables, without thumbnail set"""
 
     await ayon_init()
@@ -58,7 +72,7 @@ async def generate_version_thumbnails(project_name: str | None = None) -> None:
     start_time = time.monotonic()
     if project_name is None:
         for project in projects:
-            await process_project_thumbnails(project.name)
+            await process_project_thumbnails(project.name, limit)
     else:
         project_name = await normalize_project_name(project_name)
         await process_project_thumbnails(project_name)
