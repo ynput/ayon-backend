@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from fastapi import APIRouter
@@ -12,7 +13,9 @@ from ayon_server.attributes.models import (
     AttributePutModel,
 )
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
+from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
@@ -36,12 +39,26 @@ class SetAttributeListModel(GetAttributeListModel):
     )
 
 
-async def save_attribute(attribute: AttributeModel) -> None:
+async def save_attribute(
+    attribute: AttributeModel, user: CurrentUser
+) -> None:
     """Save attribute configuration to the database.
 
     Additionally performs validation of the attribute data and updates
     the enumerator in the running instance.
     """
+    original_data = {}
+    if ayonconfig.audit_trail:
+        select_query = """
+        SELECT data
+        FROM attributes WHERE name = $1
+        """
+        original_data = await Postgres.fetchrow(
+            select_query, attribute.name
+        )
+        if original_data:
+            original_data = dict(original_data["data"])
+
     query = """
     INSERT INTO attributes
     (name, position, scope, data)
@@ -78,6 +95,22 @@ async def save_attribute(attribute: AttributeModel) -> None:
             if name != attribute.name:
                 continue
             field_enum = field.field_info.extra.get("enum")
+
+    payload = {}
+    if ayonconfig.audit_trail:
+            payload = {
+                "originalValue": original_data or {},
+                "newValue":  attribute.data.dict(exclude_none=True),
+            }
+
+    event_payload: dict[str, Any] = {
+        "description": f"Changed attribute {attribute.name}",
+        "summary": {"attribute.name": attribute.name},
+        "user": user.name,
+        "payload": payload
+    }
+
+    await EventStream.dispatch("attribute.changed", **event_payload)
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
@@ -151,7 +184,7 @@ async def set_attribute_list(
         )
 
     for attr in new_attributes:
-        await save_attribute(attr)
+        await save_attribute(attr, user)
 
     await require_server_restart()
     return EmptyResponse()
@@ -179,7 +212,7 @@ async def set_attribute_config(
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.dict())
-    await save_attribute(attribute)
+    await save_attribute(attribute, user)
     await require_server_restart(
         None, "Restart the server to apply the attribute changes."
     )
@@ -235,7 +268,7 @@ async def patch_attribute_config(
     for key, value in patch_data.items():
         setattr(attribute.data, key, value)
 
-    await save_attribute(attribute)
+    await save_attribute(attribute, user)
 
     if requires_restart:
         await require_server_restart(
