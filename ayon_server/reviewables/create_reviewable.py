@@ -129,9 +129,7 @@ async def create_reviewable(
     else:
         author = ReviewableAuthor(name="system", full_name=None)
 
-    # Ensure the file preview is generated and cached,
-    # so it is not generated when the client requests it for the first time,
-    # which would cause a delay for the user.
+    # If a version doesn't have a thumbnail, assign the reviewable as a thumbnail.
 
     if not version.thumbnail_id:
         await assign_version_thumbnail_from_reviewable(
