@@ -237,19 +237,22 @@ async def check_bundle(
             if not installer_list or not installer_list.installers:
                 continue
 
-            installer = installer_list.installers[0]
-            installer_manifest = get_installer_manifest(installer.filename)
-            installer_python_version = installer_manifest.python_version
-            if not installer_python_version:
-                continue
+            for installer in installer_list.installers:
+                installer_manifest = get_installer_manifest(installer.filename)
+                installer_python_version = installer_manifest.python_version
+                if not installer_python_version:
+                    continue
+            
+                if is_compatible(
+                    package_python_version, installer_python_version
+                ):
+                    continue
 
-            if not is_compatible(
-                package_python_version, installer_python_version
-            ):
                 msg = (
-                    f"Dependency package '{package_filename}' requires Python "
-                    f"{package_python_version}, but installer '{installer.filename}' "
-                    f"uses {installer_python_version} on platform '{platform_name}'."
+                    f"Dependency package '{package_filename}' requires Python"
+                    f" {package_python_version}, but installer"
+                    f" '{installer.filename}' uses {installer_python_version}"
+                    f" on platform '{platform_name}'."
                 )
                 issues.append(
                     BundleIssueModel(
