@@ -1,7 +1,7 @@
 import time
 
 from ayon_server.cli import app
-from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.project_list import get_project_list, normalize_project_name
 from ayon_server.helpers.thumbnails.thumbnail_from_reviewable import (
     assign_version_thumbnail_from_reviewable,
 )
@@ -60,6 +60,7 @@ async def generate_version_thumbnails(project_name: str | None = None) -> None:
         for project in projects:
             await process_project_thumbnails(project.name)
     else:
+        project_name = await normalize_project_name(project_name)
         await process_project_thumbnails(project_name)
     elapsed_time = time.monotonic() - start_time
 
