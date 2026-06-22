@@ -237,8 +237,6 @@ async def update_server_config(
     current_dict = current_config.dict()
     updated_dict = _recursive_merge(current_dict, updates)
 
-    # Ensure that the updated configuration is valid by
-    # trying to create a new model instance
-    _ = ServerConfigModel(**updated_dict)
-
-    await save_server_config_data(updated_dict)
+    # Validate and normalize; also drops any unknown keys
+    validated = ServerConfigModel(**updated_dict)
+    await save_server_config_data(validated.dict())
