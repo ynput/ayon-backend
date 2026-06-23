@@ -42,9 +42,13 @@ class ActivityFeedEventHook:
         """
         cls.topics = {
             "entity.folder.status_changed": cls.handle_status_changed,
+            "entity.folder.attrib_changed": cls.handle_attrib_changed,
             "entity.task.status_changed": cls.handle_status_changed,
+            "entity.task.attrib_changed": cls.handle_attrib_changed,
             "entity.version.status_changed": cls.handle_status_changed,
+            "entity.version.attrib_changed": cls.handle_attrib_changed,
             "entity.product.status_changed": cls.handle_status_changed,
+            "entity.product.attrib_changed": cls.handle_attrib_changed,
             "entity.task.assignees_changed": cls.handle_assignees_changed,
             "entity.version.created": cls.handle_version_created,
         }
@@ -67,6 +71,30 @@ class ActivityFeedEventHook:
         await create_activity(
             entity,
             activity_type="status.change",
+            body=body,
+            user_name=event.user,
+            data={
+                "oldValue": old_value,
+                "newValue": new_value,
+            },
+        )
+
+    @classmethod
+    async def handle_attrib_changed(cls, event: "EventModel"):
+        entity_type = event.topic.split(".")[1]
+        entity_class = get_entity_class(entity_type)
+        assert event.project is not None, "Project is required for activities"
+        entity = await entity_class.load(event.project, event.summary["entityId"])
+
+        old_value = event.payload.get("oldValue")
+        new_value = event.payload.get("newValue")
+
+        origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
+        body = f"{origin_link} attrib changed from {old_value} to {new_value}"
+
+        await create_activity(
+            entity,
+            activity_type="attrib.change",
             body=body,
             user_name=event.user,
             data={
