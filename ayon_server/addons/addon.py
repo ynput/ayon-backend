@@ -808,6 +808,8 @@ class BaseServerAddon:
         current_user: UserEntity | None = None,
     ) -> LoginResponseModel:
         """Authorize a public link."""
-        raise NotImplementedError(
+        from ayon_server.exceptions import NotImplementedException
+
+        raise NotImplementedException(
             f"{self} addon does not support public link authentication"
         )
