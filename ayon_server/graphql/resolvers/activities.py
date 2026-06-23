@@ -90,10 +90,10 @@ async def get_activities(
     user = info.context["user"]
     if user.is_guest:
         if guest_access := user.data.get("guestAccess"):
-            has_projest_access = any(
+            has_project_access = any(
                 ga for ga in guest_access if ga.get("projectName") == project_name
             )
-            if not has_projest_access:
+            if not has_project_access:
                 raise Exception("Guest user not allowed in this project")
 
         else:
