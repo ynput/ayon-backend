@@ -8,6 +8,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
     InvalidSettingsException,
+    NotImplementedException,
     UnauthorizedException,
 )
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
@@ -161,11 +162,7 @@ async def handle_token_auth_callback(
         addon_name = parts[0]
         addon = await addon_library.get_production_addon(addon_name)
         if not addon:
-            raise NotImplementedError(f"{addon_name} is not available")
-        if not hasattr(addon, "authorize_public_link"):
-            raise NotImplementedError(
-                f"{addon} addon does not support public link authentication"
-            )
+            raise NotImplementedException(f"{addon_name} is not available")
         return await addon.authorize_public_link(token, request, current_user)
 
     try:
