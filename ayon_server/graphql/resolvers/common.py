@@ -10,6 +10,7 @@ from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 from .pagination import encode_cursor
 
@@ -208,6 +209,7 @@ async def resolve(
                     project_name, record_dict, context=context
                 )
             except ForbiddenException:
+                logger.trace(f"Skipping node {node_type} due to ForbiddenException")
                 continue
             edges.append(edge_type(node=node, cursor=cursor))
 
