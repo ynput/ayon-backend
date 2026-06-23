@@ -169,6 +169,7 @@ async def get_entity_list(
                 user.attrib.email: guest_activity_category
             }
 
+    payload.data.pop("publicLinks", None)
     return payload
 
 

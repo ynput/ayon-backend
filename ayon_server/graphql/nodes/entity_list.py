@@ -284,6 +284,8 @@ async def entity_list_from_record(
     data = record.get("data", {})
     user = context.get("user")
 
+    data.pop("publicLinks", None)  # Do not expose public links in GraphQL API
+
     entity_list_folder_id = record.get("entity_list_folder_id")
 
     if user:
