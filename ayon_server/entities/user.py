@@ -531,7 +531,7 @@ class UserEntity(TopLevelEntity):
             self._teams = result
         return self._teams
 
-    def get_guest_access(self, **kwargs: str) -> dict[str, Any] | None:
+    def get_guest_access(self, **kwargs: Any) -> dict[str, Any] | None:
         """Get guest access for the user."""
         if not self.is_guest:
             return None
