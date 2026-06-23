@@ -28,6 +28,7 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
@@ -537,7 +538,7 @@ class UserEntity(TopLevelEntity):
         guest_access = self.data.get("guestAccess", [])
         for access in guest_access:
             for key, value in kwargs.items():
-                if access.get(key) != value:
+                if access.get(camelize(key)) != value:
                     break
             else:
                 return access
