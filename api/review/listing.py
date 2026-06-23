@@ -1,4 +1,7 @@
-from typing import Any
+import asyncio
+from typing import Annotated, Any
+
+from fastapi import Query
 
 from ayon_server.api.dependencies import (
     AllowGuests,
@@ -16,6 +19,7 @@ from ayon_server.entities import (
     UserEntity,
     VersionEntity,
 )
+from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.reviewables.models import (
@@ -54,12 +58,26 @@ async def get_reviewables(
     project_name: str,
     *,
     version_id: str | None = None,
+    version_ids: Annotated[
+        list[str] | None, argdesc("List of parent version IDs to filter by")
+    ] = None,
     product_id: str | None = None,
+    product_ids: Annotated[
+        list[str] | None, argdesc("List of products IDs to filter by")
+    ] = None,
     task_id: str | None = None,
+    task_ids: Annotated[
+        list[str] | None, argdesc("List of tasks IDs to filter by")
+    ] = None,
     folder_id: str | None = None,
+    folder_ids: Annotated[
+        list[str] | None, argdesc("List of folder IDs to filter by")
+    ] = None,
     user: UserEntity | None = None,
+    latest_done: bool = False,
 ) -> list[VersionReviewablesModel]:
     cond = ""
+    cval: str | list[str] | None = None
     if version_id:
         cond = "versions.id = $1"
         cval = version_id
@@ -72,6 +90,18 @@ async def get_reviewables(
     elif folder_id:
         cond = "products.folder_id = $1"
         cval = folder_id
+    elif version_ids:
+        cond = "versions.id = ANY($1::uuid[])"
+        cval = version_ids
+    elif product_ids:
+        cond = "versions.product_id  = ANY($1::uuid[])"
+        cval = product_ids
+    elif task_ids:
+        cond = "versions.task_id  = ANY($1::uuid[])"
+        cval = task_ids
+    elif folder_ids:
+        cond = "products.folder_id  = ANY($1::uuid[])"
+        cval = folder_ids
 
     if user and user.is_guest:
         cond += f""" AND versions.id IN (
@@ -86,6 +116,18 @@ async def get_reviewables(
             )
         )
         """
+
+    if latest_done:
+        cond += f"""AND versions.id IN (
+                SELECT vv.id
+                FROM project_{project_name}.versions vv
+                JOIN project_{project_name}.statuses st
+                    ON st.name = vv.status
+                WHERE vv.product_id = products.id
+                    AND st.data->>'state' = 'done'
+                ORDER BY vv.version DESC
+                LIMIT 1
+            )"""
 
     query = f"""
         SELECT
@@ -250,6 +292,10 @@ async def get_reviewables_for_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
 
@@ -262,6 +308,38 @@ async def get_reviewables_for_product(
         project_name,
         product_id=product_id,
         user=user,
+        latest_done=latest_done,
+    )
+
+
+@router.get("/products/reviewables", dependencies=[AllowGuests])
+async def get_reviewables_for_products(
+    user: CurrentUser,
+    project_name: ProjectName,
+    product_ids: Annotated[
+        list[ProductID],
+        Query(description="List of product IDs to fetch reviewables for")
+    ],
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
+) -> list[VersionReviewablesModel]:
+    """Returns a list of reviewables for a given product."""
+
+    async def process_product(p_id: ProductID):
+        product = await ProductEntity.load(project_name, p_id)
+        if not user.is_guest:
+            await product.ensure_read_access(user)
+        return p_id
+
+    await asyncio.gather(*(process_product(p_id) for p_id in product_ids))
+
+    return await get_reviewables(
+        project_name,
+        product_ids=product_ids,
+        user=user,
+        latest_done=latest_done,
     )
 
 
@@ -270,6 +348,10 @@ async def get_reviewables_for_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> VersionReviewablesModel:
     """Returns a list of reviewables for a given version."""
 
@@ -283,8 +365,42 @@ async def get_reviewables_for_version(
             project_name,
             version_id=version_id,
             user=user,
+            latest_done=latest_done,
         )
     )[0]
+
+
+@router.get("/versions/reviewables", dependencies=[AllowGuests])
+async def get_reviewables_for_versions(
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_ids: Annotated[
+        list[VersionID],
+        Query(description="List of version IDs to fetch reviewables for")
+    ],
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
+) -> list[VersionReviewablesModel]:
+    """Returns a list of reviewables for a given version."""
+
+    async def process_version(v_id: VersionID):
+        version = await VersionEntity.load(project_name, v_id)
+        if not user.is_guest:
+            await version.ensure_read_access(user)
+        return v_id
+
+    await asyncio.gather(*(process_version(v_id) for v_id in version_ids))
+
+    return (
+        await get_reviewables(
+            project_name,
+            version_ids=version_ids,
+            user=user,
+            latest_done=latest_done,
+        )
+    )
 
 
 @router.get("/tasks/{task_id}/reviewables", dependencies=[AllowGuests])
@@ -292,6 +408,10 @@ async def get_reviewables_for_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     task = await TaskEntity.load(project_name, task_id)
 
@@ -302,6 +422,38 @@ async def get_reviewables_for_task(
         project_name,
         task_id=task_id,
         user=user,
+        latest_done=latest_done,
+    )
+
+
+@router.get("/tasks/reviewables", dependencies=[AllowGuests])
+async def get_reviewables_for_tasks(
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_ids: Annotated[
+        list[TaskID],
+        Query(description="List of task IDs to fetch reviewables for")
+    ],
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
+) -> list[VersionReviewablesModel]:
+    """Returns a list of reviewables for a given tasks."""
+
+    async def process_task(t_id: TaskID):
+        task = await TaskEntity.load(project_name, t_id)
+        if not user.is_guest:
+            await task.ensure_read_access(user)
+        return t_id
+
+    await asyncio.gather(*(process_task(t_id) for t_id in task_ids))
+
+    return await get_reviewables(
+        project_name,
+        task_ids=task_ids,
+        user=user,
+        latest_done=latest_done,
     )
 
 
@@ -310,6 +462,10 @@ async def get_reviewables_for_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     folder = await FolderEntity.load(project_name, folder_id)
 
@@ -320,4 +476,34 @@ async def get_reviewables_for_folder(
         project_name,
         folder_id=folder_id,
         user=user,
+        latest_done=latest_done,
+    )
+
+
+@router.get("/folders/reviewables", dependencies=[AllowGuests])
+async def get_reviewables_for_folders(
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_ids: Annotated[
+        list[FolderID],
+        Query(description="List of folder IDs to fetch reviewables for")
+    ],
+    latest_done: Annotated[
+        bool,
+        Query(description="If True, returns only the latest approved versions")
+    ] = False,
+) -> list[VersionReviewablesModel]:
+    async def process_folder(f_id: FolderID):
+        folder = await FolderEntity.load(project_name, f_id)
+        if not user.is_guest:
+            await folder.ensure_read_access(user)
+        return f_id
+
+    await asyncio.gather(*(process_folder(f_id) for f_id in folder_ids))
+
+    return await get_reviewables(
+        project_name,
+        folder_ids=folder_ids,
+        user=user,
+        latest_done=latest_done,
     )
