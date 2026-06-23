@@ -529,3 +529,16 @@ class UserEntity(TopLevelEntity):
                         break
             self._teams = result
         return self._teams
+
+    def get_guest_access(self, **kwargs: str) -> dict[str, Any] | None:
+        """Get guest access for the user."""
+        if not self.is_guest:
+            return None
+        guest_access = self.data.get("guestAccess", [])
+        for access in guest_access:
+            for key, value in kwargs.items():
+                if access.get(key) != value:
+                    break
+            else:
+                return access
+        return None
