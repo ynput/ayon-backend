@@ -74,7 +74,7 @@ async def get_entity_lists(
             ids = [
                 ga["id"]
                 for ga in guest_access
-                if ga.get("project") == project_name
+                if ga.get("projectName") == project_name
                 and ga.get("type") == "entityList"
                 and ga.get("id")
             ]
