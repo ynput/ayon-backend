@@ -181,7 +181,8 @@ async def ensure_entity_access(
     entity_type: "ProjectLevelEntityType",
     entity_id: str | None,
     access_type: "AccessType" = "read",
-) -> Literal[True]: ...
+) -> Literal[True]:
+    pass
 
 
 @overload
@@ -191,7 +192,8 @@ async def ensure_entity_access(
     entity_type: "ProjectLevelEntityType",
     entity_id: list[str],
     access_type: "AccessType" = "read",
-) -> Literal[True]: ...
+) -> Literal[True]:
+    pass
 
 
 async def ensure_entity_access(
