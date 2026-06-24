@@ -1,8 +1,8 @@
-import asyncio
 from typing import Annotated, Any
 
 from fastapi import Query
 
+from ayon_server.access.utils import ensure_entity_access
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
@@ -327,13 +327,13 @@ async def get_reviewables_for_products(
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
 
-    async def process_product(p_id: ProductID):
-        product = await ProductEntity.load(project_name, p_id)
-        if not user.is_guest:
-            await product.ensure_read_access(user)
-        return p_id
-
-    await asyncio.gather(*(process_product(p_id) for p_id in product_ids))
+    if not user.is_guest:
+        await ensure_entity_access(
+            user,
+            project_name,
+            "product",
+            product_ids
+        )
 
     return await get_reviewables(
         project_name,
@@ -385,13 +385,13 @@ async def get_reviewables_for_versions(
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given version."""
 
-    async def process_version(v_id: VersionID):
-        version = await VersionEntity.load(project_name, v_id)
-        if not user.is_guest:
-            await version.ensure_read_access(user)
-        return v_id
-
-    await asyncio.gather(*(process_version(v_id) for v_id in version_ids))
+    if not user.is_guest:
+        await ensure_entity_access(
+            user,
+            project_name,
+            "version",
+            version_ids
+        )
 
     return (
         await get_reviewables(
@@ -441,13 +441,13 @@ async def get_reviewables_for_tasks(
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given tasks."""
 
-    async def process_task(t_id: TaskID):
-        task = await TaskEntity.load(project_name, t_id)
-        if not user.is_guest:
-            await task.ensure_read_access(user)
-        return t_id
-
-    await asyncio.gather(*(process_task(t_id) for t_id in task_ids))
+    if not user.is_guest:
+        await ensure_entity_access(
+            user,
+            project_name,
+            "task",
+            task_ids
+        )
 
     return await get_reviewables(
         project_name,
@@ -493,13 +493,14 @@ async def get_reviewables_for_folders(
         Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
-    async def process_folder(f_id: FolderID):
-        folder = await FolderEntity.load(project_name, f_id)
-        if not user.is_guest:
-            await folder.ensure_read_access(user)
-        return f_id
 
-    await asyncio.gather(*(process_folder(f_id) for f_id in folder_ids))
+    if not user.is_guest:
+        await ensure_entity_access(
+            user,
+            project_name,
+            "folder",
+            folder_ids
+        )
 
     return await get_reviewables(
         project_name,
