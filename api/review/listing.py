@@ -1,17 +1,17 @@
 from typing import Annotated, Any
 
-from fastapi import Query, Body
+from fastapi import Body, Query
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
     FolderID,
+    PathProjectLevelEntityType,
     ProductID,
     ProjectName,
     TaskID,
     VersionID,
-    PathProjectLevelEntityType,
 )
 from ayon_server.entities import (
     FolderEntity,
@@ -20,6 +20,7 @@ from ayon_server.entities import (
     UserEntity,
     VersionEntity,
 )
+from ayon_server.exceptions import BadRequestException
 from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
@@ -37,7 +38,7 @@ class ReviewablesRequestModel(OPModel):
     entity_ids: list[str] = Field(
         ...,
         description="List of target Entity IDs (folders, products, versions, etc.)"
-                            " to fetch reviewables for."
+        " to fetch reviewables for.",
     )
 
 
@@ -302,8 +303,7 @@ async def get_reviewables_for_product(
     project_name: ProjectName,
     product_id: ProductID,
     latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
+        bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
@@ -327,8 +327,7 @@ async def get_reviewables_for_version(
     project_name: ProjectName,
     version_id: VersionID,
     latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
+        bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> VersionReviewablesModel:
     """Returns a list of reviewables for a given version."""
@@ -354,8 +353,7 @@ async def get_reviewables_for_task(
     project_name: ProjectName,
     task_id: TaskID,
     latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
+        bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
     task = await TaskEntity.load(project_name, task_id)
@@ -377,8 +375,7 @@ async def get_reviewables_for_folder(
     project_name: ProjectName,
     folder_id: FolderID,
     latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
+        bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
     folder = await FolderEntity.load(project_name, folder_id)
@@ -401,21 +398,21 @@ async def get_reviewables_for_entities(
     entity_type: PathProjectLevelEntityType,
     payload: Annotated[ReviewablesRequestModel, Body(...)],
     latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
+        bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
     """Fetches reviewables for a batch of entity IDs passed in the request."""
 
-    if not user.is_guest:
-        await ensure_entity_access(
-            user,
-            project_name,
-            entity_type,
-            payload.entity_ids
+    supported_types = {"version", "product", "task", "folder"}
+    if entity_type not in supported_types:
+        raise BadRequestException(
+            detail=f"Unsupported entity type for reviewables: {entity_type}"
         )
 
-    kwargs = {
+    if not user.is_guest:
+        await ensure_entity_access(user, project_name, entity_type, payload.entity_ids)
+
+    kwargs: dict[str, Any] = {
         f"{entity_type}_ids": payload.entity_ids,
         "user": user,
         "latest_done": latest_done,

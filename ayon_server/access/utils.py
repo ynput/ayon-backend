@@ -237,7 +237,8 @@ async def ensure_entity_access(
         if entity_type in ("version", "representation"):
             joins.append(
                 f"INNER JOIN project_{project_name}.versions "
-                f"ON versions.product_id = products.id")
+                f"ON versions.product_id = products.id"
+            )
             if entity_type == "representation":
                 joins.append(
                     f"INNER JOIN project_{project_name}.representations "
@@ -245,8 +246,7 @@ async def ensure_entity_access(
                 )
     elif entity_type in ("task", "workfile"):
         joins.append(
-            f"INNER JOIN project_{project_name}.tasks "
-            f"ON tasks.folder_id = hierarchy.id"
+            f"INNER JOIN project_{project_name}.tasks ON tasks.folder_id = hierarchy.id"
         )
         if entity_type == "workfile":
             joins.append(
@@ -257,14 +257,14 @@ async def ensure_entity_access(
     id_column = "hierarchy.id" if entity_type == "folder" else f"{entity_type}s.id"
 
     query = f"""
-            SELECT DISTINCT {id_column} AS permitted_id, hierarchy.path as pth
+            SELECT DISTINCT {id_column} AS permitted_id
             FROM project_{project_name}.hierarchy
             {" ".join(joins)}
-            WHERE {id_column} = ANY ($1::uuid[]) AND 
+            WHERE {id_column} = ANY ($1::uuid[]) AND
                 hierarchy.path LIKE ANY ($2::text[])
         """
 
-    rows = await Postgres.fetch(query,  ids_to_check, access_list)
+    rows = await Postgres.fetch(query, ids_to_check, access_list)
 
     permitted_ids = {str(row["permitted_id"]) for row in rows}
     for e_id in ids_to_check:
