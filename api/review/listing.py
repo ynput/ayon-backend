@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import Query
+from fastapi import Query, Body
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.api.dependencies import (
@@ -11,6 +11,7 @@ from ayon_server.api.dependencies import (
     ProjectName,
     TaskID,
     VersionID,
+    PathProjectLevelEntityType,
 )
 from ayon_server.entities import (
     FolderEntity,
@@ -30,6 +31,14 @@ from ayon_server.reviewables.models import (
 from ayon_server.types import Field, OPModel
 
 from .router import router
+
+
+class ReviewablesRequestModel(OPModel):
+    entity_ids: list[str] = Field(
+        ...,
+        description="List of target Entity IDs (folders, products, versions, etc.)"
+                            " to fetch reviewables for."
+    )
 
 
 class VersionReviewablesModel(OPModel):
@@ -312,37 +321,6 @@ async def get_reviewables_for_product(
     )
 
 
-@router.get("/products/reviewables", dependencies=[AllowGuests])
-async def get_reviewables_for_products(
-    user: CurrentUser,
-    project_name: ProjectName,
-    product_ids: Annotated[
-        list[ProductID],
-        Query(description="List of product IDs to fetch reviewables for")
-    ],
-    latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
-    ] = False,
-) -> list[VersionReviewablesModel]:
-    """Returns a list of reviewables for a given product."""
-
-    if not user.is_guest:
-        await ensure_entity_access(
-            user,
-            project_name,
-            "product",
-            product_ids
-        )
-
-    return await get_reviewables(
-        project_name,
-        product_ids=product_ids,
-        user=user,
-        latest_done=latest_done,
-    )
-
-
 @router.get("/versions/{version_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_version(
     user: CurrentUser,
@@ -370,39 +348,6 @@ async def get_reviewables_for_version(
     )[0]
 
 
-@router.get("/versions/reviewables", dependencies=[AllowGuests])
-async def get_reviewables_for_versions(
-    user: CurrentUser,
-    project_name: ProjectName,
-    version_ids: Annotated[
-        list[VersionID],
-        Query(description="List of version IDs to fetch reviewables for")
-    ],
-    latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
-    ] = False,
-) -> list[VersionReviewablesModel]:
-    """Returns a list of reviewables for a given version."""
-
-    if not user.is_guest:
-        await ensure_entity_access(
-            user,
-            project_name,
-            "version",
-            version_ids
-        )
-
-    return (
-        await get_reviewables(
-            project_name,
-            version_ids=version_ids,
-            user=user,
-            latest_done=latest_done,
-        )
-    )
-
-
 @router.get("/tasks/{task_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_task(
     user: CurrentUser,
@@ -421,37 +366,6 @@ async def get_reviewables_for_task(
     return await get_reviewables(
         project_name,
         task_id=task_id,
-        user=user,
-        latest_done=latest_done,
-    )
-
-
-@router.get("/tasks/reviewables", dependencies=[AllowGuests])
-async def get_reviewables_for_tasks(
-    user: CurrentUser,
-    project_name: ProjectName,
-    task_ids: Annotated[
-        list[TaskID],
-        Query(description="List of task IDs to fetch reviewables for")
-    ],
-    latest_done: Annotated[
-        bool,
-        Query(description="If True, returns only the latest approved versions")
-    ] = False,
-) -> list[VersionReviewablesModel]:
-    """Returns a list of reviewables for a given tasks."""
-
-    if not user.is_guest:
-        await ensure_entity_access(
-            user,
-            project_name,
-            "task",
-            task_ids
-        )
-
-    return await get_reviewables(
-        project_name,
-        task_ids=task_ids,
         user=user,
         latest_done=latest_done,
     )
@@ -480,31 +394,31 @@ async def get_reviewables_for_folder(
     )
 
 
-@router.get("/folders/reviewables", dependencies=[AllowGuests])
-async def get_reviewables_for_folders(
+@router.post("/{entity_type}/reviewables", dependencies=[AllowGuests])
+async def get_reviewables_for_entities(
     user: CurrentUser,
     project_name: ProjectName,
-    folder_ids: Annotated[
-        list[FolderID],
-        Query(description="List of folder IDs to fetch reviewables for")
-    ],
+    entity_type: PathProjectLevelEntityType,
+    payload: Annotated[ReviewablesRequestModel, Body(...)],
     latest_done: Annotated[
         bool,
         Query(description="If True, returns only the latest approved versions")
     ] = False,
 ) -> list[VersionReviewablesModel]:
+    """Fetches reviewables for a batch of entity IDs passed in the request."""
 
     if not user.is_guest:
         await ensure_entity_access(
             user,
             project_name,
-            "folder",
-            folder_ids
+            entity_type,
+            payload.entity_ids
         )
 
-    return await get_reviewables(
-        project_name,
-        folder_ids=folder_ids,
-        user=user,
-        latest_done=latest_done,
-    )
+    kwargs = {
+        f"{entity_type}_ids": payload.entity_ids,
+        "user": user,
+        "latest_done": latest_done,
+    }
+
+    return await get_reviewables(project_name, **kwargs)
