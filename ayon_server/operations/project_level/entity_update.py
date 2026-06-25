@@ -115,6 +115,7 @@ async def update_project_level_entity(
         "thumbnailId" in operation.data or "thumbnail_id" in operation.data
     )
     entity = await entity_class.load(project_name, operation.entity_id)
+
     calculated_attributes: set[str] = set()
 
     hooks = OperationHooks.hooks()
@@ -127,7 +128,7 @@ async def update_project_level_entity(
         for hook in hooks:
             res = await hook(operation, temp_entity, user)
             if res.calculated_attributes:
-                calculated_attributes.add(*res.calculated_attributes)
+                calculated_attributes.update(res.calculated_attributes)
 
     # Casting the payload to the model class is used to validate the data
     payload = entity_class.model.patch_model(**operation.data)

@@ -194,7 +194,7 @@ def build_pl_entity_change_events(
                 "newValue": new_attributes,
             }
             if calculated_attributes:
-                evt["payload"]["calculatedAttributes"] = list[calculated_attributes]
+                evt["payload"]["calculatedAttributes"] = list(calculated_attributes)  # type: ignore[index]
 
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())
