@@ -1,6 +1,7 @@
 """Request dependencies."""
 
 import re
+from collections.abc import Awaitable, Callable
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
@@ -12,12 +13,14 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    ServiceUnavailableException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
 from ayon_server.helpers.project_list import (
     get_project_info,
 )
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
@@ -31,6 +34,7 @@ from ayon_server.utils import (
     parse_access_token,
     parse_api_key,
 )
+from ayon_server.utils.server import get_real_ip_from_request
 
 NoTraces = Depends(lambda: None)
 AllowGuests = Depends(lambda: None)
@@ -657,3 +661,27 @@ async def dep_x_content_type(
 
 
 XContentType = Annotated[str, Depends(dep_x_content_type)]
+
+
+def throttle(limit: int = 10, window: int = 60) -> Callable[[Request], Awaitable[None]]:
+    """
+    Returns a dependency that limits each IP to `limit` requests per `window` seconds.
+    """
+
+    async def dependency(request: Request) -> None:
+        ip = get_real_ip_from_request(request)
+        endpoint = request.url.path
+
+        key = f"{endpoint}:{ip}"
+        current = await Redis.incr("rate-limit", key)
+
+        if current == 1:
+            # first increment, set TTL
+            await Redis.expire("rate-limit", key, window)
+
+        if current > limit:
+            raise ServiceUnavailableException(
+                detail="Rate limit exceeded. Try again later",
+            )
+
+    return dependency

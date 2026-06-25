@@ -512,20 +512,43 @@ async def get_versions(
     #
 
     if user.is_guest:
-        sql_cte.append(
-            f"""guest_accessible_versions AS (
-                SELECT DISTINCT(entity_id)
-                FROM project_{project_name}.entity_list_items i
-                JOIN project_{project_name}.entity_lists l
-                ON l.id = i.entity_list_id
-                AND l.entity_type = 'version'
-                AND (
-                        (l.access->'__guests__')::integer > 0
-                        OR (l.access->'guest:{user.attrib.email}')::integer > 0
+        if guest_access := user.data.get("guestAccess"):
+            entity_list_ids = [
+                ga["id"]
+                for ga in guest_access
+                if ga.get("projectName") == project_name
+                and ga.get("type") == "entityList"
+                and ga.get("id")
+            ]
+            if not entity_list_ids:
+                return VersionsConnection()
+
+            sql_cte.append(
+                f"""guest_accessible_versions AS (
+                    SELECT DISTINCT(entity_id)
+                    FROM project_{project_name}.entity_list_items i
+                    JOIN project_{project_name}.entity_lists l
+                    ON l.id = i.entity_list_id
+                    AND l.entity_type = 'version'
+                    AND l.id IN {SQLTool.id_array(entity_list_ids)}
                     )
-                )
-            """
-        )
+                """
+            )
+        else:
+            sql_cte.append(
+                f"""guest_accessible_versions AS (
+                    SELECT DISTINCT(entity_id)
+                    FROM project_{project_name}.entity_list_items i
+                    JOIN project_{project_name}.entity_lists l
+                    ON l.id = i.entity_list_id
+                    AND l.entity_type = 'version'
+                    AND (
+                            (l.access->'__guests__')::integer > 0
+                            OR (l.access->'guest:{user.attrib.email}')::integer > 0
+                        )
+                    )
+                """
+            )
         sql_joins.append(
             """
             INNER JOIN guest_accessible_versions AS gav
