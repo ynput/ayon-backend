@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import Body, Query
 
-from ayon_server.access.utils import ensure_entity_access
+from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
@@ -20,7 +20,7 @@ from ayon_server.entities import (
     UserEntity,
     VersionEntity,
 )
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
@@ -113,6 +113,13 @@ async def get_reviewables(
         cond = "products.folder_id  = ANY($1::uuid[])"
         cval = folder_ids
 
+    access_list = None
+    if user and not user.is_guest:
+        try:
+            access_list = await folder_access_list(user, project_name)
+        except ForbiddenException:
+            access_list = []
+
     if user and user.is_guest:
         cond += f""" AND versions.id IN (
             SELECT DISTINCT(i.entity_id) FROM
@@ -138,6 +145,18 @@ async def get_reviewables(
                 ORDER BY vv.version DESC
                 LIMIT 1
             )"""
+
+    hierarchy_join = ""
+    access_cond = ""
+    if access_list is not None:
+        access_list = [path.strip('"') for path in access_list]
+        hierarchy_join = f"""
+        JOIN
+            project_{project_name}.hierarchy AS hierarchy
+            ON hierarchy.id = products.folder_id
+        """
+        param_index = "$2" if cval is not None else "$1"
+        access_cond = f"AND hierarchy.path LIKE ANY ({param_index}::text[])"
 
     query = f"""
         SELECT
@@ -169,7 +188,7 @@ async def get_reviewables(
         JOIN
             project_{project_name}.products AS products
             ON products.id = versions.product_id
-
+        {hierarchy_join}
         LEFT JOIN
             project_{project_name}.activity_feed af
             ON af.entity_id = versions.id
@@ -194,6 +213,7 @@ async def get_reviewables(
                 (events.summary->>'sourceFileId')::UUID = files.id
         WHERE
             {cond}
+            {access_cond}
 
         ORDER BY
             versions.version ASC,
@@ -203,7 +223,8 @@ async def get_reviewables(
 
     processed: set[str] = set()
     versions: dict[str, VersionReviewablesModel] = {}
-    async for row in Postgres.iterate(query, cval):
+    query_params = (cval, access_list) if access_list is not None else (cval,)
+    async for row in Postgres.iterate(query, *query_params):
         if row["version"] < 0:
             version_name = "HERO"
         else:
@@ -408,9 +429,6 @@ async def get_reviewables_for_entities(
         raise BadRequestException(
             detail=f"Unsupported entity type for reviewables: {entity_type}"
         )
-
-    if not user.is_guest:
-        await ensure_entity_access(user, project_name, entity_type, payload.entity_ids)
 
     kwargs: dict[str, Any] = {
         f"{entity_type}_ids": payload.entity_ids,
