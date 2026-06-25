@@ -1,6 +1,8 @@
 import inspect
 import os
 
+from ayon_server.auth.models import LoginResponseModel
+
 try:
     import toml
 except ModuleNotFoundError:
@@ -9,6 +11,7 @@ except ModuleNotFoundError:
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
+from fastapi import Request
 from fastapi.responses import HTMLResponse
 
 from ayon_server.actions.config import get_action_config, set_action_config
@@ -797,3 +800,16 @@ class BaseServerAddon:
         )
 
         return await get_action_config(config_hash)
+
+    async def authorize_public_link(
+        self,
+        token: str,
+        request: "Request",
+        current_user: UserEntity | None = None,
+    ) -> LoginResponseModel:
+        """Authorize a public link."""
+        from ayon_server.exceptions import NotImplementedException
+
+        raise NotImplementedException(
+            f"{self} addon does not support public link authentication"
+        )

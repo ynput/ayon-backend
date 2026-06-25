@@ -281,8 +281,10 @@ async def entity_list_from_record(
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
-    data = record.get("data", {})
+    data = dict(record.get("data") or {})
     user = context.get("user")
+
+    data.pop("publicLinks", None)  # Do not expose public links in GraphQL API
 
     entity_list_folder_id = record.get("entity_list_folder_id")
 

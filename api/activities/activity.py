@@ -85,7 +85,6 @@ async def post_project_activity(
             project,
             entity_list_id,
         )
-
         assert activity.data is not None  # shouldn't happen, already checked above
         activity.data["category"] = list_guest_category
 
