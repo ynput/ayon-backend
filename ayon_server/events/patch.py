@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel
@@ -66,6 +67,8 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
 def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
+    *,
+    calculated_attributes: Iterable[str] | None = None,
 ) -> list[EventData]:
     """Return a listof events triggered by a patch on a project level entity.
 
@@ -190,6 +193,8 @@ def build_pl_entity_change_events(
                 "oldValue": old_attributes,
                 "newValue": new_attributes,
             }
+            if calculated_attributes:
+                evt["payload"]["calculatedAttributes"] = list[calculated_attributes]
 
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())

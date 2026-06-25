@@ -13,6 +13,7 @@ from .models import OperationModel
 class HookResult(BaseModel):
     message: str | None = None
     triggers: list[str] | None = None
+    calculated_attributes: list[str] | None = None
 
 
 HookType = Callable[
