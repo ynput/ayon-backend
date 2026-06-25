@@ -1,8 +1,9 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from pydantic import Field
 
 from ayon_server.types import OPModel
+from ayon_server.utils import camelize
 from ayon_server.views.models import (
     FViewId,
     FViewLabel,
@@ -38,6 +39,7 @@ class ViewListModel(OPModel):
 # GET REST API models
 #
 
+
 class GenericViewModel(ViewListItemModel):
     """Reports view model."""
 
@@ -49,6 +51,7 @@ class GenericViewModel(ViewListItemModel):
 #
 # POST REST API models
 #
+
 
 class GenericViewPostModel(OPModel):
     id: FViewId
@@ -62,8 +65,10 @@ class GenericViewPostModel(OPModel):
 # Patch REST API models
 #
 
+
 class GenericViewPatchModel(OPModel):
     """Reports view post model."""
+
     label: FViewLabel | None = None
     owner: FViewOwner | None = None
 
@@ -90,15 +95,29 @@ ViewPatchModel = GenericViewPatchModel
 
 
 def construct_view_model(**data: Any) -> ViewModel:
-        return GenericViewModel(**data)
+    """Temporary patching of stored views in typed format.
+
+    Introduced by PR #974 TODO remove in next release.
+    """
+    view_type = data["view_type"]
+    settings = data["settings"]
+    if view_type in ["overview", "taskProgress", "lists", "reviews", "versions"]:
+        patched_settings = {}
+        for key, val in settings.items():
+            if "_" in key:
+                patched_settings[camelize(key)] = val
+            else:
+                patched_settings[key] = val
+        data["settings"] = patched_settings
+    return GenericViewModel(**data)
 
 
 def get_post_model_class() -> type[ViewPostModel]:
-        return GenericViewPostModel
+    return GenericViewPostModel
 
 
 def get_patch_model_class() -> type[ViewPatchModel]:
-        return GenericViewPatchModel
+    return GenericViewPatchModel
 
 
 def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
@@ -117,6 +136,7 @@ def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemMode
 
 def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
     """Convert a database row to a ViewModel."""
+    print(f"row: {row}")
     return construct_view_model(
         id=row["id"],
         view_type=row["view_type"],

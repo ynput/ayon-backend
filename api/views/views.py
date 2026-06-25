@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import Path, Query, Request, Body
+from fastapi import Body, Path, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
