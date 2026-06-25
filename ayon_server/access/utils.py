@@ -269,9 +269,11 @@ async def ensure_entity_access(
     rows = await Postgres.fetch(query, ids_to_check, access_list)
 
     permitted_ids = {str(row["permitted_id"]) for row in rows}
-    for e_id in ids_to_check:
-        if e_id not in permitted_ids:
-            raise ForbiddenException(f"Access denied for {entity_type}: {e_id}")
+    forbidden_ids = [e_id for e_id in ids_to_check if e_id not in permitted_ids]
+    if forbidden_ids:
+        raise ForbiddenException(
+            detail=f"Access denied for {entity_type} IDs: {', '.join(forbidden_ids)}"
+        )
 
     return True
 
