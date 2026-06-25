@@ -10,7 +10,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 
-from .hooks import OperationHooks
+from .hooks import HookResult, OperationHooks
 from .models import OperationModel
 from .validation import validate_task
 
@@ -127,7 +127,7 @@ async def update_project_level_entity(
 
         for hook in hooks:
             res = await hook(operation, temp_entity, user)
-            if res.calculated_attributes:
+            if isinstance(res, HookResult) and res.calculated_attributes:
                 calculated_attributes.update(res.calculated_attributes)
 
     # Casting the payload to the model class is used to validate the data

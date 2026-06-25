@@ -49,8 +49,6 @@ class OperationHooks:
 
     In both cases, hook should not modify the entity, but the operation data
     (operation.data) or raise exceptions to prevent the operation.
-
-    Handling Hook result is not yet implemented.
     """
 
     _hooks: dict[str, HookType] = {}
