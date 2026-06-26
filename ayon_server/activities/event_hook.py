@@ -92,9 +92,12 @@ class ActivityFeedEventHook:
         calculated_attributes = set(payload.get("calculatedAttributes", []))
 
         origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
-        for key, new_value in new_values_dict.items():
-            if key in calculated_attributes:
-                continue
+
+        all_keys = (
+            set(new_values_dict.keys()) | set(old_values_dict.keys())
+        ) - calculated_attributes
+        for key in all_keys:
+            new_value = new_values_dict.get(key)
             old_value = old_values_dict.get(key)
 
             body = (
