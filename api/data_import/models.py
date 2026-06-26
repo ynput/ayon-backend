@@ -305,15 +305,16 @@ class EntityExportImport:
         result: list[ModelField] = []
         for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
             # Create a copy with prefixed name
-            new_field = ModelField(
+            new_field = ModelField.infer(
                 name=f"attrib.{f.name}",
-                type_=getattr(f, "type_", f.annotation),
-                field_info=f.field_info,
-                required=f.required,
-                default=f.default,
-                model_config=f.model_config,
+                value=f.default,
+                annotation=f.outer_type_,  # This handles List, Dict, Optional, etc.
                 class_validators=getattr(f, "class_validators", None),
+                config=f.model_config,
             )
+            new_field.field_info = f.field_info
+            new_field.required = f.required
+
             result.append(new_field)
         return result
 
