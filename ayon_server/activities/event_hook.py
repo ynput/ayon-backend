@@ -86,22 +86,33 @@ class ActivityFeedEventHook:
         assert event.project is not None, "Project is required for activities"
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
-        old_value = event.payload.get("oldValue")
-        new_value = event.payload.get("newValue")
+        payload = event.payload
+        new_values_dict = payload.get("newValue", {})
+        old_values_dict = payload.get("oldValue", {})
+        calculated_attributes = set(payload.get("calculatedAttributes", []))
 
         origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
-        body = f"{origin_link} attrib changed from {old_value} to {new_value}"
+        for key, new_value in new_values_dict.items():
+            if key in calculated_attributes:
+                continue
+            old_value = old_values_dict.get(key)
 
-        await create_activity(
-            entity,
-            activity_type="attrib.change",
-            body=body,
-            user_name=event.user,
-            data={
-                "oldValue": old_value,
-                "newValue": new_value,
-            },
-        )
+            body = (
+                f"{origin_link} attrib '{key}' changed from "
+                f"'{old_value}' to '{new_value}'"
+            )
+
+            await create_activity(
+                entity,
+                activity_type="attrib.change",
+                body=body,
+                user_name=event.user,
+                data={
+                    "key": key,
+                    "oldValue": old_value,
+                    "newValue": new_value,
+                },
+            )
 
     @classmethod
     async def handle_assignees_changed(cls, event: "EventModel"):
