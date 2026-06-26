@@ -342,7 +342,11 @@ class EntityExportImport:
         for field in all_fields:
             name: str | None = None  # because of MyPy
             if isinstance(field, ModelField):
-                name = field.name
+                name = (
+                    field.alias
+                    if (field.alias and field.alias.startswith("attrib."))
+                    else field.name
+                )
                 field_info = field.field_info
                 annotation = field.annotation
                 required = field.required
