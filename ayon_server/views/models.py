@@ -1,8 +1,7 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import Field
 
-from ayon_server.sqlfilter import QueryFilter
 from ayon_server.types import OPModel
 from ayon_server.utils import create_uuid
 
@@ -118,67 +117,3 @@ FColumnList = Annotated[
         ],
     ),
 ]
-
-
-#
-# Per-page models
-#
-
-
-class OverviewSettings(OPModel):
-    show_hierarchy: bool = True
-    row_height: int | None = None
-    group_by: str | None = None
-    group_sort_by_desc: bool = False
-    show_empty_groups: bool = False
-    sort_by: str | None = None
-    sort_desc: bool = False
-    filter: QueryFilter | None = None
-    folder_filter: QueryFilter | None = None
-    slice_type: str | None = None
-    columns: FColumnList
-
-
-class TaskProgressSettings(OPModel):
-    filter: QueryFilter | None = None
-    slice_type: str | None = None
-    columns: FColumnList
-
-
-class ListsSettings(OPModel):
-    row_height: int | None = None
-    sort_by: str | None = None
-    sort_desc: bool = False
-    filter: QueryFilter | None = None
-    columns: FColumnList
-
-
-class ReviewsSettings(ListsSettings):
-    grid_height: int | None = None
-    display_style: FDisplayStyle = None
-
-
-class VersionsSettings(OPModel):
-    show_products: bool = False
-    row_height: int | None = None
-    show_grid: bool = True
-    grid_height: int | None = None
-    featured_version_order: list[str] | None = None
-    slicer_type: str | None = None
-    group_by: str | None = None
-    group_sort_by_desc: bool = False
-    show_empty_groups: bool = False
-    sort_by: str | None = None
-    sort_desc: bool = False
-    filter: QueryFilter | None = None
-    columns: FColumnList
-
-
-ViewSettingsModel = (
-    OverviewSettings
-    | TaskProgressSettings
-    | ListsSettings
-    | VersionsSettings
-    | ReviewsSettings
-    | dict[str, Any]
-)
