@@ -14,8 +14,8 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
-from ayon_server.helpers.thumbnails import store_thumbnail
 from ayon_server.helpers.thumbnails.common import retrieve_thumbnail
+from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger

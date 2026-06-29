@@ -58,7 +58,7 @@ async def process_project_thumbnails(
 
 
 @app.command()
-async def generate_version_thumbnails(
+async def generate_file_thumbnails(
     project_name: str | None = None,
     limit: int | None = None,
 ) -> None:

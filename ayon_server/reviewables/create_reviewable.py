@@ -5,9 +5,7 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.ffprobe import availability_from_media_info
-from ayon_server.helpers.thumbnails.thumbnail_from_reviewable import (
-    create_file_thumbnail,
-)
+from ayon_server.helpers.thumbnails.file_thumbnails import create_file_thumbnail
 from ayon_server.logging import log_traceback, logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
 
