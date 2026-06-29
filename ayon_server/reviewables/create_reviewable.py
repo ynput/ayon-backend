@@ -139,7 +139,7 @@ async def create_reviewable(
     except Exception:
         log_traceback(
             f"Unable to create thumbnail for reviewable {file_id} "
-            "for version {version.id}"
+            f"for version {version.id}"
         )
 
     return ReviewableModel(
