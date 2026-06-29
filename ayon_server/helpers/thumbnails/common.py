@@ -31,6 +31,7 @@ class ThumbnailInfo(TypedDict):
     path: str
     thumbnail_id: NotRequired[str | None]
     file_id: NotRequired[str | None]
+    thumbnail_source: NotRequired[str | None]
 
 
 class ThumbnailData(TypedDict):

@@ -17,6 +17,7 @@ async def resolve_folder_thumbnail_info(
                 SELECT DISTINCT ON (f.id)
                 p.folder_id AS folder_id,
                 f.id AS reviewable_id,
+                f.thumbnail_id AS reviewable_thumbnail_id,
                 a.created_at AS reviewable_created_at,
                 v.thumbnail_id AS version_thumbnail_id
             FROM project_{project_name}.folders entity
@@ -37,6 +38,7 @@ async def resolve_folder_thumbnail_info(
         SELECT
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
+            r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
             entity.thumbnail_id AS thumbnail_id,
             hierarchy.path AS path
         FROM project_{project_name}.folders entity
@@ -52,10 +54,24 @@ async def resolve_folder_thumbnail_info(
     if not res:
         raise NotFoundException("Folder not found")
 
+    if res["thumbnail_id"]:
+        thumbnail_source = "folder"
+        thumbnail_id = res["thumbnail_id"]
+    elif res["version_thumbnail_id"]:
+        thumbnail_source = "version"
+        thumbnail_id = res["version_thumbnail_id"]
+    elif res["reviewable_thumbnail_id"]:
+        thumbnail_source = "reviewable"
+        thumbnail_id = res["reviewable_thumbnail_id"]
+    else:
+        thumbnail_source = None
+        thumbnail_id = None
+
     return {
         "project_name": project_name,
         "path": res["path"],
-        "thumbnail_id": res["thumbnail_id"] or res["version_thumbnail_id"],
+        "thumbnail_id": thumbnail_id,
+        "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
     }
 
@@ -65,13 +81,13 @@ async def resolve_task_thumbnail_info(
     project_name: str,
     entity_id: str,
 ) -> ThumbnailInfo:
-
     query = f"""
         WITH reviewables AS (
             SELECT DISTINCT ON (v.id)
                 v.task_id AS task_id,
                 v.thumbnail_id AS version_thumbnail_id,
                 f.id AS reviewable_id,
+                f.thumbnail_id AS reviewable_thumbnail_id,
                 a.created_at AS reviewable_created_at
             FROM project_{project_name}.tasks entity
             JOIN project_{project_name}.versions v
@@ -90,6 +106,7 @@ async def resolve_task_thumbnail_info(
             entity.thumbnail_id AS thumbnail_id,
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
+            r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
             hierarchy.path AS folder_path
         FROM project_{project_name}.tasks entity
 
@@ -106,10 +123,24 @@ async def resolve_task_thumbnail_info(
     if not res:
         raise NotFoundException("Task not found")
 
+    if res["thumbnail_id"]:
+        thumbnail_source = "task"
+        thumbnail_id = res["thumbnail_id"]
+    elif res["version_thumbnail_id"]:
+        thumbnail_source = "version"
+        thumbnail_id = res["version_thumbnail_id"]
+    elif res["reviewable_thumbnail_id"]:
+        thumbnail_source = "reviewable"
+        thumbnail_id = res["reviewable_thumbnail_id"]
+    else:
+        thumbnail_source = None
+        thumbnail_id = None
+
     return {
         "project_name": project_name,
         "path": res["folder_path"],
-        "thumbnail_id": res["thumbnail_id"] or res["version_thumbnail_id"],
+        "thumbnail_id": thumbnail_id,
+        "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
     }
 
@@ -123,7 +154,8 @@ async def resolve_version_thumbnail_info(
         WITH reviewables AS (
             SELECT DISTINCT ON (a.entity_id)
             a.entity_id AS version_id,
-            f.id AS reviewable_id
+            f.id AS reviewable_id,
+            f.thumbnail_id AS reviewable_thumbnail_id
             FROM project_{project_name}.files f
             JOIN project_{project_name}.activity_feed a
             ON a.activity_id = f.activity_id
@@ -135,6 +167,7 @@ async def resolve_version_thumbnail_info(
         SELECT
             h.path,
             v.thumbnail_id,
+            r.reviewable_thumbnail_id,
             r.reviewable_id
         FROM project_{project_name}.versions v
 
@@ -154,10 +187,21 @@ async def resolve_version_thumbnail_info(
     if not res:
         raise NotFoundException("Version not found")
 
+    if res["thumbnail_id"]:
+        thumbnail_source = "version"
+        thumbnail_id = res["thumbnail_id"]
+    elif res["reviewable_thumbnail_id"]:
+        thumbnail_source = "reviewable"
+        thumbnail_id = res["reviewable_thumbnail_id"]
+    else:
+        thumbnail_source = None
+        thumbnail_id = None
+
     return {
         "project_name": project_name,
         "path": res["path"],
-        "thumbnail_id": res["thumbnail_id"],
+        "thumbnail_id": thumbnail_id,
+        "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
     }
 
@@ -185,5 +229,6 @@ async def resolve_workfile_thumbnail_info(
         "project_name": project_name,
         "path": res["path"],
         "thumbnail_id": res["thumbnail_id"],
+        "thumbnail_source": "workfile" if res["thumbnail_id"] else None,
         "file_id": None,
     }
