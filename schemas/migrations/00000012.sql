@@ -21,7 +21,7 @@ BEGIN
           RAISE WARNING 'Adding thumbnail_id to %.%', rec.table_schema, rec.table_name;
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.table_schema);
           ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail_id UUID 
-            REFERENCES thumbnail(id) ON DELETE SET NULL;
+            REFERENCES thumbnails(id) ON DELETE SET NULL;
         EXCEPTION
           WHEN OTHERS THEN
              RAISE WARNING 'Skipping schema % due to error: %', rec.table_schema, SQLERRM;
