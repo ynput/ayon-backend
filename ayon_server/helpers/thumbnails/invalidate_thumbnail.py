@@ -11,6 +11,7 @@ class AffectedEntity(OPModel):
     entity_type: str
     entity_id: str
     thumbnail_hash: str
+    thumbnail_id: str | None = None
 
 
 async def invalidate_thumbnail_by_entity(

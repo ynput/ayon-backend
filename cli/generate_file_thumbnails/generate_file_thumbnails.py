@@ -2,16 +2,15 @@ import time
 
 from ayon_server.cli import app
 from ayon_server.helpers.project_list import get_project_list, normalize_project_name
-from ayon_server.helpers.thumbnails.thumbnail_from_reviewable import (
-    assign_version_thumbnail_from_reviewable,
-)
+from ayon_server.helpers.thumbnails.file_thumbnails import create_file_thumbnail
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 
 async def process_project_thumbnails(
-    project_name: str, limit: int | None = None
+    project_name: str,
+    limit: int | None = None,
 ) -> None:
     query = f"""
         WITH reviewables AS (
@@ -47,10 +46,9 @@ async def process_project_thumbnails(
         reviewable_id = row["reviewable_id"]
 
         try:
-            await assign_version_thumbnail_from_reviewable(
+            await create_file_thumbnail(
                 project_name,
                 reviewable_id,
-                version=version_id,
             )
         except Exception as e:
             logger.error(
