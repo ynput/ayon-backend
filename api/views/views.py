@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import Path, Query, Request
+from fastapi import Body, Path, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
@@ -268,7 +268,7 @@ async def create_view(
     request: Request,
     current_user: CurrentUser,
     view_type: PViewType,
-    payload: ViewPostModel,
+    payload: Annotated[ViewPostModel, Body(title="Payload")],
     project_name: QProjectName = None,
 ) -> EntityIdResponse:
     """Create a new view for current user."""
@@ -282,7 +282,7 @@ async def create_view(
             raise ForbiddenException("The '__base__' view label is reserved.")
 
     _json = await request.json()
-    payload_class = get_post_model_class(view_type)
+    payload_class = get_post_model_class()
     if "view_type" not in _json:
         _json["view_type"] = view_type
     payload = payload_class(**_json)
@@ -333,7 +333,7 @@ async def update_view(
     user: CurrentUser,
     view_type: PViewType,
     view_id: PViewId,
-    payload: ViewPatchModel,
+    payload: Annotated[ViewPatchModel, Body(title="Payload")],
     project_name: QProjectName = None,
 ) -> None:
     """Update a view in the database."""
@@ -341,7 +341,7 @@ async def update_view(
     _json = await request.json()
     if "view_type" not in _json:
         _json["view_type"] = view_type
-    payload_class = get_patch_model_class(view_type)
+    payload_class = get_patch_model_class()
     payload = payload_class(**_json)
 
     if payload.label == "__base__":
