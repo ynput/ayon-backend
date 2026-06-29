@@ -127,7 +127,7 @@ async def obtain_file_preview(
         thumb_bytes = await retrieve_thumbnail(
             project_name=project_name,
             thumbnail_id=file_record["thumbnail_id"],
-            mode="original" if thumbnail else "small",
+            mode="small" if thumbnail else "original",
         )
         if not thumb_bytes:
             raise NotFoundException("Thumbnail not found")
