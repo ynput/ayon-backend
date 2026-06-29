@@ -35,7 +35,6 @@ async def create_file_thumbnail(
     pvw_bytes = await obtain_file_preview(project_name, file_id, thumbnail=True)
     user_name = user.name if isinstance(user, UserEntity) else user
 
-    thumbnail_id = create_uuid()
     await store_thumbnail(
         project_name,
         thumbnail_id,
