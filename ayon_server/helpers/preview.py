@@ -14,6 +14,8 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
+from ayon_server.helpers.thumbnails import store_thumbnail
+from ayon_server.helpers.thumbnails.common import retrieve_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
@@ -110,19 +112,29 @@ async def obtain_file_preview(
     """
     logger.trace(f"Retrieving file preview {project_name}/{file_id}")
 
-    res = await Postgres.fetch(
+    file_record = await Postgres.fetchrow(
         f"""
-        SELECT size, data FROM project_{project_name}.files
+        SELECT size, data, thumbnail_id FROM project_{project_name}.files
         WHERE id = $1
         """,
         file_id,
     )
 
-    if not res:
+    if not file_record:
         raise NotFoundException("File record not found")
-    file_record = res[0]
+
+    if file_record["thumbnail_id"]:
+        thumb_bytes = await retrieve_thumbnail(
+            project_name=project_name,
+            thumbnail_id=file_record["thumbnail_id"],
+            mode="original" if thumbnail else "small",
+        )
+        if not thumb_bytes:
+            raise NotFoundException("Thumbnail not found")
+        return thumb_bytes
+
     file_data = file_record["data"] or {}
-    expected_size = res[0]["size"]
+    expected_size = file_record["size"]
     mime_type = file_data.get("mime", "application/octet-stream")
 
     # Get the file location
@@ -146,6 +158,13 @@ async def obtain_file_preview(
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
         pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
+
+        await store_thumbnail(
+            project_name=project_name,
+            thumbnail_id=file_id,
+            payload=pvw_bytes,
+            mime="image/jpeg",
+        )
         return pvw_bytes
 
     # TODO: return a generic preview image for other file types
