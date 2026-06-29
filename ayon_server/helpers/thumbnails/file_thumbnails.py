@@ -6,8 +6,6 @@ from ayon_server.entities.user import UserEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.helpers.preview import obtain_file_preview
-from ayon_server.helpers.thumbnails import store_thumbnail
-from ayon_server.lib.postgres import Postgres
 from ayon_server.utils.hashing import create_uuid
 
 
@@ -32,25 +30,13 @@ async def create_file_thumbnail(
     if thumbnail_id is None:
         thumbnail_id = create_uuid()
 
-    pvw_bytes = await obtain_file_preview(project_name, file_id, thumbnail=True)
-    user_name = user.name if isinstance(user, UserEntity) else user
-
-    await store_thumbnail(
+    await obtain_file_preview(
         project_name,
-        thumbnail_id,
-        pvw_bytes,
-        entity=entity if (entity and entity.thumbnail_id is None) else None,
-        user_name=user_name,
-    )
-
-    await Postgres.execute(
-        f"""
-        UPDATE project_{project_name}.files
-        SET updated_at = NOW(), thumbnail_id = $2
-        WHERE id = $1
-        """,
         file_id,
-        thumbnail_id,
+        thumbnail=True,
+        for_entity=entity,
+        thumbnail_id=thumbnail_id,
+        user=user,
     )
 
     return thumbnail_id

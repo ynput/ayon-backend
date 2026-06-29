@@ -6,6 +6,13 @@ from fastapi import Response
 
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
+from ayon_server.entities import (
+    FolderEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
+    WorkfileEntity,
+)
 from ayon_server.exceptions import (
     AyonException,
     NotFoundException,
@@ -19,6 +26,7 @@ from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
+from ayon_server.utils.hashing import create_uuid
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 REDIS_NS = "project.file_preview"
@@ -100,7 +108,15 @@ async def create_video_thumbnail(
 async def obtain_file_preview(
     project_name: str,
     file_id: str,
+    *,
     thumbnail: bool = True,
+    for_entity: FolderEntity
+    | TaskEntity
+    | VersionEntity
+    | WorkfileEntity
+    | None = None,
+    user: str | UserEntity | None = None,
+    thumbnail_id: str | None = None,
 ) -> bytes:
     """Return a preview image for a file as bytes.
 
@@ -159,12 +175,31 @@ async def obtain_file_preview(
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
         pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
 
-        await store_thumbnail(
-            project_name=project_name,
-            thumbnail_id=file_id,
-            payload=pvw_bytes,
-            mime="image/jpeg",
-        )
+        if pvw_bytes:
+            if thumbnail_id is None:
+                thumbnail_id = create_uuid()
+
+            user_name = user.name if isinstance(user, UserEntity) else user
+
+            await store_thumbnail(
+                project_name=project_name,
+                thumbnail_id=thumbnail_id,
+                payload=pvw_bytes,
+                entity=for_entity
+                if (for_entity and for_entity.thumbnail_id is None)
+                else None,
+                mime="image/jpeg",
+                user_name=user_name,
+            )
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET updated_at = NOW(), thumbnail_id = $2
+                WHERE id = $1
+                """,
+                file_id,
+                thumbnail_id,
+            )
         return pvw_bytes
 
     # TODO: return a generic preview image for other file types
