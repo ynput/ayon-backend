@@ -186,11 +186,12 @@ async def import_data(
     filtered_rows = [row for row in rows if not _is_row_empty(row)]
     total_rows = len(filtered_rows)
 
+    phase_str = "validation" if preview else "import"
     # Send start event
     event_id = await EventStream.dispatch(
         "import.data",
         project=project_name,
-        description=f"Starting import of {total_rows} rows",
+        description=f"Starting {phase_str} of {total_rows} rows",
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
@@ -354,8 +355,8 @@ async def import_data(
                 path_to_ids[path] = entity_id
 
             # Send progress event after each processed item
-            await EventStream.dispatch(
-                "import.data",
+            await EventStream.update(
+                event_id,
                 project=project_name,
                 description=f"Processed item: {identifier or path or entity_id}",
                 summary={
@@ -364,9 +365,7 @@ async def import_data(
                     "skipped": import_status.skipped,
                     "failed": import_status.failed,
                 },
-                depends_on=event_id,
-                finished=False,
-                store=True,
+                store=False,
                 sender="data_import",
                 sender_type="system",
             )
@@ -384,10 +383,10 @@ async def import_data(
                 import_status.failed += 1
                 import_status.skipped += unprocessed
                 # Send end event for early termination
-                await EventStream.dispatch(
-                    "import.data",
+                await EventStream.update(
+                    event_id,
                     project=project_name,
-                    description="Import finished with error",
+                    description=f"{phase_str.capitalize()} finished with error",
                     summary={
                         "created": import_status.created,
                         "updated": import_status.updated,
@@ -395,8 +394,7 @@ async def import_data(
                         "failed": import_status.failed,
                         "failed_items": import_status.failed_items,
                     },
-                    depends_on=event_id,
-                    finished=True,
+                    status="finished",
                     store=True,
                     sender="data_import",
                     sender_type="system",
@@ -422,9 +420,8 @@ async def import_data(
 
     logger.debug(f"Import completed:{import_status}")
 
-    # Send end event
-    await EventStream.dispatch(
-        "import.data.finish",
+    await EventStream.update(
+        event_id,
         project=project_name,
         description="Import finished",
         summary={
@@ -434,8 +431,7 @@ async def import_data(
             "failed": import_status.failed,
             "failed_items": import_status.failed_items,
         },
-        depends_on=event_id,
-        finished=True,
+        status="finished",
         store=True,
         sender="data_import",
         sender_type="system",
