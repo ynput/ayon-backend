@@ -22,6 +22,7 @@ BEGIN
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.table_schema);
           ALTER TABLE files ADD COLUMN IF NOT EXISTS thumbnail_id UUID 
             REFERENCES thumbnails(id) ON DELETE SET NULL;
+          CREATE INDEX IF NOT EXISTS idx_files_thumbnail_id ON files(thumbnail_id);
         EXCEPTION
           WHEN OTHERS THEN
              RAISE WARNING 'Skipping schema % due to error: %', rec.table_schema, SQLERRM;

@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
+CREATE INDEX IF NOT EXISTS idx_files_thumbnail_id ON files(thumbnail_id);
 
 -------------------
 -- BASE ENTITIES --
