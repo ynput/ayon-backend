@@ -423,7 +423,7 @@ async def import_data(
     await EventStream.update(
         event_id,
         project=project_name,
-        description="Import finished",
+        description=f"{phase_str.capitalize()} finished",
         summary={
             "created": import_status.created,
             "updated": import_status.updated,
