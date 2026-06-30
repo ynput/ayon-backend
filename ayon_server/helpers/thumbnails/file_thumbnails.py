@@ -21,7 +21,7 @@ async def create_file_thumbnail(
     user: str | UserEntity | None = None,
     thumbnail_id: str | None = None,
     entity: FolderEntity | TaskEntity | VersionEntity | WorkfileEntity | None = None,
-) -> str:
+) -> str | None:
     """Creates a thumbnail for a given file and returns its ID.
 
     If an entity is provided, the thumbnail will also be associated with that entity.
@@ -30,7 +30,7 @@ async def create_file_thumbnail(
     if thumbnail_id is None:
         thumbnail_id = create_uuid()
 
-    await obtain_file_preview(
+    r = await obtain_file_preview(
         project_name,
         file_id,
         thumbnail=True,
@@ -39,4 +39,4 @@ async def create_file_thumbnail(
         user=user,
     )
 
-    return thumbnail_id
+    return thumbnail_id if r else None
