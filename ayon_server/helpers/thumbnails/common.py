@@ -7,7 +7,6 @@ from fastapi import Response
 from ayon_server.exceptions import NotFoundException
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
-from ayon_server.helpers.preview import get_file_preview_bytes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -92,6 +91,8 @@ async def get_thumbnail_response(
         headers["X-Thumbnail-Id"] = thumbnail_id
 
     elif file_id:
+        from ayon_server.helpers.preview import get_file_preview_bytes
+
         try:
             content = await coalesce(
                 get_file_preview_bytes,
