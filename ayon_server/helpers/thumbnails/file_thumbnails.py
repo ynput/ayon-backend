@@ -24,7 +24,8 @@ async def create_file_thumbnail(
 ) -> str | None:
     """Creates a thumbnail for a given file and returns its ID.
 
-    If an entity is provided, the thumbnail will also be associated with that entity.
+    If an entity is provided and it doesn't already have a thumbnail, the
+    generated thumbnail will also be associated with that entity.
     """
 
     if thumbnail_id is None:
