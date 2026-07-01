@@ -459,7 +459,7 @@ async def import_data(
             "failed": import_status.failed,
             "failed_items": import_status.failed_items,
         },
-        status="finished" if import_status.failed == 0 else "failed",
+        status="finished" if len(import_status.failed_items) == 0 else "failed",
         store=True,
     )
 
