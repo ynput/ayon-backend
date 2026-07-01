@@ -407,21 +407,24 @@ async def import_data(
         elif progress.operation.type == "update":
             import_status.updated += 1
 
-        await EventStream.update(
-            event_id,
-            project=project_name,
-            description=f"Processing operation {progress.index}/{progress.total}",
-            summary={
-                "created": import_status.created,
-                "updated": import_status.updated,
-                "skipped": import_status.skipped,
-                "failed": import_status.failed,
-                "failed_items": import_status.failed_items,
-            },
-            status="in_progress",
-            progress=int(progress.index / progress.total * 100.0),
-            store=True,
-        )
+        current_progress = int(progress.index / progress.total * 100.0)
+
+        if current_progress % 5 == 0 and current_progress > 0:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Processing operation {progress.index}/{progress.total}",
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                    "failed_items": import_status.failed_items,
+                },
+                status="in_progress",
+                progress=current_progress,
+                store=True,
+            )
 
     if not preview and operations is not None:
         # Reset the counts for the second round (actual write)
