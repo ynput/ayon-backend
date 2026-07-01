@@ -28,8 +28,8 @@ ActionListMode = Literal["simple", "dynamic", "all"]
 async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
-    mode: ActionListMode = Query("simple", title="Action List Mode"),
-    variant: str | None = Query(None, title="Settings Variant"),
+    mode: Annotated[ActionListMode, Query(title="Action List Mode")] = "simple",
+    variant: Annotated[str | None, Query(title="Settings Variant")] = None,
 ) -> AvailableActionsListModel:
     """Get available actions for a context.
 
