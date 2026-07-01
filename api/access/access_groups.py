@@ -66,7 +66,8 @@ async def clean_up_user_access_groups() -> None:
 @router.get("/accessGroups/_schema")
 async def get_access_group_schema(
     project_name: Annotated[
-        str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+        str | None,
+        Query(alias="project_name", regex=PROJECT_NAME_REGEX),
     ] = None,
 ):
     context = {}
@@ -79,16 +80,20 @@ async def get_access_group_schema(
 
 
 class AccessGroupObject(OPModel):
-    name: str = Field(
-        ...,
-        description="Name of the access group",
-        example="artist",
-    )
-    is_project_level: bool = Field(
-        ...,
-        description="Whether the access group is project level",
-        example=False,
-    )
+    name: Annotated[
+        str,
+        Field(
+            description="Name of the access group",
+            example="artist",
+        ),
+    ]
+    is_project_level: Annotated[
+        bool,
+        Field(
+            description="Whether the access group is project level",
+            example=False,
+        ),
+    ]
 
 
 @router.get("/accessGroups/{project_name}")
