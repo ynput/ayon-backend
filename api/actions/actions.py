@@ -109,14 +109,14 @@ async def configure_action(
         str,
         Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
     ],
-    variant: Annotated[
-        str,
-        Query("production", title="Action Variant"),
-    ],
     identifier: Annotated[
         str,
-        Query(..., title="Action Identifier"),
+        Query(title="Action Identifier"),
     ],
+    variant: Annotated[
+        str,
+        Query(title="Action Variant"),
+    ] = "production",
 ) -> dict[str, Any]:
     addon = AddonLibrary.addon(addon_name, addon_version)
     config_dict = config.dict()
@@ -155,14 +155,14 @@ async def execute_action(
         str,
         Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
     ],
-    variant: Annotated[
-        str,
-        Query("production", title="Action Variant"),
-    ],
     identifier: Annotated[
         str,
         Query(title="Action Identifier"),
     ],
+    variant: Annotated[
+        str,
+        Query(title="Action Variant"),
+    ] = "production",
 ) -> ExecuteResponseModel:
     """Run an action.
 
