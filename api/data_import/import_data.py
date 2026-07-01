@@ -352,21 +352,23 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
-            # Send progress event after each processed item
-            await EventStream.update(
-                event_id,
-                project=project_name,
-                description=f"Processed item: {identifier or path or entity_id}",
-                progress=int((row_number / total_rows) * 100.0),
-                summary={
-                    "created": import_status.created,
-                    "updated": import_status.updated,
-                    "skipped": import_status.skipped,
-                    "failed": import_status.failed,
-                },
-                status="in_progress",
-                store=False,
-            )
+            current_progress = int((row_number / total_rows) * 100.0)
+
+            if current_progress % 5 == 0 and current_progress > 0:
+                await EventStream.update(
+                    event_id,
+                    project=project_name,
+                    description=f"Processed item: {identifier or path or entity_id}",
+                    progress=current_progress,
+                    summary={
+                        "created": import_status.created,
+                        "updated": import_status.updated,
+                        "skipped": import_status.skipped,
+                        "failed": import_status.failed,
+                    },
+                    status="in_progress",
+                    store=False,
+                )
 
             unprocessed -= 1
 
