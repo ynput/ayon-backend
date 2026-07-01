@@ -188,13 +188,12 @@ async def import_data(
     filtered_rows = [row for row in rows if not _is_row_empty(row)]
     total_rows = len(filtered_rows)
 
-    phase_str = "validation" if preview else "import"
     status_str = "successfully"
     # Send start event
     event_id = await EventStream.dispatch(
         "import.data",
         project=project_name,
-        description=f"Starting {phase_str} of {total_rows} rows",
+        description=f"Starting validation of {total_rows} rows",
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
@@ -359,13 +358,14 @@ async def import_data(
                 await EventStream.update(
                     event_id,
                     project=project_name,
-                    description=f"Processed item: {identifier or path or entity_id}",
+                    description=f"Validated item: {identifier or path or entity_id}",
                     progress=current_progress,
                     summary={
                         "created": import_status.created,
                         "updated": import_status.updated,
                         "skipped": import_status.skipped,
                         "failed": import_status.failed,
+                        "phase": import_status.phase,
                     },
                     status="in_progress",
                     store=False,
@@ -385,10 +385,11 @@ async def import_data(
                 import_status.failed += 1
                 import_status.skipped += unprocessed
                 # Send end event for early termination
+                phase_label = import_status.phase.capitalize()
                 await EventStream.update(
                     event_id,
                     project=project_name,
-                    description=f"{phase_str.capitalize()} finished with error",
+                    description=f"{phase_label} finished with error",
                     progress=100,
                     summary={
                         "created": import_status.created,
@@ -396,6 +397,7 @@ async def import_data(
                         "skipped": import_status.skipped,
                         "failed": import_status.failed,
                         "failed_items": import_status.failed_items,
+                        "phase": import_status.phase,
                     },
                     status="finished",
                     store=True,
@@ -410,21 +412,26 @@ async def import_data(
         elif progress.operation.type == "update":
             import_status.updated += 1
 
-        await EventStream.update(
-            event_id,
-            project=project_name,
-            description=f"Processing operation {progress.index}/{progress.total}",
-            summary={
-                "created": import_status.created,
-                "updated": import_status.updated,
-                "skipped": import_status.skipped,
-                "failed": import_status.failed,
-                "failed_items": import_status.failed_items,
-            },
-            status="in_progress",
-            progress=int(progress.index / progress.total * 100.0),
-            store=True,
-        )
+        current_progress = int(progress.index / progress.total * 100.0)
+
+        import_status.phase = "importing"
+        if current_progress % 5 == 0 and current_progress > 0:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Committing operation {progress.index}/{progress.total}",
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                    "failed_items": import_status.failed_items,
+                    "phase": import_status.phase,
+                },
+                status="in_progress",
+                progress=current_progress,
+                store=True,
+            )
 
     if not preview and operations is not None:
         # Reset the counts for the second round (actual write)
@@ -451,13 +458,14 @@ async def import_data(
     await EventStream.update(
         event_id,
         project=project_name,
-        description=f"{phase_str.capitalize()} finished {status_str}",
+        description=f"{import_status.phase.capitalize()} finished {status_str}",
         summary={
             "created": import_status.created,
             "updated": import_status.updated,
             "skipped": import_status.skipped,
             "failed": import_status.failed,
             "failed_items": import_status.failed_items,
+            "phase": import_status.phase,
         },
         status="finished" if len(import_status.failed_items) == 0 else "failed",
         store=True,
