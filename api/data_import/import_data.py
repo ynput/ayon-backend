@@ -312,13 +312,6 @@ async def import_data(
                     import_entity_data["path"].rsplit("/", 1)
                 )[-1]
 
-            # refactor
-            if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
-                import_entity_data["folder_type"] = "Folder"
-
-            if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
-                import_entity_data["task_type"] = default_task_type
-
             logger.debug(
                 f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             )
@@ -336,6 +329,10 @@ async def import_data(
                     )
                 import_status.updated += 1
             else:
+                await _provide_default_values(
+                    entity_cls, import_entity_data, default_task_type
+                )
+
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
@@ -1030,6 +1027,17 @@ async def _resolve_parent_id(
         return parent_id, parent_path
 
     return None, None
+
+
+async def _provide_default_values(
+    entity_cls: type, import_entity_data: dict[str, Any], default_task_type: str
+):
+    """Provides default values for new entities."""
+    if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
+        import_entity_data["folder_type"] = "Folder"
+
+    if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
+        import_entity_data["task_type"] = default_task_type
 
 
 def _to_bool(value: Any) -> bool:
