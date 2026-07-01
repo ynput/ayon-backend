@@ -30,12 +30,14 @@ from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
-from ayon_server.operations.project_level import ProjectLevelOperations
+from ayon_server.operations.project_level import (
+    OperationsProgress,
+    ProjectLevelOperations,
+)
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import (
-    SENDER_TYPE,
     ImportEntityType,
     ProjectNameQuery,
     get_entity_id_by_path,
@@ -195,8 +197,6 @@ async def import_data(
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
-        sender="data_import",
-        sender_type="system",
     )
 
     model_cls = IMPORTABLE_ENTITIES[import_type]
@@ -220,8 +220,6 @@ async def import_data(
         operations = ProjectLevelOperations(
             project_name,
             user=user,
-            sender=f"{SENDER_TYPE}-csv",
-            sender_type=SENDER_TYPE,
         )
 
     originals_and_new: dict[str, Any] = {}
@@ -359,15 +357,15 @@ async def import_data(
                 event_id,
                 project=project_name,
                 description=f"Processed item: {identifier or path or entity_id}",
+                progress=int((row_number / total_rows) * 100.0),
                 summary={
                     "created": import_status.created,
                     "updated": import_status.updated,
                     "skipped": import_status.skipped,
                     "failed": import_status.failed,
                 },
+                status="in_progress",
                 store=False,
-                sender="data_import",
-                sender_type="system",
             )
 
             unprocessed -= 1
@@ -387,6 +385,7 @@ async def import_data(
                     event_id,
                     project=project_name,
                     description=f"{phase_str.capitalize()} finished with error",
+                    progress=100,
                     summary={
                         "created": import_status.created,
                         "updated": import_status.updated,
@@ -394,18 +393,42 @@ async def import_data(
                         "failed": import_status.failed,
                         "failed_items": import_status.failed_items,
                     },
-                    status="finished",
+                    status="in_progress",
                     store=True,
-                    sender="data_import",
-                    sender_type="system",
                 )
                 return import_status
             import_status.skipped += 1
             continue
 
+    async def handle_progress(progress: OperationsProgress):
+        if progress.operation.type == "create":
+            import_status.created += 1
+        elif progress.operation.type == "update":
+            import_status.updated += 1
+
+        await EventStream.update(
+            event_id,
+            project=project_name,
+            description=f"Processing operation {progress.index}/{progress.total}",
+            summary={
+                "created": import_status.created,
+                "updated": import_status.updated,
+                "skipped": import_status.skipped,
+                "failed": import_status.failed,
+                "failed_items": import_status.failed_items,
+            },
+            status="in_progress",
+            progress=int(progress.index / progress.total * 100.0),
+            store=True,
+        )
+
     if not preview and operations is not None:
+        # Reset the counts for the second round (actual write)
+        import_status.created = 0
+        import_status.updated = 0
+
         try:
-            response = await operations.process()
+            response = await operations.process(progress_handler=handle_progress)
             if not response.success:
                 log_traceback("Failed to import data")
         except Exception as exp:
@@ -431,10 +454,8 @@ async def import_data(
             "failed": import_status.failed,
             "failed_items": import_status.failed_items,
         },
-        status="finished",
+        status="finished" if import_status.failed == 0 else "failed",
         store=True,
-        sender="data_import",
-        sender_type="system",
     )
 
     return import_status
