@@ -188,12 +188,13 @@ async def import_data(
     filtered_rows = [row for row in rows if not _is_row_empty(row)]
     total_rows = len(filtered_rows)
 
+    main_phase_label = "validation" if preview else "import"
     status_str = "successfully"
     # Send start event
     event_id = await EventStream.dispatch(
         "import.data",
         project=project_name,
-        description=f"Starting validation of {total_rows} rows",
+        description=f"Starting {main_phase_label} of {total_rows} rows",
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
