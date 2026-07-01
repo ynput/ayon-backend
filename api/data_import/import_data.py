@@ -396,7 +396,7 @@ async def import_data(
                         "updated": import_status.updated,
                         "skipped": import_status.skipped,
                         "failed": import_status.failed,
-                        "failed_items": import_status.failed_items,
+                        "failedItems": import_status.failed_items,
                         "phase": import_status.phase,
                     },
                     status="finished",
@@ -425,7 +425,7 @@ async def import_data(
                     "updated": import_status.updated,
                     "skipped": import_status.skipped,
                     "failed": import_status.failed,
-                    "failed_items": import_status.failed_items,
+                    "failedItems": import_status.failed_items,
                     "phase": import_status.phase,
                 },
                 status="in_progress",
@@ -447,14 +447,13 @@ async def import_data(
             import_status.failed_items["global"] = (
                 f"Import failed during operations processing: {exp}"
             )
-            import_status.skipped = len(rows)
+            import_status.failed = len(rows)
             # transaction rollback
             import_status.created = 0
             import_status.updated = 0
             status_str = "with rolled back updates"
 
     logger.debug(f"Import completed:{import_status}")
-
     await EventStream.update(
         event_id,
         project=project_name,
@@ -464,7 +463,7 @@ async def import_data(
             "updated": import_status.updated,
             "skipped": import_status.skipped,
             "failed": import_status.failed,
-            "failed_items": import_status.failed_items,
+            "failedItems": import_status.failed_items,
             "phase": import_status.phase,
         },
         status="finished" if len(import_status.failed_items) == 0 else "failed",
