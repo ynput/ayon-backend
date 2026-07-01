@@ -4,6 +4,7 @@ import sys
 
 from ayon_server.cli import app
 from ayon_server.logging import logger
+from ayon_server.version import __version__
 
 CLI_PLUGINS_DIRS = [
     "cli",
@@ -32,4 +33,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if "--version" in sys.argv:
+        print(__version__, flush=True, end="")
+        sys.exit(0)
     main()
