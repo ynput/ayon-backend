@@ -189,6 +189,7 @@ async def import_data(
     total_rows = len(filtered_rows)
 
     phase_str = "validation" if preview else "import"
+    status_str = "successfully"
     # Send start event
     event_id = await EventStream.dispatch(
         "import.data",
@@ -374,6 +375,7 @@ async def import_data(
 
         except Exception as exp:
             logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            status_str = "with errors"
             error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
 
@@ -395,7 +397,7 @@ async def import_data(
                         "failed": import_status.failed,
                         "failed_items": import_status.failed_items,
                     },
-                    status="in_progress",
+                    status="finished",
                     store=True,
                 )
                 return import_status
@@ -442,13 +444,14 @@ async def import_data(
             # transaction rollback
             import_status.created = 0
             import_status.updated = 0
+            status_str = "with rolled back updates"
 
     logger.debug(f"Import completed:{import_status}")
 
     await EventStream.update(
         event_id,
         project=project_name,
-        description=f"{phase_str.capitalize()} finished",
+        description=f"{phase_str.capitalize()} finished {status_str}",
         summary={
             "created": import_status.created,
             "updated": import_status.updated,
