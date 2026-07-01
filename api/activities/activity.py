@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
@@ -40,7 +42,14 @@ async def delete_unused_files(project_name: str) -> None:
 
 
 class CreateActivityResponseModel(OPModel):
-    id: str = Field(..., example="123")
+    id: Annotated[
+        str,
+        Field(
+            title="Activity ID",
+            description="ID of the created activity",
+            example="123",
+        ),
+    ]
 
 
 @router.post(

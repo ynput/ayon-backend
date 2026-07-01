@@ -1,13 +1,4 @@
-__all__ = [
-    "configuration",
-    "install",
-    "site_settings",
-    "studio_settings",
-    "project_settings",
-    "delete_addon",
-    "list_addons",
-    "router",
-]
+__all__ = ["router"]
 
 from . import (
     configuration,
@@ -19,3 +10,13 @@ from . import (
     studio_settings,
 )
 from .router import router
+
+_ = (
+    configuration,
+    delete_addon,
+    install,
+    list_addons,
+    project_settings,
+    site_settings,
+    studio_settings,
+)

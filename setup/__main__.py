@@ -28,7 +28,7 @@ async def main(force: bool | None = None) -> None:
     )
 
     try:
-        await Postgres.fetch("SELECT * FROM projects")
+        await Postgres.fetch("SELECT name FROM projects LIMIT 1")
     except Exception:
         logger.warning("Database is empty")
         has_schema = False

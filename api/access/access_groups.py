@@ -1,7 +1,7 @@
 import copy
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Body, Query
+from fastapi import BackgroundTasks, Query
 
 from ayon_server.access.permissions import Permissions
 from ayon_server.api.dependencies import (
@@ -136,7 +136,6 @@ async def get_access_group(
     project_name: ProjectNameOrUnderscore,
 ) -> Permissions:
     """Get an access group definition"""
-    # return AccessGroups.combine([access_group_name], project_name)
 
     if project_name == "_":
         query = """
@@ -167,7 +166,7 @@ async def save_access_group(
     user: CurrentUser,
     access_group_name: AccessGroupName,
     project_name: ProjectNameOrUnderscore,
-    data: Permissions = Body(..., description="Set of permissions"),
+    data: Permissions,
 ) -> EmptyResponse:
     """Create or update an access group.
 
