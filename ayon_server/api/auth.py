@@ -1,5 +1,7 @@
 import asyncio
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -153,8 +155,39 @@ async def user_from_request(request: Request) -> UserEntity:
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
         # sudo :)
         user = await UserEntity.load(x_as_user)
+        user.add_session(session_data)
 
     return user
+
+
+@asynccontextmanager
+async def user_request_throtter(
+    user: UserEntity | None, request: Request
+) -> AsyncGenerator[None, None]:
+
+    if not user or not request.url.path.startswith("/graphql"):
+        yield
+        return
+
+    assert user.session, "User must have a session"
+    session_token = user.session.token or "xxx"
+    key = f"{user.name}@{session_token}"
+
+    req_count = await Redis.incr("concurrent-requests", key, ttl=10)
+    print(f"User {user.name} has {req_count} concurrent requests.")
+
+    try:
+        if req_count > 10:
+            await Redis.decr("concurrent-requests", session_token)
+            logger.warning(
+                f"User {user.name} has too many concurrent requests ({req_count}). "
+                f"Request from {get_real_ip_from_request(request)} will be rejected."
+            )
+
+        yield
+
+    finally:
+        await Redis.decr("concurrent-requests", key)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -170,7 +203,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = None
             request.state.unauthorized_reason = str(e)
 
-        with logger.contextualize(**context):
-            response = await call_next(request)
+        async with user_request_throtter(request.state.user, request):
+            with logger.contextualize(**context):
+                response = await call_next(request)
 
         return response
