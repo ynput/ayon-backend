@@ -353,9 +353,10 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
-            current_progress = int((row_number / total_rows) * 100.0)
+            current_progress = int((row_number * 100) / total_rows)
+            prev_progress = int(((row_number - 1) * 100) / total_rows)
 
-            if current_progress % 5 == 0 and current_progress > 0:
+            if row_number == 0 or current_progress > prev_progress:
                 await EventStream.update(
                     event_id,
                     project=project_name,
@@ -413,10 +414,12 @@ async def import_data(
         elif progress.operation.type == "update":
             import_status.updated += 1
 
-        current_progress = int(progress.index / progress.total * 100.0)
-
         import_status.phase = "importing"
-        if current_progress % 5 == 0 and current_progress > 0:
+
+        current_progress = int((progress.index * 100) / progress.total)
+        prev_progress = int(((progress.index - 1) * 100) / progress.total)
+
+        if progress.index == 0 or current_progress > prev_progress:
             await EventStream.update(
                 event_id,
                 project=project_name,
