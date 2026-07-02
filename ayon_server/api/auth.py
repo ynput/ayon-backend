@@ -199,8 +199,6 @@ async def user_request_throttler(
 
         req_count = await Redis.incr("concurrent-requests", key, ttl=60)
 
-        logger.trace(f"Concurrent {op_name} requests for user {user.name}: {req_count}")
-
         try:
             if req_count > limit:
                 msg = (
@@ -208,6 +206,11 @@ async def user_request_throttler(
                     f"user {user.name} ({req_count}). "
                 )
                 raise TooManyRequestsException(msg)
+            elif req_count > 1:
+                logger.trace(
+                    f"Concurrent {op_name} requests for user {user.name}: {req_count}"
+                )
+
             yield
             return
 
