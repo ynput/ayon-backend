@@ -13,6 +13,7 @@ from ayon_server.exceptions import (
     AyonException,
     ConflictException,
     ForbiddenException,
+    NotFoundException,
 )
 from ayon_server.installer import background_installer
 from ayon_server.installer.models import (
@@ -63,16 +64,21 @@ class DependencyPackageList(OPModel):
 
 
 async def get_manifest(filename: str) -> DependencyPackage:
-    async with aiofiles.open(
-        get_desktop_file_path("dependency_packages", f"{filename}.json")
-    ) as f:
-        try:
+
+    path = get_desktop_file_path("dependency_packages", f"{filename}.json")
+
+    try:
+        async with aiofiles.open(path) as f:
             manifest_data = await f.read()
-            manifest = DependencyPackage(**json_loads(manifest_data))
-        except Exception as e:
-            raise AyonException(
-                f"Failed to load dependency package manifest {filename}: {e}"
-            )
+    except FileNotFoundError:
+        raise NotFoundException(f"Dependency package {filename} not found")
+    except Exception as e:
+        raise AyonException(f"Failed to read dependency package {filename}: {e}")
+
+    try:
+        manifest = DependencyPackage(**json_loads(manifest_data))
+    except Exception as e:
+        raise AyonException(f"Failed to parse dependency package {filename}: {e}")
 
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
@@ -104,7 +110,13 @@ async def _list_dependency_packages() -> DependencyPackageList:
         if not filename.name.endswith(".json"):
             continue
 
-        manifest = await get_manifest(filename.stem)
+        try:
+            manifest = await get_manifest(filename.stem)
+        except Exception as e:
+            logger.warning(
+                f"Failed to read dependency package manifest {filename}: {e}"
+            )
+            continue
 
         if filename.stem != manifest.filename:
             logger.warning(
