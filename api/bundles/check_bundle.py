@@ -212,62 +212,73 @@ async def check_bundle(
         )
     else:
         # check pythons in all packages
-        for platform_name, package_filename in bundle.dependency_packages.items():
-            if package_filename is None:
+        for platform, filename in bundle.dependency_packages.items():
+            if not filename:
                 continue
 
-            try:
-                manifest = get_manifest(package_filename)
-            except Exception:
-                issues.append(
-                    BundleIssueModel(
-                        severity="error",
-                        addon=None,
-                        message=(
-                            f"Dependency package '{package_filename}' manifest "
-                            f"could not be loaded."
-                        ),
-                        required_addon=None,
-                    )
-                )
-                continue
-
-            package_python_version = manifest.python_version
-            if not package_python_version:
-                continue
-
-            installer_list = await get_installers(
-                bundle.installer_version, platform_name
+            # The complex inner logic is neatly tucked into this helper
+            package_issue = await _validate_python_package_compatibility(
+                bundle, platform, filename
             )
-            if not installer_list or len(installer_list.installers) != 1:
-                raise AyonException(
-                    f"Found {len(installer_list.installers)} "
-                    f"installers for {bundle.name} "
-                )
-
-            installer = installer_list.installers[0]
-            installer_manifest = get_installer_manifest(installer.filename)
-            installer_python_version = installer_manifest.python_version
-            if not installer_python_version:
-                continue
-
-            if is_compatible(package_python_version, installer_python_version):
-                continue
-
-            msg = (
-                f"Dependency package '{package_filename}' requires Python"
-                f" {package_python_version}, but installer"
-                f" '{installer.filename}' uses {installer_python_version}"
-                f" on platform '{platform_name}'."
-            )
-            issues.append(
-                BundleIssueModel(
-                    severity="error",
-                    addon=None,
-                    message=msg,
-                    required_addon=None,
-                )
-            )
+            if package_issue:
+                issues.append(package_issue)
 
     has_errors = any(issue.severity == "error" for issue in issues)
     return CheckBundleResponseModel(success=not has_errors, issues=issues)
+
+
+async def _validate_python_package_compatibility(
+    bundle, platform_name: Literal["windows", "linux", "darwin"], package_filename: str
+) -> BundleIssueModel | None:
+    """Validates a single package's Python compatibility against the installer.
+
+    Returns a BundleIssueModel if an issue is found, otherwise None.
+    """
+    try:
+        manifest = get_manifest(package_filename)
+    except Exception:
+        return BundleIssueModel(
+            severity="error",
+            addon=None,
+            message=f"Dependency package '{package_filename}' "
+            f"manifest could not be loaded.",
+            required_addon=None,
+        )
+
+    package_python_version = manifest.python_version
+    import pprint
+
+    print(f"package_manifest::{pprint.pformat(manifest, indent=4)}")
+    if not package_python_version:
+        return None
+
+    # 2. Fetch and validate installer
+    installer_list = await get_installers(bundle.installer_version, platform_name)
+    if not installer_list or len(installer_list.installers) != 1:
+        num_found = len(installer_list.installers) if installer_list else 0
+        raise AyonException(
+            f"Found {num_found} installers for {bundle.name} "
+            f"on platform {platform_name}"
+        )
+
+    installer = installer_list.installers[0]
+    installer_manifest = get_installer_manifest(installer.filename)
+    print(f"installer_manifest::{pprint.pformat(installer_manifest, indent=4)}")
+    installer_python_version = installer_manifest.python_version
+    if not installer_python_version:
+        return None
+
+    if is_compatible(package_python_version, installer_python_version):
+        return None
+
+    return BundleIssueModel(
+        severity="error",
+        addon=None,
+        message=(
+            f"Dependency package '{package_filename}' "
+            f"requires Python {package_python_version}, "
+            f"but installer '{installer.filename}' uses {installer_python_version} "
+            f"on platform '{platform_name}'."
+        ),
+        required_addon=None,
+    )
