@@ -66,7 +66,7 @@ async def get_folders(
     ids: ARGIds = None,
     include_folder_children: Annotated[
         bool,
-        argdesc("Include child folders when ids is used"),
+        argdesc("Include child folders when ids or parentIds is used"),
     ] = False,
     parent_id: Annotated[
         str | None,
@@ -396,19 +396,43 @@ async def get_folders(
         if not parent_ids:
             return FoldersConnection()
 
-        pids_set: set[str | None] = set(parent_ids)
-        lconds = []
-        if "root" in pids_set or None in pids_set:
-            lconds.append("folders.parent_id IS NULL")
+        if include_folder_children:
+            sql_cte.append(
+                f"""
+                top_folder_paths AS (
+                    SELECT id, path FROM project_{project_name}.hierarchy
+                    WHERE id IN {SQLTool.id_array(parent_ids)}
+                )
+                """
+            )
 
-        pids_set.discard("root")
-        pids_set.discard(None)
+            sql_cte.append(
+                f"""
+                child_folder_ids AS (
+                    SELECT id FROM project_{project_name}.hierarchy
+                    WHERE EXISTS (
+                        SELECT 1 FROM top_folder_paths
+                        WHERE project_{project_name}.hierarchy.path
+                        LIKE top_folder_paths.path || '/%'
+                    )
+                )
+                """
+            )
+            sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
+        else:
+            pids_set: set[str | None] = set(parent_ids)
+            lconds = []
+            if "root" in pids_set or None in pids_set:
+                lconds.append("folders.parent_id IS NULL")
 
-        if pids_set:
-            pids_list = cast("list[str]", list(pids_set))
-            lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
-        if lconds:
-            sql_conditions.append(f"({' OR '.join(lconds)})")
+            pids_set.discard("root")
+            pids_set.discard(None)
+
+            if pids_set:
+                pids_list = cast("list[str]", list(pids_set))
+                lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
+            if lconds:
+                sql_conditions.append(f"({' OR '.join(lconds)})")
 
     if folder_types is not None:
         if not folder_types:
