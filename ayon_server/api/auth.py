@@ -185,6 +185,10 @@ async def user_request_throttler(
         yield
         return
 
+    if user.is_service:
+        yield
+        return
+
     for op_name, matcher, limit in THROTTLERS:
         if not matcher(request):
             continue
