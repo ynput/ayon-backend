@@ -95,9 +95,7 @@ async def list_installers(
     platform: Platform | None = Query(None, description="Platform of the package"),
     variant: Literal["production", "staging"] | None = Query(None),
 ) -> InstallerListModel:
-    return await get_installers(
-        version=version, platform=platform, variant=variant
-    )
+    return await get_installers(version=version, platform=platform, variant=variant)
 
 
 @router.post("/installers", status_code=201)
