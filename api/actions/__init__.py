@@ -1,4 +1,6 @@
-__all__ = ["actions", "router"]
+__all__ = ["router"]
 
 from . import actions
 from .router import router
+
+_ = actions
