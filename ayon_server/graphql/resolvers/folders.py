@@ -705,9 +705,9 @@ async def get_folders(
         {raw_data_end}
     """
     # Keep it here for debugging :)
-    from ayon_server.logging import logger
-
-    logger.debug(f"Folder query\n{query}")
+    # from ayon_server.logging import logger
+    #
+    # logger.debug(f"Folder query\n{query}")
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
