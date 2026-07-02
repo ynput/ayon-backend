@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -9,7 +10,7 @@ from starlette.requests import Request
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import UnauthorizedException
+from ayon_server.exceptions import TooManyRequestsException, UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -160,34 +161,56 @@ async def user_from_request(request: Request) -> UserEntity:
     return user
 
 
+THROTTLERS = [
+    (
+        "GraphQL",
+        lambda request: request.url.path.startswith("/graphql"),
+        10,
+    ),
+    (
+        "Operations",
+        # matches /api/projects/{project_name}/operations
+        lambda request: re.match(r"^/api/projects/[^/]+/operations", request.url.path),
+        2,
+    ),
+]
+
+
 @asynccontextmanager
-async def user_request_throtter(
+async def user_request_throttler(
     user: UserEntity | None, request: Request
 ) -> AsyncGenerator[None, None]:
 
-    if not user or not request.url.path.startswith("/graphql"):
+    if not user:
         yield
         return
 
-    assert user.session, "User must have a session"
-    session_token = user.session.token or "xxx"
-    key = f"{user.name}@{session_token}"
+    for op_name, matcher, limit in THROTTLERS:
+        if not matcher(request):
+            continue
 
-    req_count = await Redis.incr("concurrent-requests", key, ttl=10)
-    print(f"User {user.name} has {req_count} concurrent requests.")
+        assert user.session, "User must have a session"
+        session_token = user.session.token or "xxx"
+        key = f"{user.name}@{session_token}:{op_name}"
 
-    try:
-        if req_count > 10:
-            await Redis.decr("concurrent-requests", session_token)
-            logger.warning(
-                f"User {user.name} has too many concurrent requests ({req_count}). "
-                f"Request from {get_real_ip_from_request(request)} will be rejected."
-            )
+        req_count = await Redis.incr("concurrent-requests", key, ttl=60)
 
-        yield
+        logger.trace(f"Concurrent {op_name} requests for user {user.name}: {req_count}")
 
-    finally:
-        await Redis.decr("concurrent-requests", key)
+        try:
+            if req_count > limit:
+                msg = (
+                    f"Too many concurrent {op_name} requests for "
+                    f"user {user.name} ({req_count}). "
+                )
+                raise TooManyRequestsException(msg)
+            yield
+            return
+
+        finally:
+            await Redis.decr("concurrent-requests", key)
+
+    yield
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -203,7 +226,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = None
             request.state.unauthorized_reason = str(e)
 
-        async with user_request_throtter(request.state.user, request):
+        async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):
                 response = await call_next(request)
 
