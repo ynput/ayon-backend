@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING, Literal
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 if TYPE_CHECKING:
@@ -38,6 +40,40 @@ def path_to_paths(
     return result
 
 
+@Redis.cached(
+    "assigned-task-folder-paths",
+    "{project_name}:{user_name}",
+    ttl=120,
+)
+async def get_assigned_task_folder_paths(
+    project_name: str,
+    user_name: str,
+) -> list[str]:
+    """Get a list of folder paths for tasks assigned to the user"""
+
+    logger.trace(
+        f"Resolving assigned task folder paths for {user_name} "
+        f"in project {project_name}"
+    )
+
+    query = f"""
+        SELECT
+            h.path
+        FROM
+            project_{project_name}.hierarchy as h
+        INNER JOIN
+            project_{project_name}.tasks as t
+            ON h.id = t.folder_id
+        WHERE
+            $1 = ANY (t.assignees)
+        """
+    fpaths = set()
+    async for record in Postgres.iterate(query, user_name):
+        for path in path_to_paths(record["path"]):
+            fpaths.add(path)
+    return list(fpaths)
+
+
 async def parse_permset(
     user: "UserEntity",
     project_name: str,
@@ -48,12 +84,6 @@ async def parse_permset(
     """Convert a permission set to a list of paths"""
     if not permset.enabled:
         return None
-
-    # TODO: Enable caching when we figure out how to invalidate it
-    # ns = "folder-access-list"
-    # key = f"{project_name}:{user.name}:{access_type}"
-    # if (cached := await Redis.get_json(ns, key)) is not None:
-    #     return cached
 
     fpaths = set()
     for perm in permset.access_list:
@@ -76,29 +106,9 @@ async def parse_permset(
                 fpaths.add(path)
 
         elif perm.access_type == "assigned":
-            query = f"""
-                SELECT
-                    h.path
-                FROM
-                    project_{project_name}.hierarchy as h
-                INNER JOIN
-                    project_{project_name}.tasks as t
-                    ON h.id = t.folder_id
-                WHERE
-                    '{user.name}' = ANY (t.assignees)
-                """
-            async for record in Postgres.iterate(query):
-                for path in path_to_paths(
-                    record["path"],
-                    include_parents=access_type == "read" and not no_parents,
-                ):
-                    fpaths.add(path)
+            fpaths.update(await get_assigned_task_folder_paths(project_name, user.name))
+
     folder_list = list(fpaths)
-    # logger.trace(
-    #     f"Caching {user.name} {project_name} {access_type} "
-    #     f"access: {', '.join(folder_list)}"
-    # )
-    # await Redis.set_json(ns, key, folder_list)
     return folder_list
 
 
@@ -256,6 +266,11 @@ async def ensure_entity_access(
     raise ForbiddenException("Entity access denied")
 
 
+#
+# AccessChecker
+#
+
+
 class TrieNode:
     def __init__(self):
         self.children = {}
@@ -270,9 +285,13 @@ class AccessChecker:
     AccessChecker is used to determine if a user has access
     to specific paths within a project.
 
+
     This class builds a trie (prefix tree) structure to efficiently
     check if a given path is accessible based on the user's permissions.
     It also supports exact path matching and wildcard path matching.
+
+    It is useful when you need to check access for multiple paths in a project
+    during a single request, as it avoids repeated database queries.
 
     Usage:
         access_checker = AccessChecker()
