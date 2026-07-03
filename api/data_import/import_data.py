@@ -320,9 +320,10 @@ async def import_data(
             if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
                 import_entity_data["task_type"] = default_task_type
 
-            logger.debug(
-                f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
-            )
+            # Too noisy
+            # logger.debug(
+            #     f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
+            # )
 
             if entity_id:
                 # mark that model has custom update
