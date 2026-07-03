@@ -554,7 +554,7 @@ async def get_folders(
             column_whitelist=column_whitelist,
             table_prefix="folders",
             column_map={
-                "attrib": "(pr.attrib || coalesce(ex.attrib, '{{}}'::jsonb ) || folders.attrib)",  # noqa: E501
+                "attrib": "(pr.attrib || coalesce(ex.attrib, '{}'::jsonb ) || folders.attrib)",  # noqa: E501
             },
         ):
             sql_conditions.append(fcond)
