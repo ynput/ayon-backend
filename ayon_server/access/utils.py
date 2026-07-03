@@ -53,7 +53,7 @@ async def get_assigned_task_folder_paths(
     project_name: str,
     user_name: str,
 ) -> AssignedTaskFolderPathsCache:
-    """Get a list of folder paths for tasks assigned to the user"""
+    """Return cached folder paths for tasks assigned to the user."""
 
     logger.trace(
         f"Resolving assigned task folder paths for {user_name} "
