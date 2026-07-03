@@ -136,7 +136,6 @@ def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemMode
 
 def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
     """Convert a database row to a ViewModel."""
-    print(f"row: {row}")
     return construct_view_model(
         id=row["id"],
         view_type=row["view_type"],
