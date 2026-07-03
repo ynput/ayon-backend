@@ -1,7 +1,7 @@
 import copy
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Body, Query
+from fastapi import BackgroundTasks, Query
 
 from ayon_server.access.permissions import Permissions
 from ayon_server.api.dependencies import (
@@ -66,7 +66,8 @@ async def clean_up_user_access_groups() -> None:
 @router.get("/accessGroups/_schema")
 async def get_access_group_schema(
     project_name: Annotated[
-        str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+        str | None,
+        Query(alias="project_name", regex=PROJECT_NAME_REGEX),
     ] = None,
 ):
     context = {}
@@ -79,16 +80,20 @@ async def get_access_group_schema(
 
 
 class AccessGroupObject(OPModel):
-    name: str = Field(
-        ...,
-        description="Name of the access group",
-        example="artist",
-    )
-    is_project_level: bool = Field(
-        ...,
-        description="Whether the access group is project level",
-        example=False,
-    )
+    name: Annotated[
+        str,
+        Field(
+            description="Name of the access group",
+            example="artist",
+        ),
+    ]
+    is_project_level: Annotated[
+        bool,
+        Field(
+            description="Whether the access group is project level",
+            example=False,
+        ),
+    ]
 
 
 @router.get("/accessGroups/{project_name}")
@@ -131,7 +136,6 @@ async def get_access_group(
     project_name: ProjectNameOrUnderscore,
 ) -> Permissions:
     """Get an access group definition"""
-    # return AccessGroups.combine([access_group_name], project_name)
 
     if project_name == "_":
         query = """
@@ -162,7 +166,7 @@ async def save_access_group(
     user: CurrentUser,
     access_group_name: AccessGroupName,
     project_name: ProjectNameOrUnderscore,
-    data: Permissions = Body(..., description="Set of permissions"),
+    data: Permissions,
 ) -> EmptyResponse:
     """Create or update an access group.
 
