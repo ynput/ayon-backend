@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -40,6 +40,10 @@ def path_to_paths(
     return result
 
 
+class AssignedTaskFolderPathsCache(TypedDict):
+    paths: list[str]
+
+
 @Redis.cached(
     "assigned-task-folder-paths",
     "{project_name}:{user_name}",
@@ -48,7 +52,7 @@ def path_to_paths(
 async def get_assigned_task_folder_paths(
     project_name: str,
     user_name: str,
-) -> list[str]:
+) -> AssignedTaskFolderPathsCache:
     """Get a list of folder paths for tasks assigned to the user"""
 
     logger.trace(
@@ -57,21 +61,18 @@ async def get_assigned_task_folder_paths(
     )
 
     query = f"""
-        SELECT
-            h.path
-        FROM
-            project_{project_name}.hierarchy as h
-        INNER JOIN
-            project_{project_name}.tasks as t
+        SELECT DISTINCT (h.path)
+        FROM project_{project_name}.hierarchy as h
+        INNER JOIN project_{project_name}.tasks as t
             ON h.id = t.folder_id
         WHERE
             $1 = ANY (t.assignees)
         """
-    fpaths = set()
-    async for record in Postgres.iterate(query, user_name):
-        for path in path_to_paths(record["path"]):
-            fpaths.add(path)
-    return list(fpaths)
+
+    paths: list[str] = [
+        record["path"] for record in await Postgres.fetch(query, user_name)
+    ]
+    return {"paths": paths}
 
 
 async def parse_permset(
@@ -106,7 +107,15 @@ async def parse_permset(
                 fpaths.add(path)
 
         elif perm.access_type == "assigned":
-            fpaths.update(await get_assigned_task_folder_paths(project_name, user.name))
+            cres = await get_assigned_task_folder_paths(project_name, user.name)
+            for path in cres.get("paths") or []:
+                fpaths.add(path)
+                fpaths.update(
+                    path_to_paths(
+                        path,
+                        include_parents=access_type == "read" and not no_parents,
+                    )
+                )
 
     folder_list = list(fpaths)
     return folder_list
