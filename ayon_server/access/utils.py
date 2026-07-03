@@ -109,7 +109,6 @@ async def parse_permset(
         elif perm.access_type == "assigned":
             cres = await get_assigned_task_folder_paths(project_name, user.name)
             for path in cres.get("paths") or []:
-                fpaths.add(path)
                 fpaths.update(
                     path_to_paths(
                         path,
