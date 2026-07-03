@@ -8,6 +8,7 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import json
+import time
 import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
@@ -442,6 +443,7 @@ async def import_data(
         import_status.created = 0
         import_status.updated = 0
 
+        start_time = time.perf_counter()
         try:
             response = await operations.process(progress_handler=handle_progress)
             if not response.success:
@@ -456,6 +458,16 @@ async def import_data(
             import_status.created = 0
             import_status.updated = 0
             status_str = "with rolled back updates"
+
+        duration = time.perf_counter() - start_time
+        processed_rows = import_status.created + import_status.updated
+        avg_time_per_op = duration / processed_rows if processed_rows > 0 else 0
+
+        logger.debug(
+            f"Process completed in {duration:.2f} seconds. "
+            f"Average time per operation: {avg_time_per_op:.4f} seconds "
+            f"(Total rows: {processed_rows})."
+        )
 
     logger.debug(f"Import completed:{import_status}")
     await EventStream.update(
