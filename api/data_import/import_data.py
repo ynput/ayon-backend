@@ -7,7 +7,6 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 
 import csv
 import io
-import json
 import time
 import traceback
 from datetime import datetime
@@ -616,13 +615,15 @@ async def _remap_single_column(
         source_value = source_value.replace("\\", "/").replace(" ", "")
 
     if importable_column.value_type == "list_of_strings" and source_value:
-        json_friendly = source_value.replace("'", '"')
-        try:
-            source_value = json.loads(json_friendly)
-        except json.JSONDecodeError:
-            source_value = [item.strip() for item in source_value.split(",")]
+        val_str = str(source_value).strip()
+
+        source_value = (
+            [item.strip() for item in val_str.split(",") if item.strip()]
+            if "," in val_str
+            else [val_str]
+        )
     else:
-        source_value = [source_value]
+        source_value = [str(source_value)] if source_value is not None else []
 
     for val in source_value:
         if not val:
