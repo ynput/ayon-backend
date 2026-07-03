@@ -216,6 +216,7 @@ class ImportStatus(OPModel):
         default_factory=dict
     )  # Dict of items that failed with error details (name -> error message)
     preview: bool = False  # if import was run in regular or dry run mode
+    phase: Literal["validating", "importing"] = "validating"
 
 
 class ImportUpload(OPModel):

@@ -315,10 +315,16 @@ class Redis:
                                 ttl=ttl,
                             )
                         else:
+                            val = (
+                                result.dict()
+                                if isinstance(result, BaseModel)
+                                else result
+                            )
+
                             await cls.set_json(
                                 ns,
                                 full_key.removeprefix(f"{ns}:"),
-                                result,
+                                val,
                                 ttl=ttl,
                             )
                     except (TypeError, json.JSONDecodeError, ConnectionError) as e:

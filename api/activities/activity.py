@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
@@ -27,7 +29,8 @@ from ayon_server.exceptions import (
 from ayon_server.files import Storages
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.types import Field, OPModel
+from ayon_server.types import OPModel
+from ayon_server.utils.entity_id import EntityID
 
 from .router import router
 
@@ -40,7 +43,10 @@ async def delete_unused_files(project_name: str) -> None:
 
 
 class CreateActivityResponseModel(OPModel):
-    id: str = Field(..., example="123")
+    id: Annotated[
+        str,
+        EntityID.field(name="activity"),
+    ]
 
 
 @router.post(
