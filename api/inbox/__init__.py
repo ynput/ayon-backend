@@ -1,4 +1,6 @@
-__all__ = ["inbox", "router"]
+__all__ = ["router"]
 
 from . import inbox
 from .router import router
+
+_ = inbox
