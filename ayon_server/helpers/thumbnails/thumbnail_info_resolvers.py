@@ -4,7 +4,7 @@ from ayon_server.lib.redis import Redis
 
 from .common import ThumbnailInfo
 
-THUMBNAIL_INFO_TTL = 600  # 10 minutes
+THUMBNAIL_INFO_TTL = 3600
 
 
 @Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
