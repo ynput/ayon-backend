@@ -4,13 +4,14 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import TooManyRequestsException, UnauthorizedException
+from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -202,15 +203,21 @@ async def user_request_throttler(
 
         try:
             if req_count > limit:
+                short_token = shortuuid.uuid(name=session_token)[:8]
+
                 msg = (
                     f"Too many concurrent {op_name} requests for "
-                    f"user {user.name} ({req_count}). "
+                    f"user {user.name}@{short_token} ({req_count}). "
                 )
-                raise TooManyRequestsException(msg)
-            elif req_count > 1:
-                logger.trace(
-                    f"Concurrent {op_name} requests for user {user.name}: {req_count}"
-                )
+
+                # This warning will be replaced with an exception in the future,
+                # after we get a better understanding of how many concurrent
+                # requests are actually being made by users and when it is appropriate
+                # to block them.
+
+                logger.warning(msg)
+
+                # raise TooManyRequestsException(msg)
 
             yield
             return
