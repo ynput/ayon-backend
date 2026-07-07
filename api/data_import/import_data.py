@@ -8,6 +8,7 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import json
+import time
 import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
@@ -30,12 +31,14 @@ from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
-from ayon_server.operations.project_level import ProjectLevelOperations
+from ayon_server.operations.project_level import (
+    OperationsProgress,
+    ProjectLevelOperations,
+)
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import (
-    SENDER_TYPE,
     ImportEntityType,
     ProjectNameQuery,
     get_entity_id_by_path,
@@ -186,16 +189,16 @@ async def import_data(
     filtered_rows = [row for row in rows if not _is_row_empty(row)]
     total_rows = len(filtered_rows)
 
+    main_phase_label = "validation" if preview else "import"
+    status_str = "successfully"
     # Send start event
     event_id = await EventStream.dispatch(
         "import.data",
         project=project_name,
-        description=f"Starting import of {total_rows} rows",
+        description=f"Starting {main_phase_label} of {total_rows} rows",
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
-        sender="data_import",
-        sender_type="system",
     )
 
     model_cls = IMPORTABLE_ENTITIES[import_type]
@@ -219,8 +222,6 @@ async def import_data(
         operations = ProjectLevelOperations(
             project_name,
             user=user,
-            sender=f"{SENDER_TYPE}-csv",
-            sender_type=SENDER_TYPE,
         )
 
     originals_and_new: dict[str, Any] = {}
@@ -319,9 +320,10 @@ async def import_data(
             if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
                 import_entity_data["task_type"] = default_task_type
 
-            logger.debug(
-                f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
-            )
+            # Too noisy
+            # logger.debug(
+            #     f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
+            # )
 
             if entity_id:
                 # mark that model has custom update
@@ -353,28 +355,31 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
-            # Send progress event after each processed item
-            await EventStream.dispatch(
-                "import.data",
-                project=project_name,
-                description=f"Processed item: {identifier or path or entity_id}",
-                summary={
-                    "created": import_status.created,
-                    "updated": import_status.updated,
-                    "skipped": import_status.skipped,
-                    "failed": import_status.failed,
-                },
-                depends_on=event_id,
-                finished=False,
-                store=True,
-                sender="data_import",
-                sender_type="system",
-            )
+            current_progress = int((row_number * 100) / total_rows)
+            prev_progress = int(((row_number - 1) * 100) / total_rows)
+
+            if row_number == 0 or current_progress > prev_progress:
+                await EventStream.update(
+                    event_id,
+                    project=project_name,
+                    description=f"Validated item: {identifier or path or entity_id}",
+                    progress=current_progress,
+                    summary={
+                        "created": import_status.created,
+                        "updated": import_status.updated,
+                        "skipped": import_status.skipped,
+                        "failed": import_status.failed,
+                        "phase": import_status.phase,
+                    },
+                    status="in_progress",
+                    store=False,
+                )
 
             unprocessed -= 1
 
         except Exception as exp:
             logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            status_str = "with errors"
             error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
 
@@ -384,30 +389,64 @@ async def import_data(
                 import_status.failed += 1
                 import_status.skipped += unprocessed
                 # Send end event for early termination
-                await EventStream.dispatch(
-                    "import.data",
+                phase_label = import_status.phase.capitalize()
+                await EventStream.update(
+                    event_id,
                     project=project_name,
-                    description="Import finished with error",
+                    description=f"{phase_label} finished with error",
+                    progress=100,
                     summary={
                         "created": import_status.created,
                         "updated": import_status.updated,
                         "skipped": import_status.skipped,
                         "failed": import_status.failed,
-                        "failed_items": import_status.failed_items,
+                        "failedItems": import_status.failed_items,
+                        "phase": import_status.phase,
                     },
-                    depends_on=event_id,
-                    finished=True,
+                    status="finished",
                     store=True,
-                    sender="data_import",
-                    sender_type="system",
                 )
                 return import_status
             import_status.skipped += 1
             continue
 
+    async def handle_progress(progress: OperationsProgress):
+        if progress.operation.type == "create":
+            import_status.created += 1
+        elif progress.operation.type == "update":
+            import_status.updated += 1
+
+        import_status.phase = "importing"
+
+        current_progress = int((progress.index * 100) / progress.total)
+        prev_progress = int(((progress.index - 1) * 100) / progress.total)
+
+        if progress.index == 0 or current_progress > prev_progress:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Committing operation {progress.index}/{progress.total}",
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                    "failedItems": import_status.failed_items,
+                    "phase": import_status.phase,
+                },
+                status="in_progress",
+                progress=current_progress,
+                store=True,
+            )
+
     if not preview and operations is not None:
+        # Reset the counts for the second round (actual write)
+        import_status.created = 0
+        import_status.updated = 0
+
+        start_time = time.perf_counter()
         try:
-            response = await operations.process()
+            response = await operations.process(progress_handler=handle_progress)
             if not response.success:
                 log_traceback("Failed to import data")
         except Exception as exp:
@@ -415,30 +454,37 @@ async def import_data(
             import_status.failed_items["global"] = (
                 f"Import failed during operations processing: {exp}"
             )
-            import_status.skipped = len(rows)
+            import_status.failed = len(rows)
             # transaction rollback
             import_status.created = 0
             import_status.updated = 0
+            status_str = "with rolled back updates"
+
+        duration = time.perf_counter() - start_time
+        processed_rows = import_status.created + import_status.updated
+        avg_time_per_op = duration / processed_rows if processed_rows > 0 else 0
+
+        logger.debug(
+            f"Process completed in {duration:.2f} seconds. "
+            f"Average time per operation: {avg_time_per_op:.4f} seconds "
+            f"(Total rows: {processed_rows})."
+        )
 
     logger.debug(f"Import completed:{import_status}")
-
-    # Send end event
-    await EventStream.dispatch(
-        "import.data.finish",
+    await EventStream.update(
+        event_id,
         project=project_name,
-        description="Import finished",
+        description=f"{import_status.phase.capitalize()} finished {status_str}",
         summary={
             "created": import_status.created,
             "updated": import_status.updated,
             "skipped": import_status.skipped,
             "failed": import_status.failed,
-            "failed_items": import_status.failed_items,
+            "failedItems": import_status.failed_items,
+            "phase": import_status.phase,
         },
-        depends_on=event_id,
-        finished=True,
+        status="finished" if len(import_status.failed_items) == 0 else "failed",
         store=True,
-        sender="data_import",
-        sender_type="system",
     )
 
     return import_status

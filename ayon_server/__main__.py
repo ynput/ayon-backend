@@ -2,8 +2,8 @@ import importlib
 import os
 import sys
 
-from ayon_server.cli import app
 from ayon_server.logging import logger
+from ayon_server.version import __version__
 
 CLI_PLUGINS_DIRS = [
     "cli",
@@ -13,6 +13,8 @@ CLI_PLUGINS_DIRS = [
 
 
 def main() -> None:
+    from ayon_server.cli import app
+
     for plugin_dir in CLI_PLUGINS_DIRS:
         if not os.path.isdir(plugin_dir):
             continue
@@ -32,4 +34,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if "--version" in sys.argv:
+        print(__version__, flush=True, end="")
+        sys.exit(0)
     main()
