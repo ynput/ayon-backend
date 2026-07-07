@@ -9,7 +9,18 @@ async def download_installer(event_id: str, url: str):
     await EventStream.update(event_id, status="in_progress")
 
     async def on_progress(progress):
-        await EventStream.update(event_id, progress=progress, store=False)
+        await EventStream.update(
+            event_id,
+            progress=progress,
+            store=False,
+            sender="background-installer",
+            sender_type="system",
+        )
 
     await download_file(url, target_dir, progress_handler=on_progress)
-    await EventStream.update(event_id, status="finished")
+    await EventStream.update(
+        event_id,
+        status="finished",
+        sender="background-installer",
+        sender_type="system",
+    )

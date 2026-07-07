@@ -121,7 +121,7 @@ async def update_activity(
             )
 
         # Extract mentions from the body
-        mentions = extract_mentions(body)
+        mentions = await extract_mentions(body, project_name)
 
         refs_to_delete = []
         for ref in references:

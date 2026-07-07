@@ -62,6 +62,22 @@ class BasePackageModel(OPModel):
     checksum: str | None = None
     checksum_algorithm: Literal["md5", "sha1", "sha256"] | None = None
     sources: list[SourceModel] = SOURCES_META
+    python_version: Annotated[
+        str | None,
+        Field(
+            title="Python version",
+            description="Used Python version",
+            example="3.11",
+        ),
+    ] = None
+    distro_short: Annotated[
+        str | None,
+        Field(
+            title="Short distribution name",
+            description="Short name of the Linux distribution",
+            example="rocky9",
+        ),
+    ] = None
 
 
 class SourcesPatchModel(OPModel):
@@ -104,14 +120,6 @@ class InstallerManifest(BasePackageModel):
             title="Version",
             description="Version of the installer",
             example="1.2.3",
-        ),
-    ]
-    python_version: Annotated[
-        str,
-        Field(
-            title="Python version",
-            description="Version of Python that the installer is created with",
-            example="3.11",
         ),
     ]
     python_modules: Annotated[

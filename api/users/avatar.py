@@ -166,10 +166,13 @@ async def obtain_avatar(user_name: str) -> bytes:
                 except httpx.HTTPStatusError:
                     logger.warning(f"{err} Error: {response.status_code}")
                 else:
-                    avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
-                    logger.debug(
-                        f"Successfully fetched avatar for {user_name} from url"
-                    )
+                    if isinstance(avatar_bytes, bytes):
+                        avatar_bytes = await process_thumbnail(
+                            avatar_bytes, format="JPEG"
+                        )
+                        logger.debug(
+                            f"Successfully fetched avatar for {user_name} from url"
+                        )
 
     if not avatar_bytes:
         full_name = res[0]["full_name"] or ""

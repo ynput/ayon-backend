@@ -62,7 +62,7 @@ async def set_projects_access(
             projects_to_check.add(project_name)
 
     for project_name in projects_to_check:
-        current_user.check_permissions("project.access", project_name)
+        current_user.check_permissions("project.access", project_name, write=True)
 
     # Get all active session of the affected users
     sessions = defaultdict(list)

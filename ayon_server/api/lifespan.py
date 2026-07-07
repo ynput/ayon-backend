@@ -32,6 +32,8 @@ async def load_access_groups() -> None:
     """Load access groups from the database."""
     from ayon_server.access.access_groups import AccessGroups
 
+    logger.trace("Loading access groups", nodb=True)
+
     await AccessGroups.load()
     EventStream.subscribe("access_group.updated", AccessGroups.update_hook, True)
     EventStream.subscribe("access_group.deleted", AccessGroups.update_hook, True)
@@ -80,6 +82,29 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     operation_id=slugify(
                         f"{addon_name}_{version}_{endpoint['name']}",
                         separator="_",
+                    ),
+                )
+
+            if addon.endpoints or addon.routers:
+                target_app.add_api_route(
+                    f"/api/addons/{addon_name}/{version}/openapi.json",
+                    addon.get_openapi,
+                    include_in_schema=False,
+                    methods=["GET"],
+                    name=f"{addon_name}_{version}_openapi",
+                    operation_id=slugify(
+                        f"{addon_name}_{version}_openapi", separator="_"
+                    ),
+                )
+
+                target_app.add_api_route(
+                    f"/api/addons/{addon_name}/{version}/api-docs",
+                    addon.get_api_docs,
+                    include_in_schema=False,
+                    methods=["GET"],
+                    name=f"{addon_name}_{version}_docs",
+                    operation_id=slugify(
+                        f"{addon_name}_{version}_api_docs", separator="_"
                     ),
                 )
 
@@ -196,12 +221,15 @@ async def lifespan(app: "FastAPI"):
         )
     else:
         # Initialize endpoints for active addons
+        logger.trace("Initializing addon endpoints", nodb=True)
         init_addon_endpoints(app)
 
         # Addon static dirs must stay exactly here
+        logger.trace("Initializing addon static file serving", nodb=True)
         init_addon_static(app)
 
         # Frontend must be initialized last (since it is mounted to /)
+        logger.trace("Initializing frontend", nodb=True)
         init_frontend(app)
 
         await AddonLibrary.clear_addon_list_cache()

@@ -16,11 +16,13 @@ from ayon_server.logging import logger
 async def ayon_init(
     extensions: bool = True,
     enum_registry: bool = True,
+    load_projects: bool = True,
 ):
     """Initialize ayon for use with server or stand-alone tools
 
     This connects to the database and installs the event hooks.
     """
+    logger.trace("Initializing ayon", nodb=True)
     retry_interval = 2
     with logger.contextualize(nodb=True):
         while Postgres.pool is None:
@@ -68,4 +70,6 @@ async def ayon_init(
     if enum_registry:
         EnumRegistry.initialize()
     ActivityFeedEventHook.install(EventStream)
-    await build_project_list()
+
+    if load_projects:
+        await build_project_list()

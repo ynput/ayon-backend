@@ -2,11 +2,11 @@ from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
     AllowGuests,
+    AllowProjectSkeleton,
     CurrentUser,
     NewProjectName,
     ProjectName,
 )
-from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.rename_project import rename_project as _rename_project
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_base_types import (
@@ -25,7 +26,7 @@ from ayon_server.settings.anatomy.product_base_types import (
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
-from ayon_server.types import Field
+from ayon_server.types import PROJECT_CODE_REGEX, PROJECT_NAME_REGEX, Field, OPModel
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
@@ -79,7 +80,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    dependencies=[AllowGuests],
+    dependencies=[AllowGuests, AllowProjectSkeleton],
 )
 async def get_project(
     user: CurrentUser,
@@ -128,7 +129,7 @@ async def create_project(
     put_data: ProjectPostModel,
     user: CurrentUser,
     project_name: NewProjectName,
-) -> EmptyResponse:
+) -> None:
     """Create a new project.
 
     Since project has no ID, and a unique name is used as its
@@ -155,14 +156,15 @@ async def create_project(
         raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
+    etype = "project_skeleton" if project.skeleton else "project"
 
     await EventStream.dispatch(
-        "entity.project.created",
+        f"entity.{etype}.created",
         project=project.name,
         description=f"Created project {project.name}",
     )
 
-    return EmptyResponse(status_code=201)
+    return None
 
 
 #
@@ -170,12 +172,16 @@ async def create_project(
 #
 
 
-@router.patch("/projects/{project_name}", status_code=204)
+@router.patch(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def update_project(
     patch_data: ProjectPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
-):
+) -> None:
     """Patch a project.
 
     Use a PATCH request to partially update a project.
@@ -198,7 +204,8 @@ async def update_project(
 
     for edata in events:
         await EventStream.dispatch(**edata)
-    return EmptyResponse()
+
+    return None
 
 
 #
@@ -216,7 +223,9 @@ async def unassign_users_from_deleted_projects() -> None:
         """
     )
     assigned_projects = [row["project_name"] for row in res]
-    existing_projects = [project.name for project in await get_project_list()]
+    existing_projects = [
+        project.name for project in await get_project_list(with_skeleton=True)
+    ]
 
     for project_name in assigned_projects:
         if project_name not in existing_projects:
@@ -230,11 +239,15 @@ async def unassign_users_from_deleted_projects() -> None:
     # we don't need to update sessions, as they are updated on the next login
 
 
-@router.delete("/projects/{project_name}", status_code=204)
+@router.delete(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def delete_project(
     user: CurrentUser,
     project_name: ProjectName,
-) -> EmptyResponse:
+) -> None:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -250,10 +263,60 @@ async def delete_project(
     await storage.trash()
     await unassign_users_from_deleted_projects()
 
+    etype = "project_skeleton" if project.skeleton else "project"
+
     await EventStream.dispatch(
-        "entity.project.deleted",
+        f"entity.{etype}.deleted",
         project=project.name,
         description=f"Deleted project {project.name}",
     )
 
-    return EmptyResponse()
+    return None
+
+
+#
+# Rename
+#
+
+
+class RenameProjectRequestModel(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            title="New project name",
+            example="better_project_name",
+            regex=PROJECT_NAME_REGEX,
+            min_length=1,
+        ),
+    ]
+    code: Annotated[
+        str | None,
+        Field(
+            title="New project code",
+            description="If not provided, the code will remain unchanged.",
+            example="BETTER",
+            regex=PROJECT_CODE_REGEX,
+            min_length=1,
+        ),
+    ]
+
+
+@router.post(
+    "/projects/{project_name}/rename",
+    status_code=204,
+    dependencies=[AllowProjectSkeleton],
+)
+async def rename_project(
+    user: CurrentUser,
+    project_name: ProjectName,
+    payload: RenameProjectRequestModel,
+) -> None:
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await _rename_project(
+        project_name,
+        payload.name,
+        payload.code,
+    )
+    return None

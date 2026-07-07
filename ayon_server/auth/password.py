@@ -2,7 +2,6 @@ import time
 
 from fastapi import Request
 
-from ayon_server.api.clientinfo import get_real_ip
 from ayon_server.auth.session import Session, SessionModel
 from ayon_server.auth.utils import (
     create_password,
@@ -17,6 +16,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
+from ayon_server.utils.server import get_real_ip_from_request
 
 
 async def check_failed_login(ip_address: str) -> None:
@@ -73,7 +73,7 @@ class PasswordAuth:
         # TODO: this should raise 401, not 403
 
         if request is not None:
-            await check_failed_login(get_real_ip(request))
+            await check_failed_login(get_real_ip_from_request(request))
 
         name = name.strip()
 
@@ -100,11 +100,11 @@ class PasswordAuth:
 
         if pass_hash != hash_password(password, pass_salt):
             if request is not None:
-                await set_failed_login(get_real_ip(request))
+                await set_failed_login(get_real_ip_from_request(request))
             raise ForbiddenException("Invalid login/password combination")
 
         if request is not None:
-            await clear_failed_login(get_real_ip(request))
+            await clear_failed_login(get_real_ip_from_request(request))
         return await Session.create(user, request)
 
     @classmethod

@@ -1,7 +1,9 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 if TYPE_CHECKING:
@@ -38,6 +40,41 @@ def path_to_paths(
     return result
 
 
+class AssignedTaskFolderPathsCache(TypedDict):
+    paths: list[str]
+
+
+@Redis.cached(
+    "assigned-task-folder-paths",
+    "{project_name}:{user_name}",
+    ttl=120,
+)
+async def get_assigned_task_folder_paths(
+    project_name: str,
+    user_name: str,
+) -> AssignedTaskFolderPathsCache:
+    """Return cached folder paths for tasks assigned to the user."""
+
+    logger.trace(
+        f"Resolving assigned task folder paths for {user_name} "
+        f"in project {project_name}"
+    )
+
+    query = f"""
+        SELECT DISTINCT (h.path)
+        FROM project_{project_name}.hierarchy as h
+        INNER JOIN project_{project_name}.tasks as t
+            ON h.id = t.folder_id
+        WHERE
+            $1 = ANY (t.assignees)
+        """
+
+    paths: list[str] = [
+        record["path"] for record in await Postgres.fetch(query, user_name)
+    ]
+    return {"paths": paths}
+
+
 async def parse_permset(
     user: "UserEntity",
     project_name: str,
@@ -48,12 +85,6 @@ async def parse_permset(
     """Convert a permission set to a list of paths"""
     if not permset.enabled:
         return None
-
-    # TODO: Enable caching when we figure out how to invalidate it
-    # ns = "folder-access-list"
-    # key = f"{project_name}:{user.name}:{access_type}"
-    # if (cached := await Redis.get_json(ns, key)) is not None:
-    #     return cached
 
     fpaths = set()
     for perm in permset.access_list:
@@ -76,29 +107,16 @@ async def parse_permset(
                 fpaths.add(path)
 
         elif perm.access_type == "assigned":
-            query = f"""
-                SELECT
-                    h.path
-                FROM
-                    project_{project_name}.hierarchy as h
-                INNER JOIN
-                    project_{project_name}.tasks as t
-                    ON h.id = t.folder_id
-                WHERE
-                    '{user.name}' = ANY (t.assignees)
-                """
-            async for record in Postgres.iterate(query):
-                for path in path_to_paths(
-                    record["path"],
-                    include_parents=access_type == "read" and not no_parents,
-                ):
-                    fpaths.add(path)
+            cres = await get_assigned_task_folder_paths(project_name, user.name)
+            for path in cres.get("paths") or []:
+                fpaths.update(
+                    path_to_paths(
+                        path,
+                        include_parents=access_type == "read" and not no_parents,
+                    )
+                )
+
     folder_list = list(fpaths)
-    # logger.trace(
-    #     f"Caching {user.name} {project_name} {access_type} "
-    #     f"access: {', '.join(folder_list)}"
-    # )
-    # await Redis.set_json(ns, key, folder_list)
     return folder_list
 
 
@@ -256,6 +274,11 @@ async def ensure_entity_access(
     raise ForbiddenException("Entity access denied")
 
 
+#
+# AccessChecker
+#
+
+
 class TrieNode:
     def __init__(self):
         self.children = {}
@@ -270,9 +293,13 @@ class AccessChecker:
     AccessChecker is used to determine if a user has access
     to specific paths within a project.
 
+
     This class builds a trie (prefix tree) structure to efficiently
     check if a given path is accessible based on the user's permissions.
     It also supports exact path matching and wildcard path matching.
+
+    It is useful when you need to check access for multiple paths in a project
+    during a single request, as it avoids repeated database queries.
 
     Usage:
         access_checker = AccessChecker()
@@ -285,9 +312,9 @@ class AccessChecker:
         is_none (bool): A flag indicating if the user has unrestricted access.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.root = TrieNode()
-        self.exact_paths = set()
+        self.exact_paths: set[str] = set()
         self.is_none = False
 
     def __getitem__(self, path: str) -> bool:

@@ -61,6 +61,8 @@ _current_connection: ContextVar["Connection | None"] = ContextVar(
     "_current_connection", default=None
 )
 
+_current_project: ContextVar[str | None] = ContextVar("_current_project", default=None)
+
 #
 # Postgres acccess
 #
@@ -186,9 +188,13 @@ class Postgres:
                 # in a transaction
                 yield connection
             else:
-                async with connection.transaction():
-                    with logger.contextualize(transaction_id=id(connection)):
-                        yield connection
+                token = _current_project.set(None)
+                try:
+                    async with connection.transaction():
+                        with logger.contextualize(transaction_id=id(connection)):
+                            yield connection
+                finally:
+                    _current_project.reset(token)
 
     @classmethod
     async def is_in_transaction(cls) -> bool:
@@ -197,6 +203,11 @@ class Postgres:
         if conn is None:
             return False
         return conn.is_in_transaction()
+
+    @classmethod
+    def get_current_project_name(cls) -> str | None:
+        """Return the name of the current project schema."""
+        return _current_project.get()
 
     #
     # Postgres query wrappers
@@ -240,20 +251,26 @@ class Postgres:
     @classmethod
     async def set_project_schema(cls, project_name: str) -> None:
         """Set the search path to the project schema."""
+        if cls.get_current_project_name() == project_name:
+            return
         async with cls.acquire() as conn:
             assert conn.is_in_transaction(), (
                 "Cannot set project schema outside of a transaction"
             )
             await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+            _current_project.set(project_name)
 
     @classmethod
     async def set_public_schema(cls) -> None:
         """Set the search path to the public schema."""
+        if cls.get_current_project_name() is None:
+            return
         async with cls.acquire() as conn:
             assert conn.is_in_transaction(), (
                 "Cannot set public schema outside of a transaction"
             )
             await conn.execute("SET LOCAL search_path TO public")
+            _current_project.set(None)
 
     @classmethod
     async def iterate(

@@ -17,6 +17,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGIds,
     ARGLast,
     AttributeFilterInput,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
     create_folder_access_list,
@@ -35,6 +36,12 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .field_stats import (
+    MetricTargetInput,
+    generate_field_stats,
+    generate_specific_stats_columns,
+    generate_stats_columns,
+)
 from .pagination import create_pagination
 from .sorting import (
     get_attrib_sort_case,
@@ -166,6 +173,13 @@ async def get_tasks(
         str | None, argdesc("Filter tasks by queryfilter on folders")
     ] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -190,7 +204,7 @@ async def get_tasks(
     sql_columns = [
         "tasks.*",
         "hierarchy.path AS _folder_path",
-        "f_ex.attrib as parent_folder_attrib",
+        "f_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
@@ -220,6 +234,50 @@ async def get_tasks(
         sql_columns.append(
             "EXISTS (SELECT 1 FROM reviewables WHERE task_id = tasks.id) "
             "AS has_reviewables"
+        )
+
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = 'task'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_columns.append("c.comments AS latest_comments")
+        sql_joins.append(
+            """
+            LEFT JOIN comments c
+            ON c.entity_id = tasks.id
+            """
         )
 
     if ids is not None:
@@ -431,16 +489,21 @@ async def get_tasks(
 
     if search:
         use_folder_query = True
-        terms = slugify(search, make_set=True)
-        # isn't it nice that slugify effectively prevents sql injections?
-        for term in terms:
-            cond = f"""(
-            tasks.name ILIKE '%{term}%'
-            OR tasks.label ILIKE '%{term}%'
-            OR tasks.task_type ILIKE '%{term}%'
-            OR hierarchy.path ILIKE '%{term}%'
-            )"""
-            sql_conditions.append(cond)
+        parts = search.split(",")
+        t1_conds = []
+
+        for part in parts:
+            terms = slugify(part, make_set=True, split_chars=" ")
+            t2_conds = []
+            for term in terms:
+                t2_conds.append(
+                    f"(tasks.name ILIKE '%{term}%'"
+                    f"OR tasks.label ILIKE '%{term}%'"
+                    f"OR tasks.task_type ILIKE '%{term}%'"
+                    f"OR hierarchy.path ILIKE '%{term}%')"
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Additional joins
@@ -523,16 +586,19 @@ async def get_tasks(
         # to have stable sorting when multiple items have the same value
         # In this case we don't want to use creation order as secondary sort,
         # because sorting is mainly invoked from the GUI and path makes more sense
-        order_by.append("hierarchy.path || '/' || tasks.name")
+        order_by.extend(["hierarchy.path", "tasks.name"])
 
-    ordering, paging_conds, cursor = create_pagination(
-        order_by,
-        first,
-        after,
-        last,
-        before,
-    )
-    sql_conditions.append(paging_conds)
+    ordering = ""
+    cursor = "''"
+    if not calculate_statistics and not calculate_specific_statistics:
+        ordering, paging_conds, cursor = create_pagination(
+            order_by,
+            first,
+            after,
+            last,
+            before,
+        )
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -547,20 +613,56 @@ async def get_tasks(
     sql_columns.insert(0, cursor)
     sql_columns_str = ",\n".join(sql_columns)
 
+    default_columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("name", "string"),
+        ColumnMetadata("label", "string"),
+        ColumnMetadata("task_type", "string"),
+        ColumnMetadata("thumbnail_id", "uuid"),
+        ColumnMetadata("active", "bool"),
+        ColumnMetadata("status", "string"),
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(default_columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+        )
+        SELECT
+            {stats_select_clause}
+        FROM raw_data;
+        """
+
     query = f"""
-{cte}
-SELECT
-{sql_columns_str}
-FROM project_{project_name}.tasks AS tasks
-{" ".join(sql_joins)}
-{SQLTool.conditions(sql_conditions)}
-{ordering}
+        {cte}
+        {raw_data_start}
+        SELECT
+        {sql_columns_str}
+        FROM project_{project_name}.tasks AS tasks
+        {" ".join(sql_joins)}
+        {SQLTool.conditions(sql_conditions)}
+        {ordering}
+        {raw_data_end}
     """
 
-    # Keep it here for debugging :)
-    # from ayon_server.logging import logger
-    #
-    # logger.debug(f"Task query\n{query}")
+    # print()
+    # print("Tasks query:")
+    # print(query)
+    # print()
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return TasksConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
         TasksConnection,

@@ -10,7 +10,7 @@ from ayon_server.events import EventModel, EventStream
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import json_dumps, json_loads
 
@@ -256,12 +256,22 @@ class SimpleActionCache:
 
         cached_data = await Redis.get(cls.ns, cache_key)
         if cached_data is None:
-            r = await addon.get_simple_actions(project_name, variant)
-            # Cache the data
-            cached_data = [x.dict() for x in r]
+            try:
+                r = await addon.get_simple_actions(project_name, variant)
+                # Cache the data
+                cached_data = [x.dict() for x in r]
+                result = [SimpleActionManifest(**x) for x in cached_data]
+            except Exception as e:
+                log_traceback(
+                    "Failed to get simple actions for addon "
+                    f"{addon.name} v{addon.version}: {e}"
+                )
+                cached_data = []
+                result = []
+
             await Redis.set(cls.ns, cache_key, json_dumps(cached_data))
             # return the model
-            return r
+            return result
 
         return [SimpleActionManifest(**x) for x in json_loads(cached_data)]
 
@@ -333,7 +343,16 @@ async def get_dynamic_actions(
     actions = []
     variant, addons = await get_relevant_addons(variant, user)
     for addon in addons:
-        for action in await addon.get_dynamic_actions(context, variant):
+        try:
+            dynamic_actions = await addon.get_dynamic_actions(context, variant)
+        except Exception as e:
+            log_traceback(
+                "Failed to get dynamic actions for addon "
+                f"{addon.name} v{addon.version}: {e}"
+            )
+            continue
+
+        for action in dynamic_actions:
             if (
                 action_whitelist is not None
                 and action.identifier not in action_whitelist

@@ -1,5 +1,3 @@
-import contextlib
-import ipaddress
 import os
 
 import geoip2
@@ -9,6 +7,7 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
+from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 
 
 class LocationInfo(BaseModel):
@@ -32,10 +31,8 @@ class ClientInfo(BaseModel):
 
 
 def get_real_ip(request: Request) -> str:
-    if request.client is None:
-        return "0.0.0.0"
-    xff = request.headers.get("x-forwarded-for", request.client.host)
-    return xff.split(",")[0].strip()
+    # deprecated, use get_real_ip_from_request instead
+    return get_real_ip_from_request(request)
 
 
 def geo_lookup(ip: str):
@@ -53,17 +50,6 @@ def geo_lookup(ip: str):
         subdivision=response.subdivisions.most_specific.name,
         city=response.city.name,
     )
-
-
-def is_internal_ip(ip: str) -> bool:
-    with contextlib.suppress(ValueError):
-        if ipaddress.IPv4Address(ip).is_private:
-            return True
-
-    with contextlib.suppress(ValueError):
-        if ipaddress.IPv6Address(ip).is_private:
-            return True
-    return False
 
 
 def parse_ayon_headers(request: Request) -> dict[str, str]:
@@ -123,7 +109,7 @@ def get_preferred_languages(request: Request) -> list[str]:
 
 
 def get_client_info(request: Request) -> ClientInfo:
-    ip = get_real_ip(request)
+    ip = get_real_ip_from_request(request)
     if is_internal_ip(ip):
         location = None
     else:

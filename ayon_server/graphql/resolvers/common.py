@@ -1,6 +1,7 @@
 from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, Any, Literal, TypeVar
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -9,6 +10,7 @@ from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 from .pagination import encode_cursor
 
@@ -28,6 +30,21 @@ class HasLinksFilter(Enum):
 class AttributeFilterInput:
     name: str
     values: list[str]
+
+
+ColumnMetadataDataType = Literal["string", "uuid", "bool", "numeric", "jsonb"]
+
+
+@dataclass(frozen=True)
+class ColumnMetadata:
+    column_name: str
+    data_type: ColumnMetadataDataType
+
+    # These are only used if we are unpacking a JSONB field
+    is_nested: bool = False
+    parent_json_column: str | None = None
+    json_key: str | None = None
+    nested_sub_type: ColumnMetadataDataType | None = None
 
 
 def argdesc(description: str) -> StrawberryArgumentAnnotation:
@@ -172,6 +189,7 @@ async def resolve(
         count = first = DEFAULT_PAGE_SIZE
 
     edges: list[Any] = []
+    # Now execute the original query for the actual data
     async for record in Postgres.iterate(query):
         # Create a standard dictionary from the record
         record_dict = dict(record)
@@ -191,6 +209,7 @@ async def resolve(
                     project_name, record_dict, context=context
                 )
             except ForbiddenException:
+                logger.trace(f"Skipping node {node_type} due to ForbiddenException")
                 continue
             edges.append(edge_type(node=node, cursor=cursor))
 

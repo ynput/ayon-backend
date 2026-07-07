@@ -77,6 +77,7 @@ class FolderListItem(OPModel):
     has_tasks: bool = False
     has_children: bool = False
     has_reviewables: bool = False
+    thumbnail_hash: str
     task_names: list[str] | None
     tags: list[str] | None
     status: str

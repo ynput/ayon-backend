@@ -214,6 +214,7 @@ async def patch_attribute_config(
             "min_items",
             "max_items",
             "inherit",
+            "widgetwidget_settings",
         )
     ):
         requires_restart = True

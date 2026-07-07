@@ -186,6 +186,8 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
         event_id,
         description=f"Unpacking addon {zip_info.name} {zip_info.version}",
         status="in_progress",
+        sender="background-installer",
+        sender_type="system",
     )
 
     loop = asyncio.get_event_loop()
@@ -200,6 +202,8 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
             event_id,
             description=f"Error while unpacking addon: {e}",
             status="failed",
+            sender="background-installer",
+            sender_type="system",
         )
 
     try:
@@ -211,6 +215,8 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
         event_id,
         description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
+        sender="background-installer",
+        sender_type="system",
     )
 
 
@@ -221,6 +227,8 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
         event_id,
         description=f"Downloading addon from URL {url}",
         status="in_progress",
+        sender="background-installer",
+        sender_type="system",
     )
 
     # Download the zip file
@@ -253,6 +261,8 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
                                 event_id,
                                 progress=int(percent / 2),
                                 store=False,
+                                sender="background-installer",
+                                sender_type="system",
                             )
                             last_time = time.time()
 
@@ -266,6 +276,8 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
             status="in_progress",
             summary=zip_info.dict(exclude_none=True),
             progress=50,
+            sender="background-installer",
+            sender_type="system",
         )
 
         # Unpack the addon
@@ -284,6 +296,8 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
         event_id,
         description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
+        sender="background-installer",
+        sender_type="system",
     )
 
     return zip_info

@@ -28,7 +28,7 @@ async def get_activity_categories(
             await EntityAccessHelper.check(
                 user,
                 access=cat.get("access"),
-                level=EntityAccessHelper.MANAGE,
+                level=EntityAccessHelper.UPDATE,
                 default_open=False,
                 project=project,
             )

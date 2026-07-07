@@ -56,6 +56,14 @@ class EnumItem(OPModel):
         ),
     ] = None
 
+    short_name: Annotated[
+        str | None,
+        Field(
+            title="Short name for particular enums",
+            example="anim",
+        ),
+    ] = None
+
     disabled: Annotated[
         bool,
         Field(

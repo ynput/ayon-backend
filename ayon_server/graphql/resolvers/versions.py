@@ -13,6 +13,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
     create_folder_access_list,
@@ -30,6 +31,12 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .field_stats import (
+    MetricTargetInput,
+    generate_field_stats,
+    generate_specific_stats_columns,
+    generate_stats_columns,
+)
 from .sorting import get_attrib_sort_case, get_status_sort_case
 
 SORT_OPTIONS = {
@@ -40,13 +47,14 @@ SORT_OPTIONS = {
     "createdBy": "versions.created_by",
     "updatedBy": "versions.updated_by",
     "tags": "array_to_string(versions.tags, '')",
-    "path": "hierarchy.path || '/' || products.name || '/' || LPAD(versions.version::text, 5, '0')",  # noqa 501
     "productType": "products.product_type",
+    "productBaseType": "products.product_base_type",
     "productName": "products.name",
     "folderName": "folders.name",
     "folderType": "folders.folder_type",
     "taskName": "tasks.name",
     "taskType": "tasks.task_type",
+    "path": "",  # special case handled in the code (is here for docs)
 }
 
 
@@ -133,6 +141,13 @@ async def get_versions(
         str | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -172,6 +187,50 @@ async def get_versions(
         "hierarchy.path AS _folder_path",
         "products.name AS _product_name",
     ]
+
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = 'version'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_joins.append(
+            """
+            LEFT JOIN comments
+            ON comments.entity_id = versions.id
+            """
+        )
+        sql_columns.append("comments.comments AS latest_comments")
 
     if fields.any_endswith("hasReviewables") or (has_reviewables is not None):
         sql_cte.append(
@@ -453,20 +512,43 @@ async def get_versions(
     #
 
     if user.is_guest:
-        sql_cte.append(
-            f"""guest_accessible_versions AS (
-                SELECT DISTINCT(entity_id)
-                FROM project_{project_name}.entity_list_items i
-                JOIN project_{project_name}.entity_lists l
-                ON l.id = i.entity_list_id
-                AND l.entity_type = 'version'
-                AND (
-                        (l.access->'__guests__')::integer > 0
-                        OR (l.access->'guest:{user.attrib.email}')::integer > 0
+        if guest_access := user.data.get("guestAccess"):
+            entity_list_ids = [
+                ga["id"]
+                for ga in guest_access
+                if ga.get("projectName") == project_name
+                and ga.get("type") == "entityList"
+                and ga.get("id")
+            ]
+            if not entity_list_ids:
+                return VersionsConnection()
+
+            sql_cte.append(
+                f"""guest_accessible_versions AS (
+                    SELECT DISTINCT(entity_id)
+                    FROM project_{project_name}.entity_list_items i
+                    JOIN project_{project_name}.entity_lists l
+                    ON l.id = i.entity_list_id
+                    AND l.entity_type = 'version'
+                    AND l.id IN {SQLTool.id_array(entity_list_ids)}
                     )
-                )
-            """
-        )
+                """
+            )
+        else:
+            sql_cte.append(
+                f"""guest_accessible_versions AS (
+                    SELECT DISTINCT(entity_id)
+                    FROM project_{project_name}.entity_list_items i
+                    JOIN project_{project_name}.entity_lists l
+                    ON l.id = i.entity_list_id
+                    AND l.entity_type = 'version'
+                    AND (
+                            (l.access->'__guests__')::integer > 0
+                            OR (l.access->'guest:{user.attrib.email}')::integer > 0
+                        )
+                    )
+                """
+            )
         sql_joins.append(
             """
             INNER JOIN guest_accessible_versions AS gav
@@ -486,7 +568,7 @@ async def get_versions(
     #
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2)
+        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
 
         for term in terms:
             sub_conditions = []
@@ -506,6 +588,11 @@ async def get_versions(
     # Filter
     #
 
+    # Backwards-compat fallback for projects with NULL product_base_type
+    product_base_type_expr = (
+        "COALESCE(products.product_base_type, products.product_type)"
+    )
+
     if filter:
         column_whitelist = [
             "id",
@@ -524,6 +611,7 @@ async def get_versions(
             "updated_by",
             # virtual
             "product_type",
+            "product_base_type",
             "task_type",
             "folder_type",
             "hero_version_id",
@@ -537,6 +625,7 @@ async def get_versions(
             table_prefix="versions",
             column_map={
                 "product_type": "products.product_type",
+                "product_base_type": product_base_type_expr,
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
                 "hero_version_id": "hero_versions.hero_version_id",
@@ -550,6 +639,7 @@ async def get_versions(
             "name",
             "folder_id",
             "product_type",
+            "product_base_type",
             "status",
             "attrib",
             "data",
@@ -567,6 +657,9 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+            column_map={
+                "product_base_type": product_base_type_expr,
+            },
         ):
             sql_conditions.append(fcond)
 
@@ -606,6 +699,8 @@ async def get_versions(
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "versions.status")
             order_by.insert(0, status_type_case)
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "products.name", "versions.version"]
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
@@ -615,14 +710,17 @@ async def get_versions(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    ordering, paging_conds, cursor = create_pagination(
-        order_by,
-        first,
-        after,
-        last,
-        before,
-    )
-    sql_conditions.append(paging_conds)
+    ordering = ""
+    cursor = "''"
+    if not calculate_statistics and not calculate_specific_statistics:
+        ordering, paging_conds, cursor = create_pagination(
+            order_by,
+            first,
+            after,
+            last,
+            before,
+        )
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -634,19 +732,53 @@ async def get_versions(
     else:
         cte = ""
 
+    default_columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("thumbnail_id", "uuid"),
+        ColumnMetadata("active", "bool"),
+        ColumnMetadata("status", "string"),
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(default_columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+            )
+            SELECT
+                {stats_select_clause}
+            FROM raw_data;
+            """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
+        {raw_data_end}
     """
 
     # print()
     # print("Versions query:")
     # print(query)
     # print()
+    #
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return VersionsConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
         VersionsConnection,

@@ -2,39 +2,32 @@ import re
 from base64 import b64decode, b64encode
 from typing import Any
 
-from ayon_server.logging import logger
+from ayon_server.exceptions import BadRequestException
 from ayon_server.utils import json_dumps, json_loads
 
+# Top-level non-nullable fields.
+# We don't need COALESCE for these.
+COLUMN_TYPES = {
+    "id": "text",
+    "name": "text",
+    "created_at": "timestamptz",
+    "updated_at": "timestamptz",
+    "status": "text",
+    "creation_order": "numeric",
+    "path": "text",
+}
 
-def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
-    """
-    returns a list of cursor values and casts
-    """
 
+def decode_cursor(cursor: str | None) -> list[Any]:
     if not cursor:
-        return ([], [])
+        return []
     try:
-        cur_data = json_loads(b64decode(cursor).decode())
-        vals = []
-        casts = []
-        for c in cur_data:
-            if isinstance(c, str):
-                # Check if the value is a timestamp in ISO format
-                if re.match(r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", c):
-                    # Convert to timestamp
-                    vals.append(f"'{c}'::timestamptz")
-                    casts.append("::timestamptz")
-                else:
-                    val = c.replace("'", "''") if c else ""
-                    vals.append(f"'{val}'::text")
-                    casts.append("::text")
-            else:
-                vals.append(f"{c or 0}::numeric")
-                casts.append("::numeric")
-        return vals, casts
-    except Exception as e:
-        logger.debug(f"Invalid cursor {e}")
-        return ([], [])
+        cur = json_loads(b64decode(cursor).decode())
+        if not isinstance(cur, list):
+            raise BadRequestException("Cursor must decode to a list")
+        return cur
+    except Exception:
+        raise BadRequestException("Invalid cursor")
 
 
 def encode_cursor(decoded_cursor: list[Any]) -> str:
@@ -64,57 +57,87 @@ def create_pagination(
         which the resolver uses to construct the actual cursor.
     """
 
-    if len(order_by) > 2:
-        raise ValueError("Order by can have only two fields")
     cursor_arr = []
     ordering_arr = []
-    decoded_cursor, casts = decode_cursor(before or after)
+    decoded_cursor = decode_cursor(before or after)
     operator = "<" if before else ">"
 
     keys = []
-    for i, cast in enumerate(casts):
+    cursor_values = []
+    for i in range(min(len(order_by), len(decoded_cursor))):
         ob = order_by[i]
-        if "->" in ob:
-            if cast == "::numeric":
-                keys.append(f"COALESCE({ob}, '0'::jsonb){cast}")
-            elif cast == "::timestamptz":
-                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'::jsonb){cast}")
-            else:
-                keys.append(f"COALESCE({ob}, ''::jsonb){cast}")
+        val = decoded_cursor[i]
+        col_name = ob.split(".")[-1]
+
+        is_jsonb = ("->" in ob) and ("->>" not in ob) and ("::" not in ob)
+        ctype = COLUMN_TYPES.get(col_name)
+
+        if ctype and not is_jsonb:
+            # Known non-nullable top-level field
+            keys.append(f"{ob}")
+            if ctype == "text":
+                val_str = str(val).replace("'", "''") if val is not None else ""
+                sql_val = f"'{val_str}'::text"
+            elif ctype == "timestamptz":
+                sql_val = f"'{val}'::timestamptz"
+                if not isinstance(val, str) or not re.match(
+                    r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
+                ):
+                    raise BadRequestException(
+                        f"Invalid value for timestamptz field: {val}"
+                    )
+            else:  # numeric
+                if not isinstance(val, (int, float)):
+                    raise BadRequestException(f"Invalid value for numeric field: {val}")
+                sql_val = f"{val or 0}"
+            cursor_values.append(sql_val)
+            continue
+
+        # Fallback for nullable fields or JSONB
+        if isinstance(val, (int, float)):
+            cast = "numeric"
+            # default = "'0'"
+            sql_val = f"{val}::numeric"
+        elif isinstance(val, str) and re.match(
+            r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
+        ):
+            cast = "timestamptz"
+            # default = "'1970-01-01T00:00:00Z'"
+            sql_val = f"'{val}'::timestamptz"
         else:
-            if cast == "::numeric":
-                keys.append(f"COALESCE({ob}, 0){cast}")
-            elif cast == "::timestamptz":
-                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'){cast}")
-            else:
-                keys.append(f"COALESCE({ob}, ''){cast}")
+            cast = "text"
+            # default = "'\"\"'"
+            v_str = str(val).replace("'", "''") if val is not None else ""
+            sql_val = f"'{v_str}'::text"
+
+        # if is_jsonb:
+        #     keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
+        # else:
+        #     keys.append(f"COALESCE({ob}, {default})::{cast}")
+
+        keys.append(f"({ob})::{cast}")
+        cursor_values.append(sql_val)
 
     for i, c in enumerate(order_by):
+        ordering_arr.append(f"{c} {'DESC' if last else 'ASC'}")
         cursor_arr.append(f"{c} AS cursor_{i}")
-        ordering_arr.append(f"{c} {'DESC NULLS LAST' if last else 'ASC NULLS FIRST'}")
 
-    # Okay. I know this looks like something a 5YO would write, but hear me out.
-    # We don't need to support more than two cursors. Hopefully.
-    # So trust me, even if this is a mess, it is still MUCH more readable than
-    # doing it a loop for every cursor element. We just cover two cases,
-    # (or three if you're counting 'no cursor').
+    #
+    # Create cursor conditions
+    #
 
-    if len(decoded_cursor) == 1:
-        conditions = f"""
-        ({keys[0]} {operator} {decoded_cursor[0]})
-        """
-    elif len(decoded_cursor) == 2:
-        conditions = f"""
-        (
-            {keys[0]} {operator} {decoded_cursor[0]}
-        OR (
-            {keys[0]} = {decoded_cursor[0]}
-            AND {keys[1]} {operator} {decoded_cursor[1]}
-           )
-        )"""
-    else:
+    if not keys:
         conditions = ""
+    else:
+        if len(keys) > 1:
+            keys_str = ", ".join(keys)
+            vals_str = ", ".join(cursor_values)
+            conditions = f"({keys_str}) {operator} ({vals_str})"
+        else:
+            conditions = f"{keys[0]} {operator} {cursor_values[0]}"
 
-    ordering = "ORDER BY " + ", ".join(ordering_arr)
+    limit = (first or last or 500) * 2
+
+    ordering = "ORDER BY " + ", ".join(ordering_arr) + f" LIMIT {limit}"
     cursor = ", ".join(cursor_arr)
     return ordering, conditions, cursor

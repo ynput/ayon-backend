@@ -135,3 +135,14 @@ class DeadlockException(AyonException):
 
     detail: str = "Database deadlock detected"
     status: int = 503
+
+
+class ImportRowErrorException(AyonException):
+    """Raised when a row in the CSV import has an unrecoverable error.
+
+    This exception is used when error_handling_mode is set to "abort",
+    meaning the entire import should stop immediately.
+    """
+
+    detail: str = "Import error"
+    status: int = 422  # Unprocessable Entity

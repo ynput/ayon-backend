@@ -29,3 +29,17 @@ class BaseEnumResolver:
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         """Resolve enum options based on the provided context."""
         return []
+
+    async def create_item(
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> None:
+        _ = (
+            item,
+            project_name,
+            kwargs,
+        )  # Unused for now, but allows for future extensibility
+        """Resolve enum options based on the provided context."""
+        raise NotImplementedError("This enum resolver does not support item creation")

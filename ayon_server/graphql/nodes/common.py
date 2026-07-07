@@ -16,6 +16,8 @@ from ayon_server.utils import json_dumps
 @strawberry.type
 class ProductType(BaseEdge):
     name: str = strawberry.field()
+    # TODO remove 'icon' and 'color' for ayon_api compatibility
+    #     PR https://github.com/ynput/ayon-python-api/pull/332
     icon: str | None = strawberry.field(default=None)
     color: str | None = strawberry.field(default=None)
 
@@ -23,6 +25,48 @@ class ProductType(BaseEdge):
 @strawberry.type
 class ProductBaseType(BaseEdge):
     name: str = strawberry.field()
+    icon: str = strawberry.field()
+    color: str = strawberry.field()
+
+
+async def _get_entity(
+    info: Info, project_name: str, entity_type: str, entity_id: str
+) -> Optional["BaseNode"]:
+    if entity_type == "folder":
+        loader = info.context["folder_loader"]
+        parser = info.context["folder_from_record"]
+    elif entity_type == "version":
+        loader = info.context["version_loader"]
+        parser = info.context["version_from_record"]
+    elif entity_type == "product":
+        loader = info.context["product_loader"]
+        parser = info.context["product_from_record"]
+    elif entity_type == "task":
+        loader = info.context["task_loader"]
+        parser = info.context["task_from_record"]
+    elif entity_type == "representation":
+        loader = info.context["representation_loader"]
+        parser = info.context["representation_from_record"]
+    elif entity_type == "workfile":
+        loader = info.context["workfile_loader"]
+        parser = info.context["workfile_from_record"]
+    else:
+        msg = f"Unsupported entity type '{entity_type}' for link node"
+        logger.error(msg)
+        raise AyonException(msg)
+
+    record = await loader.load((project_name, entity_id))
+    if not record:
+        return None
+
+    entity_node = await parser(project_name, record, info.context)
+    access_checker = info.context.get("access_checker")
+    if access_checker:
+        entity_folder_path = (entity_node._folder_path or "").strip("/")
+        if not access_checker[entity_folder_path]:
+            # No access to the folder containing the linked entity
+            return None
+    return entity_node
 
 
 @strawberry.type
@@ -41,46 +85,60 @@ class LinkEdge(BaseEdge):
 
     @strawberry.field(description="Linked node")
     async def node(self, info: Info) -> Optional["BaseNode"]:
-        if self.entity_type == "folder":
-            loader = info.context["folder_loader"]
-            parser = info.context["folder_from_record"]
-        elif self.entity_type == "version":
-            loader = info.context["version_loader"]
-            parser = info.context["version_from_record"]
-        elif self.entity_type == "product":
-            loader = info.context["product_loader"]
-            parser = info.context["product_from_record"]
-        elif self.entity_type == "task":
-            loader = info.context["task_loader"]
-            parser = info.context["task_from_record"]
-        elif self.entity_type == "representation":
-            loader = info.context["representation_loader"]
-            parser = info.context["representation_from_record"]
-        elif self.entity_type == "workfile":
-            loader = info.context["workfile_loader"]
-            parser = info.context["workfile_from_record"]
-        else:
-            msg = f"Unsupported entity type '{self.entity_type}' for link node"
-            logger.error(msg)
-            raise AyonException(msg)
-
-        record = await loader.load((self.project_name, self.entity_id))
-        if not record:
-            return None
-
-        entity_node = await parser(self.project_name, record, info.context)
-        access_checker = info.context.get("access_checker")
-        if access_checker:
-            entity_folder_path = (entity_node._folder_path or "").strip("/")
-            if not access_checker[entity_folder_path]:
-                # No access to the folder containing the linked entity
-                return None
-        return entity_node
+        return await _get_entity(
+            info,
+            self.project_name,
+            self.entity_type,
+            self.entity_id,
+        )
 
 
 @strawberry.type
 class LinksConnection(BaseConnection):
     edges: list[LinkEdge] = strawberry.field(default_factory=list)
+
+
+@strawberry.type
+class ProjectLinkEdge(BaseEdge):
+    id: str = strawberry.field()
+    project_name: str = strawberry.field()
+
+    link_type: str = strawberry.field()
+
+    input_type: str = strawberry.field()
+    output_type: str = strawberry.field()
+    input_id: str = strawberry.field()
+    output_id: str = strawberry.field()
+
+    name: str | None = strawberry.field(default=None)
+    author: str | None = strawberry.field(default=None)
+    created_at: datetime = strawberry.field()
+
+    cursor: str | None = strawberry.field(default=None)
+    data: JSON = strawberry.field(default_factory=dict)
+
+    @strawberry.field(description="Input node")
+    async def input_node(self, info: Info) -> Optional["BaseNode"]:
+        return await _get_entity(
+            info,
+            self.project_name,
+            self.input_type,
+            self.input_id,
+        )
+
+    @strawberry.field(description="Output node")
+    async def output_node(self, info: Info) -> Optional["BaseNode"]:
+        return await _get_entity(
+            info,
+            self.project_name,
+            self.output_type,
+            self.output_id,
+        )
+
+
+@strawberry.type
+class ProjectLinksConnection(BaseConnection):
+    edges: list[ProjectLinkEdge] = strawberry.field(default_factory=list)
 
 
 @strawberry.type

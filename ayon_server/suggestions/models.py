@@ -73,10 +73,15 @@ class VersionSuggestionItem(SuggestionItem):
         return f"v{values['version']:03d}"
 
 
+class TeamSuggestionItem(SuggestionItem):
+    name: str = Field(..., example="Compositors")
+
+
 SuggestionType = (
     UserSuggestionItem
     | TaskSuggestionItem
     | FolderSuggestionItem
     | VersionSuggestionItem
     | ProductSuggestionItem
+    | TeamSuggestionItem
 )

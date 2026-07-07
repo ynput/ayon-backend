@@ -2,6 +2,7 @@ import hashlib
 import os
 
 import aiofiles
+import anyio
 from fastapi import BackgroundTasks, Path, Query, Request, Response
 
 from ayon_server.api.dependencies import CurrentUser
@@ -21,15 +22,16 @@ from ayon_server.installer.models import (
     SourcesPatchModel,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.json import json_loads
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .common import (
     InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
-    iter_names,
-    load_json_file,
 )
 from .router import router
 
@@ -61,14 +63,23 @@ class DependencyPackageList(OPModel):
 #
 
 
-def get_manifest(filename: str) -> DependencyPackage:
+async def get_manifest(filename: str) -> DependencyPackage:
+
+    path = get_desktop_file_path("dependency_packages", f"{filename}.json")
+
     try:
-        manifest_data = load_json_file("dependency_packages", f"{filename}.json")
-        manifest = DependencyPackage(**manifest_data)
+        async with aiofiles.open(path) as f:
+            manifest_data = await f.read()
     except FileNotFoundError:
-        raise NotFoundException(f"Dependency package manifest {filename} not found")
-    except ValueError:
-        raise AyonException(f"Failed to load dependency package manifest {filename}")
+        raise NotFoundException(f"Dependency package {filename} not found")
+    except Exception as e:
+        raise AyonException(f"Failed to read dependency package {filename}: {e}")
+
+    try:
+        manifest = DependencyPackage(**json_loads(manifest_data))
+    except Exception as e:
+        raise AyonException(f"Failed to parse dependency package {filename}: {e}")
+
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
             manifest.sources.insert(0, SourceModel(type="server"))
@@ -82,27 +93,46 @@ def get_manifest(filename: str) -> DependencyPackage:
     return manifest
 
 
-# TODO: add filtering
-@router.get("/dependencyPackages", response_model_exclude_none=True)
-async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
-    """Return a list of dependency packages"""
-
+@Redis.cached(
+    ns="desktop",
+    key="dependency-packages",
+    model=DependencyPackageList,
+    ttl=60,
+)
+async def _list_dependency_packages() -> DependencyPackageList:
     result: list[DependencyPackage] = []
-    for filename in iter_names("dependency_packages"):
-        try:
-            manifest = get_manifest(filename)
-        except Exception as e:
-            logger.warning(f"Failed to load manifest file {filename}: {e}")
+
+    root = get_desktop_dir("dependency_packages", for_writing=False)
+    if not await anyio.Path(root).exists():
+        return DependencyPackageList(packages=result)
+
+    async for filename in anyio.Path(root).iterdir():
+        if not filename.name.endswith(".json"):
             continue
 
-        if filename != manifest.filename:
+        try:
+            manifest = await get_manifest(filename.stem)
+        except Exception as e:
+            logger.warning(
+                f"Failed to read dependency package manifest {filename}: {e}"
+            )
+            continue
+
+        if filename.stem != manifest.filename:
             logger.warning(
                 "Filename in manifest does not match: "
-                f"{filename} != {manifest.filename}"
+                f"{filename.stem} != {manifest.filename}"
             )
             continue
         result.append(manifest)
     return DependencyPackageList(packages=result)
+
+
+@router.get("/dependencyPackages", response_model_exclude_none=True)
+async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
+    """Return a list of dependency packages"""
+    coalesce = RequestCoalescer()
+    return await coalesce(_list_dependency_packages)
 
 
 @router.post("/dependencyPackages", status_code=201)
@@ -126,7 +156,7 @@ async def create_dependency_package(
     force = force or overwrite  # for backward compatibility, remove in 1.2
 
     try:
-        _ = get_manifest(payload.filename)
+        _ = await get_manifest(payload.filename)
     except Exception:
         pass
     else:
@@ -171,6 +201,8 @@ async def create_dependency_package(
                 summary={"url": url},
                 status="pending",
                 retries=0,
+                sender="background_installer",
+                sender_type="system",
             )
         else:
             event_id = await EventStream.dispatch(
@@ -180,11 +212,14 @@ async def create_dependency_package(
                 summary={"url": url},
                 user=user.name,
                 finished=False,
+                sender="background_installer",
+                sender_type="system",
             )
 
         assert event_id
         background_tasks.add_task(background_installer.enqueue, event_id)
 
+    await Redis.delete("desktop", "dependency-packages")
     return InstallResponseModel(event_id=event_id)
 
 
@@ -213,12 +248,13 @@ async def upload_dependency_package(
     if not user.is_admin:
         raise ForbiddenException("Only admins can upload dependency packages.")
 
-    manifest = get_manifest(filename)
+    manifest = await get_manifest(filename)
 
     if manifest.filename != filename:
         raise AyonException("Filename in manifest does not match")
 
     await handle_upload(request, manifest.local_file_path)
+    await Redis.delete("desktop", "dependency-packages")
     return EmptyResponse(status_code=204)
 
 
@@ -234,11 +270,12 @@ async def delete_dependency_package(
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete dependency packages")
 
-    manifest = get_manifest(filename)
+    manifest = await get_manifest(filename)
     if manifest.has_local_file:
         os.remove(manifest.local_file_path)
     os.remove(manifest.path)
 
+    await Redis.delete("desktop", "dependency-packages")
     return EmptyResponse()
 
 
@@ -253,7 +290,7 @@ async def update_dependency_package(
     if not user.is_admin:
         raise ForbiddenException("Only admins can update dependency packages")
 
-    manifest = get_manifest(filename)
+    manifest = await get_manifest(filename)
     if manifest.filename != filename:
         raise AyonException("Filename in manifest does not match")
 
@@ -261,4 +298,5 @@ async def update_dependency_package(
     async with aiofiles.open(manifest.path, "w") as f:
         await f.write(manifest.json(exclude_none=True))
 
+    await Redis.delete("desktop", "dependency-packages")
     return EmptyResponse(status_code=204)

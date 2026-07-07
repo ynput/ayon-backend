@@ -63,7 +63,7 @@ async def get_attrib_sort_case(attr: str, exp: str) -> str:
     except KeyError:
         enum = []
     if not enum:
-        return f"{exp}->'{attr}'"
+        return f"{exp}->>'{attr}'"
     case = "CASE"
     i = 0
     for i, eval in enumerate(enum):

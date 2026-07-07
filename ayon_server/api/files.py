@@ -128,9 +128,21 @@ async def handle_download(
     )
 
 
-def image_response_from_bytes(image_bytes: bytes) -> Response:
+def image_response_from_bytes(
+    image_bytes: bytes,
+    *,
+    headers: dict[str, str] | None = None,
+) -> Response:
     media_type = guess_mime_type(image_bytes)
     if media_type is None:
         raise NotFoundException("Invalid image format")
 
-    return Response(content=image_bytes, media_type=media_type)
+    _headers = {"cache-control": "max-age=3600"}
+    if headers:
+        _headers.update(headers)
+
+    return Response(
+        content=image_bytes,
+        media_type=media_type,
+        headers=_headers,
+    )

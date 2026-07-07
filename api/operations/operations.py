@@ -2,6 +2,7 @@ from typing import Literal
 
 from fastapi import BackgroundTasks
 
+from ayon_server.api.context import get_request_context
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
@@ -127,7 +128,14 @@ async def background_operations(
     query the status of the task.
     """
 
-    ops = ProjectLevelOperations(project_name, user=user)
+    request_context = get_request_context()
+
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=request_context.sender,
+        sender_type=request_context.sender_type,
+    )
 
     for operation in payload.operations:
         if operation.as_user:

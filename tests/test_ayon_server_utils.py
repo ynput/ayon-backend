@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 
@@ -5,7 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 
 from ayon_server.models.file_info import FileInfo
-from ayon_server.utils import dict_remove_path
+from ayon_server.utils import RequestCoalescer, dict_remove_path
 
 
 class TestDictRemovePath:
@@ -60,3 +61,42 @@ class TestFileInfo:
 
     assert r.filename == "example"
     assert r.content_type == "image/png"
+
+
+class TestRequestCoalescer:
+    def _reset_coalescer(self) -> RequestCoalescer[object]:
+        coalescer = RequestCoalescer()
+        coalescer.current_futures.clear()
+        coalescer.current_waiters.clear()
+        coalescer.max_waiters = 20
+        return coalescer
+
+    def test_creates_distinct_keys_for_overflow_waiters(self):
+        async def _run_test():
+            coalescer = self._reset_coalescer()
+            try:
+                coalescer.max_waiters = 1
+                started = 0
+                started_event = asyncio.Event()
+                release_event = asyncio.Event()
+
+                async def work() -> int:
+                    nonlocal started
+                    started += 1
+                    result = started
+                    if started == 3:
+                        started_event.set()
+                    await release_event.wait()
+                    return result
+
+                tasks = [asyncio.create_task(coalescer(work)) for _ in range(3)]
+
+                await asyncio.wait_for(started_event.wait(), timeout=1)
+                assert len(coalescer.current_futures) == 3
+
+                release_event.set()
+                await asyncio.gather(*tasks)
+            finally:
+                self._reset_coalescer()
+
+        asyncio.run(_run_test())

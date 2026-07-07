@@ -120,7 +120,8 @@ async def enroll(
             if not args:
                 print()
             else:
-                logger.debug("🦥", *args)
+                placeholder = " ".join(["{}"] * len(args))
+                logger.debug(f"🦥 {placeholder}", *args)
 
     if not current_user.is_service:
         raise ForbiddenException("Only services can enroll for jobs")

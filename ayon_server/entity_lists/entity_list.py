@@ -177,7 +177,7 @@ class EntityList:
         """Load the entity list from the database."""
 
         async with Postgres.transaction():
-            await Postgres.execute(f"SET LOCAL search_path TO project_{project_name}")
+            await Postgres.set_project_schema(project_name)
             query = "SELECT * FROM entity_lists WHERE id = $1"
             res = await Postgres.fetchrow(query, id)
             if not res:
@@ -195,8 +195,14 @@ class EntityList:
                     item = EntityListItemModel(**row)
                     items.append(item)
 
+        #
+        # Access control
+        #
+
         access_level = EntityAccessHelper.MANAGE
-        if user:
+        if user and not user.get_guest_access(
+            type="entityList", project_name=project_name, id=res["id"]
+        ):
             project = await ProjectEntity.load(project_name)
             access_level = EntityAccessHelper.MANAGE
             try:
@@ -343,13 +349,14 @@ class EntityList:
     ) -> EntityListSummary:
         """Save the entity list to the database"""
         _user = user or self._user
-        return await save_entity_list(
-            self._project_name,
-            self._payload,
-            user=_user,
-            sender=sender,
-            sender_type=sender_type,
-        )
+        async with Postgres.transaction():
+            return await save_entity_list(
+                self._project_name,
+                self._payload,
+                user=_user,
+                sender=sender,
+                sender_type=sender_type,
+            )
 
     async def delete(
         self,

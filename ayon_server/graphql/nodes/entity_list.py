@@ -1,12 +1,14 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 import strawberry
 
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.resolvers.common import argdesc
+from ayon_server.graphql.resolvers.field_stats import MetricTargetInput
+from ayon_server.graphql.types import BaseConnection, BaseEdge, ColumnStats, Info
 from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
@@ -164,6 +166,7 @@ class EntityListItemEdge(BaseEdge):
 @strawberry.type
 class EntityListItemsConnection(BaseConnection):
     edges: list[EntityListItemEdge] = strawberry.field(default_factory=list)
+    field_stats: list[ColumnStats] = strawberry.field(default_factory=list)
 
 
 #
@@ -224,6 +227,15 @@ class EntityListNode:
         sort_by: str | None = None,
         accessible_only: bool = False,
         filter: str | None = None,
+        calculate_statistics: Annotated[
+            bool, argdesc("Whether to calculate column statistics")
+        ] = False,
+        calculate_specific_statistics: Annotated[
+            list[MetricTargetInput] | None,
+            argdesc(
+                "Map of attribute names to lists of desired statistical aggregations"
+            ),
+        ] = None,
     ) -> EntityListItemsConnection:
         if first is None and last is None:
             first = 200
@@ -239,6 +251,8 @@ class EntityListNode:
             sort_by=sort_by,
             filter=filter,
             accessible_only=accessible_only,
+            calculate_statistics=calculate_statistics,
+            calculate_specific_statistics=calculate_specific_statistics,
         )
 
     @strawberry.field
@@ -267,8 +281,10 @@ async def entity_list_from_record(
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
-    data = record.get("data", {})
+    data = dict(record.get("data") or {})
     user = context.get("user")
+
+    data.pop("publicLinks", None)  # Do not expose public links in GraphQL API
 
     entity_list_folder_id = record.get("entity_list_folder_id")
 

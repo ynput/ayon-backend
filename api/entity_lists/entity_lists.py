@@ -44,6 +44,7 @@ async def create_entity_list(
         raise BadRequestException("Entity list type is required")
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.construct(
             project_name,
             payload.entity_type,
@@ -85,6 +86,7 @@ async def update_entity_list(
     """Update entity list metadata"""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
 
@@ -147,15 +149,27 @@ async def get_entity_list(
         payload.created_by = None
         payload.updated_by = None
 
-        guest_activity_category = payload.data.get("guestActivityCategories", {}).get(
-            user.attrib.email
-        )
+        guest_activity_category = None
+
+        if (
+            guest_access := user.get_guest_access(
+                type="entityList",
+                project_name=project_name,
+                id=entity_list_id,
+            )
+        ) is not None:
+            guest_activity_category = guest_access.get("activityCategory")
+        else:
+            guest_activity_category = payload.data.get(
+                "guestActivityCategories", {}
+            ).get(user.attrib.email)
         payload.data = {}
         if guest_activity_category:
             payload.data["guestActivityCategories"] = {
                 user.attrib.email: guest_activity_category
             }
 
+    payload.data.pop("publicLinks", None)
     return payload
 
 
@@ -168,6 +182,7 @@ async def delete_entity_list(
     """Delete entity list from the database"""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.delete()
@@ -184,6 +199,7 @@ async def materialize_entity_list(
     """Materialize an entity list."""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.materialize()

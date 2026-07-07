@@ -29,11 +29,15 @@ async def clear_events() -> None:
 
             deletable_events AS (
                 SELECT id
-                FROM public.events
+                FROM public.events parent
                 WHERE updated_at < now() - interval '{num_days} days'
-                AND id NOT IN (SELECT id FROM blocked_events)
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM public.events child
+                    WHERE child.depends_on = parent.id
+                )
                 ORDER BY updated_at ASC
-                LIMIT 5000
+                LIMIT 10000
             ),
 
             deleted_events AS(

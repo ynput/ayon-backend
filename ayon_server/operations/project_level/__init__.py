@@ -7,6 +7,7 @@ __all__ = [
 
 import asyncio
 import random
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from asyncpg.exceptions import DeadlockDetectedError, IntegrityConstraintViolationError
@@ -25,7 +26,7 @@ from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
-from ayon_server.types import ProjectLevelEntityType
+from ayon_server.types import OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from ..common import OperationType, RollbackException
@@ -33,6 +34,12 @@ from .entity_create import create_project_level_entity
 from .entity_delete import delete_project_level_entity
 from .entity_update import update_project_level_entity
 from .models import OperationModel, OperationResponseModel, OperationsResponseModel
+
+
+class OperationsProgress(OPModel):
+    index: int = 0
+    total: int
+    operation: OperationModel
 
 
 async def _process_events(
@@ -117,6 +124,7 @@ async def _process_operations(
     *,
     can_fail: bool = False,
     raise_on_error: bool = True,
+    progress_handler: Callable[[OperationsProgress], Awaitable[None]] | None = None,
 ) -> tuple[list[dict[str, Any]], OperationsResponseModel]:
     """Process a list of operations.
 
@@ -134,7 +142,7 @@ async def _process_operations(
     entity_types: set[ProjectLevelEntityType] = set()
 
     logger.debug(f"[OPS] {len(operations)} project {project_name} operations")
-    for operation in operations:
+    for i, operation in enumerate(operations):
         if operation.as_user:
             user = user_map.get(operation.as_user)
         else:
@@ -147,6 +155,12 @@ async def _process_operations(
             project=project_name,
             operation_id=operation.id,
         )
+
+        if progress_handler:
+            progress = OperationsProgress(
+                index=i, total=len(operations), operation=operation
+            )
+            await progress_handler(progress)
 
         try:
             # This is a neat trick. transaction() will try
@@ -321,7 +335,7 @@ class ProjectLevelOperations:
         as_user: str | UserEntity | None = None,
         operation_id: str | None = None,
         force: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if isinstance(as_user, UserEntity):
             self.user_entities_map[as_user.name] = as_user
@@ -349,7 +363,7 @@ class ProjectLevelOperations:
         entity_id: str | None = None,
         *,
         as_user: str | UserEntity | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Create a project level entity."""
         self.add(
@@ -424,6 +438,7 @@ class ProjectLevelOperations:
         can_fail: bool,
         raise_on_error: bool,
         wait_for_events: bool,
+        progress_handler: Callable[[OperationsProgress], Awaitable[None]] | None = None,
     ) -> OperationsResponseModel:
         self._validate()
 
@@ -460,6 +475,7 @@ class ProjectLevelOperations:
                             self.operations,
                             user_map=self.user_entities_map,
                             raise_on_error=raise_on_error,
+                            progress_handler=progress_handler,
                         )
                     if not response.success:
                         events = []
@@ -522,6 +538,7 @@ class ProjectLevelOperations:
         can_fail: bool = False,
         raise_on_error: bool = True,
         wait_for_events: bool = True,
+        progress_handler: Callable[[OperationsProgress], Awaitable[None]] | None = None,
     ) -> OperationsResponseModel:
         """
         Process the enqueued operations.
@@ -541,6 +558,7 @@ class ProjectLevelOperations:
                 can_fail=can_fail,
                 raise_on_error=raise_on_error,
                 wait_for_events=wait_for_events,
+                progress_handler=progress_handler,
             )
         finally:
             self.operations = []

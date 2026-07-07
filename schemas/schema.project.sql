@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_tags ON activities USING gin(tags);
+CREATE INDEX IF NOT EXISTS activity_author_idx ON activities((data->>'author'));
+CREATE INDEX IF NOT EXISTS activity_watcher_idx ON activities((data->>'watcher')) WHERE activity_type = 'watch';
 
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
@@ -91,6 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_referen
 CREATE INDEX IF NOT EXISTS idx_activity_reference_updated_at ON activity_references(updated_at);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
+
+CREATE INDEX IF NOT EXISTS activity_origin_desc_idx ON activity_references (entity_type, entity_id, created_at DESC) 
+  WHERE reference_type = 'origin';
 
 
 -- This will be implemented later.
@@ -182,6 +187,9 @@ CREATE TABLE folders(
 
 CREATE INDEX folder_parent_idx ON folders(parent_id);
 CREATE INDEX folder_thumbnail_idx ON folders(thumbnail_id);
+CREATE INDEX folder_type_idx ON folders(folder_type);
+CREATE INDEX folder_status_idx ON folders(status);
+CREATE INDEX folder_attrib_idx ON folders USING gin(attrib);
 CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
@@ -217,6 +225,7 @@ AS
    SELECT base_id AS id, path FROM htable;
 
 CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
+CREATE INDEX hierarchy_path_idx ON hierarchy(path);
 
 
 CREATE TABLE exported_attributes(
@@ -253,6 +262,9 @@ CREATE TABLE tasks(
 CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE INDEX task_thumbnail_idx ON tasks(thumbnail_id);
+CREATE INDEX task_status_idx ON tasks(status);
+CREATE INDEX task_assignees_idx ON tasks USING gin(assignees);
+CREATE INDEX task_attrib_idx ON tasks USING gin(attrib);
 CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
 CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, LOWER(name)) WHERE (active IS TRUE);
 
@@ -283,6 +295,8 @@ CREATE TABLE products(
 CREATE INDEX product_parent_idx ON products(folder_id);
 CREATE INDEX product_type_idx ON products(product_type);
 CREATE INDEX product_base_type_idx ON products(product_base_type);
+CREATE INDEX product_status_idx ON products(status);
+CREATE INDEX product_attrib_idx ON products USING gin(attrib);
 CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
 CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, LOWER(name)) WHERE (active IS TRUE);
 
@@ -313,6 +327,9 @@ CREATE TABLE versions(
 
 CREATE INDEX version_parent_idx ON versions(product_id);
 CREATE INDEX version_thumbnail_idx ON versions(thumbnail_id);
+CREATE INDEX version_task_id_idx ON versions(task_id);
+CREATE INDEX version_status_idx ON versions(status);
+CREATE INDEX version_attrib_idx ON versions USING gin(attrib);
 CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
 CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, version) WHERE (active IS TRUE);
 
@@ -356,6 +373,8 @@ CREATE TABLE representations(
 );
 
 CREATE INDEX representation_parent_idx ON representations(version_id);
+CREATE INDEX representation_status_idx ON representations(status);
+CREATE INDEX representation_attrib_idx ON representations USING gin(attrib);
 CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, LOWER(name)) WHERE (active IS TRUE);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
@@ -475,7 +494,8 @@ CREATE TABLE entity_list_folders (
     data JSONB DEFAULT '{}'::JSONB
 );
 
-CREATE UNIQUE INDEX uq_entity_list_folder_parent_label ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+CREATE UNIQUE INDEX uq_entity_list_folder_parent_label 
+  ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
 
 
 -- Entity lists and items

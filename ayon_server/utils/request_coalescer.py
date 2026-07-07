@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 from collections.abc import Callable, Coroutine
 from typing import Any, Generic, TypeVar
+from uuid import uuid4
 
 
 def _hash_args(func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
@@ -52,7 +53,7 @@ class RequestCoalescer(Generic[T]):
 
             elif waiters >= self.max_waiters:
                 # Too many waiters: create a unique task
-                unique_key = f"{base_key}:{waiters}"
+                unique_key = f"{base_key}:{uuid4().hex}"
                 self.current_futures[unique_key] = asyncio.create_task(
                     func(*args, **kwargs)
                 )

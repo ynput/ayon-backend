@@ -54,6 +54,13 @@ project_fields: list[FieldDefinitionDict] = [
         "required": True,
     },
     {
+        "name": "label",
+        "type": "string",
+        "title": "Project label",
+        "regex": LABEL_REGEX,
+        "example": "My awesome project",
+    },
+    {
         "name": "library",
         "type": "boolean",
         "default": False,
@@ -119,6 +126,13 @@ project_fields: list[FieldDefinitionDict] = [
         "type": "dict",
         "default": {},
         "title": "Project config",
+    },
+    {
+        "name": "skeleton",
+        "type": "boolean",
+        "title": "Skeleton project",
+        "example": True,
+        "dynamic": True,
     },
 ]
 

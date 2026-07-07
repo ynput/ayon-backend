@@ -21,10 +21,14 @@ async def main(force: bool | None = None) -> None:
 
     logger.info("Starting setup")
 
-    await ayon_init(extensions=False, enum_registry=False)
+    await ayon_init(
+        extensions=False,
+        enum_registry=False,
+        load_projects=False,
+    )
 
     try:
-        await Postgres.fetch("SELECT * FROM projects")
+        await Postgres.fetch("SELECT name FROM projects LIMIT 1")
     except Exception:
         logger.warning("Database is empty")
         has_schema = False
@@ -42,12 +46,12 @@ async def main(force: bool | None = None) -> None:
         logger.info("(re)creating database schema")
 
         schema = Path("schemas/schema.drop.sql").read_text()
-        await Postgres.execute(schema)
+        await Postgres.execute(schema, timeout=120)
 
     db_version = await db_migration(has_schema)
 
     schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
+    await Postgres.execute(schema, timeout=120)
 
     # Save the current database version (latest migration applied)
 
@@ -127,8 +131,11 @@ async def main(force: bool | None = None) -> None:
 
     from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 
-    project_list = await get_project_list()
+    project_list = await get_project_list(force_load=True)
     for project in project_list:
+        if project.skeleton:
+            # this should not happen, but just in case.
+            continue
         try:
             await rebuild_inherited_attributes(project.name)
         except Exception:

@@ -2,7 +2,14 @@ import json
 import re
 from typing import Annotated, Any, Literal, Union, cast
 
-from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr, validator
+from pydantic import (
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    root_validator,
+    validator,
+)
 
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -73,20 +80,26 @@ class QueryCondition(OPModel):
         ),
     ] = "eq"
 
-    @validator("operator", pre=True, always=True)
+    @validator("operator", pre=True)
     def convert_operator_to_lowercase(cls, v):
         return v.lower().replace("-", "").replace("_", "")
 
-    @validator("value")
-    def validate_value(cls, v: ValueType, values: dict[str, Any]):
-        if values.get("operator") in ("in", "notin", "any"):
-            if not isinstance(v, list):
+    @root_validator(pre=True)
+    def validate_value(cls, values: dict[str, Any]):
+        operator = (
+            values.get("operator", "eq").lower().replace("-", "").replace("_", "")
+        )
+        value = values.get("value")
+
+        if operator in ("in", "notin", "any"):
+            if not isinstance(value, list):
                 raise ValueError("Value must be a list")
-        if values.get("operator") not in ("isnull", "notnull"):
-            if v is None:
+
+        if operator not in ("isnull", "notnull"):
+            if value is None:
                 raise ValueError("Value cannot be null")
 
-        return v
+        return values
 
 
 class QueryFilter(OPModel):
@@ -117,6 +130,8 @@ JSON_FIELDS = [
     "attrib",
     "data",
     "config",
+    "activity_data",
+    "reference_data",
 ]
 
 
@@ -187,7 +202,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 safe_value = EntityID.parse(value)
             else:
                 safe_value = value.replace("'", "''")
-            safe_value = f"'{value}'"
+            safe_value = f"'{safe_value}'"
 
         elif isinstance(value, int | float):
             cast_type = "integer" if isinstance(value, int) else "number"
