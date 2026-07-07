@@ -112,7 +112,10 @@ def _get_stats_for_column(
     return []
 
 
-def generate_specific_stats_columns(calculate_specific_statistics) -> str:
+def generate_specific_stats_columns(
+    calculate_specific_statistics: list[MetricTargetInput],
+    has_project_attributes: bool = False,
+) -> str:
     """Generate aggregations strictly requested by FE definitions."""
     stats_fields = set()
 
@@ -126,6 +129,20 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
             column_expr = f"({json_target}')"
         else:
             column_expr = raw_field
+
+        # collect values from all levels
+        if "inherited_attributes." in raw_field:
+            pure_name = raw_field.replace("inherited_attributes.", "")
+            pr_attr = (
+                f", project_attributes->>'{pure_name}' "
+                if has_project_attributes
+                else ""
+            )
+            column_expr = (
+                f"COALESCE(attrib->>'{pure_name}', "
+                f"inherited_attributes->>'{pure_name}'"
+                f" {pr_attr})"
+            )
 
         AGGR_TEMPLATES = {
             "min": f"MIN({column_expr}::numeric) AS {column_name}_min",
