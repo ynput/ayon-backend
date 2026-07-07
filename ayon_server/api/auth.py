@@ -198,6 +198,7 @@ async def user_request_throttler(
         key = f"{user.name}@{session_token}:{op_name}"
 
         req_count = await Redis.incr("concurrent-requests", key, ttl=60)
+        await Redis.incr("concurrent-requests", "total", ttl=60)
 
         try:
             if req_count > limit:
@@ -216,6 +217,7 @@ async def user_request_throttler(
 
         finally:
             await Redis.decr("concurrent-requests", key)
+            await Redis.decr("concurrent-requests", "total")
 
     yield
 
