@@ -133,10 +133,12 @@ async def obtain_file_preview(
         path = await storage.get_path(file_id)
 
         if not os.path.isfile(path):
-            raise NotFoundException("File not found")
+            raise NotFoundException(
+                f"Cannot obtain file {project_name}/{file_id} preview: media not found"
+            )
 
         if os.path.getsize(path) != expected_size:
-            logger.warning(f"File size mismatch: {path}")
+            logger.warning(f"File size mismatch for {project_name}/{file_id}")
 
     elif storage.storage_type == "s3":
         path = await storage.get_signed_url(file_id)
@@ -148,8 +150,10 @@ async def obtain_file_preview(
         pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
         return pvw_bytes
 
-    # TODO: return a generic preview image for other file types
-    raise UnsupportedMediaException("Preview mode is not supported for this file")
+    raise UnsupportedMediaException(
+        f"Preview mode is not supported for {mime_type} files "
+        f"({project_name}/{file_id})"
+    )
 
 
 async def get_file_preview_bytes(
@@ -202,6 +206,10 @@ async def get_file_preview(
             file_id,
             retries,
         )
+    except NotFoundException:
+        raise
+    except UnsupportedMediaException:
+        raise
     except Exception as e:
         log_traceback("Error getting file preview")
         raise AyonException(f"Error getting file preview: {str(e)}") from e

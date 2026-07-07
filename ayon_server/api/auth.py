@@ -1,6 +1,10 @@
 import asyncio
+import re
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
+import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -153,8 +157,76 @@ async def user_from_request(request: Request) -> UserEntity:
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
         # sudo :)
         user = await UserEntity.load(x_as_user)
+        user.add_session(session_data)
 
     return user
+
+
+THROTTLERS = [
+    (
+        "GraphQL",
+        lambda request: request.url.path.startswith("/graphql"),
+        10,
+    ),
+    (
+        "Operations",
+        # matches /api/projects/{project_name}/operations
+        lambda request: re.match(r"^/api/projects/[^/]+/operations", request.url.path),
+        2,
+    ),
+]
+
+
+@asynccontextmanager
+async def user_request_throttler(
+    user: UserEntity | None, request: Request
+) -> AsyncGenerator[None, None]:
+
+    if not user:
+        yield
+        return
+
+    if user.is_service:
+        yield
+        return
+
+    for op_name, matcher, limit in THROTTLERS:
+        if not matcher(request):
+            continue
+
+        assert user.session, "User must have a session"
+        session_token = user.session.token or "xxx"
+        key = f"{user.name}@{session_token}:{op_name}"
+
+        req_count = await Redis.incr("concurrent-requests", key, ttl=60)
+        await Redis.incr("concurrent-requests", "total", ttl=60)
+
+        try:
+            if req_count > limit:
+                short_token = shortuuid.uuid(name=session_token)[:8]
+
+                msg = (
+                    f"Too many concurrent {op_name} requests for "
+                    f"user {user.name}@{short_token} ({req_count}). "
+                )
+
+                # This warning will be replaced with an exception in the future,
+                # after we get a better understanding of how many concurrent
+                # requests are actually being made by users and when it is appropriate
+                # to block them.
+
+                logger.warning(msg)
+
+                # raise TooManyRequestsException(msg)
+
+            yield
+            return
+
+        finally:
+            await Redis.decr("concurrent-requests", key)
+            await Redis.decr("concurrent-requests", "total")
+
+    yield
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -170,7 +242,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = None
             request.state.unauthorized_reason = str(e)
 
-        with logger.contextualize(**context):
-            response = await call_next(request)
+        async with user_request_throttler(request.state.user, request):
+            with logger.contextualize(**context):
+                response = await call_next(request)
 
         return response
