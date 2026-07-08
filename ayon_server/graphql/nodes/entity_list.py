@@ -359,6 +359,9 @@ async def entity_list_from_record(
     else:
         activity_categories = []
 
+    if user.is_guest:
+        data = {}
+
     return EntityListNode(
         project_name=project_name,
         id=record["id"],
