@@ -3,6 +3,7 @@ from typing import Any, Literal
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.enum.enum_registry import EnumRegistry
+from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -158,19 +159,18 @@ class StatusesEnumResolver(BaseEnumResolver):
     async def get_accepted_params(self) -> dict[str, type]:
         return {
             "project_name": str,
-            "entity_type": Literal["folder", "task", "product", "version"],
+            "entity_type": str,
         }
 
     @classmethod
-    def for_type(
-        cls, entity_type: Literal["folder", "task", "product", "version"]
-    ):
+    def for_type(cls, entity_type: Literal["folder", "task", "product", "version"]):
         """Helper method to easily get resolver for an entity type.
 
         Goal is to be able to use
             'enum_resolver=StatusesEnumResolver.for_type("task")'.
 
         """
+
         async def resolve(project_name: str | None = None) -> list[EnumItem]:
             return await EnumRegistry.resolve(
                 "statuses",
@@ -183,6 +183,15 @@ class StatusesEnumResolver(BaseEnumResolver):
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
         entity_type = context.get("entity_type")
+
+        if isinstance(entity_type, str) and entity_type not in (
+            "folder",
+            "task",
+            "product",
+            "version",
+        ):
+            raise BadRequestException(f"Invalid entity_type: {entity_type}")
+
         if not project_name:
             anatomy = await get_primary_anatomy_preset()
             return [
@@ -194,10 +203,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     short_name=status.shortName,
                 )
                 for status in anatomy.statuses
-                if (
-                    not entity_type
-                    or entity_type in status.scope
-                )
+                if (not entity_type or (status.scope and (entity_type in status.scope)))
             ]
 
         project_name = await normalize_project_name(project_name)
@@ -241,7 +247,7 @@ class StatusesEnumResolver(BaseEnumResolver):
             "shortName": item.short_name or str(item.value)[0:3].upper(),
         }
         if entity_type:
-            data["scope"] = [entity_type]
+            data["scope"] = [entity_type]  # type: ignore[assignment]
 
         project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
