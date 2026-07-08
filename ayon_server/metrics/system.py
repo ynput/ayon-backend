@@ -97,14 +97,15 @@ class SystemMetrics:
         mem_usage = 100 * ((mem.total - mem.available) / mem.total)
 
         process = psutil.Process(os.getpid())
+        proc_mem = process.memory_info()
 
         redis_size = await Redis.get_total_size()
 
         return [
             Metric("cpu_usage", psutil.cpu_percent()),
             Metric("memory_usage", mem_usage),
-            Metric("process_memory_rss", process.memory_info().rss),
-            Metric("process_memory_vms", process.memory_info().vms),
+            Metric("process_memory_rss", proc_mem.rss),
+            Metric("process_memory_vms", proc_mem.vms),
             Metric("swap_usage", psutil.swap_memory().percent),
             Metric("uptime_seconds", time.time() - self.boot_time),
             Metric("runtime_seconds", time.time() - self.run_time),
