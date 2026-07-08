@@ -206,15 +206,7 @@ async def handle_token_auth_callback(
 
     if current_user and current_user.session:
         # user is already logged in. invalidate the original session
-
         await Session.delete(current_user.session.token)
-
-        # return LoginResponseModel(
-        #     detail=f"User {current_user.name} already logged in",
-        #     token=current_user.session.token,
-        #     user=current_user.payload,
-        #     redirect_url=payload.redirect_url,
-        # )
 
     return await create_guest_user_session(
         email=payload.email,
