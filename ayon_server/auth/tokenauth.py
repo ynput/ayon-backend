@@ -177,16 +177,6 @@ async def handle_token_auth_callback(
     except Exception:
         raise BadRequestException("Invalid token payload format")
 
-    if current_user and current_user.session:
-        # user is already logged in. construct the response
-
-        return LoginResponseModel(
-            detail=f"User {current_user.name} already logged in",
-            token=current_user.session.token,
-            user=current_user.payload,
-            redirect_url=payload.redirect_url,
-        )
-
     if not await enc_data.validate_nonce():
         logger.debug(f"Token for guest user {payload.email} expired")
         await send_extend_email(payload, base_url=server_url_from_request(request))
@@ -213,6 +203,18 @@ async def handle_token_auth_callback(
         # For future use. For now we only support guest users.
         msg = "Token is not for guest use"
         raise BadRequestException(msg)
+
+    if current_user and current_user.session:
+        # user is already logged in. invalidate the original session
+
+        await Session.delete(current_user.session.token)
+
+        # return LoginResponseModel(
+        #     detail=f"User {current_user.name} already logged in",
+        #     token=current_user.session.token,
+        #     user=current_user.payload,
+        #     redirect_url=payload.redirect_url,
+        # )
 
     return await create_guest_user_session(
         email=payload.email,
