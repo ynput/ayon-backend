@@ -171,6 +171,16 @@ class Redis:
         return res
 
     @classmethod
+    async def decr(cls, namespace: str, key: str, *, ttl: int = 0) -> int:
+        """Decrement a value in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        res = await cls.redis_pool.decr(f"{cls.prefix}{namespace}-{key}")
+        if ttl:
+            await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
+        return res
+
+    @classmethod
     async def expire(cls, namespace: str, key: str, ttl: int) -> None:
         """Set a TTL for a key in Redis"""
         if not cls.connected:
@@ -315,10 +325,16 @@ class Redis:
                                 ttl=ttl,
                             )
                         else:
+                            val = (
+                                result.dict()
+                                if isinstance(result, BaseModel)
+                                else result
+                            )
+
                             await cls.set_json(
                                 ns,
                                 full_key.removeprefix(f"{ns}:"),
-                                result,
+                                val,
                                 ttl=ttl,
                             )
                     except (TypeError, json.JSONDecodeError, ConnectionError) as e:

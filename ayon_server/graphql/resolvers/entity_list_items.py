@@ -88,6 +88,16 @@ ITEM_SORT_OPTIONS = {
 }
 
 
+ENTITY_SORT_OPTIONS: dict[str, dict[str, str]] = {
+    "version": {
+        "productName": "_entity__product_name",
+    },
+    "product": {
+        "productName": "_entity_name",
+    },
+}
+
+
 @functools.cache
 def cols_for_entity(entity_type: str) -> list[str]:
     fields: list[FieldDefinitionDict]
@@ -480,6 +490,9 @@ async def get_entity_list_items(
 
         elif sort_by in ITEM_SORT_OPTIONS.values():
             order_by.append(sort_by)
+
+        elif entity_sort_by := ENTITY_SORT_OPTIONS.get(entity_type, {}).get(sort_by):
+            order_by.append(entity_sort_by)
 
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]

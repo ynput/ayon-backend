@@ -58,6 +58,13 @@ async def get_system_metrics(
 
     # Get user requests count
 
+    try:
+        concurrent_requests = int(await Redis.get("concurrent-requests", "total"))
+    except Exception:
+        concurrent_requests = 0
+
+    result += f"ayon_concurrent_requests_total {concurrent_requests}\n"
+
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]
         requests = await Redis.get("user-requests", name)
