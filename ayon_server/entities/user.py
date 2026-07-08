@@ -44,6 +44,7 @@ class SessionInfo:
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key
         self.client_info = session.client_info
+        self.token = session.token
 
     def __repr__(self) -> str:
         return f"SessionInfo(is_api_key={self.is_api_key})"
