@@ -107,8 +107,9 @@ async def get_tracemalloc_metrics(
 
     result += "# Tracemalloc metrics\n"
     for stat in top_stats[:10]:
-        result += f'tracemalloc_allocations{{file="{stat.traceback[0].filename}", line="{stat.traceback[0].lineno}"}} {stat.size_diff}\n'  # noqa: E501
-
+        tb0 = stat.traceback[0]
+        filename = tb0.filename.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+        result += f'ayon_tracemalloc_size_diff_bytes{{file="{filename}", line="{tb0.lineno}"}} {stat.size_diff}\n'
     return PlainTextResponse(result)
 
 
