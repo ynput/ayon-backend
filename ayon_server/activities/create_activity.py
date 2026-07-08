@@ -160,7 +160,7 @@ async def create_activity(
         data["author"] = user_name
 
     references.update(await extract_mentions(body, project_name))
-    if activity_type not in ["watch"]:
+    if activity_type not in ["watch", "attrib.change"]:
         # We don't need to collect additional references for watch activities
         # As they only apply to the entity itself
 
