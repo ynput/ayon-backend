@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
@@ -27,9 +29,12 @@ from ayon_server.exceptions import (
 from ayon_server.files import Storages
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.types import Field, OPModel
+from ayon_server.types import OPModel
+from ayon_server.utils.entity_id import EntityID
 
 from .router import router
+
+human_activity_types = ["comment", "version.review"]
 
 
 async def delete_unused_files(project_name: str) -> None:
@@ -38,7 +43,10 @@ async def delete_unused_files(project_name: str) -> None:
 
 
 class CreateActivityResponseModel(OPModel):
-    id: str = Field(..., example="123")
+    id: Annotated[
+        str,
+        EntityID.field(name="activity"),
+    ]
 
 
 @router.post(
@@ -62,8 +70,8 @@ async def post_project_activity(
     """
 
     if not user.is_service:
-        if activity.activity_type not in ["comment"]:
-            raise BadRequestException("Humans can only create comments")
+        if activity.activity_type not in human_activity_types:
+            raise BadRequestException("Humans can only create comments/guest reviews")
 
     project = await ProjectEntity.load(project_name)
 
@@ -83,7 +91,6 @@ async def post_project_activity(
             project,
             entity_list_id,
         )
-
         assert activity.data is not None  # shouldn't happen, already checked above
         activity.data["category"] = list_guest_category
 

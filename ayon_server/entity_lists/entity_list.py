@@ -200,7 +200,9 @@ class EntityList:
         #
 
         access_level = EntityAccessHelper.MANAGE
-        if user:
+        if user and not user.get_guest_access(
+            type="entityList", project_name=project_name, id=res["id"]
+        ):
             project = await ProjectEntity.load(project_name)
             access_level = EntityAccessHelper.MANAGE
             try:

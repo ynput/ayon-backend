@@ -3,8 +3,10 @@ import traceback
 from typing import Any
 
 import strawberry
+from fastapi import Request
 from graphql import GraphQLError
 from strawberry.dataloader import DataLoader
+from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
 
@@ -51,10 +53,11 @@ from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
 
-async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
+async def graphql_get_context(request: Request, user: CurrentUser) -> dict[str, Any]:
     """Get the current request context"""
     return {
         # Auth
+        "request": request,
         "user": user,
         # Record parsing
         "entity_list_from_record": entity_list_from_record,
@@ -140,6 +143,7 @@ class Query:
             is_manager=user.is_manager,
             is_service=user.is_service,
             is_developer=user.is_developer,
+            is_staging_allowed=user.is_staging_allowed,
             is_guest=user.is_guest,
             user_pool=user.data.get("userPool"),
             default_access_groups=user.data.get("defaultAccessGroups", []),
@@ -221,8 +225,17 @@ class AyonSchema(strawberry.Schema):
             )
 
 
+class QueryNameExtension(SchemaExtension):
+    def on_operation(self):
+        execution_context = self.execution_context
+        request = execution_context.context.get("request")
+        if request and execution_context.operation_name:
+            request.state.graphql_query = execution_context.operation_name
+        yield
+
+
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
-    schema=AyonSchema(query=Query),
+    schema=AyonSchema(query=Query, extensions=[QueryNameExtension]),
     graphql_ide=None,
     context_getter=graphql_get_context,
 )

@@ -459,9 +459,14 @@ async def project_from_record(
     user = context["user"]
     skeleton = record.get("is_skeleton") is True
     if user.is_guest:
-        guest_users = record.get("data", {}).get("guestUsers", {})
-        if user.attrib.email not in guest_users:
-            raise ForbiddenException("You do not have access to this project.")
+        if guest_access := user.data.get("guestAccess"):
+            if not any(ga.get("projectName") == project_name for ga in guest_access):
+                raise ForbiddenException("You do not have access to this project.")
+
+        else:
+            guest_users = record.get("data", {}).get("guestUsers", {})
+            if user.attrib.email not in guest_users:
+                raise ForbiddenException("You do not have access to this project.")
 
         # guest users do not have access to project internal data
         data = {}

@@ -2,7 +2,7 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar, cast
 
 from pydantic import BaseModel
 from redis import asyncio as aioredis
@@ -171,6 +171,16 @@ class Redis:
         return res
 
     @classmethod
+    async def decr(cls, namespace: str, key: str, *, ttl: int = 0) -> int:
+        """Decrement a value in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        res = await cls.redis_pool.decr(f"{cls.prefix}{namespace}-{key}")
+        if ttl:
+            await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
+        return res
+
+    @classmethod
     async def expire(cls, namespace: str, key: str, ttl: int) -> None:
         """Set a TTL for a key in Redis"""
         if not cls.connected:
@@ -198,10 +208,14 @@ class Redis:
         if not cls.connected:
             await cls.connect()
         keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
-        return [
-            key.decode("ascii").removeprefix(f"{cls.prefix}{namespace}-")
-            for key in keys
-        ]
+        result = []
+        for key in keys:
+            if isinstance(key, bytes):
+                key_str = key.decode("ascii")
+            else:
+                key_str = str(key)
+            result.append(key_str.removeprefix(f"{cls.prefix}{namespace}-"))
+        return result
 
     @classmethod
     async def delete_ns(cls, namespace: str):
@@ -257,7 +271,8 @@ class Redis:
         ns: str,
         key: str,
         ttl: int = 60 * 5,
-        model: type[BaseModel] | None = None,
+        model: type[BaseModel] | Literal["bytes"] | None = None,
+        auto_extend: bool = False,
     ) -> Callable[[T], T]:
         """
         Decorator to cache the result of an async function in Redis.
@@ -269,31 +284,59 @@ class Redis:
             async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
                 full_key = _make_cache_key(func, ns, key, *args, **kwargs)
 
-                cached_result = await cls.get_json(ns, full_key.removeprefix(f"{ns}:"))
+                result: T
+
+                if model == "bytes":
+                    cached_result = await cls.get(ns, full_key.removeprefix(f"{ns}:"))
+                else:
+                    cached_result = await cls.get_json(
+                        ns, full_key.removeprefix(f"{ns}:")
+                    )
 
                 if cached_result is not None:
-                    logger.trace(f"Cache hit for key: {full_key}")
-                    if model is not None:
+                    # Too noisy
+                    # logger.trace(f"Cache hit for key: {full_key}")
+                    if model and model != "bytes":
                         try:
-                            return model(**cached_result)
+                            result = cast(T, model(**cached_result))
                         except (TypeError, json.JSONDecodeError) as e:
                             logger.error(
                                 f"Failed to parse cached result for {full_key}: {e}"
                             )
                             # Fall through to recompute the value
-                    return cached_result
+                    else:
+                        result = cached_result
+
+                    if result:
+                        if auto_extend:
+                            await cls.expire(ns, full_key.removeprefix(f"{ns}:"), ttl)
+                        return result
 
                 logger.trace(f"Cache miss for key: {full_key}")
                 result = await func(*args, **kwargs)
 
                 if result is not None:
                     try:
-                        await cls.set_json(
-                            ns,
-                            full_key.removeprefix(f"{ns}:"),
-                            result,
-                            ttl=ttl,
-                        )
+                        if model == "bytes":
+                            await cls.set(
+                                ns,
+                                full_key.removeprefix(f"{ns}:"),
+                                cast(bytes, result),
+                                ttl=ttl,
+                            )
+                        else:
+                            val = (
+                                result.dict()
+                                if isinstance(result, BaseModel)
+                                else result
+                            )
+
+                            await cls.set_json(
+                                ns,
+                                full_key.removeprefix(f"{ns}:"),
+                                val,
+                                ttl=ttl,
+                            )
                     except (TypeError, json.JSONDecodeError, ConnectionError) as e:
                         logger.warning(f"Failed to set cache for {full_key}: {e}")
 

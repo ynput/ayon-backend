@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_tags ON activities USING gin(tags);
+CREATE INDEX IF NOT EXISTS activity_author_idx ON activities((data->>'author'));
+CREATE INDEX IF NOT EXISTS activity_watcher_idx ON activities((data->>'watcher')) WHERE activity_type = 'watch';
 
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
@@ -91,6 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_referen
 CREATE INDEX IF NOT EXISTS idx_activity_reference_updated_at ON activity_references(updated_at);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
+
+CREATE INDEX IF NOT EXISTS activity_origin_desc_idx ON activity_references (entity_type, entity_id, created_at DESC) 
+  WHERE reference_type = 'origin';
 
 
 -- This will be implemented later.
@@ -220,6 +225,7 @@ AS
    SELECT base_id AS id, path FROM htable;
 
 CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
+CREATE INDEX hierarchy_path_idx ON hierarchy(path);
 
 
 CREATE TABLE exported_attributes(

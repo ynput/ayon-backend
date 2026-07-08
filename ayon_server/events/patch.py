@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel
@@ -66,6 +67,8 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
 def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
+    *,
+    calculated_attributes: Iterable[str] | None = None,
 ) -> list[EventData]:
     """Return a listof events triggered by a patch on a project level entity.
 
@@ -114,6 +117,7 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            result[-1]["summary"]["value"] = new_name
             if ayonconfig.audit_trail:
                 payload = {
                     "oldValue": original_entity.name,
@@ -133,6 +137,7 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            result[-1]["summary"]["value"] = new_status
             if ayonconfig.audit_trail:
                 payload = {
                     "oldValue": original_entity.status,
@@ -155,6 +160,7 @@ def build_pl_entity_change_events(
                         **common_data,
                     }
                 )
+                result[-1]["summary"]["value"] = new_tags
                 if ayonconfig.audit_trail:
                     payload = {
                         "oldValue": original_entity.tags,
@@ -187,12 +193,17 @@ def build_pl_entity_change_events(
                 "oldValue": old_attributes,
                 "newValue": new_attributes,
             }
+            if calculated_attributes:
+                evt["payload"]["calculatedAttributes"] = list(calculated_attributes)  # type: ignore[index]
 
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())
             evt["description"] = (
                 f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
             )
+            # Do not include new attributes in the summary, until we have entity-level
+            # ACL on WS events
+            # evt["summary"]["value"] = new_attributes
             result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
@@ -226,6 +237,19 @@ def build_pl_entity_change_events(
                 **common_data,
             }
         )
+
+        if topic_name not in (
+            "data",
+            "config",
+            "files",
+            "statuses",
+            "tags",
+            "folder_types",
+            "task_types",
+        ):
+            # for simple columns, we include new value in summary as well
+            result[-1]["summary"]["value"] = patch_data[column_name]
+
         if ayonconfig.audit_trail:
             payload = {
                 "oldValue": getattr(original_entity, column_name),

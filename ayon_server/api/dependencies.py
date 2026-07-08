@@ -1,6 +1,7 @@
 """Request dependencies."""
 
 import re
+from collections.abc import Awaitable, Callable
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
@@ -12,12 +13,14 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    ServiceUnavailableException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
 from ayon_server.helpers.project_list import (
     get_project_info,
 )
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
@@ -31,6 +34,7 @@ from ayon_server.utils import (
     parse_access_token,
     parse_api_key,
 )
+from ayon_server.utils.server import get_real_ip_from_request
 
 NoTraces = Depends(lambda: None)
 AllowGuests = Depends(lambda: None)
@@ -78,8 +82,8 @@ AccessToken = Annotated[str, Depends(dep_access_token)]
 
 
 async def dep_api_key(
-    authorization: str = Header(None, include_in_schema=False),
-    x_api_key: str = Header(None, include_in_schema=False),
+    authorization: Annotated[str | None, Header(include_in_schema=False)] = None,
+    x_api_key: Annotated[str | None, Header(include_in_schema=False)] = None,
 ) -> str | None:
     """Parse and return an api key provided in the authorisation header."""
     api_key: str | None
@@ -95,11 +99,15 @@ async def dep_api_key(
 ApiKey = Annotated[str | None, Depends(dep_api_key)]
 
 
-async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
+async def dep_thumbnail_content_type(
+    content_type: Annotated[str | None, Header()] = None,
+) -> str:
     """Return the mime type of the thumbnail.
 
     Raise an `UnsupportedMediaException` if the content type is not supported.
     """
+    if not content_type:
+        raise BadRequestException("Thumbnail content type is required")
     content_type = content_type.lower()
     if content_type not in ["image/png", "image/jpeg"]:
         raise UnsupportedMediaException("Thumbnail must be in png or jpeg format")
@@ -172,11 +180,13 @@ CurrentUserOptional = Annotated[UserEntity | None, Depends(dep_current_user_opti
 
 
 async def dep_attribute_name(
-    attribute_name: str = Path(
-        ...,
-        title="Attribute name",
-        regex=ATTRIBUTE_NAME_REGEX,
-    ),
+    attribute_name: Annotated[
+        str,
+        Path(
+            title="Attribute name",
+            regex=ATTRIBUTE_NAME_REGEX,
+        ),
+    ],
 ) -> str:
     return attribute_name
 
@@ -185,11 +195,13 @@ AttributeName = Annotated[str, Depends(dep_attribute_name)]
 
 
 async def dep_new_project_name(
-    project_name: str = Path(
-        ...,
-        title="Project name",
-        regex=PROJECT_NAME_REGEX,
-    ),
+    project_name: Annotated[
+        str,
+        Path(
+            title="Project name",
+            regex=PROJECT_NAME_REGEX,
+        ),
+    ],
 ) -> str:
     """Validate and return a project name.
 
@@ -249,10 +261,13 @@ ProjectName = Annotated[str, Depends(dep_project_name)]
 async def dep_project_name_or_underscore(
     request: Request,
     current_user: Annotated[UserEntity, Depends(dep_current_user)],
-    project_name: str = Path(..., title="Project name"),
+    project_name: Annotated[str, Path(title="Project name")],
 ) -> str:
     if project_name == "_":
-        # TODO: check if user has access to all projects?
+        if not current_user.is_manager:
+            raise ForbiddenException(
+                "Only managers can access the studio level settings"
+            )
         return project_name
     return await dep_project_name(request, current_user, project_name)
 
@@ -261,7 +276,7 @@ ProjectNameOrUnderscore = Annotated[str, Depends(dep_project_name_or_underscore)
 
 
 async def dep_user_name(
-    user_name: str = Path(..., title="User name", regex=USER_NAME_REGEX),
+    user_name: Annotated[str, Path(title="User name", regex=USER_NAME_REGEX)],
 ) -> str:
     """Validate and return a user name specified in an endpoint path."""
     return user_name
@@ -271,11 +286,13 @@ UserName = Annotated[str, Depends(dep_user_name)]
 
 
 async def dep_access_group_name(
-    access_group_name: str = Path(
-        ...,
-        title="Access group name",
-        regex=NAME_REGEX,
-    ),
+    access_group_name: Annotated[
+        str,
+        Path(
+            title="Access group name",
+            regex=NAME_REGEX,
+        ),
+    ],
 ) -> str:
     """Validate and return an access group name specified in an endpoint path."""
     return access_group_name
@@ -285,11 +302,13 @@ AccessGroupName = Annotated[str, Depends(dep_access_group_name)]
 
 
 async def dep_secret_name(
-    secret_name: str = Path(
-        ...,
-        title="Secret name",
-        regex=NAME_REGEX,
-    ),
+    secret_name: Annotated[
+        str,
+        Path(
+            title="Secret name",
+            regex=NAME_REGEX,
+        ),
+    ],
 ) -> str:
     """Validate and return a secret name specified in an endpoint path."""
     return secret_name
@@ -325,7 +344,7 @@ PathProjectLevelEntityType = Annotated[
 
 
 async def dep_path_entity_id(
-    entity_id: str = Path(..., title="Entity ID", **EntityID.META),
+    entity_id: Annotated[str, Path(title="Entity ID", **EntityID.META)],
 ) -> str:
     """Validate and return an entity id specified in an endpoint path."""
     return entity_id
@@ -335,7 +354,7 @@ PathEntityID = Annotated[str, Depends(dep_path_entity_id)]
 
 
 async def dep_folder_id(
-    folder_id: str = Path(..., title="Folder ID", **EntityID.META),
+    folder_id: Annotated[str, Path(title="Folder ID", **EntityID.META)],
 ) -> str:
     """Validate and return a folder id specified in an endpoint path."""
     return folder_id
@@ -345,7 +364,7 @@ FolderID = Annotated[str, Depends(dep_folder_id)]
 
 
 async def dep_product_id(
-    product_id: str = Path(..., title="Product ID", **EntityID.META),
+    product_id: Annotated[str, Path(title="Product ID", **EntityID.META)],
 ) -> str:
     """Validate and return a product id specified in an endpoint path."""
     return product_id
@@ -355,7 +374,7 @@ ProductID = Annotated[str, Depends(dep_product_id)]
 
 
 async def dep_version_id(
-    version_id: str = Path(..., title="Version ID", **EntityID.META),
+    version_id: Annotated[str, Path(title="Version ID", **EntityID.META)],
 ) -> str:
     """Validate and return  a version id specified in an endpoint path."""
     return version_id
@@ -365,7 +384,7 @@ VersionID = Annotated[str, Depends(dep_version_id)]
 
 
 async def dep_representation_id(
-    representation_id: str = Path(..., title="Version ID", **EntityID.META),
+    representation_id: Annotated[str, Path(title="Version ID", **EntityID.META)],
 ) -> str:
     """Validate and return a representation id specified in an endpoint path."""
     return representation_id
@@ -375,7 +394,7 @@ RepresentationID = Annotated[str, Depends(dep_representation_id)]
 
 
 async def dep_task_id(
-    task_id: str = Path(..., title="Task ID", **EntityID.META),
+    task_id: Annotated[str, Path(title="Task ID", **EntityID.META)],
 ) -> str:
     """Validate and return a task id specified in an endpoint path."""
     return task_id
@@ -385,7 +404,7 @@ TaskID = Annotated[str, Depends(dep_task_id)]
 
 
 async def dep_workfile_id(
-    workfile_id: str = Path(..., title="Workfile ID", **EntityID.META),
+    workfile_id: Annotated[str, Path(title="Workfile ID", **EntityID.META)],
 ) -> str:
     """Validate and return a workfile id specified in an endpoint path."""
     return workfile_id
@@ -395,7 +414,7 @@ WorkfileID = Annotated[str, Depends(dep_workfile_id)]
 
 
 async def dep_thumbnail_id(
-    thumbnail_id: str = Path(..., title="Thumbnail ID", **EntityID.META),
+    thumbnail_id: Annotated[str, Path(title="Thumbnail ID", **EntityID.META)],
 ) -> str:
     """Validate and return a thumbnail id specified in an endpoint path."""
     return thumbnail_id
@@ -405,7 +424,7 @@ ThumbnailID = Annotated[str, Depends(dep_thumbnail_id)]
 
 
 async def dep_event_id(
-    event_id: str = Path(..., title="Event ID", **EntityID.META),
+    event_id: Annotated[str, Path(title="Event ID", **EntityID.META)],
 ) -> str:
     """Validate and return a event id specified in an endpoint path."""
     return event_id
@@ -415,7 +434,7 @@ EventID = Annotated[str, Depends(dep_event_id)]
 
 
 async def dep_link_id(
-    link_id: str = Path(..., title="Link ID", **EntityID.META),
+    link_id: Annotated[str, Path(title="Link ID", **EntityID.META)],
 ) -> str:
     """Validate and return a link id specified in an endpoint path."""
     return link_id
@@ -425,7 +444,7 @@ LinkID = Annotated[str, Depends(dep_link_id)]
 
 
 async def dep_activity_id(
-    activity_id: str = Path(..., title="Activity ID", **EntityID.META),
+    activity_id: Annotated[str, Path(title="Activity ID", **EntityID.META)],
 ) -> str:
     """Validate and return an activity id specified in an endpoint path."""
     return activity_id
@@ -435,7 +454,7 @@ ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
 async def dep_entity_list_id(
-    entity_list_id: str = Path(..., title="Entity list ID", **EntityID.META),
+    entity_list_id: Annotated[str, Path(title="Entity list ID", **EntityID.META)],
 ) -> str:
     """Validate and return an entity list id specified in an endpoint path."""
     return entity_list_id
@@ -445,7 +464,9 @@ EntityListID = Annotated[str, Depends(dep_entity_list_id)]
 
 
 async def dep_entity_list_item_id(
-    entity_list_item_id: str = Path(..., title="Entity list item ID", **EntityID.META),
+    entity_list_item_id: Annotated[
+        str, Path(title="Entity list item ID", **EntityID.META)
+    ],
 ) -> str:
     """Validate and return an entity list item id specified in an endpoint path."""
     return entity_list_item_id
@@ -455,7 +476,7 @@ EntityListItemID = Annotated[str, Depends(dep_entity_list_item_id)]
 
 
 async def dep_file_id(
-    file_id: str = Path(..., title="File ID", **EntityID.META),
+    file_id: Annotated[str, Path(title="File ID", **EntityID.META)],
 ) -> str:
     """Validate and return an file id specified in an endpoint path."""
     return file_id
@@ -465,7 +486,7 @@ FileID = Annotated[str, Depends(dep_file_id)]
 
 
 async def dep_link_type(
-    link_type: str = Path(..., title="Link Type"),
+    link_type: Annotated[str, Path(title="Link Type")],
 ) -> tuple[str, str, str]:
     """Validate and return a link type specified in an endpoint path.
 
@@ -477,6 +498,11 @@ async def dep_link_type(
         raise BadRequestException(
             "Link type must be in the format 'name|input_type|output_type'"
         ) from None
+
+    if not re.match(NAME_REGEX, name):
+        raise BadRequestException(
+            f"Link type name '{name}' does not match regex '{NAME_REGEX}'"
+        )
 
     if input_type not in ["folder", "product", "version", "representation", "task"]:
         raise BadRequestException(
@@ -589,11 +615,13 @@ SiteID = Annotated[str | None, Depends(dep_site_id)]
 
 
 async def dep_sender(
-    x_sender: str | None = Header(
-        None,
-        title="Sender",
-        regex=NAME_REGEX,
-    ),
+    x_sender: Annotated[
+        str | None,
+        Header(
+            title="Sender",
+            regex=NAME_REGEX,
+        ),
+    ] = None,
 ) -> str | None:
     return x_sender
 
@@ -602,11 +630,13 @@ Sender = Annotated[str | None, Depends(dep_sender)]
 
 
 async def dep_sender_type(
-    x_sender_type: str = Header(
-        "api",
-        title="Sender type",
-        regex=NAME_REGEX,
-    ),
+    x_sender_type: Annotated[
+        str,
+        Header(
+            title="Sender type",
+            regex=NAME_REGEX,
+        ),
+    ] = "api",
 ) -> str:
     return x_sender_type
 
@@ -615,7 +645,7 @@ SenderType = Annotated[str | None, Depends(dep_sender_type)]
 
 
 async def dep_x_file_name(
-    x_file_name: str = Header(..., title="File name"),
+    x_file_name: Annotated[str, Header(title="File name")],
 ) -> str:
     # TODO: Currently blocked by review drawovers, which rely on file names
     # being allowed to contain path separators. In the future, we may need
@@ -646,7 +676,7 @@ XActivityIDOptional = Annotated[
 
 
 async def dep_x_content_type(
-    content_type: str = Header(..., title="Content type"),
+    content_type: Annotated[str, Header(title="Content type")],
 ) -> str:
     parts = content_type.split("/")
     if len(parts) != 2 or not all(parts):
@@ -657,3 +687,27 @@ async def dep_x_content_type(
 
 
 XContentType = Annotated[str, Depends(dep_x_content_type)]
+
+
+def throttle(limit: int = 10, window: int = 60) -> Callable[[Request], Awaitable[None]]:
+    """
+    Returns a dependency that limits each IP to `limit` requests per `window` seconds.
+    """
+
+    async def dependency(request: Request) -> None:
+        ip = get_real_ip_from_request(request)
+        endpoint = request.url.path
+
+        key = f"{endpoint}:{ip}"
+        current = await Redis.incr("rate-limit", key)
+
+        if current == 1:
+            # first increment, set TTL
+            await Redis.expire("rate-limit", key, window)
+
+        if current > limit:
+            raise ServiceUnavailableException(
+                detail="Rate limit exceeded. Try again later",
+            )
+
+    return dependency

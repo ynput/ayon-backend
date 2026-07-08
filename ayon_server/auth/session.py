@@ -42,14 +42,21 @@ class SessionModel(OPModel):
             exists=True,
         )
 
+    @property
+    def ttl(self) -> int:
+        return 600 if self.is_service else ayonconfig.session_ttl
+
+    @property
+    def is_expired(self) -> bool:
+        return time.time() - self.last_used > self.ttl
+
 
 class Session:
     ns = "session"
 
     @classmethod
     def is_expired(cls, session: SessionModel) -> bool:
-        ttl = 600 if session.is_service else ayonconfig.session_ttl
-        return time.time() - session.last_used > ttl
+        return session.is_expired
 
     @classmethod
     async def check(cls, token: str, request: Request | None) -> SessionModel | None:
@@ -73,7 +80,7 @@ class Session:
 
         session = SessionModel(**data)
 
-        if cls.is_expired(session):
+        if session.is_expired:
             await cls.delete(token, "Session expired")
             return None
 
@@ -105,7 +112,11 @@ class Session:
                 except UnauthorizedException as e:
                     await cls.delete(token, f"Session extension failed: {e}")
                     return None
-                await Redis.set(cls.ns, token, json_dumps(session.dict()))
+                await Redis.set(
+                    cls.ns,
+                    token,
+                    json_dumps(session.dict()),
+                )
 
         return session
 
@@ -206,7 +217,6 @@ class Session:
                     description=message,
                     user=session.user.name,
                 )
-        logger.trace(f"Deleting session {token}: {message}")
         await Redis.delete(cls.ns, token)
 
     @classmethod

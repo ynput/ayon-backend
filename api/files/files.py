@@ -302,7 +302,7 @@ async def get_project_file_still(
         # Should not happen, but just in case
         raise BadRequestException("File storage is not supported")
 
-    b = await create_video_thumbnail(path, None, timestamp)
+    b = await create_video_thumbnail(path, timestamp=timestamp, thumbnail=False)
 
     if b == b"":
         raise NotFoundException("No still frame available")

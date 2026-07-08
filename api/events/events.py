@@ -132,17 +132,10 @@ async def get_event(user: CurrentUser, event_id: EventID) -> EventModel:
     if user.is_guest:
         raise ForbiddenException("Guests are not allowed to get events this way")
 
-    # Standard users can access any event that they know the ID of.
-    # Since event IDs are UUIDs, they are not guessable,
-    # so this is not a security issue.
-    #
-    # Non-managers cannot list events, and the only way of knowing the ID is when they
-    # receive an event through websocket connection. In order to receive it,
-    # they need to be subscribed to the project scope they have access to, or
-    # the event needs to be explicitly whitelisted in messaging.py
-    # (such as inbox events).
-
-    return await EventStream.get(event_id)
+    event = await EventStream.get(event_id)
+    if event.project and not user.is_manager:
+        await user.ensure_project_access(event.project)
+    return event
 
 
 @router.patch("/events/{event_id}", status_code=204)

@@ -14,6 +14,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
     get_has_links_conds,
@@ -30,11 +31,16 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .field_stats import (
+    MetricTargetInput,
+    generate_field_stats,
+    generate_specific_stats_columns,
+    generate_stats_columns,
+)
 from .sorting import get_attrib_sort_case, get_status_sort_case
 
 SORT_OPTIONS = {
     "name": "products.name",
-    "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
@@ -45,6 +51,8 @@ SORT_OPTIONS = {
     "createdBy": "products.created_by",
     "updatedBy": "products.updated_by",
     "tags": "array_to_string(products.tags, '')",
+    "path": "",  # for docs only
+    "version": "",  # for docs only
 }
 
 
@@ -115,6 +123,13 @@ async def get_products(
     sort_by: Annotated[
         str | None,
         sortdesc(SORT_OPTIONS),
+    ] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
 ) -> ProductsConnection:
     """Return a list of products."""
@@ -606,12 +621,10 @@ async def get_products(
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "products.status")
             order_by.insert(0, status_type_case)
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
-            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.insert(0, attr_case)
+
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "products.name"]
+
         elif sort_by == "version":
             # count by product version count
             sql_cte.append(
@@ -634,17 +647,28 @@ async def get_products(
             )
             order_by.insert(0, "COALESCE(pvc.version_count, 0)")
 
+        elif sort_by.startswith("attrib."):
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
+            order_by.insert(0, attr_case)
+
+        elif sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    ordering, paging_conds, cursor = create_pagination(
-        order_by,
-        first,
-        after,
-        last,
-        before,
-    )
-    sql_conditions.append(paging_conds)
+    ordering = ""
+    cursor = "''"
+    if not calculate_statistics and not calculate_specific_statistics:
+        ordering, paging_conds, cursor = create_pagination(
+            order_by,
+            first,
+            after,
+            last,
+            before,
+        )
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -659,19 +683,56 @@ async def get_products(
     sql_columns.insert(0, cursor)
     sql_columns_str = ",\n".join(sql_columns)
 
+    default_columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("name", "string"),
+        ColumnMetadata("product_type", "string"),
+        ColumnMetadata("product_base_type", "string"),
+        ColumnMetadata("active", "bool"),
+        ColumnMetadata("status", "string"),
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(default_columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+            )
+            SELECT
+                {stats_select_clause}
+            FROM raw_data;
+            """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {sql_columns_str}
         FROM project_{project_name}.products
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
+        {raw_data_end}
     """
 
     # print()
-    # print (query)
+    # print("Products query:")
+    # print(query)
     # print()
     #
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return ProductsConnection(edges=[], field_stats=field_stats)
+
     return await resolve(
         ProductsConnection,
         ProductEdge,

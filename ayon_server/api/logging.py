@@ -154,7 +154,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Before processing the request, we don't have access to
             # the route information, so we need to check it here
             # (that's also why we don't track the beginning of the request)
-            should_trace = path.startswith("/api")  # or path.startswith("/graphql")
+            should_trace = path.startswith("/api") or path.startswith("/graphql")
 
             if should_trace and (route := request.scope.get("route")):
                 # We don't need to log successful requests to routes,
@@ -174,7 +174,22 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
                 process_time = round(time.perf_counter() - start_time, 3)
                 f_result = f"| {response.status_code} in {process_time}s"
-                with logger.contextualize(**extras):
-                    logger.trace(f"[{request.method}] {path} {f_result}")
 
+                log_path = path
+                if graphql_query := getattr(request.state, "graphql_query", None):
+                    log_path += f" ({graphql_query})"
+
+                msg = f"[{request.method}] {log_path} {f_result}"
+
+                with logger.contextualize(**extras):
+                    if process_time > 5 or response.status_code >= 500:
+                        # When a request takes longer than usual, raise the log level
+                        # so we can see it in the logs by default.
+                        logger.debug(msg)
+                    else:
+                        # Otherwise, we can log it as a trace,
+                        # so it doesn't pollute the logs.
+                        logger.trace(msg)
+
+        response.headers["X-Request-ID"] = request_id
         return response

@@ -47,6 +47,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             f.status,
             f.attrib,
             f.tags,
+            f.data->>'thumbnailHash' AS thumbnail_hash,
             f.created_at,
             f.updated_at,
             ea.attrib as all_attrib,
@@ -99,6 +100,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "own_attrib": list(row["attrib"].keys()),
                     "has_reviewables": row["has_reviewables"],
                     "has_versions": row["has_versions"],
+                    "thumbnail_hash": row["thumbnail_hash"] or row["id"][-6:],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                 }

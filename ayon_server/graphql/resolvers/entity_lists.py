@@ -19,6 +19,7 @@ from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool, json_loads
+from ayon_server.utils.strings import slugify
 
 SORT_OPTIONS = {
     "label": "label",
@@ -53,6 +54,7 @@ async def get_entity_lists(
     before: ARGBefore = None,
     ids: ARGIds = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> EntityListsConnection:
     project_name = root.project_name
@@ -70,12 +72,24 @@ async def get_entity_lists(
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
 
     if user.is_guest:
-        sql_conditions.append(f"""
-            (
-            access->>'guest:{user.attrib.email}' IS NOT NULL
-            OR (access->'__guests__')::INTEGER > 0
-            )
-            """)
+        if guest_access := user.data.get("guestAccess"):
+            ids = [
+                ga["id"]
+                for ga in guest_access
+                if ga.get("projectName") == project_name
+                and ga.get("type") == "entityList"
+                and ga.get("id")
+            ]
+            if not ids:
+                return EntityListsConnection()
+            sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
+        else:
+            sql_conditions.append(f"""
+                (
+                access->>'guest:{user.attrib.email}' IS NOT NULL
+                OR (access->'__guests__')::INTEGER > 0
+                )
+                """)
 
     #
     # Filtering
@@ -86,6 +100,24 @@ async def get_entity_lists(
         fq = QueryFilter(**fdata)
         if fcond := build_filter(fq, columns=FILTER_OPTIONS):
             sql_conditions.append(fcond)
+
+    if search:
+        parts = search.split(",")
+        t1_conds = []
+        for part in parts:
+            terms = slugify(part, make_set=True, split_chars=" ")
+            t2_conds = []
+            for term in terms:
+                t2_conds.append(
+                    f"""
+                    (
+                        label ILIKE '%{term}%'
+                        OR entity_type ILIKE '%{term}%'
+                    )
+                    """
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Pagination and sorting
