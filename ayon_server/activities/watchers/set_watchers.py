@@ -94,35 +94,42 @@ async def set_watchers(
 
     # Watch / unwatch all versions of a task
 
-    if entity.entity_type == "task":
-        async for version in get_task_versions(project_name, entity.id):
-            original_watchers = await get_watcher_list(version)
-            new_watchers = [w for w in watchers if w not in original_watchers]
-            unwatchers = [w for w in original_watchers if w not in watchers]
-            query = f"""
-                WITH activities_to_delete AS (
-                    SELECT activity_id FROM project_{project_name}.activity_feed
-                    WHERE activity_type = 'watch'
-                    AND reference_type = 'origin'
-                    AND entity_type = $1
-                    AND entity_id = $2
-                    AND COALESCE(activity_data->>'watcher', '')::TEXT = ANY ($3)
-                )
-                DELETE FROM project_{project_name}.activities
-                WHERE id IN (SELECT activity_id FROM activities_to_delete)
-            """
-            await Postgres.execute(query, "version", version.id, unwatchers)
+    # This behavior is disabled since 1.15.2 as it is very heavy and not really desired
+    # Artists can watch an older version if they want to, but there's no need to
+    # automatically watch all older versions when user is assigned to a task.
 
-            for watcher in new_watchers:
-                await create_activity(
-                    entity=version,
-                    activity_type="watch",
-                    body="",
-                    user_name=user_name,
-                    sender=sender,
-                    data={"watcher": watcher},
-                )
-            await build_watcher_list(version)
+    # Artists will still be automatically notified (and set as watchers) when
+    # a new version is published with a task they are assigned to linked
+
+    # if entity.entity_type == "task":
+    #     async for version in get_task_versions(project_name, entity.id):
+    #         original_watchers = await get_watcher_list(version)
+    #         new_watchers = [w for w in watchers if w not in original_watchers]
+    #         unwatchers = [w for w in original_watchers if w not in watchers]
+    #         query = f"""
+    #             WITH activities_to_delete AS (
+    #                 SELECT activity_id FROM project_{project_name}.activity_feed
+    #                 WHERE activity_type = 'watch'
+    #                 AND reference_type = 'origin'
+    #                 AND entity_type = $1
+    #                 AND entity_id = $2
+    #                 AND COALESCE(activity_data->>'watcher', '')::TEXT = ANY ($3)
+    #             )
+    #             DELETE FROM project_{project_name}.activities
+    #             WHERE id IN (SELECT activity_id FROM activities_to_delete)
+    #         """
+    #         await Postgres.execute(query, "version", version.id, unwatchers)
+    #
+    #         for watcher in new_watchers:
+    #             await create_activity(
+    #                 entity=version,
+    #                 activity_type="watch",
+    #                 body="",
+    #                 user_name=user_name,
+    #                 sender=sender,
+    #                 data={"watcher": watcher},
+    #             )
+    #         await build_watcher_list(version)
 
     await build_watcher_list(entity)
 

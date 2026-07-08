@@ -24,6 +24,7 @@ from ayon_server.activities.watchers.set_watchers import (
 from ayon_server.activities.watchers.watcher_list import build_watcher_list
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 
 if TYPE_CHECKING:
     from ayon_server.events import EventModel, EventStream
@@ -175,6 +176,12 @@ class ActivityFeedEventHook:
                 body=f"Removed {name_tag} from {entity_tag}",
                 user_name=event.user,
                 data={"assignee": assignee},
+            )
+
+        for assignee in all_assignees:
+            await Redis.delete(
+                "assigned-task-folder-paths",
+                f"{event.project}:{assignee}",
             )
 
     @classmethod
