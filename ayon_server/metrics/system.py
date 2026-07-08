@@ -110,7 +110,7 @@ class SystemMetrics:
             Metric("uptime_seconds", time.time() - self.boot_time),
             Metric("runtime_seconds", time.time() - self.run_time),
             Metric("redis_size_total", redis_size),
-            Metric("asyncio_tasks_total", len(asyncio.all_tasks())),
+            Metric("asyncio_tasks", len(asyncio.all_tasks())),
         ]
 
     async def render_prometheus(self) -> str:
