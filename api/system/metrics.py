@@ -99,10 +99,9 @@ async def get_tracemalloc_metrics(
             raise ForbiddenException("Access denied")
 
     global snapshot
-    if snapshot is None:
+    if snapshot is None or not tracemalloc.is_tracing():
         tracemalloc.start()
         snapshot = tracemalloc.take_snapshot()
-
     current_snapshot = tracemalloc.take_snapshot()
     top_stats = current_snapshot.compare_to(snapshot, "lineno")
 
