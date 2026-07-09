@@ -25,7 +25,7 @@ FOR rec IN
         BEGIN
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
 
-          CREATE TABLE entity_list_folders (
+          CREATE TABLE IF NOT EXISTS entity_list_folders (
               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
               label VARCHAR NOT NULL,
               position INTEGER NOT NULL DEFAULT 0,
@@ -35,7 +35,7 @@ FOR rec IN
               data JSONB DEFAULT '{}'::JSONB
           );
 
-          CREATE UNIQUE INDEX uq_entity_list_folder_parent_label 
+          CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_list_folder_parent_label 
             ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
 
           ALTER TABLE entity_lists ADD COLUMN IF NOT EXISTS 
@@ -44,7 +44,7 @@ FOR rec IN
 
         EXCEPTION
           WHEN OTHERS THEN
-             RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+             RAISE WARNING 'Skipping schema % due to error: %', rec.project_schema, SQLERRM;
         END;
     END LOOP;
     RETURN;
