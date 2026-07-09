@@ -8,16 +8,22 @@
 DO $$
 DECLARE rec RECORD;
 BEGIN
-    FOR rec IN SELECT DISTINCT p.nspname FROM pg_namespace p
-    LEFT JOIN information_schema.columns c
-    ON p.nspname = c.table_schema
-    AND c.table_name = 'entity_list_folders'
-    WHERE p.nspname LIKE 'project_%'
-    AND c.table_name IS NULL
-    
+FOR rec IN 
+    SELECT ns.nspname AS project_schema
+    FROM pg_namespace ns
+    JOIN pg_class c 
+      ON c.relnamespace = ns.oid
+    LEFT JOIN pg_attribute a 
+      ON a.attrelid = c.oid 
+      AND a.attnum > 0 
+      AND a.attname = 'entity_list_folder_id'
+    WHERE 
+      ns.nspname LIKE 'project_%'
+      AND c.relname = 'entity_lists'
+      AND a.attname IS NULL
     LOOP
         BEGIN
-          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
 
           CREATE TABLE entity_list_folders (
               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
