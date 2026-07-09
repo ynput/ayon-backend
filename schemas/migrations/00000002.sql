@@ -75,6 +75,7 @@ FOR rec IN
     JOIN pg_namespace ns ON c.relnamespace = ns.oid
     JOIN pg_attribute a ON a.attnum = ANY (con.conkey) AND a.attrelid = c.oid
     WHERE con.contype = 'f'
+      AND con.confupdtype != 'c'
       AND a.attname = 'user_name'
       AND ns.nspname LIKE 'project_%'
 LOOP
