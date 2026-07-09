@@ -10,10 +10,9 @@ DO $$
 DECLARE rec RECORD;
 BEGIN
 FOR rec IN
-  SELECT 
+  SELECT
     ns.nspname AS project_schema,
     cl.relname AS table_name,
-    att.attname AS column_name,
     con.conname AS constraint_name
   FROM pg_constraint con
   JOIN pg_class cl ON con.conrelid = cl.oid
