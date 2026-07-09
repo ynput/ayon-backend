@@ -13,6 +13,9 @@ FOR rec IN
     FROM pg_namespace ns
     JOIN pg_class c 
       ON c.relnamespace = ns.oid
+    LEFT JOIN pg_class folders
+      ON folders.relnamespace = ns.oid
+      AND folders.relname = 'entity_list_folders'
     LEFT JOIN pg_attribute a 
       ON a.attrelid = c.oid 
       AND a.attnum > 0 
@@ -20,7 +23,7 @@ FOR rec IN
     WHERE 
       ns.nspname LIKE 'project_%'
       AND c.relname = 'entity_lists'
-      AND a.attname IS NULL
+      AND (folders.oid IS NULL OR a.attname IS NULL)
     LOOP
         BEGIN
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
@@ -49,4 +52,3 @@ FOR rec IN
     END LOOP;
     RETURN;
 END $$;
-
