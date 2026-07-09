@@ -53,7 +53,7 @@ async def run_auto_update() -> None:
     if not required_addons:
         return
 
-    addon_library = AddonLibrary.getinstance()
+    addon_library: AddonLibrary | None = None
 
     bundle_addons_patch = {}
 
@@ -61,7 +61,10 @@ async def run_auto_update() -> None:
     for addon_name, addon_version in required_addons:
         # Do we have the required addon downloaded?
 
+        logger.trace(f"Checking required addon {addon_name} {addon_version}")
+
         if (addon_name, addon_version) not in downloaded_addons:
+            logger.debug(f"Downloading required addon {addon_name} {addon_version}")
             try:
                 url = await get_download_url(addon_name, addon_version)
             except Exception:
@@ -76,14 +79,22 @@ async def run_auto_update() -> None:
                 url=url,
                 no_queue=True,
             )
+            logger.debug(f"Downloaded required addon {addon_name} {addon_version}")
             # Just download the addon. After restart, we'll be able to continue
             continue
 
         # Addon is downloaded. Check if it's active
 
+        if addon_library is None:
+            addon_library = AddonLibrary.getinstance()
+
         try:
             addon = addon_library.addon(addon_name, addon_version)
         except NotFoundException:
+            logger.debug(
+                f"Required addon {addon_name} {addon_version} is downloaded "
+                "but not active. Server restart is needed."
+            )
             # Addon is downloaded, but not active. Server restart is needed
             continue
 
@@ -121,34 +132,39 @@ async def run_auto_update() -> None:
 
     # Get the current production bundle
 
-    q = "SELECT name, data FROM public.bundles WHERE is_production = TRUE"
-    production_bundle = await Postgres.fetchrow(q)
-    if production_bundle:
-        data = production_bundle["data"]
-        data["addons"].update(bundle_addons_patch)
+    async with Postgres.transaction():
+        q = "SELECT name, data FROM public.bundles WHERE is_production = TRUE"
+        production_bundle = await Postgres.fetchrow(q)
+        if production_bundle:
+            data = production_bundle["data"]
+            data["addons"].update(bundle_addons_patch)
 
-        q = "UPDATE public.bundles SET data = $1 WHERE name = $2"
-        await Postgres.execute(q, data, production_bundle["name"])
+            q = "UPDATE public.bundles SET data = $1 WHERE name = $2"
+            await Postgres.execute(q, data, production_bundle["name"])
 
-        for addon_name, addon_version in bundle_addons_patch.items():
-            logger.info(f"Updated production bundle with {addon_name} {addon_version}")
+            for addon_name, addon_version in bundle_addons_patch.items():
+                logger.info(
+                    f"Updated production bundle with {addon_name} {addon_version}"
+                )
 
-    else:
-        ts = int(time.time())
-        bundle_name = f"default_bundle_{ts}"
-        bundle_data = {
-            "addons": bundle_addons_patch,
-            "dependency_packages": {},
-            "installer_version": None,
-        }
-        q = """
-            INSERT INTO public.bundles (name, data, is_production)
-            VALUES ($1, $2, TRUE)
-        """
-        await Postgres.execute(q, bundle_name, bundle_data)
+        else:
+            ts = int(time.time())
+            bundle_name = f"default_bundle_{ts}"
+            bundle_data = {
+                "addons": bundle_addons_patch,
+                "dependency_packages": {},
+                "installer_version": None,
+            }
+            q = """
+                INSERT INTO public.bundles (name, data, is_production)
+                VALUES ($1, $2, TRUE)
+            """
+            await Postgres.execute(q, bundle_name, bundle_data)
 
-        for addon_name, addon_version in bundle_addons_patch.items():
-            logger.info(f"Created production bundle with {addon_name} {addon_version}")
+            for addon_name, addon_version in bundle_addons_patch.items():
+                logger.info(
+                    f"Created production bundle with {addon_name} {addon_version}"
+                )
 
 
 class AutoUpdate(StudioMaintenanceTask):
