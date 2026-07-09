@@ -331,7 +331,7 @@ async def import_data(
                 import_status.updated += 1
             else:
                 await _provide_default_values(
-                    entity_cls, import_entity_data, default_task_type
+                    entity_cls, import_entity_data, cast("str", default_task_type)
                 )
 
                 entity_id = await model_cls.create(
