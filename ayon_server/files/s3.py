@@ -423,7 +423,7 @@ async def handle_s3_upload(
             async for chunk in request.stream():
                 buff += chunk
                 while len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff[:buffer_size])
+                    await uploader.push_chunk(bytes(memoryview(buff)[:buffer_size]))
                     i += buffer_size
                     del buff[:buffer_size]
 
