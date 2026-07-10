@@ -326,12 +326,16 @@ class S3Uploader:
         )
         self._worker_task = asyncio.create_task(self._worker())
 
-    async def push_chunk(self, chunk: bytes):
+    async def push_chunk(self, chunk: bytes | bytearray):
         """
         Push chunk to the queue for background processing by the worker.
         If the queue is full, wait until there's space.
         """
-        await self._queue.put(chunk)
+
+        if isinstance(chunk, bytearray):
+            await self._queue.put(bytes(memoryview(chunk)))
+        else:
+            await self._queue.put(chunk)
 
     def _complete(self):
         if not self._multipart:
@@ -423,7 +427,7 @@ async def handle_s3_upload(
             async for chunk in request.stream():
                 buff += chunk
                 while len(buff) >= buffer_size:
-                    await uploader.push_chunk(bytes(memoryview(buff)[:buffer_size]))
+                    await uploader.push_chunk(buff[:buffer_size])
                     i += buffer_size
                     del buff[:buffer_size]
 
@@ -486,7 +490,7 @@ async def remote_to_s3(
             async for chunk in response.aiter_bytes():
                 buff += chunk
                 while len(buff) >= buffer_size:
-                    await uploader.push_chunk(bytes(memoryview(buff)[:buffer_size]))
+                    await uploader.push_chunk(buff[:buffer_size])
                     i += buffer_size
                     del buff[:buffer_size]
 
