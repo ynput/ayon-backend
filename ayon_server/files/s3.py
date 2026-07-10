@@ -422,10 +422,10 @@ async def handle_s3_upload(
 
             async for chunk in request.stream():
                 buff += chunk
-                if len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff)
-                    i += len(buff)
-                    buff = b""
+                while len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff[:buffer_size])
+                    i += buffer_size
+                    buff = buff[buffer_size:]
 
             if buff:
                 await uploader.push_chunk(buff)
@@ -485,10 +485,10 @@ async def remote_to_s3(
 
             async for chunk in response.aiter_bytes():
                 buff += chunk
-                if len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff)
-                    i += len(buff)
-                    buff = b""
+                while len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff[:buffer_size])
+                    i += buffer_size
+                    buff = buff[buffer_size:]
 
             if buff:
                 await uploader.push_chunk(buff)
