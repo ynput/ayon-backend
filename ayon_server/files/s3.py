@@ -486,7 +486,7 @@ async def remote_to_s3(
             async for chunk in response.aiter_bytes():
                 buff += chunk
                 while len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff[:buffer_size])
+                    await uploader.push_chunk(bytes(memoryview(buff)[:buffer_size]))
                     i += buffer_size
                     del buff[:buffer_size]
 
