@@ -60,11 +60,13 @@ class RequestCoalescer(Generic[T]):
         async with self.lock:
             # Look for an existing task batch that has space for another waiter
             selected_key = None
+            selected_future: asyncio.Task[T] | None = None
             for key in self.current_futures:
                 if (
                     key == base_key or key.startswith(f"{base_key}:")
                 ) and self.current_waiters.get(key, 0) < self.max_waiters:
                     selected_key = key
+                    selected_future = self.current_futures[key]
                     break
 
             if selected_key is not None:
@@ -78,10 +80,12 @@ class RequestCoalescer(Generic[T]):
                 self.current_futures[selected_key] = asyncio.create_task(
                     func(*args, **kwargs)
                 )
+                selected_future = self.current_futures[selected_key]
                 self.current_waiters[selected_key] = 1
 
         try:
-            return await self.current_futures[selected_key]
+            assert selected_future is not None
+            return await selected_future
         finally:
             async with self.lock:
                 if selected_key in self.current_waiters:
