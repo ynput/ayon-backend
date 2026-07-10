@@ -418,14 +418,14 @@ async def handle_s3_upload(
         try:
             await uploader.init_file_upload(path)
             buffer_size = 1024 * 1024 * 5
-            buff = b""
+            buff = bytearray()
 
             async for chunk in request.stream():
                 buff += chunk
                 while len(buff) >= buffer_size:
                     await uploader.push_chunk(buff[:buffer_size])
                     i += buffer_size
-                    buff = buff[buffer_size:]
+                    del buff[:buffer_size]
 
             if buff:
                 await uploader.push_chunk(buff)
