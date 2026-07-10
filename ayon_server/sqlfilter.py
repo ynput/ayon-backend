@@ -186,6 +186,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
+    is_template = False
 
     column = path[0]
     if column in column_map:
@@ -212,8 +213,21 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         if single_json_column:
             column = single_json_column
 
-        for k in path[1:]:
-            column += f"->'{k}'"
+        # If the column was mapped to a template containing a {key}
+        # placeholder, substitute it with the json path (e.g. ->'priority').
+        # This allows building expressions such as
+        # COALESCE(tasks.attrib->>'priority', ex.attrib->>'priority')
+        is_template = isinstance(column, str) and "{key}" in column
+        json_path = ""
+        for i, k in enumerate(path[1:]):
+            if i == len(path) - 2 and operator == "like":
+                json_path += f"->>'{k}'"
+            else:
+                json_path += f"->'{k}'"
+        if is_template:
+            column = column.format(key=json_path)
+        else:
+            column += json_path
 
         if operator in (
             "includesall",
@@ -388,7 +402,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         return f"{column} = {safe_value}"
     elif operator == "like":
         # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
+        # (already handled for template columns)
+        if not is_template:
+            column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"

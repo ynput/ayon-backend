@@ -579,24 +579,22 @@ async def get_folders(
 
         fdate = json.loads(task_filter)
         fq = QueryFilter(**fdate)
-        tfilter = build_filter(
+        # Build a single filter that coalesces the attribute value across
+        # the task itself, its inherited (exported) attributes and the
+        # project attributes. A folder matches if any of its tasks has the
+        # requested attribute value in any of those sources.
+        task_filter_cond = build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            column_map={
+                "attrib": (
+                    "COALESCE(tasks.attrib{key}, ex.attrib{key}, pr.attrib{key})"
+                ),
+            },
         )
 
-        if tfilter:
-            exfilter = build_filter(
-                fq,
-                column_whitelist=column_whitelist,
-                table_prefix="exported_attributes",
-            )
-            prfilter = build_filter(
-                fq,
-                column_whitelist=column_whitelist,
-                table_prefix="pr",
-            )
-
+        if task_filter_cond:
             sql_cte.append(
                 f"""
                 filtered_tasks AS (
@@ -604,9 +602,9 @@ async def get_folders(
                     FROM project_{project_name}.tasks
                     INNER JOIN public.projects AS pr
                         ON pr.name ILIKE '{project_name}'
-                    LEFT JOIN project_{project_name}.exported_attributes
-                        ON tasks.folder_id = exported_attributes.folder_id
-                    WHERE {tfilter} or {exfilter} or {prfilter}
+                    LEFT JOIN project_{project_name}.exported_attributes AS ex
+                        ON tasks.folder_id = ex.folder_id
+                    WHERE {task_filter_cond}
                 )
                 """
             )
