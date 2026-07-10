@@ -26,8 +26,7 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.utils import SQLTool, dict_exclude, get_nickname
-from ayon_server.utils.request_coalescer import RequestCoalescer
+from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
