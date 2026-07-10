@@ -56,7 +56,7 @@ class RequestCoalescer(Generic[T]):
         *args: Any,
         **kwargs: Any,
     ) -> T:
-        base_key = _hash_args(func, args, kwargs)
+        base_key = _hash_args(func, *args, **kwargs)
         async with self.lock:
             # Look for an existing task batch that has space for another waiter
             selected_key = None
