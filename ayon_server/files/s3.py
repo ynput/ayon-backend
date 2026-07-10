@@ -467,7 +467,7 @@ async def remote_to_s3(
 
     i = 0
     buffer_size = 1024 * 1024 * 5
-    buff = b""
+    buff = bytearray()
 
     async with httpx.AsyncClient(
         timeout=timeout or ayonconfig.http_timeout,
@@ -488,7 +488,7 @@ async def remote_to_s3(
                 while len(buff) >= buffer_size:
                     await uploader.push_chunk(buff[:buffer_size])
                     i += buffer_size
-                    buff = buff[buffer_size:]
+                    del buff[:buffer_size]
 
             if buff:
                 await uploader.push_chunk(buff)
