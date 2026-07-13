@@ -412,7 +412,7 @@ async def get_reviewables_for_folder(
     )
 
 
-@router.post("/{entity_type}/reviewables", dependencies=[AllowGuests])
+@router.post("/{entity_type}/reviewables/list", dependencies=[AllowGuests])
 async def get_reviewables_for_entities(
     user: CurrentUser,
     project_name: ProjectName,
