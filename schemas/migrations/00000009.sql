@@ -8,18 +8,27 @@
 DO $$
 DECLARE rec RECORD;
 BEGIN
-    FOR rec IN SELECT DISTINCT p.nspname FROM pg_namespace p
-    LEFT JOIN information_schema.columns c
-    ON p.nspname = c.table_schema
-    AND c.table_name = 'entity_list_folders'
-    WHERE p.nspname LIKE 'project_%'
-    AND c.table_name IS NULL
-    
+FOR rec IN 
+    SELECT ns.nspname AS project_schema
+    FROM pg_namespace ns
+    JOIN pg_class c 
+      ON c.relnamespace = ns.oid
+    LEFT JOIN pg_class folders
+      ON folders.relnamespace = ns.oid
+      AND folders.relname = 'entity_list_folders'
+    LEFT JOIN pg_attribute a 
+      ON a.attrelid = c.oid 
+      AND a.attnum > 0 
+      AND a.attname = 'entity_list_folder_id'
+    WHERE 
+      ns.nspname LIKE 'project_%'
+      AND c.relname = 'entity_lists'
+      AND (folders.oid IS NULL OR a.attname IS NULL)
     LOOP
         BEGIN
-          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
 
-          CREATE TABLE entity_list_folders (
+          CREATE TABLE IF NOT EXISTS entity_list_folders (
               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
               label VARCHAR NOT NULL,
               position INTEGER NOT NULL DEFAULT 0,
@@ -29,7 +38,7 @@ BEGIN
               data JSONB DEFAULT '{}'::JSONB
           );
 
-          CREATE UNIQUE INDEX uq_entity_list_folder_parent_label 
+          CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_list_folder_parent_label 
             ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
 
           ALTER TABLE entity_lists ADD COLUMN IF NOT EXISTS 
@@ -38,9 +47,8 @@ BEGIN
 
         EXCEPTION
           WHEN OTHERS THEN
-             RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+             RAISE WARNING 'Skipping schema % due to error: %', rec.project_schema, SQLERRM;
         END;
     END LOOP;
     RETURN;
 END $$;
-

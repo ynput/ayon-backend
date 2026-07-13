@@ -1,5 +1,6 @@
 """Data models for data import/export functionality."""
 
+import copy
 from collections.abc import Iterable
 from enum import StrEnum
 from typing import (
@@ -305,16 +306,14 @@ class EntityExportImport:
 
         result: list[ModelField] = []
         for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
-            # Create a copy with prefixed name
-            new_field = ModelField(
-                name=f"attrib.{f.name}",
-                type_=getattr(f, "type_", f.annotation),
-                field_info=f.field_info,
-                required=f.required,
-                default=f.default,
-                model_config=f.model_config,
-                class_validators=getattr(f, "class_validators", None),
-            )
+            new_field = copy.copy(f)
+            if f.field_info:
+                new_field.field_info = copy.deepcopy(f.field_info)
+
+            new_field.alias = f"attrib.{f.name}"
+            if new_field.field_info:
+                new_field.field_info.alias = f"attrib.{f.name}"
+
             result.append(new_field)
         return result
 
@@ -344,7 +343,11 @@ class EntityExportImport:
         for field in all_fields:
             name: str | None = None  # because of MyPy
             if isinstance(field, ModelField):
-                name = field.name
+                name = (
+                    field.alias
+                    if (field.alias and field.alias.startswith("attrib."))
+                    else field.name
+                )
                 field_info = field.field_info
                 annotation = field.annotation
                 required = field.required

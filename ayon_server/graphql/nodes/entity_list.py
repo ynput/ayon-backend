@@ -3,6 +3,8 @@ from typing import Annotated, Any
 
 import strawberry
 
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.graphql.nodes.common import BaseNode
@@ -189,6 +191,8 @@ class EntityListNode:
 
     tags: list[str] = strawberry.field(default_factory=list)
 
+    activity_categories: list[str] = strawberry.field(default_factory=list)
+
     owner: str | None = strawberry.field(default=None)
     active: bool = strawberry.field()
 
@@ -276,6 +280,43 @@ class EntityListNode:
         return access_level
 
 
+async def get_activity_categories(
+    project: ProjectEntity,
+    user: UserEntity,
+    record: dict[str, Any],
+) -> list[str]:
+
+    if user.is_guest:
+        if guest_access := user.get_guest_access(
+            project_name=project.name,
+            type="entityList",
+            id=record.get("id"),
+        ):
+            cat = guest_access.get("activityCategory")
+            if not cat:
+                raise ForbiddenException(
+                    "Guest has no comment category [no category defined]"
+                )
+            return cat
+
+        if user.attrib.email not in project.data.get("guestUsers", {}):
+            raise ForbiddenException("You are not allowed to access this project")
+        #
+        # map guest email to category, in which the guest can comment
+        list_guest_categories = record["data"].get("guestActivityCategories", {})
+        list_guest_category = list_guest_categories.get(user.attrib.email)
+        if not list_guest_category:
+            raise ForbiddenException(
+                "Guest has no comment category [no category defined]"
+            )
+
+    return await ActivityCategories.get_accessible_categories(
+        user,
+        project=project,
+        level=EntityAccessHelper.UPDATE,
+    )
+
+
 async def entity_list_from_record(
     project_name: str,
     record: dict[str, Any],
@@ -283,20 +324,43 @@ async def entity_list_from_record(
 ) -> EntityListNode:
     data = dict(record.get("data") or {})
     user = context.get("user")
+    project = context.get("project")
+
+    if not (user and project):
+        raise AyonException(
+            "User and project must be provided in context. This should not happen"
+        )
 
     data.pop("publicLinks", None)  # Do not expose public links in GraphQL API
 
     entity_list_folder_id = record.get("entity_list_folder_id")
 
     if user:
-        await EntityAccessHelper.check(
-            user,
-            access=record.get("access"),
-            level=EntityAccessHelper.READ,
-            owner=record.get("owner"),
-            project=context.get("project"),
-            default_open=True,
-        )
+        if ga := user.get_guest_access(
+            project_name=project_name,
+            type="entityList",
+            id=record.get("id"),
+        ):
+            activity_category = ga.get("activityCategory")
+            activity_categories = [activity_category] if activity_category else []
+
+        else:
+            await EntityAccessHelper.check(
+                user,
+                access=record.get("access"),
+                level=EntityAccessHelper.READ,
+                owner=record.get("owner"),
+                project=context.get("project"),
+                default_open=True,
+            )
+
+            activity_categories = await get_activity_categories(project, user, record)
+
+    else:
+        activity_categories = []
+
+    if user.is_guest:
+        data = {}
 
     return EntityListNode(
         project_name=project_name,
@@ -310,6 +374,7 @@ async def entity_list_from_record(
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
+        activity_categories=activity_categories,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         created_by=record["created_by"],

@@ -7,7 +7,6 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 
 import csv
 import io
-import json
 import time
 import traceback
 from datetime import datetime
@@ -313,13 +312,6 @@ async def import_data(
                     import_entity_data["path"].rsplit("/", 1)
                 )[-1]
 
-            # refactor
-            if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
-                import_entity_data["folder_type"] = "Folder"
-
-            if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
-                import_entity_data["task_type"] = default_task_type
-
             # Too noisy
             # logger.debug(
             #     f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
@@ -338,6 +330,10 @@ async def import_data(
                     )
                 import_status.updated += 1
             else:
+                await _provide_default_values(
+                    entity_cls, import_entity_data, cast("str", default_task_type)
+                )
+
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
@@ -619,13 +615,15 @@ async def _remap_single_column(
         source_value = source_value.replace("\\", "/").replace(" ", "")
 
     if importable_column.value_type == "list_of_strings" and source_value:
-        json_friendly = source_value.replace("'", '"')
-        try:
-            source_value = json.loads(json_friendly)
-        except json.JSONDecodeError:
-            source_value = [item.strip() for item in source_value.split(",")]
+        val_str = str(source_value).strip()
+
+        source_value = (
+            [item.strip() for item in val_str.split(",") if item.strip()]
+            if "," in val_str
+            else [val_str]
+        )
     else:
-        source_value = [source_value]
+        source_value = [str(source_value)] if source_value is not None else []
 
     for val in source_value:
         if not val:
@@ -1054,6 +1052,17 @@ async def _resolve_parent_id(
         return parent_id, parent_path
 
     return None, None
+
+
+async def _provide_default_values(
+    entity_cls: type, import_entity_data: dict[str, Any], default_task_type: str
+):
+    """Provides default values for new entities."""
+    if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
+        import_entity_data["folder_type"] = "Folder"
+
+    if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
+        import_entity_data["task_type"] = default_task_type
 
 
 def _to_bool(value: Any) -> bool:

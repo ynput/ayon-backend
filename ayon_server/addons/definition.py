@@ -82,7 +82,25 @@ class ServerAddonDefinition:
         """
         if self._versions is None:
             self._versions = {}
-            for version_name in os.listdir(self.addon_dir):
+
+            version_names = os.listdir(self.addon_dir)
+
+            # Try sorting by semver, if possible, but allow non-semver versions as well
+
+            def custom_sort_key(v):
+                try:
+                    return semver.VersionInfo.parse(v)
+                except ValueError:
+                    return semver.VersionInfo(
+                        0, 0, 0, prerelease=slugify(v, separator="")
+                    )
+
+            try:
+                version_names.sort(key=custom_sort_key)
+            except Exception:
+                version_names.sort()
+
+            for version_name in version_names:
                 version_dir = os.path.join(self.addon_dir, version_name)
 
                 try:

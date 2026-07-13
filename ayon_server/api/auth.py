@@ -215,7 +215,7 @@ async def user_request_throttler(
                 # requests are actually being made by users and when it is appropriate
                 # to block them.
 
-                logger.warning(msg)
+                logger.debug(msg)
 
                 # raise TooManyRequestsException(msg)
 
