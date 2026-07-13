@@ -699,7 +699,7 @@ async def get_folders(
     stats_select_clause = None
     if calculate_specific_statistics:
         stats_select_clause = generate_specific_stats_columns(
-            calculate_specific_statistics
+            calculate_specific_statistics, True
         )
     elif calculate_statistics:
         stats_select_clause = generate_stats_columns(columns_metadata)

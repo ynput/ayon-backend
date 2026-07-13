@@ -43,9 +43,13 @@ class ActivityFeedEventHook:
         """
         cls.topics = {
             "entity.folder.status_changed": cls.handle_status_changed,
+            "entity.folder.attrib_changed": cls.handle_attrib_changed,
             "entity.task.status_changed": cls.handle_status_changed,
+            "entity.task.attrib_changed": cls.handle_attrib_changed,
             "entity.version.status_changed": cls.handle_status_changed,
+            "entity.version.attrib_changed": cls.handle_attrib_changed,
             "entity.product.status_changed": cls.handle_status_changed,
+            "entity.product.attrib_changed": cls.handle_attrib_changed,
             "entity.task.assignees_changed": cls.handle_assignees_changed,
             "entity.version.created": cls.handle_version_created,
         }
@@ -75,6 +79,44 @@ class ActivityFeedEventHook:
                 "newValue": new_value,
             },
         )
+
+    @classmethod
+    async def handle_attrib_changed(cls, event: "EventModel"):
+        entity_type = event.topic.split(".")[1]
+        entity_class = get_entity_class(entity_type)
+        assert event.project is not None, "Project is required for activities"
+        entity = await entity_class.load(event.project, event.summary["entityId"])
+
+        payload = event.payload
+        new_values_dict = payload.get("newValue", {})
+        old_values_dict = payload.get("oldValue", {})
+        calculated_attributes = set(payload.get("calculatedAttributes", []))
+
+        origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
+
+        all_keys = (
+            set(new_values_dict.keys()) | set(old_values_dict.keys())
+        ) - calculated_attributes
+        for key in all_keys:
+            new_value = new_values_dict.get(key)
+            old_value = old_values_dict.get(key)
+
+            body = (
+                f"{origin_link} attrib '{key}' changed from "
+                f"'{old_value}' to '{new_value}'"
+            )
+
+            await create_activity(
+                entity,
+                activity_type="attrib.change",
+                body=body,
+                user_name=event.user,
+                data={
+                    "key": key,
+                    "oldValue": old_value,
+                    "newValue": new_value,
+                },
+            )
 
     @classmethod
     async def handle_assignees_changed(cls, event: "EventModel"):
