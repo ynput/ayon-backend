@@ -8,6 +8,7 @@ from fastapi import Cookie, Depends, Header, Path, Query, Request
 from fastapi.routing import APIRoute
 
 from ayon_server.addons import AddonLibrary, BaseServerAddon
+from ayon_server.auth.session import is_local_ip
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
@@ -696,6 +697,9 @@ def throttle(limit: int = 10, window: int = 60) -> Callable[[Request], Awaitable
 
     async def dependency(request: Request) -> None:
         ip = get_real_ip_from_request(request)
+        if is_local_ip(ip):
+            # Do not throttle local IPs
+            return
         endpoint = request.url.path
 
         key = f"{endpoint}:{ip}"
@@ -706,6 +710,7 @@ def throttle(limit: int = 10, window: int = 60) -> Callable[[Request], Awaitable
             await Redis.expire("rate-limit", key, window)
 
         if current > limit:
+            logger.trace(f"Rate limit exceeded for IP {ip} on endpoint {endpoint}")
             raise ServiceUnavailableException(
                 detail="Rate limit exceeded. Try again later",
             )
