@@ -583,14 +583,21 @@ async def get_folders(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            column_map={
+                "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
+            },
         )
 
         if tfilter:
             sql_cte.append(
                 f"""
                 filtered_tasks AS (
-                    SELECT DISTINCT folder_id
+                    SELECT DISTINCT tasks.folder_id
                     FROM project_{project_name}.tasks
+                    INNER JOIN public.projects AS pr
+                        ON pr.name ILIKE '{project_name}'
+                    LEFT JOIN project_{project_name}.exported_attributes AS ex
+                        ON tasks.folder_id = ex.folder_id
                     WHERE {tfilter}
                 )
                 """
@@ -735,6 +742,9 @@ async def get_folders(
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
+
+        with open("/storage/server/projects/folders.txt", "w") as fp:
+            fp.write(query)
 
         return FoldersConnection(edges=[], field_stats=field_stats)
 
