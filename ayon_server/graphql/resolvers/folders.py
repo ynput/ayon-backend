@@ -586,27 +586,12 @@ async def get_folders(
         )
 
         if tfilter:
-            exfilter = build_filter(
-                fq,
-                column_whitelist=column_whitelist,
-                table_prefix="exported_attributes",
-            )
-            prfilter = build_filter(
-                fq,
-                column_whitelist=column_whitelist,
-                table_prefix="pr",
-            )
-
             sql_cte.append(
                 f"""
                 filtered_tasks AS (
-                    SELECT DISTINCT tasks.folder_id
+                    SELECT DISTINCT folder_id
                     FROM project_{project_name}.tasks
-                    INNER JOIN public.projects AS pr
-                        ON pr.name ILIKE '{project_name}'
-                    LEFT JOIN project_{project_name}.exported_attributes
-                        ON tasks.folder_id = exported_attributes.folder_id
-                    WHERE {tfilter} or {exfilter} or {prfilter}
+                    WHERE {tfilter}
                 )
                 """
             )
