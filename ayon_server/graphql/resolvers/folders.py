@@ -743,9 +743,6 @@ async def get_folders(
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
 
-        with open("/storage/server/projects/folders.txt", "w") as fp:
-            fp.write(query)
-
         return FoldersConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
