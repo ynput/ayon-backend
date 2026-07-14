@@ -286,7 +286,7 @@ class CloudUtils:
 
     @classmethod
     @Redis.cached("global", "required_addons", ttl=600)
-    async def get_required_addons(cls) -> list[dict[str, str]]:
+    async def get_required_addons(cls) -> list[tuple[str, str]]:
         if ayonconfig.offline_mode:
             return []
         try:
