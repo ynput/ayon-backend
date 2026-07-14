@@ -16,6 +16,7 @@ from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.helpers.cloud import CloudUtils
+from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -115,6 +116,94 @@ def init_addon_static(target_app: "FastAPI") -> None:
     target_app.include_router(addon_static_router)
 
 
+async def addon_update(library: AddonLibrary) -> None:
+    if not (required_addons := await CloudUtils.get_required_addons()):
+        return
+
+    async with Postgres.transaction():
+        res = await Postgres.fetchrow(
+            """
+            SELECT data->'addons' AS addons
+            FROM public.bundles WHERE is_production = TRUE
+            """
+        )
+        bundle_update_needed = False
+        if res:
+            production_addons = res["addons"]
+            has_previous_bundle = True
+        else:
+            production_addons = {}
+            has_previous_bundle = False
+
+        for addon_name, addon_version in required_addons:
+            if production_addons.get(addon_name) == addon_version:
+                continue
+
+            try:
+                addon = library.addon(addon_name, addon_version)
+            except KeyError:
+                logger.debug(
+                    f"Required addon {addon_name} {addon_version} is not installed"
+                )
+                continue
+
+            logger.debug(
+                f"Adding required addon {addon_name} {addon_version} "
+                "to production bundle"
+            )
+
+            if production_addons.get(addon_name):
+                # previous version of the addon is in production, migrate settings
+
+                logger.debug(
+                    f"Migrating {addon_name} settings "
+                    f" from {production_addons[addon_name]} to {addon_version}"
+                )
+
+                try:
+                    production_addon = library.addon(
+                        addon_name, production_addons[addon_name]
+                    )
+                    await migrate_addon_settings(
+                        source_addon=production_addon,
+                        target_addon=addon,
+                        source_variant="production",
+                        target_variant="production",
+                    )
+                except Exception as e:
+                    log_traceback(f"Error migrating {addon_name} settings")
+                    logger.error(f"Unable to migrate {addon_name} settings: {e}")
+                    continue
+
+            # add the required addon to production bundle
+            bundle_update_needed = True
+            production_addons[addon_name] = addon_version
+
+        if bundle_update_needed:
+            if has_previous_bundle:
+                await Postgres.execute(
+                    """
+                    UPDATE public.bundles
+                    SET data = jsonb_set(data, '{addons}', $1)
+                    WHERE is_production = TRUE
+                    """,
+                    production_addons,
+                )
+            else:
+                await Postgres.execute(
+                    """
+                    INSERT INTO public.bundles (name, is_production, data)
+                    VALUES ('InitialBundle', TRUE, $1)
+                    """,
+                    {
+                        "addons": production_addons,
+                        "installer_version": None,
+                        "dependency_packages": {},
+                    },
+                )
+            logger.debug("Production bundle updated with required addons")
+
+
 @asynccontextmanager
 async def lifespan(app: "FastAPI"):
     _ = app
@@ -145,6 +234,8 @@ async def lifespan(app: "FastAPI"):
             description="Server restart requested during addon initialization",
         )
         return
+
+    await addon_update(library)
 
     restart_requested = False
     bad_addons = {}
