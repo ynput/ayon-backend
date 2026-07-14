@@ -289,16 +289,20 @@ class CloudUtils:
     async def get_required_addons(cls) -> list[dict[str, str]]:
         if ayonconfig.offline_mode:
             return []
+        try:
+            headers = await CloudUtils.get_api_headers()
+        except Exception:
+            return []
+
         url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/me"
-        headers = await CloudUtils.get_api_headers()
         headers["X-Ayon-Version"] = __version__
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=headers)
+                response = await client.get(url, headers=headers, timeout=3)
                 data = response.json()
                 return data.get("requiredAddons", [])
-        except Exception:
-            logger.debug("Failed to fetch required addons list")
+        except Exception as e:
+            logger.debug(f"Failed to fetch required addons list: {e}")
             return []
 
 
