@@ -283,7 +283,7 @@ async def take_action(
         str,
         Path(
             title="Action Token",
-            pattern=r"[a-f0-9]{64}",
+            regex=r"[a-f0-9]{64}",
         ),
     ],
 ) -> TakeResponseModel:
@@ -353,7 +353,7 @@ async def abort_action(
         str,
         Path(
             title="Action Token",
-            pattern=r"[a-f0-9]{64}",
+            regex=r"[a-f0-9]{64}",
         ),
     ],
 ) -> None:

@@ -26,7 +26,7 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.utils import SQLTool, dict_exclude, get_nickname
+from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
@@ -67,7 +67,20 @@ class ProjectEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction=None,  # deprecated
+        transaction: Any = None,  # deprecated
+        for_update: bool = False,
+    ) -> "ProjectEntity":
+        """Load a project from the database."""
+
+        if not for_update:
+            coalesce = RequestCoalescer()
+            return await coalesce(cls._load, name)
+        return await cls._load(name, for_update=for_update)
+
+    @classmethod
+    async def _load(
+        cls,
+        name: str,
         for_update: bool = False,
     ) -> "ProjectEntity":
         """Load a project from the database."""

@@ -48,13 +48,13 @@ class MaintenanceScheduler:
             except asyncio.CancelledError:
                 logger.info("Maintenance scheduler stopped.")
 
-    async def run_maintenance(self):
+    async def run_maintenance(self, task_name: str | None = None) -> None:
         if self.is_running:
             logger.warning("Maintenance task is already running.")
             return
         self.is_running = True
         try:
-            await run_maintenance()
+            await run_maintenance(task_name=task_name)
         except Exception:
             log_traceback("Maintenance task failed. This should not happen.")
         self.is_running = False

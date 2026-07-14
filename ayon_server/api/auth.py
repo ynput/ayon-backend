@@ -207,15 +207,23 @@ async def user_request_throttler(
 
                 msg = (
                     f"Too many concurrent {op_name} requests for "
-                    f"user {user.name}@{short_token} ({req_count}). "
+                    f"{user.name}@{short_token} ({req_count}) "
                 )
+
+                logger.debug(msg)
 
                 # This warning will be replaced with an exception in the future,
                 # after we get a better understanding of how many concurrent
                 # requests are actually being made by users and when it is appropriate
                 # to block them.
 
-                logger.debug(msg)
+                yield
+
+                if graphql_query := getattr(request.state, "graphql_query", None):
+                    logger.debug(
+                        f"Concurrent request {user.name}@{short_token}: {graphql_query}"
+                    )
+                return
 
                 # raise TooManyRequestsException(msg)
 

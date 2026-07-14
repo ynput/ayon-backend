@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 
 class SessionInfo:
     is_api_key: bool = False
+    token: str
     client_info: Optional["ClientInfo"] = None
-    token: str | None = None
 
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key

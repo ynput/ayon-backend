@@ -10,7 +10,7 @@ from maintenance.maintenance_task import (
 from maintenance.tasks import task_sequence
 
 
-async def run_maintenance():
+async def run_maintenance(task_name: str | None = None) -> None:
     event_id: str | None = None
     start_time = time.monotonic()
 
@@ -22,6 +22,8 @@ async def run_maintenance():
 
         project_list = await get_project_list()
         for task_class in task_sequence:
+            if task_name is not None and task_class.__name__ != task_name:
+                continue
             task = task_class()
             logger.debug(f"Maintenance: {task.description}")
             if isinstance(task, StudioMaintenanceTask):

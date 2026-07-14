@@ -4,7 +4,7 @@ import httpx
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.download_addon import download_addon
 from ayon_server.helpers.get_downloaded_addons import get_downloaded_addons
@@ -32,6 +32,8 @@ async def get_required_addons() -> list[dict[str, str]]:
 
 
 async def get_download_url(addon_name: str, addon_version: str) -> str:
+    if ayonconfig.offline_mode:
+        raise AyonException("Cannot get download URL in offline mode")
     headers = await CloudUtils.get_api_headers()
     headers["X-Ayon-Version"] = ayon_version
 

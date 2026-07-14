@@ -137,6 +137,9 @@ async def create_project_folder(
     if payload.id is None:
         payload.id = EntityID.create()
 
+    if not user.is_manager:
+        raise ForbiddenException("You don't have permission to create project folders")
+
     try:
         await Postgres.execute(
             """
@@ -169,7 +172,7 @@ async def update_project_folder(
         if not res:
             raise NotFoundException("Project folder not found")
 
-        if not user.is_admin:
+        if not user.is_manager:
             raise ForbiddenException("You don't have permission to update this folder")
 
         payload_dict = payload.dict(exclude_unset=True)
@@ -202,7 +205,7 @@ async def delete_project_folder(
     user: CurrentUser,
     folder_id: FolderID,
 ) -> EmptyResponse:
-    if not user.is_admin:
+    if not user.is_manager:
         raise ForbiddenException("You don't have permission to delete project folders")
     await Postgres.execute(
         "DELETE FROM project_folders WHERE id = $1",
@@ -226,7 +229,7 @@ async def set_project_folders_order(
     user: CurrentUser,
     payload: ProjectFolderOrderModel,
 ) -> EmptyResponse:
-    if not user.is_admin:
+    if not user.is_manager:
         raise ForbiddenException("You don't have permission to reorder project folders")
 
     async with Postgres.transaction():
