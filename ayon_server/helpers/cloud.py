@@ -284,6 +284,28 @@ class CloudUtils:
         await Redis.set_json("global", "cloudinfo", data)
         return YnputCloudInfoModel(**data)
 
+    @classmethod
+    @Redis.cached("global", "required-addons", ttl=3600 * 48)
+    async def get_required_addons(cls) -> list[tuple[str, str]]:
+        if ayonconfig.offline_mode:
+            return []
+        try:
+            headers = await cls.get_api_headers()
+        except Exception:
+            return []
+
+        url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/me"
+        headers["X-Ayon-Version"] = __version__
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, timeout=3)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("requiredAddons", [])
+        except Exception as e:
+            logger.debug(f"Failed to fetch required addons list: {e}")
+            return []
+
 
 #
 # Deprecated functions. Kept for compatibility with old code.
