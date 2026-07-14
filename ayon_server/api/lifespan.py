@@ -140,6 +140,7 @@ async def addon_update(library: AddonLibrary) -> None:
                 continue
 
             from ayon_server.exceptions import NotFoundException
+
             try:
                 addon = library.addon(addon_name, addon_version)
             except NotFoundException:
@@ -187,15 +188,19 @@ async def addon_update(library: AddonLibrary) -> None:
                     UPDATE public.bundles
                     SET data = jsonb_set(data, '{addons}', $1::jsonb)
                     WHERE is_production = TRUE
-                    """
+                    """,
                     production_addons,
                 )
             else:
                 await Postgres.execute(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
-                    VALUES (concat('InitialBundle_', extract(epoch from now())::int), TRUE, $1)
-                    """
+                    VALUES (
+                        concat('InitialBundle_', extract(epoch from now())::int),
+                        TRUE,
+                        $1
+                    )
+                    """,
                     {
                         "addons": production_addons,
                         "installer_version": None,
