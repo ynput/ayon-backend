@@ -285,7 +285,7 @@ class CloudUtils:
         return YnputCloudInfoModel(**data)
 
     @classmethod
-    @Redis.cached("global", "required_addons", ttl=600)
+    @Redis.cached("global", "required-addons", ttl=3600 * 48)
     async def get_required_addons(cls) -> list[tuple[str, str]]:
         if ayonconfig.offline_mode:
             return []

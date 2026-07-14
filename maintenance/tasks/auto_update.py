@@ -5,6 +5,7 @@ from ayon_server.exceptions import AyonException
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.download_addon import download_addon
 from ayon_server.helpers.get_downloaded_addons import get_downloaded_addons
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.version import __version__ as ayon_version
 from maintenance.maintenance_task import StudioMaintenanceTask
@@ -27,6 +28,7 @@ async def get_download_url(addon_name: str, addon_version: str) -> str:
 
 
 async def download_addons() -> None:
+    await Redis.delete("global", "required-addons")
     required_addons = await CloudUtils.get_required_addons()
 
     if not required_addons:
