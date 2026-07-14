@@ -194,8 +194,8 @@ async def addon_update(library: AddonLibrary) -> None:
                 await Postgres.execute(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
-                    VALUES ('InitialBundle', TRUE, $1)
-                    """,
+                    VALUES (concat('InitialBundle_', extract(epoch from now())::int), TRUE, $1)
+                    """
                     {
                         "addons": production_addons,
                         "installer_version": None,
