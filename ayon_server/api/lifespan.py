@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import os
 import traceback
@@ -159,7 +158,7 @@ async def addon_update(library: AddonLibrary) -> None:
 
                 logger.debug(
                     f"Migrating {addon_name} settings "
-                    f" from {production_addons[addon_name]} to {addon_version}"
+                    f"from {production_addons[addon_name]} to {addon_version}"
                 )
 
                 try:
@@ -183,6 +182,7 @@ async def addon_update(library: AddonLibrary) -> None:
 
         if bundle_update_needed:
             if has_previous_bundle:
+                logger.debug("Updating production bundle with required addons")
                 await Postgres.execute(
                     """
                     UPDATE public.bundles
@@ -192,6 +192,7 @@ async def addon_update(library: AddonLibrary) -> None:
                     production_addons,
                 )
             else:
+                logger.debug("Creating production bundle with required addons")
                 await Postgres.execute(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
@@ -330,6 +331,7 @@ async def lifespan(app: "FastAPI"):
         init_frontend(app)
 
         await AddonLibrary.clear_addon_list_cache()
+        await clear_server_restart_required()
 
         if start_event is not None:
             await EventStream.update(
@@ -338,9 +340,8 @@ async def lifespan(app: "FastAPI"):
                 description="Server started",
             )
 
-        asyncio.create_task(clear_server_restart_required())
-        logger.info("Server is now ready to connect")
         logger.trace(f"{len(app.routes)} routes registered")
+        logger.info("Server is now ready to connect")
 
     yield
 
