@@ -290,7 +290,7 @@ class CloudUtils:
         if ayonconfig.offline_mode:
             return []
         try:
-            headers = await CloudUtils.get_api_headers()
+            headers = await cls.get_api_headers()
         except Exception:
             return []
 
@@ -299,6 +299,7 @@ class CloudUtils:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, headers=headers, timeout=3)
+                response.raise_for_status()
                 data = response.json()
                 return data.get("requiredAddons", [])
         except Exception as e:

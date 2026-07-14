@@ -128,7 +128,7 @@ async def addon_update(library: AddonLibrary) -> None:
         )
         bundle_update_needed = False
         if res:
-            production_addons = res["addons"]
+            production_addons = dict(res["addons"] or {})
             has_previous_bundle = True
         else:
             production_addons = {}
