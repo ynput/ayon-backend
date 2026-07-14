@@ -139,9 +139,10 @@ async def addon_update(library: AddonLibrary) -> None:
             if production_addons.get(addon_name) == addon_version:
                 continue
 
+            from ayon_server.exceptions import NotFoundException
             try:
                 addon = library.addon(addon_name, addon_version)
-            except KeyError:
+            except NotFoundException:
                 logger.debug(
                     f"Required addon {addon_name} {addon_version} is not installed"
                 )
