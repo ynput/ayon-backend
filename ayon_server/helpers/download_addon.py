@@ -59,7 +59,7 @@ async def download_addon(
         url_label += "..."
     logger.debug(f"Downloading addon from {url_label}")
     if no_queue:
-        await background_installer.process_event(event_id)
+        await background_installer.process_event(event_id, no_queue=True)
     else:
         await background_installer.enqueue(event_id)
     return event_id

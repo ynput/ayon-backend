@@ -14,7 +14,6 @@ import semver
 import yaml
 from pydantic import BaseModel
 
-from ayon_server.api.system import require_server_restart
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
@@ -299,9 +298,6 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
         status="finished",
         sender="background-installer",
         sender_type="system",
-    )
-    await require_server_restart(
-        None, "New addon installed. Restart the server to apply the changes."
     )
 
     return zip_info
