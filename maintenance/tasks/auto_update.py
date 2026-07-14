@@ -37,7 +37,7 @@ async def download_addons() -> None:
         # Do we have the required addon downloaded?
 
         # Running as maintenance task. Ensure addon is downloaded,
-        # and trigger "restart requireded" after downloading.
+        # and trigger "restart required" after downloading.
         if (addon_name, addon_version) not in downloaded_addons:
             try:
                 url = await get_download_url(addon_name, addon_version)
