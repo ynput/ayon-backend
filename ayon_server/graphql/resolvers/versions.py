@@ -186,6 +186,10 @@ async def get_versions(
         "versions.creation_order AS creation_order",
         "hierarchy.path AS _folder_path",
         "products.name AS _product_name",
+        "products.product_base_type AS product_base_type",
+        "products.product_type AS product_type",
+        "tasks.task_type AS task_type",
+        "folders.folder_type AS folder_type",
     ]
 
     if fields.any_endswith("latestComments"):
@@ -777,6 +781,8 @@ async def get_versions(
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
+        with open("/storage/server/projects/version.txt", "w") as fp:
+            fp.write(query)
 
         return VersionsConnection(edges=[], field_stats=field_stats)
 
