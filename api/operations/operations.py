@@ -126,11 +126,14 @@ async def _execute_background_operations(
         wait_for_events=True,
         progress_handler=handle_progress,
     )
+
+    status = "completed" if response.success else "failed"
+
     await Redis.set_json(
         "background-operations",
         task_id,
         {
-            "status": "completed",
+            "status": status,
             "result": response.dict(),
             "progress": 100.0,
         },
