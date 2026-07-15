@@ -746,6 +746,17 @@ async def get_versions(
     elif calculate_statistics:
         stats_select_clause = generate_stats_columns(default_columns_metadata)
 
+    # Subtype fields live on joined tables, not versions.* — project them into
+    # raw_data so specific-stats distributions (e.g. productType) can GROUP BY them.
+    if stats_select_clause:
+        sql_columns.extend(
+            [
+                "products.product_type AS product_type",
+                "folders.folder_type AS folder_type",
+                "tasks.task_type AS task_type",
+            ]
+        )
+
     raw_data_start = ""
     raw_data_end = ""
     if stats_select_clause:
