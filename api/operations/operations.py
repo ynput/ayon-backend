@@ -8,6 +8,7 @@ from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
 from ayon_server.operations.project_level import (
     OperationModel,
+    OperationsProgress,
     OperationsResponseModel,
     ProjectLevelOperations,
 )
@@ -16,7 +17,7 @@ from ayon_server.utils.hashing import create_uuid
 
 from .router import router
 
-BACKGROUND_OPS_TTL = 600  # 10 minutes
+BACKGROUND_OPS_TTL = 1800  # 30 minutes
 
 
 class OperationsRequestModel(OPModel):
@@ -87,6 +88,7 @@ async def operations(
 class BackgroundOperationsResponseModel(OPModel):
     id: str
     status: Literal["pending", "in_progress", "completed"] = "pending"
+    progress: float | None = None
     result: OperationsResponseModel | None = None
 
 
@@ -102,15 +104,33 @@ async def _execute_background_operations(
         {"status": "in_progress"},
         ttl=BACKGROUND_OPS_TTL,
     )
+
+    async def handle_progress(progress: OperationsProgress) -> None:
+        percent = ((progress.index / progress.total) if progress.total else 0.0) * 100.0
+        await Redis.set_json(
+            "background-operations",
+            task_id,
+            {
+                "status": "in_progress",
+                "progress": percent,
+            },
+            ttl=BACKGROUND_OPS_TTL,
+        )
+
     response = await ops.process(
         can_fail=can_fail,
         raise_on_error=False,
         wait_for_events=True,
+        progress_handler=handle_progress,
     )
     await Redis.set_json(
         "background-operations",
         task_id,
-        {"status": "completed", "result": response.dict()},
+        {
+            "status": "completed",
+            "result": response.dict(),
+            "progress": 100.0,
+        },
         ttl=BACKGROUND_OPS_TTL,
     )
 
