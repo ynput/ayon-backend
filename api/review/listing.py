@@ -84,7 +84,12 @@ async def get_reviewables(
         list[str] | None, argdesc("List of folder IDs to filter by")
     ] = None,
     user: UserEntity | None = None,
-    latest_done: bool = False,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     cond = ""
     cval: str | list[str] | None = None
@@ -133,6 +138,15 @@ async def get_reviewables(
             )
         )
         """
+
+    if latest:
+        cond += f"""AND versions.id IN (
+                SELECT vv.id
+                FROM project_{project_name}.versions vv
+                WHERE vv.product_id = products.id
+                ORDER BY vv.version DESC
+                LIMIT 1
+            )"""
 
     if latest_done:
         cond += f"""AND versions.id IN (
@@ -323,6 +337,9 @@ async def get_reviewables_for_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
     latest_done: Annotated[
         bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
@@ -338,6 +355,7 @@ async def get_reviewables_for_product(
         project_name,
         product_id=product_id,
         user=user,
+        latest=latest,
         latest_done=latest_done,
     )
 
@@ -347,6 +365,9 @@ async def get_reviewables_for_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
     latest_done: Annotated[
         bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
@@ -363,6 +384,7 @@ async def get_reviewables_for_version(
             project_name,
             version_id=version_id,
             user=user,
+            latest=latest,
             latest_done=latest_done,
         )
     )[0]
@@ -373,6 +395,9 @@ async def get_reviewables_for_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
     latest_done: Annotated[
         bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
@@ -386,6 +411,7 @@ async def get_reviewables_for_task(
         project_name,
         task_id=task_id,
         user=user,
+        latest=latest,
         latest_done=latest_done,
     )
 
@@ -395,6 +421,9 @@ async def get_reviewables_for_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
     latest_done: Annotated[
         bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
@@ -408,6 +437,7 @@ async def get_reviewables_for_folder(
         project_name,
         folder_id=folder_id,
         user=user,
+        latest=latest,
         latest_done=latest_done,
     )
 
@@ -418,6 +448,9 @@ async def get_reviewables_for_entities(
     project_name: ProjectName,
     entity_type: PathProjectLevelEntityType,
     payload: Annotated[ReviewablesRequestModel, Body(...)],
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
     latest_done: Annotated[
         bool, Query(description="If True, returns only the latest approved versions")
     ] = False,
@@ -433,6 +466,7 @@ async def get_reviewables_for_entities(
     kwargs: dict[str, Any] = {
         f"{entity_type}_ids": payload.entity_ids,
         "user": user,
+        "latest": latest,
         "latest_done": latest_done,
     }
 
