@@ -751,6 +751,7 @@ async def get_versions(
     if stats_select_clause:
         sql_columns.extend(
             [
+                "products.product_base_type AS product_base_type",
                 "products.product_type AS product_type",
                 "folders.folder_type AS folder_type",
                 "tasks.task_type AS task_type",
