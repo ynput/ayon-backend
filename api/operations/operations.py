@@ -6,6 +6,7 @@ from ayon_server.api.context import get_request_context
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.operations.project_level import (
     OperationModel,
     OperationsProgress,
@@ -98,47 +99,68 @@ async def _execute_background_operations(
     *,
     can_fail: bool,
 ) -> None:
-    await Redis.set_json(
-        "background-operations",
-        task_id,
-        {
-            "status": "in_progress",
-            "progress": 0.0,
-        },
-        ttl=BACKGROUND_OPS_TTL,
-    )
+    try:
+        req_count = await Redis.incr(
+            "global",
+            "concurrent-background-operations",
+            ttl=600,
+        )
 
-    async def handle_progress(progress: OperationsProgress) -> None:
-        percent = ((progress.index / progress.total) if progress.total else 0.0) * 100.0
+        if req_count > 2:
+            logger.warning(
+                f"Too many concurrent background operations tasks ({req_count})"
+            )
+
         await Redis.set_json(
             "background-operations",
             task_id,
             {
                 "status": "in_progress",
-                "progress": percent,
+                "progress": 0.0,
             },
             ttl=BACKGROUND_OPS_TTL,
         )
 
-    response = await ops.process(
-        can_fail=can_fail,
-        raise_on_error=False,
-        wait_for_events=True,
-        progress_handler=handle_progress,
-    )
+        async def handle_progress(progress: OperationsProgress) -> None:
+            percent = (
+                (progress.index / progress.total) if progress.total else 0.0
+            ) * 100.0
+            await Redis.set_json(
+                "background-operations",
+                task_id,
+                {
+                    "status": "in_progress",
+                    "progress": percent,
+                },
+                ttl=BACKGROUND_OPS_TTL,
+            )
 
-    status = "completed" if response.success else "failed"
+        response = await ops.process(
+            can_fail=can_fail,
+            raise_on_error=False,
+            wait_for_events=True,
+            progress_handler=handle_progress,
+        )
 
-    await Redis.set_json(
-        "background-operations",
-        task_id,
-        {
-            "status": status,
-            "result": response.dict(),
-            "progress": 100.0,
-        },
-        ttl=BACKGROUND_OPS_TTL,
-    )
+        # TODO: To be discussed.
+        # should we use failed? probably not, because the task itself completed
+        # and the result is available. depending on can_fail,
+        # the result may contain errors, but the task itself is completed.
+        # status = "completed" if response.success else "failed"
+
+        await Redis.set_json(
+            "background-operations",
+            task_id,
+            {
+                "status": "completed",
+                "result": response.dict(),
+                "progress": 100.0,
+            },
+            ttl=BACKGROUND_OPS_TTL,
+        )
+
+    finally:
+        await Redis.decr("global", "concurrent-background-operations")
 
 
 @router.post("/projects/{project_name}/operations/background")
