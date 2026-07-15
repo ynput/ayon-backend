@@ -101,7 +101,10 @@ async def _execute_background_operations(
     await Redis.set_json(
         "background-operations",
         task_id,
-        {"status": "in_progress"},
+        {
+            "status": "in_progress",
+            "progress": 0.0,
+        },
         ttl=BACKGROUND_OPS_TTL,
     )
 
