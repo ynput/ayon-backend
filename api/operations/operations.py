@@ -103,7 +103,7 @@ async def _execute_background_operations(
         req_count = await Redis.incr(
             "global",
             "concurrent-background-operations",
-            ttl=600,
+            ttl=BACKGROUND_OPS_TTL,
         )
 
         msg = "Starting background operations"
