@@ -108,7 +108,7 @@ async def _execute_background_operations(
 
         msg = "Starting background operations"
         if req_count > 2:
-            msg += f" ({req_count} already running)"
+            msg += f" ({req_count - 1} already running)"
             logger.debug(msg)
         else:
             logger.trace(msg)
@@ -127,15 +127,23 @@ async def _execute_background_operations(
             percent = (
                 (progress.index / progress.total) if progress.total else 0.0
             ) * 100.0
-            await Redis.set_json(
-                "background-operations",
-                task_id,
-                {
-                    "status": "in_progress",
-                    "progress": percent,
-                },
-                ttl=BACKGROUND_OPS_TTL,
-            )
+            try:
+                await Redis.set_json(
+                    "background-operations",
+                    task_id,
+                    {
+                        "status": "in_progress",
+                        "progress": percent,
+                    },
+                    ttl=BACKGROUND_OPS_TTL,
+                )
+                await Redis.expire(
+                    "global",
+                    "concurrent-background-operations",
+                    ttl=BACKGROUND_OPS_TTL,
+                )
+            except Exception:
+                pass  # not super important
 
         response = await ops.process(
             can_fail=can_fail,
