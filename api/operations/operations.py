@@ -106,10 +106,12 @@ async def _execute_background_operations(
             ttl=600,
         )
 
+        msg = "Starting background operations"
         if req_count > 2:
-            logger.warning(
-                f"Too many concurrent background operations tasks ({req_count})"
-            )
+            msg += f" ({req_count} already running)"
+            logger.debug(msg)
+        else:
+            logger.trace(msg)
 
         await Redis.set_json(
             "background-operations",
