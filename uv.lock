@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.14"
 
 [[package]]
@@ -240,7 +240,7 @@ wheels = [
 
 [[package]]
 name = "ayon-server"
-version = "1.15.14"
+version = "1.15.16"
 source = { editable = "." }
 dependencies = [
     { name = "aiocache" },
