@@ -31,7 +31,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
 
         version_dir = addon.addon_dir
         try:
-            await aioshutil.rmtree(version_dir)  # type: ignore[call-arg]
+            await aioshutil.rmtree(version_dir)
         except Exception as e:
             raise AyonException(
                 f"Failed to delete {addon_name} {addon_version} directory: {e}"
@@ -42,7 +42,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
 
     if (addon_version is None) or is_empty:
         try:
-            await aioshutil.rmtree(addon_dir)  # type: ignore[call-arg]
+            await aioshutil.rmtree(addon_dir)
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
         library.data.pop(addon_name, None)
