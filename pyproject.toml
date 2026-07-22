@@ -1,6 +1,6 @@
 [project]
 name = "ayon-server"
-version = "1.15.17"
+version = "1.15.18"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
