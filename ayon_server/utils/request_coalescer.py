@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 from collections.abc import Callable, Coroutine
-from typing import Any, Generic, TypeVar
+from typing import Any
 from uuid import uuid4
 
 
@@ -32,10 +32,7 @@ def _hash_args(func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     return hashlib.md5(combined_str.encode()).hexdigest()
 
 
-T = TypeVar("T")
-
-
-class RequestCoalescer(Generic[T]):
+class RequestCoalescer[T]:
     _instance: "RequestCoalescer[Any] | None" = None
     lock: asyncio.Lock
     current_futures: dict[str, asyncio.Task[T]]

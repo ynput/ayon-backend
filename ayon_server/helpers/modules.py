@@ -4,9 +4,7 @@ import inspect
 import os
 import sys
 from types import ModuleType
-from typing import Any, TypeVar
-
-T = TypeVar("T", bound=type)
+from typing import Any
 
 # Registry of addon namespaces: unique_name -> addon_base_dir
 _ADDON_REGISTRY: dict[str, str] = {}
@@ -116,7 +114,7 @@ def import_module(name: str, path: str) -> ModuleType:
     return module
 
 
-def classes_from_module(superclass: T, module: ModuleType) -> list[T]:
+def classes_from_module[T: type](superclass: T, module: ModuleType) -> list[T]:
     """Return plug-ins from module
 
     Arguments:

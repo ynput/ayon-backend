@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 import aiofiles.os
 
 
-async def list_local_files(root: str) -> AsyncGenerator[str, None]:
+async def list_local_files(root: str) -> AsyncGenerator[str]:
     records = await aiofiles.os.scandir(root)
     for rec in records:
         if rec.is_dir():

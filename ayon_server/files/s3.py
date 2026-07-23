@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from collections.abc import AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
@@ -9,7 +10,6 @@ import httpx
 from fastapi import Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from typing_extensions import AsyncGenerator
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, NotFoundException
@@ -219,7 +219,7 @@ class FileIterator:
 
 async def list_s3_files(
     storage: "ProjectStorage", file_group: FileGroup
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str]:
     assert file_group in ["uploads", "thumbnails"], "Invalid file group"
     file_iterator = FileIterator(storage, file_group)
     await file_iterator.init_iterator()

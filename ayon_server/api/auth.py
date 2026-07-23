@@ -180,7 +180,7 @@ THROTTLERS = [
 @asynccontextmanager
 async def user_request_throttler(
     user: UserEntity | None, request: Request
-) -> AsyncGenerator[None, None]:
+) -> AsyncGenerator[None]:
 
     if not user:
         yield
