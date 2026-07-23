@@ -24,13 +24,10 @@ from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.helpers.thumbnails.common import retrieve_thumbnail
 from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.utils.hashing import create_uuid
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
-REDIS_NS = "project.file_preview"
-PREVIEW_CACHE_TTL = 3600 * 4
 PREVIEW_SEMAPHORE = asyncio.Semaphore(3)
 
 
@@ -110,13 +107,13 @@ async def obtain_file_preview(
     file_id: str,
     *,
     thumbnail: bool = True,
+    user: str | UserEntity | None = None,
+    thumbnail_id: str | None = None,
     for_entity: FolderEntity
     | TaskEntity
     | VersionEntity
     | WorkfileEntity
     | None = None,
-    user: str | UserEntity | None = None,
-    thumbnail_id: str | None = None,
 ) -> bytes:
     """Return a preview image for a file as bytes.
 
@@ -145,9 +142,8 @@ async def obtain_file_preview(
             thumbnail_id=file_record["thumbnail_id"],
             mode="small" if thumbnail else "original",
         )
-        if not thumb_bytes:
-            raise NotFoundException("Thumbnail not found")
-        return thumb_bytes
+        if thumb_bytes:
+            return thumb_bytes
 
     file_data = file_record["data"] or {}
     expected_size = file_record["size"]
@@ -187,11 +183,9 @@ async def obtain_file_preview(
                 project_name=project_name,
                 thumbnail_id=thumbnail_id,
                 payload=pvw_bytes,
-                entity=for_entity
-                if (for_entity and for_entity.thumbnail_id is None)
-                else None,
                 mime="image/jpeg",
                 user_name=user_name,
+                entity=for_entity,
             )
             await Postgres.execute(
                 f"""
@@ -215,39 +209,25 @@ async def get_file_preview_bytes(
     file_id: str,
     retries: int = 0,
 ) -> bytes:
-    """Return a preview image for a file.
-
-    Uses the cache if available, otherwise generates a new preview and caches it.
-    Returns fastapi.Response object with the image data.
-    """
+    """Return a preview image for a file."""
 
     file_id = file_id.replace("-", "")
     assert len(file_id) == 32
 
-    key = f"{project_name}.{file_id}"
-    pvw_bytes = await Redis.get(REDIS_NS, key)
+    try:
+        pvw_bytes = await obtain_file_preview(project_name, file_id)
+    except ServiceUnavailableException:
+        await asyncio.sleep(0.2)
+        if retries < 3:
+            return await get_file_preview_bytes(project_name, file_id, retries + 1)
+        raise ServiceUnavailableException("File preview service unavailable")
 
-    if pvw_bytes is None:
-        try:
-            pvw_bytes = await obtain_file_preview(project_name, file_id)
-            await Redis.set(REDIS_NS, key, pvw_bytes, ttl=PREVIEW_CACHE_TTL)
-        except ServiceUnavailableException:
-            await asyncio.sleep(0.2)
-            if retries < 3:
-                return await get_file_preview_bytes(project_name, file_id, retries + 1)
-            raise ServiceUnavailableException("File preview service unavailable")
-    elif pvw_bytes != b"":
-        # Bump the TTL only for successful cached previews.
-        # Negative cache entries should expire naturally so transient
-        # preview-generation/storage failures can recover automatically.
-        await Redis.expire(REDIS_NS, key, PREVIEW_CACHE_TTL)
-
-    if pvw_bytes == b"":
+    if not pvw_bytes:
         raise NotFoundException("File preview not available")
     return pvw_bytes
 
 
-async def get_file_preview(
+async def get_file_preview_response(
     project_name: str,
     file_id: str,
     retries: int = 0,
@@ -268,15 +248,3 @@ async def get_file_preview(
         log_traceback("Error getting file preview")
         raise AyonException(f"Error getting file preview: {str(e)}") from e
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
-
-
-async def uncache_file_preview(project_name: str, file_id: str) -> None:
-    """Remove the preview image from the cache.
-
-    Silently ignore if the file is not found in the cache.
-    """
-    file_id = file_id.replace("-", "")
-    if len(file_id) != 32:
-        raise ValueError("Invalid file ID")
-    key = f"{project_name}.{file_id}"
-    await Redis.delete(REDIS_NS, key)

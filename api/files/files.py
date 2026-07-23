@@ -22,7 +22,10 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages, create_project_file_record
-from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
+from ayon_server.helpers.preview import (
+    create_video_thumbnail,
+    get_file_preview_response,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
@@ -266,7 +269,7 @@ async def get_project_file_thumbnail(
 
     await user.ensure_project_access(project_name)
 
-    return await get_file_preview(project_name, file_id)
+    return await get_file_preview_response(project_name, file_id)
 
 
 @router.get(
