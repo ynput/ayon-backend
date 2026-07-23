@@ -1,7 +1,7 @@
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Literal, TypeVar
+from typing import Annotated, Any, Literal
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -88,7 +88,7 @@ class FieldInfo:
         def parse_fields(
             fields: list[Any],
             name: str | None = None,
-        ) -> Generator[str, None, None]:
+        ) -> Generator[str]:
             for field in fields:
                 if hasattr(field, "name"):
                     fname = name + "." + field.name if name else field.name
@@ -164,10 +164,8 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 # Actual resolver
 #
 
-R = TypeVar("R")
 
-
-async def resolve(
+async def resolve[R](
     connection_type: Callable[..., R],
     edge_type,
     node_type,

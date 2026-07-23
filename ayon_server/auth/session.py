@@ -223,7 +223,7 @@ class Session:
     async def list(
         cls,
         user_name: str | None = None,
-    ) -> AsyncGenerator[SessionModel, None]:
+    ) -> AsyncGenerator[SessionModel]:
         """List active sessions for all or given user
 
         Additionally, this function also removes expired sessions

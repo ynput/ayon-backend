@@ -489,16 +489,38 @@ async def create_entity_link(
 #
 
 
+async def _ensure_delete_access(
+    user: CurrentUser,
+    project_name: ProjectName,
+    input_type: str,
+    output_type: str,
+    input_id: str,
+    output_id: str,
+):
+    """Checks that user is manager or has access to both sides of link."""
+    if not user.is_manager:
+        input_class = get_entity_class(input_type)
+        input_entity = await input_class.load(project_name, input_id)
+
+        try:
+            await input_entity.ensure_update_access(user)
+        except ForbiddenException:
+            output_class = get_entity_class(output_type)
+            output_entity = await output_class.load(project_name, output_id)
+
+            await output_entity.ensure_update_access(user)
+
+
 @router.delete("/projects/{project_name}/links/{link_id}", status_code=204)
 async def delete_entity_link(
     user: CurrentUser,
     project_name: ProjectName,
     link_id: LinkID,
 ) -> EmptyResponse:
-    """Delete a link.
+    """Delete a link between two entities.
 
-    Normal users can only delete links they created.
-    Managers can delete any link.
+    Normal users can only delete links between entities, if they have update access
+    to at least one of the entities. Managers can delete any link.
     """
 
     async with Postgres.transaction():
@@ -512,7 +534,7 @@ async def delete_entity_link(
         link_type = res["link_type"]
         link_type_name, input_type, output_type = link_type.split("|")
 
-        await _check_access(
+        await _ensure_delete_access(
             user,
             project_name,
             input_type,
@@ -543,25 +565,3 @@ async def delete_entity_link(
         )
 
     return EmptyResponse()
-
-
-async def _check_access(
-    user: CurrentUser,
-    project_name: ProjectName,
-    input_type: str,
-    output_type: str,
-    input_id: str,
-    output_id: str,
-):
-    """Checks that user is manager or has access to both sides of link."""
-    if not user.is_manager:
-        input_class = get_entity_class(input_type)
-        input_entity = await input_class.load(project_name, input_id)
-
-        try:
-            await input_entity.ensure_update_access(user)
-        except ForbiddenException:
-            output_class = get_entity_class(output_type)
-            output_entity = await output_class.load(project_name, output_id)
-
-            await output_entity.ensure_update_access(user)

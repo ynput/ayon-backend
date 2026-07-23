@@ -63,6 +63,14 @@ class UsersEnumResolver(BaseEnumResolver):
             is_admin = udata.get("isAdmin", False)
             is_manager = udata.get("isManager", False)
 
+            if (
+                current_user
+                and (not current_user.data.get("isSupport", False))
+                and udata.get("isSupport", False)
+            ):
+                # we don't show support users to non-support users
+                return False
+
             if is_admin or is_manager:
                 # we always show admins and managers
                 return True

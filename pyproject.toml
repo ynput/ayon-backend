@@ -1,9 +1,9 @@
 [project]
 name = "ayon-server"
-version = "1.15.14"
+version = "1.15.18"
 description = ""
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13,<3.14"
 
 dependencies = [
   "aiocache >=0.12.3",
@@ -25,8 +25,8 @@ dependencies = [
   "orjson >=3.11.7",
   "pillow >=12.1.1",
   "psutil >=7.2.2",
-  "pydantic ==1.10.25", # 1.10.25 is the last 1.x version
-  "pyjwt ==2.9.0", # Do not upgrade before migrating to string only subs
+  "pydantic ==1.10.26", # 1.10.26 is the last 1.x version
+  "pyjwt >=2.13.0",
   "pytz>=2026.1.post1",
   "pyyaml >=6.0.3",
   "redis >=7.2.0",
