@@ -257,7 +257,8 @@ class CloudUtils:
                 if res.status_code in [401, 403]:
                     await cls.remove_ynput_cloud_key()
                     raise ForbiddenException(
-                        "Unable to connect to Ynput Cloud: not authorized"
+                        f"Unable to connect to Ynput Cloud [ERR {res.status_code}] "
+                        "(not authorized)"
                     )
 
                 if res.status_code >= 400:
