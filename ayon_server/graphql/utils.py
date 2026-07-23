@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
@@ -8,8 +8,6 @@ ATTRIB_WHITELIST = [
     "fullName",
     "avatarUrl",
 ]
-
-T = TypeVar("T")
 
 
 def process_attrib_data(

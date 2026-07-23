@@ -1,7 +1,7 @@
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Literal, TypeVar
+from typing import Annotated, Any, Literal
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -164,8 +164,6 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 # Actual resolver
 #
 
-R = TypeVar("R")
-
 
 async def resolve[R](
     connection_type: Callable[..., R],
@@ -178,7 +176,7 @@ async def resolve[R](
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: list[str] | None = None,
-) -> R:  # noqa: U047
+) -> R:
     """Return a connection object from a query."""
 
     if first is not None:

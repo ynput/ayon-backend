@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar
+from typing import Any
 from uuid import uuid4
 
 
@@ -30,9 +30,6 @@ def _hash_args(func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     kwarg_str = str(sorted(kwargs.items()))
     combined_str = arg_str + kwarg_str + func_id
     return hashlib.md5(combined_str.encode()).hexdigest()
-
-
-T = TypeVar("T")
 
 
 class RequestCoalescer[T]:
