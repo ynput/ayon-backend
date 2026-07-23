@@ -119,7 +119,7 @@ class CloudUtils:
         from ayon_server.addons.library import AddonLibrary
 
         library = AddonLibrary.getinstance()
-        if library.get_addon_by_variant("ynputcloud", "production"):
+        if await library.get_addon_by_variant("ynputcloud", "production"):
             cls.admin_exists = True
             return True
 
