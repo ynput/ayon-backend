@@ -1,9 +1,13 @@
-from typing import Any
+from typing import Annotated, Any
 
+from fastapi import Body, Query
+
+from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
     FolderID,
+    PathProjectLevelEntityType,
     ProductID,
     ProjectName,
     TaskID,
@@ -16,6 +20,8 @@ from ayon_server.entities import (
     UserEntity,
     VersionEntity,
 )
+from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.reviewables.models import (
@@ -26,6 +32,14 @@ from ayon_server.reviewables.models import (
 from ayon_server.types import Field, OPModel
 
 from .router import router
+
+
+class ReviewablesRequestModel(OPModel):
+    entity_ids: list[str] = Field(
+        ...,
+        description="List of target Entity IDs (folders, products, versions, etc.)"
+        " to fetch reviewables for.",
+    )
 
 
 class VersionReviewablesModel(OPModel):
@@ -54,12 +68,31 @@ async def get_reviewables(
     project_name: str,
     *,
     version_id: str | None = None,
+    version_ids: Annotated[
+        list[str] | None, argdesc("List of parent version IDs to filter by")
+    ] = None,
     product_id: str | None = None,
+    product_ids: Annotated[
+        list[str] | None, argdesc("List of products IDs to filter by")
+    ] = None,
     task_id: str | None = None,
+    task_ids: Annotated[
+        list[str] | None, argdesc("List of tasks IDs to filter by")
+    ] = None,
     folder_id: str | None = None,
+    folder_ids: Annotated[
+        list[str] | None, argdesc("List of folder IDs to filter by")
+    ] = None,
     user: UserEntity | None = None,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     cond = ""
+    cval: str | list[str] | None = None
     if version_id:
         cond = "versions.id = $1"
         cval = version_id
@@ -72,6 +105,25 @@ async def get_reviewables(
     elif folder_id:
         cond = "products.folder_id = $1"
         cval = folder_id
+    elif version_ids:
+        cond = "versions.id = ANY($1::uuid[])"
+        cval = version_ids
+    elif product_ids:
+        cond = "versions.product_id  = ANY($1::uuid[])"
+        cval = product_ids
+    elif task_ids:
+        cond = "versions.task_id  = ANY($1::uuid[])"
+        cval = task_ids
+    elif folder_ids:
+        cond = "products.folder_id  = ANY($1::uuid[])"
+        cval = folder_ids
+
+    access_list = None
+    if user and not user.is_guest:
+        try:
+            access_list = await folder_access_list(user, project_name)
+        except ForbiddenException:
+            access_list = []
 
     if user and user.is_guest:
         cond += f""" AND versions.id IN (
@@ -86,6 +138,39 @@ async def get_reviewables(
             )
         )
         """
+
+    if latest:
+        cond += f"""AND versions.id IN (
+                SELECT vv.id
+                FROM project_{project_name}.versions vv
+                WHERE vv.product_id = products.id
+                ORDER BY vv.version DESC
+                LIMIT 1
+            )"""
+
+    if latest_done:
+        cond += f"""AND versions.id IN (
+                SELECT vv.id
+                FROM project_{project_name}.versions vv
+                JOIN project_{project_name}.statuses st
+                    ON st.name = vv.status
+                WHERE vv.product_id = products.id
+                    AND st.data->>'state' = 'done'
+                ORDER BY vv.version DESC
+                LIMIT 1
+            )"""
+
+    hierarchy_join = ""
+    access_cond = ""
+    if access_list is not None:
+        access_list = [path.strip('"') for path in access_list]
+        hierarchy_join = f"""
+        JOIN
+            project_{project_name}.hierarchy AS hierarchy
+            ON hierarchy.id = products.folder_id
+        """
+        param_index = "$2" if cval is not None else "$1"
+        access_cond = f"AND hierarchy.path LIKE ANY ({param_index}::text[])"
 
     query = f"""
         SELECT
@@ -117,7 +202,7 @@ async def get_reviewables(
         JOIN
             project_{project_name}.products AS products
             ON products.id = versions.product_id
-
+        {hierarchy_join}
         LEFT JOIN
             project_{project_name}.activity_feed af
             ON af.entity_id = versions.id
@@ -142,6 +227,7 @@ async def get_reviewables(
                 (events.summary->>'sourceFileId')::UUID = files.id
         WHERE
             {cond}
+            {access_cond}
 
         ORDER BY
             versions.version ASC,
@@ -151,7 +237,8 @@ async def get_reviewables(
 
     processed: set[str] = set()
     versions: dict[str, VersionReviewablesModel] = {}
-    async for row in Postgres.iterate(query, cval):
+    query_params = (cval, access_list) if access_list is not None else (cval,)
+    async for row in Postgres.iterate(query, *query_params):
         if row["version"] < 0:
             version_name = "HERO"
         else:
@@ -250,6 +337,12 @@ async def get_reviewables_for_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
 
@@ -262,6 +355,8 @@ async def get_reviewables_for_product(
         project_name,
         product_id=product_id,
         user=user,
+        latest=latest,
+        latest_done=latest_done,
     )
 
 
@@ -270,6 +365,12 @@ async def get_reviewables_for_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> VersionReviewablesModel:
     """Returns a list of reviewables for a given version."""
 
@@ -283,6 +384,8 @@ async def get_reviewables_for_version(
             project_name,
             version_id=version_id,
             user=user,
+            latest=latest,
+            latest_done=latest_done,
         )
     )[0]
 
@@ -292,6 +395,12 @@ async def get_reviewables_for_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     task = await TaskEntity.load(project_name, task_id)
 
@@ -302,6 +411,8 @@ async def get_reviewables_for_task(
         project_name,
         task_id=task_id,
         user=user,
+        latest=latest,
+        latest_done=latest_done,
     )
 
 
@@ -310,6 +421,12 @@ async def get_reviewables_for_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
 ) -> list[VersionReviewablesModel]:
     folder = await FolderEntity.load(project_name, folder_id)
 
@@ -320,4 +437,37 @@ async def get_reviewables_for_folder(
         project_name,
         folder_id=folder_id,
         user=user,
+        latest=latest,
+        latest_done=latest_done,
     )
+
+
+@router.post("/{entity_type}/reviewables/list", dependencies=[AllowGuests])
+async def get_reviewables_for_entities(
+    user: CurrentUser,
+    project_name: ProjectName,
+    entity_type: PathProjectLevelEntityType,
+    payload: Annotated[ReviewablesRequestModel, Body(...)],
+    latest: Annotated[
+        bool, Query(description="If True, returns only the latest version")
+    ] = False,
+    latest_done: Annotated[
+        bool, Query(description="If True, returns only the latest approved versions")
+    ] = False,
+) -> list[VersionReviewablesModel]:
+    """Fetches reviewables for a batch of entity IDs passed in the request."""
+
+    supported_types = {"version", "product", "task", "folder"}
+    if entity_type not in supported_types:
+        raise BadRequestException(
+            detail=f"Unsupported entity type for reviewables: {entity_type}"
+        )
+
+    kwargs: dict[str, Any] = {
+        f"{entity_type}_ids": payload.entity_ids,
+        "user": user,
+        "latest": latest,
+        "latest_done": latest_done,
+    }
+
+    return await get_reviewables(project_name, **kwargs)
