@@ -31,6 +31,5 @@ BEGIN
              RAISE WARNING 'Skipping schema % due to error: %', rec.project_schema, SQLERRM;
         END;
     END LOOP;
-    RETURN;
 END $$;
 
