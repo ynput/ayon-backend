@@ -102,7 +102,7 @@ def process_attrib_data(
     return result
 
 
-def parse_attrib_data(
+def parse_attrib_data[T](
     entity_type: str,
     target_type: type[T],
     own_attrib: dict[str, Any],

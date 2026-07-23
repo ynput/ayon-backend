@@ -88,7 +88,7 @@ class FieldInfo:
         def parse_fields(
             fields: list[Any],
             name: str | None = None,
-        ) -> Generator[str, None, None]:
+        ) -> Generator[str]:
             for field in fields:
                 if hasattr(field, "name"):
                     fname = name + "." + field.name if name else field.name
@@ -167,7 +167,7 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 R = TypeVar("R")
 
 
-async def resolve(
+async def resolve[R](
     connection_type: Callable[..., R],
     edge_type,
     node_type,
@@ -178,7 +178,7 @@ async def resolve(
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: list[str] | None = None,
-) -> R:
+) -> R:  # noqa: U047
     """Return a connection object from a query."""
 
     if first is not None:

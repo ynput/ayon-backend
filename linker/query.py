@@ -22,7 +22,7 @@ async def query_entities(
     product_name: str | None = None,
     limit: int | None = None,
     version: Literal["hero", "latest"] | int | None = None,
-) -> AsyncGenerator[EntityResult, None]:
+) -> AsyncGenerator[EntityResult]:
     """Query entities from a project.
 
     Returns a generator of tuples of (folder_id, entity_id) for a

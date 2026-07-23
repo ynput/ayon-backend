@@ -22,7 +22,7 @@ def get_desktop_dir(*args: str, for_writing: bool = True) -> str:
     return directory
 
 
-def iter_names(directory: str) -> Generator[str, None, None]:
+def iter_names(directory: str) -> Generator[str]:
     """Iterate over package names in a directory."""
 
     root = get_desktop_dir(directory, for_writing=False)
