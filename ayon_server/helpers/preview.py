@@ -21,7 +21,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
-from ayon_server.helpers.thumbnails.common import retrieve_thumbnail
+from ayon_server.helpers.thumbnails.common import get_fake_thumbnail, retrieve_thumbnail
 from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -93,8 +93,7 @@ async def create_video_thumbnail(
 
             if proc.returncode != 0:
                 stderr_str = stderr.decode()
-                logger.error(f"ffmpeg failed: {stderr_str}")
-                return b""
+                raise AyonException(f"FFMPeg failed: {stderr_str}")
 
             async with aiofiles.open(temp_path, "rb") as f:
                 image_bytes = await f.read()
@@ -171,31 +170,36 @@ async def obtain_file_preview(
         raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
-        pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
-
-        if pvw_bytes:
-            if thumbnail_id is None:
-                thumbnail_id = create_uuid()
-
-            user_name = user.name if isinstance(user, UserEntity) else user
-
-            await store_thumbnail(
-                project_name=project_name,
-                thumbnail_id=thumbnail_id,
-                payload=pvw_bytes,
-                mime="image/jpeg",
-                user_name=user_name,
-                entity=for_entity,
+        try:
+            pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
+        except Exception as e:
+            logger.error(
+                f"Error creating preview for {project_name}/{file_id}: {str(e)}"
             )
-            await Postgres.execute(
-                f"""
-                UPDATE project_{project_name}.files
-                SET updated_at = NOW(), thumbnail_id = $2
-                WHERE id = $1
-                """,
-                file_id,
-                thumbnail_id,
-            )
+            pvw_bytes = get_fake_thumbnail()
+
+        if thumbnail_id is None:
+            thumbnail_id = create_uuid()
+
+        user_name = user.name if isinstance(user, UserEntity) else user
+
+        await store_thumbnail(
+            project_name=project_name,
+            thumbnail_id=thumbnail_id,
+            payload=pvw_bytes,
+            mime="image/jpeg",
+            user_name=user_name,
+            entity=for_entity,
+        )
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.files
+            SET updated_at = NOW(), thumbnail_id = $2
+            WHERE id = $1
+            """,
+            file_id,
+            thumbnail_id,
+        )
         return pvw_bytes
 
     raise UnsupportedMediaException(
