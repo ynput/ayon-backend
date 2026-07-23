@@ -137,14 +137,17 @@ async def obtain_file_preview(
         raise NotFoundException("File record not found")
 
     if file_record["thumbnail_id"]:
+        existing_thumbnail_id = file_record["thumbnail_id"]
         thumb_bytes = await retrieve_thumbnail(
             project_name=project_name,
-            thumbnail_id=file_record["thumbnail_id"],
+            thumbnail_id=existing_thumbnail_id,
             mode="small" if thumbnail else "original",
         )
         if thumb_bytes:
+            if for_entity and for_entity.thumbnail_id != existing_thumbnail_id:
+                for_entity.thumbnail_id = existing_thumbnail_id
+                await for_entity.save()
             return thumb_bytes
-
     file_data = file_record["data"] or {}
     expected_size = file_record["size"]
     mime_type = file_data.get("mime", "application/octet-stream")
