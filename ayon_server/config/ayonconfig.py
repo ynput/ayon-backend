@@ -278,6 +278,11 @@ class AyonConfig(BaseModel):
         description="Send saturated metrics to Ynput Cloud",
     )
 
+    metrics_disabled: bool = Field(
+        default=False,
+        description="Disable metrics collection and sending to Ynput Cloud",
+    )
+
     # Email settings
 
     email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
