@@ -25,7 +25,7 @@ from ayon_server.graphql.nodes.entity_list import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 from .common import (
     ARGAfter,
@@ -134,6 +134,7 @@ async def get_entity_list_items(
     before: ARGBefore = None,
     sort_by: str | None = None,
     filter: str | None = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     accessible_only: bool = False,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -570,6 +571,36 @@ async def get_entity_list_items(
             raise BadRequestException(str(e))
         if filter is not None:
             sql_conditions.append(filter)
+
+    #
+    # Search
+    #
+    if search:
+        if entity_type == "folder":
+            hierarchy_path_col = "_entity_path"
+        elif entity_type in ("task", "product", "version"):
+            hierarchy_path_col = "_entity__folder_path"
+        else:
+            hierarchy_path_col = None
+
+        if entity_type == "version":
+            sql_columns.append("pd.name AS _search_entity_name")
+        elif entity_type == "workfile":
+            sql_columns.append("e.path AS _search_entity_name")
+        else:
+            sql_columns.append("e.name AS _search_entity_name")
+
+        terms = slugify(search, make_set=True, min_length=2)
+        for term in terms:
+            term = term.replace("'", "''")  # Escape single quotes
+            sub_conditions = [
+                f"label ILIKE '%{term}%'",
+                f"_search_entity_name ILIKE '%{term}%'",
+            ]
+            if hierarchy_path_col is not None:
+                sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
 
     #
     # Construct the query
