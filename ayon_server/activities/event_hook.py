@@ -50,6 +50,12 @@ class ActivityFeedEventHook:
             "entity.version.attrib_changed": cls.handle_attrib_changed,
             "entity.product.status_changed": cls.handle_status_changed,
             "entity.product.attrib_changed": cls.handle_attrib_changed,
+            "entity.folder.tags_changed": cls.handle_tags_changed,
+            "entity.task.tags_changed": cls.handle_tags_changed,
+            "entity.version.tags_changed": cls.handle_tags_changed,
+            "entity.product.tags_changed": cls.handle_tags_changed,
+            "entity.folder.type_changed": cls.handle_type_changed,
+            "entity.task.type_changed": cls.handle_type_changed,
             "entity.task.assignees_changed": cls.handle_assignees_changed,
             "entity.version.created": cls.handle_version_created,
         }
@@ -117,6 +123,69 @@ class ActivityFeedEventHook:
                     "newValue": new_value,
                 },
             )
+
+    @classmethod
+    async def handle_tags_changed(cls, event: "EventModel"):
+        entity_type = event.topic.split(".")[1]
+        entity_class = get_entity_class(entity_type)
+        assert event.project is not None, "Project is required for activities"
+
+        # old/new values are only in the payload when audit trail is enabled
+        old_value = event.payload.get("oldValue")
+        new_value = event.payload.get("newValue")
+        if old_value is None and new_value is None:
+            return
+        if old_value == new_value:
+            return
+
+        entity = await entity_class.load(event.project, event.summary["entityId"])
+
+        origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
+        body = f"{origin_link} tags changed from {old_value} to {new_value}"
+
+        await create_activity(
+            entity,
+            activity_type="tags.change",
+            body=body,
+            user_name=event.user,
+            data={
+                "oldValue": old_value,
+                "newValue": new_value,
+            },
+        )
+
+    @classmethod
+    async def handle_type_changed(cls, event: "EventModel"):
+        entity_type = event.topic.split(".")[1]
+        entity_class = get_entity_class(entity_type)
+        assert event.project is not None, "Project is required for activities"
+
+        # old/new values are only in the payload when audit trail is enabled
+        old_value = event.payload.get("oldValue")
+        new_value = event.payload.get("newValue")
+        if old_value is None and new_value is None:
+            return
+        if old_value == new_value:
+            return
+
+        entity = await entity_class.load(event.project, event.summary["entityId"])
+
+        origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
+        body = (
+            f"{origin_link} {entity_type} type changed from {old_value} to {new_value}"
+        )
+
+        await create_activity(
+            entity,
+            activity_type="type.change",
+            body=body,
+            user_name=event.user,
+            data={
+                "key": f"{entity_type}Type",
+                "oldValue": old_value,
+                "newValue": new_value,
+            },
+        )
 
     @classmethod
     async def handle_assignees_changed(cls, event: "EventModel"):

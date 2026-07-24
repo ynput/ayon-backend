@@ -14,6 +14,8 @@ ActivityType = Literal[
     "version.publish",
     "version.review",
     "attrib.change",
+    "tags.change",
+    "type.change",
 ]
 
 ActivityReferenceType = Literal[
