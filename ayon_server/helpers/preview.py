@@ -186,11 +186,15 @@ async def obtain_file_preview(
 
         user_name = user.name if isinstance(user, UserEntity) else user
 
+        from ayon_server.helpers.mimetypes import guess_mime_type
+
+        mime = guess_mime_type(pvw_bytes) or "image/jpeg"
+
         await store_thumbnail(
             project_name=project_name,
             thumbnail_id=thumbnail_id,
             payload=pvw_bytes,
-            mime="image/jpeg",
+            mime=mime,
             user_name=user_name,
             entity=for_entity,
         )
