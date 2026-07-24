@@ -76,7 +76,7 @@ async def store_thumbnail(
     if user_name:
         meta["author"] = user_name
 
-    logger.trace(f"Storing thumbnail {project_name}/{thumbnail_id}")
+    logger.trace(f"Saving thumbnail {project_name}/{thumbnail_id} to the database")
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
         VALUES ($1, $2, $3, $4)

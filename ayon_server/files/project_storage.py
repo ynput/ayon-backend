@@ -362,11 +362,6 @@ class ProjectStorage:
 
         await Postgres.execute(query)
 
-        # prevent circular import
-        from ayon_server.helpers.preview import uncache_file_preview
-
-        await uncache_file_preview(self.project_name, file_id)
-
     async def delete_unused_files(self) -> None:
         """Delete project files that are not referenced in any activity."""
 

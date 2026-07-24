@@ -6,6 +6,13 @@ from fastapi import Response
 
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
+from ayon_server.entities import (
+    FolderEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
+    WorkfileEntity,
+)
 from ayon_server.exceptions import (
     AyonException,
     NotFoundException,
@@ -14,13 +21,13 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
+from ayon_server.helpers.thumbnails.common import get_fake_thumbnail, retrieve_thumbnail
+from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
-from ayon_server.logging import log_traceback, logger
+from ayon_server.logging import logger
+from ayon_server.utils.hashing import create_uuid
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
-REDIS_NS = "project.file_preview"
-PREVIEW_CACHE_TTL = 3600 * 4
 PREVIEW_SEMAPHORE = asyncio.Semaphore(3)
 
 
@@ -86,8 +93,7 @@ async def create_video_thumbnail(
 
             if proc.returncode != 0:
                 stderr_str = stderr.decode()
-                logger.error(f"ffmpeg failed: {stderr_str}")
-                return b""
+                raise AyonException(f"FFMPeg failed: {stderr_str}")
 
             async with aiofiles.open(temp_path, "rb") as f:
                 image_bytes = await f.read()
@@ -98,7 +104,15 @@ async def create_video_thumbnail(
 async def obtain_file_preview(
     project_name: str,
     file_id: str,
+    *,
     thumbnail: bool = True,
+    user: str | UserEntity | None = None,
+    thumbnail_id: str | None = None,
+    for_entity: FolderEntity
+    | TaskEntity
+    | VersionEntity
+    | WorkfileEntity
+    | None = None,
 ) -> bytes:
     """Return a preview image for a file as bytes.
 
@@ -110,19 +124,31 @@ async def obtain_file_preview(
     """
     logger.trace(f"Retrieving file preview {project_name}/{file_id}")
 
-    res = await Postgres.fetch(
+    file_record = await Postgres.fetchrow(
         f"""
-        SELECT size, data FROM project_{project_name}.files
+        SELECT size, data, thumbnail_id FROM project_{project_name}.files
         WHERE id = $1
         """,
         file_id,
     )
 
-    if not res:
+    if not file_record:
         raise NotFoundException("File record not found")
-    file_record = res[0]
+
+    if file_record["thumbnail_id"]:
+        existing_thumbnail_id = file_record["thumbnail_id"]
+        thumb_bytes = await retrieve_thumbnail(
+            project_name=project_name,
+            thumbnail_id=existing_thumbnail_id,
+            mode="small" if thumbnail else "original",
+        )
+        if thumb_bytes:
+            if for_entity and for_entity.thumbnail_id != existing_thumbnail_id:
+                for_entity.thumbnail_id = existing_thumbnail_id
+                await for_entity.save()
+            return thumb_bytes
     file_data = file_record["data"] or {}
-    expected_size = res[0]["size"]
+    expected_size = file_record["size"]
     mime_type = file_data.get("mime", "application/octet-stream")
 
     # Get the file location
@@ -147,7 +173,40 @@ async def obtain_file_preview(
         raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
-        pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
+        try:
+            pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
+        except Exception as e:
+            logger.error(
+                f"Error creating preview for {project_name}/{file_id}: {str(e)}"
+            )
+            pvw_bytes = get_fake_thumbnail()
+
+        if thumbnail_id is None:
+            thumbnail_id = create_uuid()
+
+        user_name = user.name if isinstance(user, UserEntity) else user
+
+        from ayon_server.helpers.mimetypes import guess_mime_type
+
+        mime = guess_mime_type(pvw_bytes) or "image/jpeg"
+
+        await store_thumbnail(
+            project_name=project_name,
+            thumbnail_id=thumbnail_id,
+            payload=pvw_bytes,
+            mime=mime,
+            user_name=user_name,
+            entity=for_entity,
+        )
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.files
+            SET updated_at = NOW(), thumbnail_id = $2
+            WHERE id = $1
+            """,
+            file_id,
+            thumbnail_id,
+        )
         return pvw_bytes
 
     raise UnsupportedMediaException(
@@ -161,39 +220,21 @@ async def get_file_preview_bytes(
     file_id: str,
     retries: int = 0,
 ) -> bytes:
-    """Return a preview image for a file.
-
-    Uses the cache if available, otherwise generates a new preview and caches it.
-    Returns fastapi.Response object with the image data.
-    """
+    """Return a preview image for a file."""
 
     file_id = file_id.replace("-", "")
     assert len(file_id) == 32
 
-    key = f"{project_name}.{file_id}"
-    pvw_bytes = await Redis.get(REDIS_NS, key)
-
-    if pvw_bytes is None:
-        try:
-            pvw_bytes = await obtain_file_preview(project_name, file_id)
-            await Redis.set(REDIS_NS, key, pvw_bytes, ttl=PREVIEW_CACHE_TTL)
-        except ServiceUnavailableException:
-            await asyncio.sleep(0.2)
-            if retries < 3:
-                return await get_file_preview_bytes(project_name, file_id, retries + 1)
-            raise ServiceUnavailableException("File preview service unavailable")
-    elif pvw_bytes != b"":
-        # Bump the TTL only for successful cached previews.
-        # Negative cache entries should expire naturally so transient
-        # preview-generation/storage failures can recover automatically.
-        await Redis.expire(REDIS_NS, key, PREVIEW_CACHE_TTL)
-
-    if pvw_bytes == b"":
-        raise NotFoundException("File preview not available")
-    return pvw_bytes
+    try:
+        return await obtain_file_preview(project_name, file_id)
+    except ServiceUnavailableException:
+        await asyncio.sleep(0.2)
+        if retries < 3:
+            return await get_file_preview_bytes(project_name, file_id, retries + 1)
+        raise ServiceUnavailableException("File preview service unavailable")
 
 
-async def get_file_preview(
+async def get_file_preview_response(
     project_name: str,
     file_id: str,
     retries: int = 0,
@@ -206,23 +247,8 @@ async def get_file_preview(
             file_id,
             retries,
         )
-    except NotFoundException:
-        raise
-    except UnsupportedMediaException:
-        raise
+
     except Exception as e:
-        log_traceback("Error getting file preview")
+        logger.error(f"Error getting file {project_name}/{file_id} thumbnail: {str(e)}")
         raise AyonException(f"Error getting file preview: {str(e)}") from e
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
-
-
-async def uncache_file_preview(project_name: str, file_id: str) -> None:
-    """Remove the preview image from the cache.
-
-    Silently ignore if the file is not found in the cache.
-    """
-    file_id = file_id.replace("-", "")
-    if len(file_id) != 32:
-        raise ValueError("Invalid file ID")
-    key = f"{project_name}.{file_id}"
-    await Redis.delete(REDIS_NS, key)
