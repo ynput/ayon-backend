@@ -80,6 +80,8 @@ async def get_thumbnail_response(
 
     content = None
     headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+    if thumbnail_source := thumbnail_info.get("thumbnail_source"):
+        headers["X-Thumbnail-Source"] = thumbnail_source
 
     if thumbnail_id:
         content = await coalesce(

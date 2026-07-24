@@ -24,7 +24,7 @@ from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.helpers.thumbnails.common import get_fake_thumbnail, retrieve_thumbnail
 from ayon_server.helpers.thumbnails.store_thumbnail import store_thumbnail
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logger
+from ayon_server.logging import logger
 from ayon_server.utils.hashing import create_uuid
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
@@ -222,16 +222,12 @@ async def get_file_preview_bytes(
     assert len(file_id) == 32
 
     try:
-        pvw_bytes = await obtain_file_preview(project_name, file_id)
+        return await obtain_file_preview(project_name, file_id)
     except ServiceUnavailableException:
         await asyncio.sleep(0.2)
         if retries < 3:
             return await get_file_preview_bytes(project_name, file_id, retries + 1)
         raise ServiceUnavailableException("File preview service unavailable")
-
-    if not pvw_bytes:
-        raise NotFoundException("File preview not available")
-    return pvw_bytes
 
 
 async def get_file_preview_response(
@@ -247,11 +243,8 @@ async def get_file_preview_response(
             file_id,
             retries,
         )
-    except NotFoundException:
-        raise
-    except UnsupportedMediaException:
-        raise
+
     except Exception as e:
-        log_traceback("Error getting file preview")
+        logger.error(f"Error getting file {project_name}/{file_id} thumbnail: {str(e)}")
         raise AyonException(f"Error getting file preview: {str(e)}") from e
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
