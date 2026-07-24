@@ -27,6 +27,7 @@ from ayon_server.helpers.preview import (
     get_file_preview_response,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
@@ -305,9 +306,14 @@ async def get_project_file_still(
         # Should not happen, but just in case
         raise BadRequestException("File storage is not supported")
 
-    b = await create_video_thumbnail(path, timestamp=timestamp, thumbnail=False)
-
-    if b == b"":
+    try:
+        content = await create_video_thumbnail(
+            path,
+            timestamp=timestamp,
+            thumbnail=False,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create video thumbnail: {e}")
         raise NotFoundException("No still frame available")
 
-    return Response(b, media_type="image/jpeg")
+    return Response(content, media_type="image/jpeg")
