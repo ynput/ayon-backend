@@ -140,8 +140,11 @@ class ActivityFeedEventHook:
 
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
+        old_label = ", ".join(old_value) if old_value else "(none)"
+        new_label = ", ".join(new_value) if new_value else "(none)"
+
         origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
-        body = f"{origin_link} tags changed from {old_value} to {new_value}"
+        body = f"{origin_link} tags changed from {old_label} to {new_label}"
 
         await create_activity(
             entity,
@@ -170,14 +173,17 @@ class ActivityFeedEventHook:
 
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
+        old_label = old_value or "(none)"
+        new_label = new_value or "(none)"
+
         origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
         body = (
-            f"{origin_link} {entity_type} type changed from {old_value} to {new_value}"
+            f"{origin_link} {entity_type} type changed from {old_label} to {new_label}"
         )
 
         await create_activity(
             entity,
-            activity_type="type.change",
+            activity_type="subtype.change",
             body=body,
             user_name=event.user,
             data={

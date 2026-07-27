@@ -15,7 +15,7 @@ ActivityType = Literal[
     "version.review",
     "attrib.change",
     "tags.change",
-    "type.change",
+    "subtype.change",
 ]
 
 ActivityReferenceType = Literal[
