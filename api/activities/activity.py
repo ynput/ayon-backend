@@ -92,7 +92,7 @@ async def post_project_activity(
             entity_list_id,
         )
         assert activity.data is not None  # shouldn't happen, already checked above
-        activity.data["category"] = list_guest_category
+        activity.data["category"] = list_guest_category.strip()
 
         if list_guest_category not in writable_categories:
             raise ForbiddenException("You cannot use this activity category")
@@ -102,6 +102,8 @@ async def post_project_activity(
         # or without category (default)
 
         activity_category = activity.data.get("category") if activity.data else None
+        if activity_category:
+            activity_category = activity_category.strip()
         if activity_category and activity_category not in writable_categories:
             raise ForbiddenException("You cannot use this activity category")
 

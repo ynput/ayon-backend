@@ -106,9 +106,10 @@ async def get_activities(
     activity_categories = await ActivityCategories.get_activity_categories(project_name)
     info.context["activity_categories"] = {}
     for cat in activity_categories:
-        info.context["activity_categories"][cat["name"]] = {
+        cat_name = cat["name"].strip()
+        info.context["activity_categories"][cat_name] = {
             "color": cat.get("color"),
-            "name": cat.get("name"),
+            "name": cat_name,
         }
 
     # SQL components
