@@ -212,7 +212,7 @@ async def get_reviewables(
             public.users AS users
             ON users.name = af.activity_data->>'author'
 
-        LEFT JOIN
+        JOIN
             project_{project_name}.files AS files
             ON files.activity_id = af.activity_id
             AND af.activity_type = 'reviewable'
