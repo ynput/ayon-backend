@@ -139,7 +139,9 @@ async def get_reviewables(
         )
         """
 
+    reviewables_join = "LEFT"
     if latest:
+        reviewables_join = ""
         cond += f"""AND versions.id IN (
                 SELECT vv.id
                 FROM project_{project_name}.versions vv
@@ -149,6 +151,7 @@ async def get_reviewables(
             )"""
 
     if latest_done:
+        reviewables_join = ""
         cond += f"""AND versions.id IN (
                 SELECT vv.id
                 FROM project_{project_name}.versions vv
@@ -212,7 +215,7 @@ async def get_reviewables(
             public.users AS users
             ON users.name = af.activity_data->>'author'
 
-        JOIN
+        {reviewables_join} JOIN
             project_{project_name}.files AS files
             ON files.activity_id = af.activity_id
             AND af.activity_type = 'reviewable'
