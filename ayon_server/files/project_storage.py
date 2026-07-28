@@ -1,5 +1,6 @@
 import os
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import aiocache
@@ -8,7 +9,6 @@ import aioshutil
 import httpx
 from fastapi import Request
 from fastapi.responses import RedirectResponse
-from typing_extensions import AsyncGenerator
 
 from ayon_server.api.files import handle_upload
 from ayon_server.config import ayonconfig
@@ -362,11 +362,6 @@ class ProjectStorage:
 
         await Postgres.execute(query)
 
-        # prevent circular import
-        from ayon_server.helpers.preview import uncache_file_preview
-
-        await uncache_file_preview(self.project_name, file_id)
-
     async def delete_unused_files(self) -> None:
         """Delete project files that are not referenced in any activity."""
 
@@ -519,7 +514,7 @@ class ProjectStorage:
 
     async def list_files(
         self, file_group: FileGroup = "uploads"
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """List all files in the storage for the project"""
         if self.storage_type == "local":
             projects_root = await self.get_root()

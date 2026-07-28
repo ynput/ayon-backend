@@ -145,7 +145,7 @@ class Postgres:
         *,
         timeout: int | None = None,
         force_new: bool = False,
-    ) -> AsyncGenerator[Connection, None]:
+    ) -> AsyncGenerator[Connection]:
         """Acquire a connection from the pool."""
         conn = _current_connection.get()
         if conn is not None and not force_new:
@@ -179,7 +179,7 @@ class Postgres:
         *,
         timeout: int | None = None,
         force_new: bool = False,
-    ) -> AsyncGenerator[Connection, None]:
+    ) -> AsyncGenerator[Connection]:
         """Acquire a connection from the pool and start a transaction."""
         async with cls.acquire(timeout=timeout, force_new=force_new) as connection:
             if connection.is_in_transaction():
@@ -278,7 +278,7 @@ class Postgres:
         query: str,
         *args: Any,
         **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any]]:
         """Run a query and return a generator yielding rows as dictionaries."""
         _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
         assert cls.pool is not None, "Connection pool is not initialized. "

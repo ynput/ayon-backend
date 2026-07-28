@@ -12,7 +12,7 @@ from .watcher_list import build_watcher_list, get_watcher_list
 
 async def get_task_versions(
     project_name: str, task_id: str
-) -> AsyncGenerator[VersionEntity, None]:
+) -> AsyncGenerator[VersionEntity]:
     """Get all versions of a task."""
 
     query = f"""

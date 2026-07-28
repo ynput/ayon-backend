@@ -150,7 +150,7 @@ async def dep_current_user(request: Request) -> UserEntity:
                         break
                 else:
                     # No AllowGuests dependency found, raise UnauthorizedException
-                    logger.warning(
+                    logger.debug(
                         f"Guest {user.name} tried to access "
                         f"a restricted endpoint: {request.url.path}"
                     )

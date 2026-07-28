@@ -346,6 +346,7 @@ async def create_activity(
                 continue
 
             if category := data.get("category"):
+                category = str(category).strip()
                 if _prj is None:
                     _prj = await ProjectEntity.load(project_name)
                 try:

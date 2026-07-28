@@ -464,6 +464,7 @@ class ProjectLevelOperations:
                 user_map=self.user_entities_map,
                 can_fail=True,
                 raise_on_error=False,
+                progress_handler=progress_handler,
             )
 
         else:

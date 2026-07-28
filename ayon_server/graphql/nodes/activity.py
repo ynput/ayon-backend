@@ -238,6 +238,7 @@ async def activity_from_record(
     tags = record.pop("tags", [])
     category = None
     if category_name := activity_data.get("category"):
+        category_name = category_name.strip()
         # use get here - inbox won't have categories in context
         cdata = context.get("activity_categories", {}).get(category_name)
         category = ActivityCategory(

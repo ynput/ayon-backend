@@ -57,7 +57,7 @@ async def get_users(
         list[str] | None, argdesc("List only users assigned to projects")
     ] = None,
     is_support: Annotated[
-        bool | None, argdesc("Filter users by isSupport flag in data")
+        bool | None, argdesc("Deprecated: Filter users by isSupport flag in data")
     ] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
@@ -97,17 +97,10 @@ async def get_users(
             f"LOWER(users.attrib->>'email') IN {SQLTool.array(emails)}"
         )
 
-    # Filter by isSupport
-    if is_support is not None:
-        if is_support:
-            # Only users with isSupport explicitly set to true
-            sql_conditions.append("users.data->>'isSupport' = 'true'")
-        else:
-            # Users where isSupport is false OR not set (NULL)
-            sql_conditions.append(
-                "(users.data->>'isSupport' = 'false' OR "
-                "users.data->>'isSupport' IS NULL)"
-            )
+    # Support users
+
+    if not user.data.get("isSupport", False):
+        sql_conditions.append("users.data->>'isSupport' IS DISTINCT FROM 'true'")
 
     # Filter by project
 

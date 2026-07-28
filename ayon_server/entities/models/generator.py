@@ -107,7 +107,7 @@ class FieldDefinition(BaseModel):
     enum: list[EnumItem] | None = Field(None, title="Enum values")
 
 
-def generate_model(
+def generate_model(  # noqa: UP047
     model_name: str,
     field_data: list[dict[str, Any]],
     config: C | None = None,

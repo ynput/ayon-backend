@@ -24,7 +24,7 @@ BEGIN
           WHERE product_base_type IS NULL;
 
 
-        -- TODO. In 1.15.0, we will enable this constraint after ensuring all existing rows are populated.
+        -- TODO. In future, we will enable this constraint after ensuring all existing rows are populated.
         -- We leave it commented out for now, to allow server downgrades from 1.14.x to 1.13.x without issues.
 
         -- ALTER TABLE products

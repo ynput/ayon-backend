@@ -7,7 +7,6 @@ from fastapi import Response
 from ayon_server.exceptions import NotFoundException
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
-from ayon_server.helpers.preview import get_file_preview_bytes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -31,6 +30,7 @@ class ThumbnailInfo(TypedDict):
     path: str
     thumbnail_id: NotRequired[str | None]
     file_id: NotRequired[str | None]
+    thumbnail_source: NotRequired[str | None]
 
 
 class ThumbnailData(TypedDict):
@@ -80,6 +80,8 @@ async def get_thumbnail_response(
 
     content = None
     headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+    if thumbnail_source := thumbnail_info.get("thumbnail_source"):
+        headers["X-Thumbnail-Source"] = thumbnail_source
 
     if thumbnail_id:
         content = await coalesce(
@@ -91,6 +93,8 @@ async def get_thumbnail_response(
         headers["X-Thumbnail-Id"] = thumbnail_id
 
     elif file_id:
+        from ayon_server.helpers.preview import get_file_preview_bytes
+
         try:
             content = await coalesce(
                 get_file_preview_bytes,

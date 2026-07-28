@@ -148,12 +148,14 @@ CREATE TABLE IF NOT EXISTS files (
   size BIGINT NOT NULL,
   author VARCHAR,
   activity_id UUID REFERENCES activities(id) ON DELETE SET NULL,
+  thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB, -- contains mime, original file name etc
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
+CREATE INDEX IF NOT EXISTS idx_files_thumbnail_id ON files(thumbnail_id);
 
 -------------------
 -- BASE ENTITIES --

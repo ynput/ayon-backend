@@ -164,9 +164,9 @@ async def get_entity_list(
                 "guestActivityCategories", {}
             ).get(user.attrib.email)
         payload.data = {}
-        if guest_activity_category:
+        if guest_activity_category and guest_activity_category.strip():
             payload.data["guestActivityCategories"] = {
-                user.attrib.email: guest_activity_category
+                user.attrib.email: guest_activity_category.strip()
             }
 
     payload.data.pop("publicLinks", None)

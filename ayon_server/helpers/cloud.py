@@ -119,7 +119,7 @@ class CloudUtils:
         from ayon_server.addons.library import AddonLibrary
 
         library = AddonLibrary.getinstance()
-        if library.get_addon_by_variant("ynputcloud", "production"):
+        if await library.get_addon_by_variant("ynputcloud", "production"):
             cls.admin_exists = True
             return True
 
@@ -256,7 +256,10 @@ class CloudUtils:
                 )
                 if res.status_code in [401, 403]:
                     await cls.remove_ynput_cloud_key()
-                    raise ForbiddenException("Unable to connect to Ynput Cloud [ERR 0]")
+                    raise ForbiddenException(
+                        f"Unable to connect to Ynput Cloud [ERR {res.status_code}] "
+                        "(not authorized)"
+                    )
 
                 if res.status_code >= 400:
                     raise ForbiddenException(
@@ -283,6 +286,28 @@ class CloudUtils:
         data["fetched_at"] = time.time()
         await Redis.set_json("global", "cloudinfo", data)
         return YnputCloudInfoModel(**data)
+
+    @classmethod
+    @Redis.cached("global", "required-addons", ttl=3600 * 48)
+    async def get_required_addons(cls) -> list[tuple[str, str]]:
+        if ayonconfig.offline_mode:
+            return []
+        try:
+            headers = await cls.get_api_headers()
+        except Exception:
+            return []
+
+        url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/me"
+        headers["X-Ayon-Version"] = __version__
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, timeout=3)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("requiredAddons", [])
+        except Exception as e:
+            logger.debug(f"Failed to fetch required addons list: {e}")
+            return []
 
 
 #
