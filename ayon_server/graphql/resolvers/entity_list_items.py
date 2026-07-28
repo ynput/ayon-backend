@@ -590,7 +590,7 @@ async def get_entity_list_items(
         else:
             sql_columns.append("e.name AS _search_entity_name")
 
-        terms = slugify(search, make_set=True, min_length=2)
+        terms = slugify(search, make_set=True)
         for term in terms:
             term = term.replace("'", "''")  # Escape single quotes
             sub_conditions = [
