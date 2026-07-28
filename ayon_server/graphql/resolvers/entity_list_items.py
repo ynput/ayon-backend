@@ -590,17 +590,26 @@ async def get_entity_list_items(
         else:
             sql_columns.append("e.name AS _search_entity_name")
 
-        terms = slugify(search, make_set=True)
-        for term in terms:
-            term = term.replace("'", "''")  # Escape single quotes
-            sub_conditions = [
-                f"label ILIKE '%{term}%'",
-                f"_search_entity_name ILIKE '%{term}%'",
-            ]
-            if hierarchy_path_col is not None:
-                sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        parts = search.split(",")
+        t1_conds = []
+        for part in parts:
+            terms = slugify(part, make_set=True, split_chars=" ")
+            t2_conds = []
+            for term in terms:
+                term = term.replace("'", "''")  # Escape single quotes
+                sub_conditions = [
+                    f"label ILIKE '%{term}%'",
+                    f"_search_entity_name ILIKE '%{term}%'",
+                ]
+                if hierarchy_path_col is not None:
+                    sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
+
+                t2_conds.append(
+                    SQLTool.conditions(sub_conditions, "OR", add_where=False)
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Construct the query
