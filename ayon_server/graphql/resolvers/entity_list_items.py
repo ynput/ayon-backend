@@ -609,7 +609,9 @@ async def get_entity_list_items(
                 )
             t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
 
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        sql_conditions.append(
+            f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
+        )
 
     #
     # Construct the query
