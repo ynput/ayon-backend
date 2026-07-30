@@ -120,6 +120,15 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
+    featured_by_entity: Annotated[
+        str,
+        argdesc(
+            """
+            Specify entity type to group featured versions
+            (either product or folder).
+            """
+        ),
+    ] = "product",
     has_links: ARGHasLinks = None,
     search: Annotated[
         str | None,
@@ -478,22 +487,47 @@ async def get_versions(
 
         order_clause += f"ELSE {len(featured_only)} END"
 
-        sql_cte.append(
-            f"""
-            featured_versions AS (
-                SELECT DISTINCT ON (versions.product_id) versions.id
-                FROM project_{project_name}.versions AS versions
-                LEFT JOIN latest_versions AS lv
-                ON lv.id = versions.id
-                LEFT JOIN latest_done_versions AS ldv
-                ON ldv.id = versions.id
-                LEFT JOIN hero_versions AS hv
-                ON hv.id = versions.id
-                WHERE {" OR ".join(where_clauses)}
-                ORDER BY versions.product_id, {order_clause}
+        if featured_by_entity == "product":
+            sql_cte.append(
+                f"""
+                featured_versions AS (
+                    SELECT DISTINCT ON (versions.product_id) versions.id
+                    FROM project_{project_name}.versions AS versions
+                    LEFT JOIN latest_versions AS lv
+                    ON lv.id = versions.id
+                    LEFT JOIN latest_done_versions AS ldv
+                    ON ldv.id = versions.id
+                    LEFT JOIN hero_versions AS hv
+                    ON hv.id = versions.id
+                    WHERE {" OR ".join(where_clauses)}
+                    ORDER BY versions.product_id, {order_clause}
+                )
+                """
             )
-            """
-        )
+        elif featured_by_entity == "folder":
+            sql_cte.append(
+                f"""
+                featured_versions AS (
+                    SELECT DISTINCT ON (products.folder_id) versions.id
+                    FROM project_{project_name}.versions AS versions
+                    JOIN project_{project_name}.products AS products
+                    ON products.id = versions.product_id
+                    LEFT JOIN latest_versions AS lv
+                    ON lv.id = versions.id
+                    LEFT JOIN latest_done_versions AS ldv
+                    ON ldv.id = versions.id
+                    LEFT JOIN hero_versions AS hv
+                    ON hv.id = versions.id
+                    WHERE {" OR ".join(where_clauses)}
+                    ORDER BY products.folder_id, {order_clause}
+                )
+                """
+            )
+        else:
+            raise BadRequestException(
+                "Invalid featuredByEntity value: "
+                f"'{featured_by_entity}'. Must be one of 'product', 'folder'."
+            )
 
         sql_joins.append(
             """
