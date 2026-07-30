@@ -120,7 +120,7 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
-    featured_by_entity: Annotated[
+    featured_only_entity_type: Annotated[
         str,
         argdesc(
             """
@@ -487,7 +487,7 @@ async def get_versions(
 
         order_clause += f"ELSE {len(featured_only)} END"
 
-        if featured_by_entity == "product":
+        if featured_only_entity_type == "product":
             sql_cte.append(
                 f"""
                 featured_versions AS (
@@ -504,7 +504,7 @@ async def get_versions(
                 )
                 """
             )
-        elif featured_by_entity == "folder":
+        elif featured_only_entity_type == "folder":
             sql_cte.append(
                 f"""
                 featured_versions AS (
@@ -526,7 +526,7 @@ async def get_versions(
         else:
             raise BadRequestException(
                 "Invalid featuredByEntity value: "
-                f"'{featured_by_entity}'. Must be one of 'product', 'folder'."
+                f"'{featured_only_entity_type}'. Must be one of 'product', 'folder'."
             )
 
         sql_joins.append(
