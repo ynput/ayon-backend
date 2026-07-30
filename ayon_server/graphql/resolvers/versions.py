@@ -129,6 +129,10 @@ async def get_versions(
         str | None,
         argdesc("Filter tasks using QueryFilter"),
     ] = None,
+    folder_filter: Annotated[
+        str | None,
+        argdesc("Filter tasks by their folders using QueryFilter"),
+    ] = None,
     task_filter: Annotated[
         str | None,
         argdesc("Filter products by their tasks (via versions) using QueryFilter"),
@@ -168,8 +172,8 @@ async def get_versions(
         ON products.id = versions.product_id
         """,
         f"""
-        INNER JOIN project_{project_name}.hierarchy AS hierarchy
-        ON hierarchy.id = products.folder_id
+        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON folder_ex.folder_id = products.folder_id
         """,
         f"""
         INNER JOIN project_{project_name}.folders AS folders
@@ -184,7 +188,7 @@ async def get_versions(
     sql_columns = [
         "versions.*",
         "versions.creation_order AS creation_order",
-        "hierarchy.path AS _folder_path",
+        "folder_ex.path AS _folder_path",
         "products.name AS _product_name",
     ]
 
@@ -560,7 +564,7 @@ async def get_versions(
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     #
@@ -579,7 +583,7 @@ async def get_versions(
 
             sub_conditions.append(f"products.name ILIKE '%{term}%'")
             sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+            sub_conditions.append(f"folder_ex.path ILIKE '%{term}%'")
 
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
@@ -690,6 +694,32 @@ async def get_versions(
         ):
             sql_conditions.append(fcond)
 
+    if folder_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_type",
+            "parent_id",
+            "attrib",
+            "data",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+
+        fdata = json.loads(folder_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "folder_ex.attrib"},
+        ):
+            sql_conditions.append(fcond)
+
     #
     # Pagination
     #
@@ -700,7 +730,7 @@ async def get_versions(
             status_type_case = get_status_sort_case(project, "versions.status")
             order_by.insert(0, status_type_case)
         elif sort_by == "path":
-            order_by = ["hierarchy.path", "products.name", "versions.version"]
+            order_by = ["folder_ex.path", "products.name", "versions.version"]
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
