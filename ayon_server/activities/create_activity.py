@@ -149,15 +149,20 @@ async def create_activity(
     )
 
     if user_name:
-        references.add(
-            ActivityReferenceModel(
-                entity_type="user",
-                entity_name=user_name,
-                reference_type="author",
-                entity_id=None,
+        if (not user) or (not user.is_guest):
+            references.add(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=user_name,
+                    reference_type="author",
+                    entity_id=None,
+                )
             )
-        )
         data["author"] = user_name
+        if user and user.is_guest and not user.data.get("isProjectGuest"):
+            # for anonymous guest, extract the full name and store it
+            # in data as well
+            data["authorFullName"] = user.attrib.fullName
 
     references.update(await extract_mentions(body, project_name))
     if activity_type not in ["watch", "attrib.change"]:
