@@ -369,7 +369,7 @@ async def get_versions(
                 SELECT DISTINCT ON (product_id) id, version, product_id
                 FROM project_{project_name}.versions
                 WHERE version >= 0
-                ORDER BY product_id, version DESC
+                ORDER BY product_id, creation_order DESC
             )
             """,
             f"""
@@ -385,7 +385,7 @@ async def get_versions(
                 JOIN done_statuses ds
                 ON v.status = ds.name
                 WHERE v.version >= 0
-                ORDER BY v.product_id, v.version DESC
+                ORDER BY v.product_id, v.creation_order DESC
             )
             """,
             f"""

@@ -373,7 +373,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -410,7 +410,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -437,7 +437,7 @@ async def get_products(
                     ON versions.id = rv.entity_id
 
                     WHERE versions.version >= 0
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
