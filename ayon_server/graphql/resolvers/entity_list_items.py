@@ -605,7 +605,7 @@ async def get_entity_list_items(
                     sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
 
                 t2_conds.append(
-                    SQLTool.conditions(sub_conditions, "OR", add_where=False)
+                    f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
                 )
             if t2_conds:
                 t1_conds.append(
@@ -613,9 +613,7 @@ async def get_entity_list_items(
                 )
 
         if t1_conds:
-            sql_conditions.append(
-                f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
-            )
+            sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Construct the query
