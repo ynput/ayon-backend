@@ -235,6 +235,8 @@ async def import_data(
         raise BadRequestException("No task types")
     default_task_type = task_type_enum_items[0].value
 
+    fields_cache: dict[type, list[ImportableColumn]] = {}
+
     for row in filtered_rows:
         row_number += 1
 
@@ -258,7 +260,11 @@ async def import_data(
             else:
                 entity_cls = get_entity_class(import_type)
 
-            fields = await model_cls.fields(project_name=project_name)
+            if model_cls not in fields_cache:
+                fields_cache[model_cls] = await model_cls.fields(
+                    project_name=project_name
+                )
+            fields = fields_cache[model_cls]
             await _remap_row(
                 project_name, header, import_entity_data, row, fields, column_mapping
             )
