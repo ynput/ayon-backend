@@ -593,10 +593,10 @@ async def get_entity_list_items(
         parts = search.split(",")
         t1_conds = []
         for part in parts:
+            part = part.replace("'", "''")  # Escape single quotes
             terms = slugify(part, make_set=True, split_chars=" ")
             t2_conds = []
             for term in terms:
-                term = term.replace("'", "''")  # Escape single quotes
                 sub_conditions = [
                     f"label ILIKE '%{term}%'",
                     f"_search_entity_name ILIKE '%{term}%'",
