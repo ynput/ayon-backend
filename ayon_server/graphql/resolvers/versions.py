@@ -734,7 +734,7 @@ async def get_versions(
             "name",
             "folder_type",
             "parent_id",
-            "attrib",
+            "statusattrib",
             "data",
             "tags",
             "active",
