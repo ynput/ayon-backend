@@ -138,7 +138,7 @@ class ActivityNode:
                 record = {
                     "name": author,
                     "attrib": {
-                        "fullName": author,
+                        "fullName": data.get("authorFullName", author),
                     },
                     "active": False,
                     "deleted": True,

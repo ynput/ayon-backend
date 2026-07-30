@@ -123,6 +123,7 @@ async def create_guest_user_session(
     full_name: str | None = None,
     redirect_url: str | None = None,
     guest_access: list[dict[str, Any]] | None = None,
+    is_project_guest: bool = False,
 ) -> LoginResponseModel:
 
     if not user_name:
@@ -131,6 +132,8 @@ async def create_guest_user_session(
     user_data: dict[str, Any] = {"isGuest": True}
     if guest_access:
         user_data["guestAccess"] = guest_access
+    if is_project_guest:
+        user_data["isProjectGuest"] = True
 
     user = UserEntity(
         payload={
@@ -190,7 +193,8 @@ async def handle_token_auth_callback(
             msg = "Guest user token must contain project name"
             raise BadRequestException(msg)
         exists = await GuestUsers.exists(
-            payload.email, project_name=payload.project_name
+            payload.email,
+            project_name=payload.project_name,
         )
         if not exists:
             msg = (
@@ -213,4 +217,5 @@ async def handle_token_auth_callback(
         request=request,
         full_name=payload.full_name,
         redirect_url=payload.redirect_url,
+        is_project_guest=True,
     )

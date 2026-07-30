@@ -33,7 +33,12 @@ from .router import router
 #
 
 
-@router.get("/me", response_model_exclude_none=True, dependencies=[AllowGuests])
+@router.get(
+    "/me",
+    response_model_exclude_none=True,
+    dependencies=[AllowGuests],
+    deprecated=True,
+)
 async def get_current_user(
     user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
@@ -41,6 +46,9 @@ async def get_current_user(
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
     the user is still logged in.
+
+    This endpoint is deprecated and will be removed in a future version.
+    Use [GET] /api/profile instead, which returns the same information.
     """
 
     payload = user.payload
