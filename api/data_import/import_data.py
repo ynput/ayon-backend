@@ -442,7 +442,9 @@ async def import_data(
 
         start_time = time.perf_counter()
         try:
-            response = await operations.process(progress_handler=handle_progress)
+            response = await operations.process(
+                progress_handler=handle_progress, wait_for_events=False
+            )
             if not response.success:
                 log_traceback("Failed to import data")
         except Exception as exp:
