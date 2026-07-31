@@ -263,13 +263,7 @@ async def import_data(
                 project=project_name,
                 description=f"Validating row: {row_number} of {total_rows} rows",
                 progress=current_progress,
-                summary={
-                    "created": import_status.created,
-                    "updated": import_status.updated,
-                    "skipped": import_status.skipped,
-                    "failed": import_status.failed,
-                    "phase": import_status.phase,
-                },
+                summary=await _prepare_status_summary(import_status),
                 status="in_progress",
                 store=False,
             )
@@ -415,14 +409,7 @@ async def import_data(
                     project=project_name,
                     description=f"{phase_label} finished with error",
                     progress=100,
-                    summary={
-                        "created": import_status.created,
-                        "updated": import_status.updated,
-                        "skipped": import_status.skipped,
-                        "failed": import_status.failed,
-                        "failedItems": import_status.failed_items,
-                        "phase": import_status.phase,
-                    },
+                    summary=await _prepare_status_summary(import_status),
                     status="finished",
                     store=True,
                 )
@@ -446,14 +433,7 @@ async def import_data(
                 event_id,
                 project=project_name,
                 description=f"Committing operation {progress.index}/{progress.total}",
-                summary={
-                    "created": import_status.created,
-                    "updated": import_status.updated,
-                    "skipped": import_status.skipped,
-                    "failed": import_status.failed,
-                    "failedItems": import_status.failed_items,
-                    "phase": import_status.phase,
-                },
+                summary=await _prepare_status_summary(import_status),
                 status="in_progress",
                 progress=current_progress,
                 store=True,
@@ -495,14 +475,7 @@ async def import_data(
         event_id,
         project=project_name,
         description=f"{import_status.phase.capitalize()} finished {status_str}",
-        summary={
-            "created": import_status.created,
-            "updated": import_status.updated,
-            "skipped": import_status.skipped,
-            "failed": import_status.failed,
-            "failedItems": import_status.failed_items,
-            "phase": import_status.phase,
-        },
+        summary=await _prepare_status_summary(import_status),
         status="finished" if len(import_status.failed_items) == 0 else "failed",
         store=True,
     )
@@ -1118,3 +1091,17 @@ def _to_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return value != 0
     return False
+
+
+async def _prepare_status_summary(
+    import_status: ImportStatus,
+) -> dict[str, int | str | dict[str, Any]]:
+    """Returns field from model as dictionary."""
+    return {
+        "created": import_status.created,
+        "updated": import_status.updated,
+        "skipped": import_status.skipped,
+        "failed": import_status.failed,
+        "phase": import_status.phase,
+        "failedItems": import_status.failed_items,
+    }
