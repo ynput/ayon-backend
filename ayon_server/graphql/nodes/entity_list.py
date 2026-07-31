@@ -231,6 +231,7 @@ class EntityListNode:
         sort_by: str | None = None,
         accessible_only: bool = False,
         filter: str | None = None,
+        search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
         calculate_statistics: Annotated[
             bool, argdesc("Whether to calculate column statistics")
         ] = False,
@@ -254,6 +255,7 @@ class EntityListNode:
             before=before,
             sort_by=sort_by,
             filter=filter,
+            search=search,
             accessible_only=accessible_only,
             calculate_statistics=calculate_statistics,
             calculate_specific_statistics=calculate_specific_statistics,

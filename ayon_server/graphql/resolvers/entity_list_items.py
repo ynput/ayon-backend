@@ -25,7 +25,7 @@ from ayon_server.graphql.nodes.entity_list import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 from .common import (
     ARGAfter,
@@ -134,6 +134,7 @@ async def get_entity_list_items(
     before: ARGBefore = None,
     sort_by: str | None = None,
     filter: str | None = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     accessible_only: bool = False,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -570,6 +571,51 @@ async def get_entity_list_items(
             raise BadRequestException(str(e))
         if filter is not None:
             sql_conditions.append(filter)
+
+    #
+    # Search
+    #
+    if search:
+        if entity_type == "folder":
+            hierarchy_path_col = "_entity_path"
+        elif entity_type in ("task", "product", "version"):
+            hierarchy_path_col = "_entity__folder_path"
+        else:
+            hierarchy_path_col = None
+
+        if entity_type == "version":
+            sql_columns.append("pd.name AS _search_entity_name")
+        elif entity_type == "workfile":
+            sql_columns.append("e.path AS _search_entity_name")
+        else:
+            sql_columns.append("e.name AS _search_entity_name")
+
+        parts = search.split(",")
+        t1_conds = []
+        for part in parts:
+            part = part.replace("'", "''")  # Escape single quotes
+            terms = slugify(part, make_set=True, split_chars=" ")
+            t2_conds = []
+            for term in terms:
+                sub_conditions = [
+                    f"label ILIKE '%{term}%'",
+                    f"_search_entity_name ILIKE '%{term}%'",
+                ]
+                if hierarchy_path_col is not None:
+                    sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
+
+                t2_conds.append(
+                    f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
+                )
+            if t2_conds:
+                t1_conds.append(
+                    f"({SQLTool.conditions(t2_conds, 'AND', add_where=False)})"
+                )
+
+        if t1_conds:
+            sql_conditions.append(
+                f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
+            )
 
     #
     # Construct the query
