@@ -45,6 +45,7 @@ from .common import (
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
     ColumnMapping,
+    ColumnValueMapping,
     EntityExportImport,
     EntityListExportImportModel,
     ExistingItemStrategy,
@@ -237,6 +238,20 @@ async def import_data(
 
     fields_cache: dict[type, list[ImportableColumn]] = {}
 
+    # Pre-build lookups for _get_entity_type (called per-row in hierarchy imports)
+    initial_model_cls = IMPORTABLE_ENTITIES[import_type]
+    if initial_model_cls not in fields_cache:
+        fields_cache[initial_model_cls] = await initial_model_cls.fields(
+            project_name=project_name
+        )
+    initial_fields = fields_cache[initial_model_cls]
+    entity_type_importable_column_by_key = {ic.key: ic for ic in initial_fields}
+    entity_type_value_mapping_by_key = {
+        mapping.target_key: {(vm.source or ""): vm for vm in mapping.values_mapping}
+        for mapping in column_mapping
+        if mapping.action != "skip"
+    }
+
     for row in filtered_rows:
         row_number += 1
 
@@ -249,7 +264,11 @@ async def import_data(
                 entity_cls: type[Any] = EntityListItemModel
             elif import_type == "hierarchy":
                 entity_type = await _get_entity_type(
-                    project_name, row, column_mapping, fields
+                    project_name,
+                    row,
+                    column_mapping,
+                    entity_type_importable_column_by_key,
+                    entity_type_value_mapping_by_key,
                 )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
@@ -496,7 +515,8 @@ async def _get_entity_type(
     project_name: str | None,
     row: dict[str, Any],
     column_mapping: list[ColumnMapping],
-    fields: list[ImportableColumn],
+    importable_column_by_key: dict[str, ImportableColumn],
+    value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]],
 ) -> str:
     """Extract the entity type from column mapping for hierarchy imports.
 
@@ -504,7 +524,8 @@ async def _get_entity_type(
         project_name: The project name for enum validation
         row: CSV row data
         column_mapping: List of ColumnMapping objects provided by the user
-        fields: Available importable columns
+        importable_column_by_key: Pre-built lookup of field key to ImportableColumn
+        value_mapping_by_key: Pre-built value mapping dicts per target key
     """
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
@@ -513,15 +534,15 @@ async def _get_entity_type(
             "Missing column mapping for 'entity_type' in hierarchy import"
         )
 
-    # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
     await _remap_single_column(
         project_name=project_name,
         mapping=entity_type_mapping,
         row=row,
-        fields=fields,
         import_entity_data=import_entity_data,
         column_name="entity_type",
+        importable_column_by_key=importable_column_by_key,
+        value_mapping=value_mapping_by_key.get("entity_type"),
     )
     return import_entity_data["entity_type"]
 
@@ -578,38 +599,46 @@ async def _remap_single_column(
     project_name: str | None,
     mapping: ColumnMapping,
     row: dict[str, Any],
-    fields: list[ImportableColumn],
     import_entity_data: dict[str, Any],
     column_name: str | None = None,
+    importable_column_by_key: dict[str, ImportableColumn] | None = None,
+    value_mapping: dict[str, ColumnValueMapping] | None = None,
+    fields: list[ImportableColumn] | None = None,
 ) -> None:
     """Remap a single CSV column value based on its mapping.
 
     This is a reusable helper that processes one column from a row,
-    applying value mappings, type conversion, and enum validation.
+    applying value maps, type conversion, and enum validation.
 
     Args:
         project_name: The project name for enum validation (can be None)
         mapping: ColumnMapping object defining source->target mapping
         row: CSV row data
-        fields: Available importable columns
         import_entity_data: Dictionary to populate with converted values
         column_name: Optional override for target column name
+        importable_column_by_key: Pre-built lookup of field key to ImportableColumn
+        value_mapping: Pre-built value mapping dict for this column
+        fields: Available importable columns (used only if
+                importable_column_by_key is not provided)
     """
-    # Use mapping's target_key unless overridden
     target_column_name = column_name or mapping.target_key
     csv_column_name = mapping.source_key
 
-    # Get the target column definition
-    importable_column_by_key = {
-        importable_column.key: importable_column for importable_column in fields
-    }
+    if importable_column_by_key is None:
+        if fields is None:
+            raise ValueError(
+                "Either importable_column_by_key or fields must be provided"
+            )
+        importable_column_by_key = {
+            importable_column.key: importable_column for importable_column in fields
+        }
     importable_column = importable_column_by_key.get(target_column_name)
     if not importable_column:
         logger.debug(f"Unknown column '{target_column_name}'")
         return
 
-    # Build value mapping dictionary
-    value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
+    if value_mapping is None:
+        value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
 
     # Get the value from the row
     source_value = row.get(csv_column_name)
@@ -691,32 +720,36 @@ async def _remap_row(
         importable_column.key: importable_column for importable_column in fields
     }
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    # Pre-build value mapping dicts per column to avoid rebuilding per row
+    value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]] = {}
+    for col_mapping in column_mapping:
+        if col_mapping.action != "skip":
+            value_mapping_by_key[col_mapping.target_key] = {
+                (vm.source or ""): vm for vm in col_mapping.values_mapping
+            }
     # Process each CSV column
     for csv_column_name in header:
         mapping = source_mapping_by_key.get(csv_column_name)
-        if not mapping or mapping.action == "skip":
-            # No mapping defined for this column - skip it
+        if mapping is None or mapping.action == "skip":
             continue
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
         if column_name == HIERARCHY_UNIFIED_COLUMN:
             mapping_for_entity_type = target_mapping_by_key.get("entity_type")
-            # Special handling for hierarchy imports if folder/task share a column
-            if not mapping_for_entity_type:
+            if mapping_for_entity_type is None:
                 raise BadRequestException(
                     f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
                 )
 
-            # Use the reusable helper to remap the entity_type value
-            # (applies error handling, enum validation, etc.)
             entity_type_import_data: dict[str, Any] = {}
             await _remap_single_column(
                 project_name=project_name,
                 mapping=mapping_for_entity_type,
                 row=row,
-                fields=fields,
                 import_entity_data=entity_type_import_data,
                 column_name="entity_type",
+                importable_column_by_key=importable_column_by_key,
+                value_mapping=value_mapping_by_key.get("entity_type"),
             )
             entity_type = entity_type_import_data.get("entity_type")
             if not entity_type:
@@ -728,17 +761,16 @@ async def _remap_row(
                     f"Invalid 'entity_type' value '{entity_type}' for hierarchy "
                     f"import in row: {row}"
                 )
-            # Adjust column name based on entity type 'folder_type'|'task_type'
             column_name = f"{entity_type}_type"
         try:
-            # Use the helper function to remap the single column
             await _remap_single_column(
                 project_name=project_name,
                 mapping=mapping,
                 row=row,
-                fields=fields,
                 import_entity_data=import_entity_data,
                 column_name=column_name,
+                importable_column_by_key=importable_column_by_key,
+                value_mapping=value_mapping_by_key.get(mapping.target_key),
             )
         except Exception as exp:
             error_msg = str(exp)
