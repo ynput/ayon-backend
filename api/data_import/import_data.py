@@ -254,10 +254,11 @@ async def import_data(
     for row in filtered_rows:
         row_number += 1
 
-        current_progress = int((row_number * 100) / total_rows)
-        prev_progress = int(((row_number - 1) * 100) / total_rows)
+        current_progress, trigger_update = _trigger_status_update(
+            row_number, total_rows
+        )
 
-        if row_number == 0 or current_progress > prev_progress:
+        if trigger_update:
             await EventStream.update(
                 event_id,
                 project=project_name,
@@ -425,10 +426,11 @@ async def import_data(
 
         import_status.phase = "importing"
 
-        current_progress = int((progress.index * 100) / progress.total)
-        prev_progress = int(((progress.index - 1) * 100) / progress.total)
+        current_progress, trigger_update = _trigger_status_update(
+            progress.index, progress.total
+        )
 
-        if progress.index == 0 or current_progress > prev_progress:
+        if trigger_update:
             await EventStream.update(
                 event_id,
                 project=project_name,
@@ -1105,3 +1107,10 @@ async def _prepare_status_summary(
         "phase": import_status.phase,
         "failedItems": import_status.failed_items,
     }
+
+
+def _trigger_status_update(index: int, total: int) -> tuple[int, bool]:
+    current_progress = int((index * 100) / total)
+    prev_progress = int(((index - 1) * 100) / total)
+
+    return current_progress, index == 0 or current_progress > prev_progress
