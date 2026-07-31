@@ -8,7 +8,6 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import time
-import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
 
@@ -255,6 +254,26 @@ async def import_data(
     for row in filtered_rows:
         row_number += 1
 
+        current_progress = int((row_number * 100) / total_rows)
+        prev_progress = int(((row_number - 1) * 100) / total_rows)
+
+        if row_number == 0 or current_progress > prev_progress:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Validating row: {row_number} of {total_rows} rows",
+                progress=current_progress,
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                    "phase": import_status.phase,
+                },
+                status="in_progress",
+                store=False,
+            )
+
         import_entity_data: dict[str, Any] = {}
         identifier = None
         path = None
@@ -376,30 +395,10 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
-            current_progress = int((row_number * 100) / total_rows)
-            prev_progress = int(((row_number - 1) * 100) / total_rows)
-
-            if row_number == 0 or current_progress > prev_progress:
-                await EventStream.update(
-                    event_id,
-                    project=project_name,
-                    description=f"Validated item: {identifier or path or entity_id}",
-                    progress=current_progress,
-                    summary={
-                        "created": import_status.created,
-                        "updated": import_status.updated,
-                        "skipped": import_status.skipped,
-                        "failed": import_status.failed,
-                        "phase": import_status.phase,
-                    },
-                    status="in_progress",
-                    store=False,
-                )
-
             unprocessed -= 1
 
         except Exception as exp:
-            logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            logger.opt(exception=True).trace("Error processing row {}", row_number)
             status_str = "with errors"
             error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
