@@ -1110,7 +1110,14 @@ async def _prepare_status_summary(
 
 
 def _trigger_status_update(index: int, total: int) -> tuple[int, bool]:
-    current_progress = int((index * 100) / total)
-    prev_progress = int(((index - 1) * 100) / total)
+    if total <= 0:
+        return 100, False
 
-    return current_progress, index == 0 or current_progress > prev_progress
+    current_progress = (index * 100) // total
+
+    if index == 0:
+        return current_progress, True
+
+    prev_progress = ((index - 1) * 100) // total
+
+    return current_progress, current_progress > prev_progress
