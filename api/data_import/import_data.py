@@ -8,7 +8,6 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import time
-import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
 
@@ -45,6 +44,7 @@ from .common import (
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
     ColumnMapping,
+    ColumnValueMapping,
     EntityExportImport,
     EntityListExportImportModel,
     ExistingItemStrategy,
@@ -235,8 +235,39 @@ async def import_data(
         raise BadRequestException("No task types")
     default_task_type = task_type_enum_items[0].value
 
+    fields_cache: dict[type, list[ImportableColumn]] = {}
+
+    # Pre-build lookups for _get_entity_type (called per-row in hierarchy imports)
+    initial_model_cls = IMPORTABLE_ENTITIES[import_type]
+    if initial_model_cls not in fields_cache:
+        fields_cache[initial_model_cls] = await initial_model_cls.fields(
+            project_name=project_name
+        )
+    initial_fields = fields_cache[initial_model_cls]
+    entity_type_importable_column_by_key = {ic.key: ic for ic in initial_fields}
+    entity_type_value_mapping_by_key = {
+        mapping.target_key: {(vm.source or ""): vm for vm in mapping.values_mapping}
+        for mapping in column_mapping
+        if mapping.action != "skip"
+    }
+
     for row in filtered_rows:
         row_number += 1
+
+        current_progress, trigger_update = _trigger_status_update(
+            row_number, total_rows
+        )
+
+        if trigger_update:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Validating row: {row_number} of {total_rows} rows",
+                progress=current_progress,
+                summary=await _prepare_status_summary(import_status),
+                status="in_progress",
+                store=False,
+            )
 
         import_entity_data: dict[str, Any] = {}
         identifier = None
@@ -247,7 +278,11 @@ async def import_data(
                 entity_cls: type[Any] = EntityListItemModel
             elif import_type == "hierarchy":
                 entity_type = await _get_entity_type(
-                    project_name, row, column_mapping, fields
+                    project_name,
+                    row,
+                    column_mapping,
+                    entity_type_importable_column_by_key,
+                    entity_type_value_mapping_by_key,
                 )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
@@ -258,7 +293,11 @@ async def import_data(
             else:
                 entity_cls = get_entity_class(import_type)
 
-            fields = await model_cls.fields(project_name=project_name)
+            if model_cls not in fields_cache:
+                fields_cache[model_cls] = await model_cls.fields(
+                    project_name=project_name
+                )
+            fields = fields_cache[model_cls]
             await _remap_row(
                 project_name, header, import_entity_data, row, fields, column_mapping
             )
@@ -351,30 +390,10 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
-            current_progress = int((row_number * 100) / total_rows)
-            prev_progress = int(((row_number - 1) * 100) / total_rows)
-
-            if row_number == 0 or current_progress > prev_progress:
-                await EventStream.update(
-                    event_id,
-                    project=project_name,
-                    description=f"Validated item: {identifier or path or entity_id}",
-                    progress=current_progress,
-                    summary={
-                        "created": import_status.created,
-                        "updated": import_status.updated,
-                        "skipped": import_status.skipped,
-                        "failed": import_status.failed,
-                        "phase": import_status.phase,
-                    },
-                    status="in_progress",
-                    store=False,
-                )
-
             unprocessed -= 1
 
         except Exception as exp:
-            logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            logger.trace("Error processing row {} - {}", row_number, exp)
             status_str = "with errors"
             error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
@@ -391,14 +410,7 @@ async def import_data(
                     project=project_name,
                     description=f"{phase_label} finished with error",
                     progress=100,
-                    summary={
-                        "created": import_status.created,
-                        "updated": import_status.updated,
-                        "skipped": import_status.skipped,
-                        "failed": import_status.failed,
-                        "failedItems": import_status.failed_items,
-                        "phase": import_status.phase,
-                    },
+                    summary=await _prepare_status_summary(import_status),
                     status="finished",
                     store=True,
                 )
@@ -414,22 +426,16 @@ async def import_data(
 
         import_status.phase = "importing"
 
-        current_progress = int((progress.index * 100) / progress.total)
-        prev_progress = int(((progress.index - 1) * 100) / progress.total)
+        current_progress, trigger_update = _trigger_status_update(
+            progress.index, progress.total
+        )
 
-        if progress.index == 0 or current_progress > prev_progress:
+        if trigger_update:
             await EventStream.update(
                 event_id,
                 project=project_name,
                 description=f"Committing operation {progress.index}/{progress.total}",
-                summary={
-                    "created": import_status.created,
-                    "updated": import_status.updated,
-                    "skipped": import_status.skipped,
-                    "failed": import_status.failed,
-                    "failedItems": import_status.failed_items,
-                    "phase": import_status.phase,
-                },
+                summary=await _prepare_status_summary(import_status),
                 status="in_progress",
                 progress=current_progress,
                 store=True,
@@ -473,14 +479,7 @@ async def import_data(
         event_id,
         project=project_name,
         description=f"{import_status.phase.capitalize()} finished {status_str}",
-        summary={
-            "created": import_status.created,
-            "updated": import_status.updated,
-            "skipped": import_status.skipped,
-            "failed": import_status.failed,
-            "failedItems": import_status.failed_items,
-            "phase": import_status.phase,
-        },
+        summary=await _prepare_status_summary(import_status),
         status="finished" if len(import_status.failed_items) == 0 else "failed",
         store=True,
     )
@@ -492,7 +491,8 @@ async def _get_entity_type(
     project_name: str | None,
     row: dict[str, Any],
     column_mapping: list[ColumnMapping],
-    fields: list[ImportableColumn],
+    importable_column_by_key: dict[str, ImportableColumn],
+    value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]],
 ) -> str:
     """Extract the entity type from column mapping for hierarchy imports.
 
@@ -500,7 +500,8 @@ async def _get_entity_type(
         project_name: The project name for enum validation
         row: CSV row data
         column_mapping: List of ColumnMapping objects provided by the user
-        fields: Available importable columns
+        importable_column_by_key: Pre-built lookup of field key to ImportableColumn
+        value_mapping_by_key: Pre-built value mapping dicts per target key
     """
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
@@ -509,15 +510,15 @@ async def _get_entity_type(
             "Missing column mapping for 'entity_type' in hierarchy import"
         )
 
-    # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
     await _remap_single_column(
         project_name=project_name,
         mapping=entity_type_mapping,
         row=row,
-        fields=fields,
         import_entity_data=import_entity_data,
         column_name="entity_type",
+        importable_column_by_key=importable_column_by_key,
+        value_mapping=value_mapping_by_key.get("entity_type"),
     )
     return import_entity_data["entity_type"]
 
@@ -574,38 +575,46 @@ async def _remap_single_column(
     project_name: str | None,
     mapping: ColumnMapping,
     row: dict[str, Any],
-    fields: list[ImportableColumn],
     import_entity_data: dict[str, Any],
     column_name: str | None = None,
+    importable_column_by_key: dict[str, ImportableColumn] | None = None,
+    value_mapping: dict[str, ColumnValueMapping] | None = None,
+    fields: list[ImportableColumn] | None = None,
 ) -> None:
     """Remap a single CSV column value based on its mapping.
 
     This is a reusable helper that processes one column from a row,
-    applying value mappings, type conversion, and enum validation.
+    applying value maps, type conversion, and enum validation.
 
     Args:
         project_name: The project name for enum validation (can be None)
         mapping: ColumnMapping object defining source->target mapping
         row: CSV row data
-        fields: Available importable columns
         import_entity_data: Dictionary to populate with converted values
         column_name: Optional override for target column name
+        importable_column_by_key: Pre-built lookup of field key to ImportableColumn
+        value_mapping: Pre-built value mapping dict for this column
+        fields: Available importable columns (used only if
+                importable_column_by_key is not provided)
     """
-    # Use mapping's target_key unless overridden
     target_column_name = column_name or mapping.target_key
     csv_column_name = mapping.source_key
 
-    # Get the target column definition
-    importable_column_by_key = {
-        importable_column.key: importable_column for importable_column in fields
-    }
+    if importable_column_by_key is None:
+        if fields is None:
+            raise ValueError(
+                "Either importable_column_by_key or fields must be provided"
+            )
+        importable_column_by_key = {
+            importable_column.key: importable_column for importable_column in fields
+        }
     importable_column = importable_column_by_key.get(target_column_name)
     if not importable_column:
         logger.debug(f"Unknown column '{target_column_name}'")
         return
 
-    # Build value mapping dictionary
-    value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
+    if value_mapping is None:
+        value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
 
     # Get the value from the row
     source_value = row.get(csv_column_name)
@@ -687,32 +696,36 @@ async def _remap_row(
         importable_column.key: importable_column for importable_column in fields
     }
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    # Pre-build value mapping dicts per column to avoid rebuilding per row
+    value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]] = {}
+    for col_mapping in column_mapping:
+        if col_mapping.action != "skip":
+            value_mapping_by_key[col_mapping.target_key] = {
+                (vm.source or ""): vm for vm in col_mapping.values_mapping
+            }
     # Process each CSV column
     for csv_column_name in header:
         mapping = source_mapping_by_key.get(csv_column_name)
-        if not mapping or mapping.action == "skip":
-            # No mapping defined for this column - skip it
+        if mapping is None or mapping.action == "skip":
             continue
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
         if column_name == HIERARCHY_UNIFIED_COLUMN:
             mapping_for_entity_type = target_mapping_by_key.get("entity_type")
-            # Special handling for hierarchy imports if folder/task share a column
-            if not mapping_for_entity_type:
+            if mapping_for_entity_type is None:
                 raise BadRequestException(
                     f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
                 )
 
-            # Use the reusable helper to remap the entity_type value
-            # (applies error handling, enum validation, etc.)
             entity_type_import_data: dict[str, Any] = {}
             await _remap_single_column(
                 project_name=project_name,
                 mapping=mapping_for_entity_type,
                 row=row,
-                fields=fields,
                 import_entity_data=entity_type_import_data,
                 column_name="entity_type",
+                importable_column_by_key=importable_column_by_key,
+                value_mapping=value_mapping_by_key.get("entity_type"),
             )
             entity_type = entity_type_import_data.get("entity_type")
             if not entity_type:
@@ -724,21 +737,19 @@ async def _remap_row(
                     f"Invalid 'entity_type' value '{entity_type}' for hierarchy "
                     f"import in row: {row}"
                 )
-            # Adjust column name based on entity type 'folder_type'|'task_type'
             column_name = f"{entity_type}_type"
         try:
-            # Use the helper function to remap the single column
             await _remap_single_column(
                 project_name=project_name,
                 mapping=mapping,
                 row=row,
-                fields=fields,
                 import_entity_data=import_entity_data,
                 column_name=column_name,
+                importable_column_by_key=importable_column_by_key,
+                value_mapping=value_mapping_by_key.get(mapping.target_key),
             )
         except Exception as exp:
             error_msg = str(exp)
-            log_traceback(error_msg)
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":
@@ -986,7 +997,7 @@ async def _resolve_entity_id(
                 path_to_ids[path] = entity_id  # Cache it
                 return entity_id
         except NotFoundException:
-            logger.debug(f"Couldn't find entity for path '{path}'")
+            logger.trace(f"Couldn't find entity for path '{path}'")
 
     return None
 
@@ -1083,3 +1094,32 @@ def _to_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return value != 0
     return False
+
+
+async def _prepare_status_summary(
+    import_status: ImportStatus,
+) -> dict[str, int | str | dict[str, Any]]:
+    """Returns field from model as dictionary."""
+    return {
+        "created": import_status.created,
+        "updated": import_status.updated,
+        "skipped": import_status.skipped,
+        "failed": import_status.failed,
+        "phase": import_status.phase,
+        "failedItems": import_status.failed_items,
+    }
+
+
+def _trigger_status_update(index: int, total: int) -> tuple[int, bool]:
+    """Returns value of progress out of 100 and if event should be triggered"""
+    if total <= 0:
+        return 100, False
+
+    current_progress = (index * 100) // total
+
+    if index == 0:
+        return current_progress, True
+
+    prev_progress = ((index - 1) * 100) // total
+
+    return current_progress, current_progress > prev_progress
