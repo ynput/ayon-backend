@@ -1109,6 +1109,7 @@ async def _prepare_status_summary(
 
 
 def _trigger_status_update(index: int, total: int) -> tuple[int, bool]:
+    """Returns value of progress out of 100 and if event should be triggered"""
     if total <= 0:
         return 100, False
 
