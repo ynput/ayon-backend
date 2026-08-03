@@ -16,6 +16,7 @@ from ayon_server.graphql.resolvers.common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
     resolve,
@@ -317,30 +318,7 @@ async def get_versions(
             return VersionsConnection()
 
         if include_folder_children:
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(folder_ids)}
-                )
-                """
-            )
-
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1 FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.path = ANY(
-                        SELECT path FROM top_folder_paths
-                    )
-                )
-                """
-            )
+            sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
 
             sql_joins.append(
                 """
