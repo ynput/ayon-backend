@@ -393,7 +393,7 @@ async def import_data(
             unprocessed -= 1
 
         except Exception as exp:
-            logger.opt(exception=True).trace("Error processing row {}", row_number)
+            logger.trace("Error processing row {} - {}", row_number, exp)
             status_str = "with errors"
             error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
@@ -748,7 +748,6 @@ async def _remap_row(
             )
         except Exception as exp:
             error_msg = str(exp)
-            log_traceback(error_msg)
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":
