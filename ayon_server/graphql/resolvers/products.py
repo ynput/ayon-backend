@@ -18,6 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     argdesc,
     create_child_folder_ctes,
     create_folder_access_list,
+    get_folder_fields_block,
     get_has_links_conds,
     resolve,
     sortdesc,
@@ -400,42 +401,11 @@ async def get_products(
             sql_conditions.append(f"({condition})")
 
     if use_folder_query or "folder" in fields:
-        sql_columns.extend(
-            [
-                "folders.id AS _folder_id",
-                "folders.name AS _folder_name",
-                "folders.label AS _folder_label",
-                "folders.folder_type AS _folder_folder_type",
-                "folders.thumbnail_id AS _folder_thumbnail_id",
-                "folders.parent_id AS _folder_parent_id",
-                "folders.attrib AS _folder_attrib",
-                "folders.data AS _folder_data",
-                "folders.active AS _folder_active",
-                "folders.status AS _folder_status",
-                "folders.tags AS _folder_tags",
-                "folders.created_at AS _folder_created_at",
-                "folders.updated_at AS _folder_updated_at",
-                "projects.attrib as _folder_project_attributes",
-                "pf_ex.attrib as _folder_inherited_attributes",
-            ]
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id"
         )
-
-        sql_joins.extend(
-            [
-                f"""
-                INNER JOIN project_{project_name}.folders
-                ON folders.id = products.folder_id
-                """,
-                f"""
-                LEFT JOIN project_{project_name}.exported_attributes AS pf_ex
-                ON folders.parent_id = pf_ex.folder_id
-                """,
-                f"""
-                INNER JOIN public.projects AS projects
-                ON projects.name ILIKE '{project_name}'
-                """,
-            ]
-        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Filter (actual product filter)
