@@ -995,7 +995,7 @@ async def _resolve_entity_id(
                 path_to_ids[path] = entity_id  # Cache it
                 return entity_id
         except NotFoundException:
-            logger.debug(f"Couldn't find entity for path '{path}'")
+            logger.trace(f"Couldn't find entity for path '{path}'")
 
     return None
 
