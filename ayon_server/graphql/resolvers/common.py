@@ -11,6 +11,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import SQLTool
 
 from .pagination import encode_cursor
 
@@ -158,6 +159,35 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     # if root.__class__.__name__ != "ProjectNode":
     #     return None
     return await folder_access_list(user, project_name)
+
+
+def create_child_folder_ctes(
+    project_name: str,
+    folder_ids: list[str],
+) -> list[str]:
+    """Create CTE queries for resolving child folder IDs based on parent paths."""
+    return [
+        f"""
+        top_folder_paths AS (
+            SELECT path FROM project_{project_name}.hierarchy
+            WHERE id IN {SQLTool.id_array(folder_ids)}
+        )
+        """,
+        f"""
+        child_folder_ids AS (
+            SELECT id FROM project_{project_name}.hierarchy
+            WHERE EXISTS (
+                SELECT 1
+                FROM top_folder_paths
+                WHERE project_{project_name}.hierarchy.path
+                LIKE top_folder_paths.path || '/%'
+            )
+            OR project_{project_name}.hierarchy.path = ANY (
+                SELECT path FROM top_folder_paths
+            )
+        )
+        """,
+    ]
 
 
 #
