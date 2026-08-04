@@ -126,6 +126,7 @@ async def _multi_merge(
         if item.id in existing_ids:
             if item.entity_id is None:
                 await entity_list.remove(item.id)
+                existing_ids.pop(item.id, None)
             else:
                 pos = i if item.position is None else item.position
                 patched_fields = item.dict(exclude_unset=True).keys()
