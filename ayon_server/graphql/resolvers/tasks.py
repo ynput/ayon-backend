@@ -512,7 +512,7 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or "folder" in fields or sort_by == "folder":
+    if use_folder_query or "folder" in fields or sort_by == "folderName":
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
