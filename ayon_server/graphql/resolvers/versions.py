@@ -29,7 +29,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
 from .common import build_search_conditions
 from .field_stats import (
@@ -572,16 +572,9 @@ async def get_versions(
         if cond := build_search_conditions(
             search,
             ["products.name", "products.product_type", "hierarchy.path"],
+            version_check=True,
         ):
             sql_conditions.append(cond)
-
-        # TODO revisit this approach
-        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
-        for term in terms:
-            if term.isdigit():
-                sql_conditions.append(f"versions.version = {int(term)}")
-            elif term.startswith("v") and term[1:].isdigit():
-                sql_conditions.append(f"versions.version = {int(term[1:])}")
 
     #
     # Filter

@@ -283,6 +283,7 @@ def build_search_conditions(
     columns: list[str],
     *,
     min_length: int = 1,
+    version_check: bool = False,
 ) -> str | None:
     """Build SQL search conditions from a search string.
 
@@ -302,6 +303,11 @@ def build_search_conditions(
         t2_conds = []
         for term in terms:
             sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
+            if version_check:
+                if term.isdigit():
+                    sub_conditions.append(f"versions.version = {int(term)}")
+                elif term.startswith("v") and term[1:].isdigit():
+                    sub_conditions.append(f"versions.version = {int(term[1:])}")
             t2_conds.append(
                 f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
             )
