@@ -58,6 +58,7 @@ SORT_OPTIONS = {
     "updatedAt": "tasks.updated_at",
     "createdBy": "tasks.created_by",
     "updatedBy": "tasks.updated_by",
+    "folderName": "folders.name",
 }
 
 
@@ -511,7 +512,7 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or "folder" in fields:
+    if use_folder_query or "folder" in fields or sort_by == "folderName":
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
