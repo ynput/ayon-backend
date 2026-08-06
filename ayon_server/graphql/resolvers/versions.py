@@ -354,15 +354,6 @@ async def get_versions(
                 f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
             )
 
-    #
-    # Always-on CTEs (to get latest and hero versions)
-    #
-
-    # sql_cte.extend(
-    #     [
-    #     ]
-    # )
-
     # Map versions to their hero versions
 
     sql_joins.append(
