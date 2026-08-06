@@ -358,70 +358,53 @@ async def get_versions(
     # Always-on CTEs (to get latest and hero versions)
     #
 
-    sql_cte.extend(
-        [
-            f"""
-            latest_versions AS (
-                SELECT DISTINCT ON (product_id) id, version, product_id
-                FROM project_{project_name}.versions
-                WHERE version >= 0
-                ORDER BY product_id, version DESC
-            )
-            """,
-            f"""
-            done_statuses AS (
-                SELECT name from project_{project_name}.statuses
-                WHERE data->>'state' = 'done'
-            )
-            """,
-            f"""
-            latest_done_versions AS (
-                SELECT DISTINCT ON (v.product_id) v.id, v.version, v.product_id
-                FROM project_{project_name}.versions v
-                JOIN done_statuses ds
-                ON v.status = ds.name
-                WHERE v.version >= 0
-                ORDER BY v.product_id, v.version DESC
-            )
-            """,
-            f"""
-            hero_versions AS (
-                SELECT version.id id, hero_version.id AS hero_version_id
-                FROM project_{project_name}.versions AS version
-                JOIN project_{project_name}.versions AS hero_version
-                ON hero_version.product_id = version.product_id
-                AND hero_version.version < 0
-                AND ABS(hero_version.version) = version.version
-            )
-            """,
-        ]
-    )
+    # sql_cte.extend(
+    #     [
+    #     ]
+    # )
 
     # Map versions to their hero versions
 
     sql_joins.append(
-        """
-        LEFT JOIN hero_versions
-        ON hero_versions.id = versions.id
+        f"""
+        LEFT JOIN LATERAL (
+            SELECT id AS hero_version_id
+            FROM project_{project_name}.versions
+            WHERE product_id = versions.product_id
+              AND version = -versions.version
+            LIMIT 1
+        ) hv ON TRUE
         """
     )
-    sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
+    sql_columns.append("hv.hero_version_id IS NOT NULL AS hero_version_id")
 
     sql_joins.append(
-        """
-        LEFT JOIN latest_versions AS lv
-        ON lv.id = versions.id
+        f"""
+        LEFT JOIN LATERAL (
+            SELECT id AS latest_id
+            FROM project_{project_name}.versions
+            WHERE product_id = versions.product_id AND version >= 0
+            ORDER BY version DESC
+            LIMIT 1
+        ) lv ON TRUE
         """
     )
-    sql_columns.append("lv IS NOT NULL AS is_latest")
+    sql_columns.append("lv.latest_id IS NOT NULL AS is_latest")
 
     sql_joins.append(
-        """
-        LEFT JOIN latest_done_versions AS ldv
-        ON ldv.id = versions.id
+        f"""
+        LEFT JOIN LATERAL (
+            SELECT v.id AS latest_done_id
+            FROM project_{project_name}.versions v
+            JOIN project_{project_name}.statuses s
+            ON v.status = s.name AND s.data->>'state' = 'done'
+            WHERE v.product_id = versions.product_id AND v.version >= 0
+            ORDER BY v.version DESC
+            LIMIT 1
+        ) ldv ON TRUE
         """
     )
-    sql_columns.append("ldv IS NOT NULL AS is_latest_done")
+    sql_columns.append("ldv.latest_done_id IS NOT NULL AS is_latest_done")
 
     #
     # Filtering by latest / hero versions
@@ -429,7 +412,7 @@ async def get_versions(
     #
 
     if latest_only:
-        sql_conditions.append("lv.id IS NOT NULL")
+        sql_conditions.append("lv.latest_id IS NOT NULL")
 
     elif hero_only:
         # This returns actual (negative) hero versions only
@@ -441,7 +424,7 @@ async def get_versions(
         # This is provided mainly for backward compatibility and the pipeline
         # The frontend uses new featuredVersion filter instead
 
-        sql_conditions.append("(versions.version < 0 OR lv IS NOT NULL)")
+        sql_conditions.append("(versions.version < 0 OR lv.latest_id IS NOT NULL)")
 
     #
     # Filtering by featured versions
@@ -463,14 +446,14 @@ async def get_versions(
                     f"'{flag}'. Must be one of 'hero', 'latestDone', 'latest'."
                 )
             if flag == "hero":
-                where_clauses.append("hv.id IS NOT NULL")
-                order_clause += f"WHEN hv.id IS NOT NULL THEN {idx} "
+                where_clauses.append("hv.hero_version_id IS NOT NULL")
+                order_clause += f"WHEN hv.hero_version_id IS NOT NULL THEN {idx} "
             elif flag == "latestDone":
-                where_clauses.append("ldv.id IS NOT NULL")
-                order_clause += f"WHEN ldv.id IS NOT NULL THEN {idx} "
+                where_clauses.append("ldv.latest_done_id IS NOT NULL")
+                order_clause += f"WHEN ldv.latest_done_id IS NOT NULL THEN {idx} "
             elif flag == "latest":
-                where_clauses.append("lv.id IS NOT NULL")
-                order_clause += f"WHEN lv.id IS NOT NULL THEN {idx} "
+                where_clauses.append("lv.latest_id IS NOT NULL")
+                order_clause += f"WHEN lv.latest_id IS NOT NULL THEN {idx} "
 
         order_clause += f"ELSE {len(featured_only)} END"
 
@@ -479,12 +462,29 @@ async def get_versions(
             featured_versions AS (
                 SELECT DISTINCT ON (versions.product_id) versions.id
                 FROM project_{project_name}.versions AS versions
-                LEFT JOIN latest_versions AS lv
-                ON lv.id = versions.id
-                LEFT JOIN latest_done_versions AS ldv
-                ON ldv.id = versions.id
-                LEFT JOIN hero_versions AS hv
-                ON hv.id = versions.id
+                LEFT JOIN LATERAL (
+                    SELECT id AS latest_id
+                    FROM project_{project_name}.versions
+                    WHERE product_id = versions.product_id AND version >= 0
+                    ORDER BY version DESC
+                    LIMIT 1
+                ) lv ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT v.id AS latest_done_id
+                    FROM project_{project_name}.versions v
+                    JOIN project_{project_name}.statuses s
+                    ON v.status = s.name AND s.data->>'state' = 'done'
+                    WHERE v.product_id = versions.product_id AND v.version >= 0
+                    ORDER BY v.version DESC
+                    LIMIT 1
+                ) ldv ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT id AS hero_version_id
+                    FROM project_{project_name}.versions
+                    WHERE product_id = versions.product_id
+                      AND version = -versions.version
+                    LIMIT 1
+                ) hv ON TRUE
                 WHERE {" OR ".join(where_clauses)}
                 ORDER BY versions.product_id, {order_clause}
             )
@@ -628,7 +628,7 @@ async def get_versions(
                 "product_base_type": product_base_type_expr,
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
-                "hero_version_id": "hero_versions.hero_version_id",
+                "hero_version_id": "hv.hero_version_id",
             },
         ):
             sql_conditions.append(fcond)
