@@ -233,7 +233,16 @@ async def upload_installer_file(user: CurrentUser, request: Request, filename: s
     if manifest.filename != filename:
         raise AyonException("Filename in manifest does not match")
 
-    return await handle_upload(request, manifest.local_file_path)
+    response = await handle_upload(request, manifest.local_file_path)
+
+    await EventStream.dispatch(
+        "installer.install",
+        description=f"Installed installer: {filename}",
+        summary={"filename": filename},
+        user=user.name,
+        finished=True,
+    )
+    return response
 
 
 @router.delete("/installers/{filename}", status_code=204)
