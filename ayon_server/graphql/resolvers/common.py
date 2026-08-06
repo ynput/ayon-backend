@@ -11,6 +11,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import SQLTool, slugify
 
 from .pagination import encode_cursor
 
@@ -275,3 +276,39 @@ def get_has_links_conds(
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
         ]
     raise ValueError("Wrong has_links value")
+
+
+def build_search_conditions(
+    search: str,
+    columns: list[str],
+    *,
+    min_length: int = 1,
+) -> str | None:
+    """Build SQL search conditions from a search string.
+
+    The search string is split by commas (OR between comma-separated parts).
+    Within each part, slugified terms are AND'd together.
+    Within each term, the specified columns are OR'd together.
+
+    Returns a SQL condition string, or None if search is empty
+    or no conditions could be built.
+    """
+    parts = search.split(",")
+    t1_conds = []
+
+    for part in parts:
+        part = part.replace("'", "''")
+        terms = slugify(part, make_set=True, split_chars=" ", min_length=min_length)
+        t2_conds = []
+        for term in terms:
+            sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
+            t2_conds.append(
+                f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
+            )
+        if t2_conds:
+            t1_conds.append(f"({SQLTool.conditions(t2_conds, 'AND', add_where=False)})")
+
+    if t1_conds:
+        return f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
+
+    return None
