@@ -58,7 +58,7 @@ SORT_OPTIONS = {
     "updatedAt": "tasks.updated_at",
     "createdBy": "tasks.created_by",
     "updatedBy": "tasks.updated_by",
-    "folder": "folders.name",
+    "folderName": "folders.name",
 }
 
 
