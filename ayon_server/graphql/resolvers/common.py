@@ -210,7 +210,7 @@ def get_folder_fields_block(
         "folders.created_at AS _folder_created_at",
         "folders.updated_at AS _folder_updated_at",
         "projects.attrib as _folder_project_attributes",
-        "pf_ex.attrib as _folder_inherited_attributes",
+        "folder_ex.attrib as _folder_inherited_attributes",
     ]
     joins = [
         f"""
