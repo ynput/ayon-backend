@@ -490,7 +490,7 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or "folder" in fields:
+    if use_folder_query or "folder" in fields or sort_by == "folderName":
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "tasks.folder_id"
         )
