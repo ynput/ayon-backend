@@ -15,6 +15,7 @@ INDEXES = {
     "product_attrib_idx": "products USING gin(attrib);",
     "version_task_id_idx": "versions(task_id);",
     "version_status_idx": "versions(status);",
+    "version_parent_version_idx": "versions(product_id, version DESC);",
     "version_attrib_idx": "versions USING gin(attrib);",
     "representation_status_idx": "representations(status);",
     "representation_attrib_idx": "representations USING gin(attrib);",

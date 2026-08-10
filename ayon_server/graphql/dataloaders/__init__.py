@@ -262,9 +262,10 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
         ON hero_versions.id = v.id
 
         WHERE v.id IN (
-            SELECT l.ids[array_upper(l.ids, 1)]
-            FROM project_{project_name}.version_list as l
-            WHERE l.product_id IN {SQLTool.id_array([k[1] for k in keys])}
+            SELECT DISTINCT ON (vv.product_id) vv.id
+            FROM project_{project_name}.versions AS vv
+            WHERE vv.product_id IN {SQLTool.id_array([k[1] for k in keys])}
+            ORDER BY vv.product_id, vv.version DESC
         )
         """
 
