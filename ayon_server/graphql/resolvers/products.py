@@ -114,6 +114,10 @@ async def get_products(
         str | None,
         argdesc("Filter products using QueryFilter"),
     ] = None,
+    folder_filter: Annotated[
+        str | None,
+        argdesc("Filter products by their parent folders using QueryFilter"),
+    ] = None,
     version_filter: Annotated[
         str | None,
         argdesc("Filter products by their versions using QueryFilter"),
@@ -159,8 +163,8 @@ async def get_products(
         ON products.folder_id = hierarchy.id
         """,
         f"""
-        INNER JOIN project_{project_name}.exported_attributes AS f_ex
-        ON products.folder_id = f_ex.folder_id
+        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON folders.id = folder_ex.folder_id
         """,
     ]
 
@@ -240,7 +244,7 @@ async def get_products(
 
     if path_ex is not None:
         # TODO: sanitize
-        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
+        sql_conditions.append(f"'/' || folder_ex.path ~ '{path_ex}'")
 
     #
     # Access control
@@ -290,7 +294,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -327,7 +331,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -354,7 +358,7 @@ async def get_products(
                     ON versions.id = rv.entity_id
 
                     WHERE versions.version >= 0
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -395,7 +399,7 @@ async def get_products(
             term = term.replace("'", "''")
             sub_conditions.append(f"products.name ILIKE '%{term}%'")
             sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+            sub_conditions.append(f"folder_ex.path ILIKE '%{term}%'")
 
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
@@ -434,6 +438,32 @@ async def get_products(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+        ):
+            sql_conditions.append(fcond)
+
+    if folder_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "label",
+            "folder_type",
+            "parent_id",
+            "thumbnail_id",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(folder_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
 
@@ -552,7 +582,7 @@ async def get_products(
             order_by.insert(0, status_type_case)
 
         elif sort_by == "path":
-            order_by = ["hierarchy.path", "products.name"]
+            order_by = ["folder_ex.path", "products.name"]
 
         elif sort_by == "version":
             # count by product version count
