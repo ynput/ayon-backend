@@ -193,6 +193,7 @@ def create_child_folder_ctes(
 def get_folder_fields_block(
     project_name: str,
     folder_id_column: str,
+    is_inner: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Return SQL columns and joins for resolving full folder fields."""
     columns = [
@@ -212,13 +213,14 @@ def get_folder_fields_block(
         "projects.attrib as _folder_project_attributes",
         "folder_ex.attrib as _folder_inherited_attributes",
     ]
+    exported_join = "INNER" if is_inner else "LEFT"
     joins = [
         f"""
         INNER JOIN project_{project_name}.folders
         ON folders.id = {folder_id_column}
         """,
         f"""
-        LEFT JOIN project_{project_name}.exported_attributes AS folder_ex
+        {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
         ON folders.parent_id = folder_ex.folder_id
         """,
         f"""
