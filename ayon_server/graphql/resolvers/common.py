@@ -301,6 +301,7 @@ def build_search_conditions(
         terms = slugify(part, make_set=True, split_chars=" ", min_length=min_length)
         t2_conds = []
         for term in terms:
+            term = term.replace("\\", "\\\\").replace("_", "\\_")
             sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
             if version_check:
                 if term.isdigit():
