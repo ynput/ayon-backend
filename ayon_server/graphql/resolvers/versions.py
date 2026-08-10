@@ -196,7 +196,7 @@ async def get_versions(
     ]
 
     folder_columns, folder_joins = get_folder_fields_block(
-        project_name, "tasks.folder_id"
+        project_name, "products.folder_id"
     )
     sql_columns.extend(folder_columns)
     sql_joins.extend(folder_joins)
