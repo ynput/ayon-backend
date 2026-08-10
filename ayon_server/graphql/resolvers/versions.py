@@ -129,6 +129,16 @@ async def get_versions(
             """
         ),
     ] = "product",
+    latest_per_folder: Annotated[
+        bool,
+        argdesc(
+            """
+            Return only a single version - the latest one (by creation order)
+            for each folder that matches all the other given filters.
+            The result set is still ordered according to sortBy.
+            """
+        ),
+    ] = False,
     has_links: ARGHasLinks = None,
     search: Annotated[
         str | None,
@@ -756,6 +766,32 @@ async def get_versions(
             sql_conditions.append(fcond)
 
     #
+    # Latest version per folder (from the set matching all filters above)
+    #
+
+    if latest_per_folder:
+        sql_cte.append(
+            f"""
+            latest_matching_versions AS (
+                SELECT DISTINCT ON (products.folder_id) versions.id
+                FROM project_{project_name}.versions AS versions
+                {" ".join(sql_joins)}
+                {SQLTool.conditions(sql_conditions)}
+                ORDER BY products.folder_id, versions.creation_order DESC
+            )
+            """
+        )
+        sql_joins.append(
+            """
+            INNER JOIN latest_matching_versions AS lmv
+            ON lmv.id = versions.id
+            """
+        )
+        # Every condition above is already baked into latest_matching_versions,
+        # so the outer query only needs to look rows up by id (primary key).
+        sql_conditions = []
+
+    #
     # Pagination
     #
 
@@ -844,10 +880,10 @@ async def get_versions(
         {raw_data_end}
     """
 
-    # print()
-    # print("Versions query:")
-    # print(query)
-    # print()
+    print()
+    print("Versions query:")
+    print(query)
+    print()
     #
 
     if stats_select_clause:
