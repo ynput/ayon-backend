@@ -86,17 +86,6 @@ class VersionEntity(ProjectLevelEntity):
                 self.task_id,
             )
 
-    @classmethod
-    async def refresh_views(cls, project_name: str) -> None:
-        """Refresh hierarchy materialized view on version save."""
-
-        await Postgres.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW CONCURRENTLY
-            project_{project_name}.version_list
-            """
-        )
-
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return

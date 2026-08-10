@@ -456,9 +456,13 @@ async def get_products(
         )
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.version_list
-                ON products.id = version_list.product_id
+            LEFT JOIN LATERAL (
+                SELECT
+                    array_agg(v.id ORDER BY v.version) AS ids,
+                    array_agg(v.version ORDER BY v.version) AS versions
+                FROM project_{project_name}.versions AS v
+                WHERE v.product_id = products.id
+            ) AS version_list ON TRUE
             """
         )
 

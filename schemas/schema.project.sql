@@ -327,7 +327,7 @@ CREATE TABLE versions(
     creation_order SERIAL NOT NULL
 );
 
-CREATE INDEX version_parent_idx ON versions(product_id);
+CREATE INDEX version_parent_idx ON versions(product_id, version DESC);
 CREATE INDEX version_thumbnail_idx ON versions(thumbnail_id);
 CREATE INDEX version_task_id_idx ON versions(task_id);
 CREATE INDEX version_status_idx ON versions(status);
