@@ -255,7 +255,7 @@ async def get_products(
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     if ff_field := fields.find_field("featuredVersion"):
