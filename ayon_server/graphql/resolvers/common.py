@@ -218,8 +218,8 @@ def get_folder_fields_block(
         ON folders.id = {folder_id_column}
         """,
         f"""
-        LEFT JOIN project_{project_name}.exported_attributes AS pf_ex
-        ON folders.parent_id = pf_ex.folder_id
+        LEFT JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON folders.parent_id = folder_ex.folder_id
         """,
         f"""
         INNER JOIN public.projects AS projects
