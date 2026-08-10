@@ -81,8 +81,11 @@ async def set_ynput_cloud_key(
 
 @router.delete("")
 async def delete_ynput_cloud_key(user: CurrentUser) -> EmptyResponse:
-    """Remove the Ynput cloud key from the database"""
+    """
+    Remove the Ynput cloud key from the
+    database and disconnect from the Ynput cloud
+    """
     if not user.is_admin:
-        raise ForbiddenException("Only admins can remove the Ynput cloud key")
-    await CloudUtils.remove_ynput_cloud_key()
+        raise ForbiddenException("Only admins can disconnect from the Ynput Cloud")
+    await CloudUtils.remove_ynput_cloud_key(disconnect_instance=True)
     return EmptyResponse()
