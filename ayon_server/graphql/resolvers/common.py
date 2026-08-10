@@ -298,7 +298,6 @@ def build_search_conditions(
     t1_conds = []
 
     for part in parts:
-        part = part.replace("'", "''")
         terms = slugify(part, make_set=True, split_chars=" ", min_length=min_length)
         t2_conds = []
         for term in terms:
