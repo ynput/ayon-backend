@@ -337,6 +337,8 @@ CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, versi
 
 -- Version list VIEW
 -- Materialized view used as a shorthand to get product versions
+-- TODO:This view is deprecated and will be removed in the future. As of 1.16.1, it is only present to maintain
+-- backwrads compatibility, but it is no longer updated upon version changes
 
 CREATE MATERIALIZED VIEW version_list
 AS
