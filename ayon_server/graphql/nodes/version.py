@@ -147,7 +147,6 @@ async def version_from_record(
                     folder = None
                 else:
                     folder = await cfun(project_name, folder_data, context=context)
-                    print("created folder from folder_data")
             except KeyError:
                 pass
 
