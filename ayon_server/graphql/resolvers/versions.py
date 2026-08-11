@@ -808,10 +808,10 @@ async def get_versions(
         {raw_data_end}
     """
 
-    print()
-    print("Versions query:")
-    print(query)
-    print()
+    # print()
+    # print("Versions query:")
+    # print(query)
+    # print()
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
