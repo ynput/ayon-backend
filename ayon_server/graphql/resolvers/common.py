@@ -11,7 +11,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
 from .pagination import encode_cursor
 
@@ -282,7 +282,6 @@ def build_search_conditions(
     search: str,
     columns: list[str],
     *,
-    min_length: int = 1,
     version_check: bool = False,
 ) -> str | None:
     """Build SQL search conditions from a search string.
@@ -298,7 +297,7 @@ def build_search_conditions(
     t1_conds = []
 
     for part in parts:
-        terms = slugify(part, make_set=True, split_chars=" ", min_length=min_length)
+        terms = part.lower().replace("'", "''").split(" ")
         t2_conds = []
         for term in terms:
             term = term.replace("\\", "\\\\").replace("_", "\\_")
