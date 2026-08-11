@@ -16,7 +16,10 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.overrides import extract_overrides, list_overrides
-from ayon_server.settings.postprocess import postprocess_settings_schema
+from ayon_server.settings.postprocess import (
+    populate_schema_defaults,
+    postprocess_settings_schema,
+)
 from ayon_server.settings.set_addon_settings import set_addon_settings
 
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
@@ -47,6 +50,7 @@ async def get_addon_settings_schema(
     }
 
     schema = copy.deepcopy(model.schema())
+    populate_schema_defaults(schema, model)
     await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
