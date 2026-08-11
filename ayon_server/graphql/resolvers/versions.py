@@ -123,6 +123,10 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
+    featured_only_entity_type: Annotated[
+        str,
+        argdesc("Deprecated and noop"),
+    ] = "product",
     latest_per_folder: Annotated[
         bool,
         argdesc(
