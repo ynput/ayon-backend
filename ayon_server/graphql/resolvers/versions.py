@@ -184,6 +184,14 @@ async def get_versions(
         ON products.id = versions.product_id
         """,
         f"""
+        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON folder_ex.folder_id = products.folder_id
+        """,
+        f"""
+        INNER JOIN project_{project_name}.folders AS folders
+        ON folders.id = products.folder_id
+        """,
+        f"""
         LEFT JOIN project_{project_name}.tasks AS tasks
         ON tasks.id = versions.task_id
         """,
@@ -196,13 +204,13 @@ async def get_versions(
         "products.name AS _product_name",
     ]
 
-    if "product" in fields:
+    if any("product" in str(field) for field in fields):
         product_columns, product_joins = get_product_fields_block()
         sql_columns.extend(product_columns)
         sql_joins.extend(product_joins)
 
         folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "products.folder_id"
+            project_name, "products.folder_id", sql_joins=sql_joins
         )
         sql_columns.extend(folder_columns)
         sql_joins.extend(folder_joins)

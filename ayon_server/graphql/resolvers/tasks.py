@@ -492,7 +492,7 @@ async def get_tasks(
     # Do we need the parent folder data?
     if use_folder_query or "folder" in fields or sort_by == "folderName":
         folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "tasks.folder_id", is_inner=False
+            project_name, "tasks.folder_id", is_inner=False, sql_joins=sql_joins
         )
         sql_columns.extend(folder_columns)
         sql_joins.extend(folder_joins)

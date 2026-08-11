@@ -216,6 +216,7 @@ def get_product_fields_block(
 def get_folder_fields_block(
     project_name: str,
     folder_id_column: str,
+    sql_joins: list[str],
     is_inner: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Return SQL columns and joins for resolving full folder fields."""
@@ -237,20 +238,35 @@ def get_folder_fields_block(
         "folder_ex.attrib as _folder_inherited_attributes",
     ]
     exported_join = "INNER" if is_inner else "LEFT"
-    joins = [
-        f"""
-        INNER JOIN project_{project_name}.folders
-        ON folders.id = {folder_id_column}
-        """,
-        f"""
-        {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
-        ON folders.parent_id = folder_ex.folder_id
-        """,
-        f"""
-        INNER JOIN public.projects AS projects
-        ON projects.name ILIKE '{project_name}'
-        """,
-    ]
+    joins = []
+
+    def has_join(alias_or_table: str) -> bool:
+        all_joins = sql_joins + joins
+        return any(alias_or_table in j for j in all_joins)
+
+    if not has_join(".folders"):
+        joins.append(
+            f"""
+            INNER JOIN project_{project_name}.folders AS folders
+                ON folders.id = {folder_id_column}
+            """
+        )
+
+    if not has_join("folder_ex"):
+        joins.append(
+            f"""
+            {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
+                ON folders.parent_id = folder_ex.folder_id
+            """
+        )
+
+    if not has_join("public.projects"):
+        joins.append(
+            f"""
+            INNER JOIN public.projects AS projects
+                ON projects.name ILIKE '{project_name}'
+            """
+        )
     return columns, joins
 
 

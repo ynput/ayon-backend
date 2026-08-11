@@ -406,7 +406,7 @@ async def get_products(
 
     if use_folder_query or "folder" in fields:
         folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "products.folder_id"
+            project_name, "products.folder_id", sql_joins=sql_joins
         )
         sql_columns.extend(folder_columns)
         sql_joins.extend(folder_joins)
@@ -691,9 +691,6 @@ async def get_products(
         field_stats = await generate_field_stats(query)
 
         return ProductsConnection(edges=[], field_stats=field_stats)
-
-    with open("/storage/server/projects/products.txt", "w") as f:
-        f.write(query)
 
     return await resolve(
         ProductsConnection,
