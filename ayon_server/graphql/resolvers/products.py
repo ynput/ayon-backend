@@ -164,7 +164,7 @@ async def get_products(
         """,
         f"""
         INNER JOIN project_{project_name}.exported_attributes AS folder_ex
-        ON folders.id = folder_ex.folder_id
+        ON products.folder_id = folder_ex.folder_id
         """,
     ]
 
