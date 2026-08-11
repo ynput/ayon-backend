@@ -154,7 +154,7 @@ async def get_products(
     sql_columns = [
         "products.*",
         "hierarchy.path AS _folder_path",
-        "f_ex.attrib as inherited_attributes",
+        "folder_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
@@ -691,6 +691,9 @@ async def get_products(
         field_stats = await generate_field_stats(query)
 
         return ProductsConnection(edges=[], field_stats=field_stats)
+
+    with open("/storage/server/projects/products.txt", "w") as f:
+        f.write(query)
 
     return await resolve(
         ProductsConnection,
