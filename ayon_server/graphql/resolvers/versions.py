@@ -123,15 +123,6 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
-    featured_only_entity_type: Annotated[
-        str,
-        argdesc(
-            """
-            Specify entity type to group featured versions
-            (either product or folder).
-            """
-        ),
-    ] = "product",
     has_links: ARGHasLinks = None,
     search: Annotated[
         str | None,
