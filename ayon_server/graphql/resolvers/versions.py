@@ -123,15 +123,6 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
-    featured_only_entity_type: Annotated[
-        str,
-        argdesc(
-            """
-            Specify entity type to group featured versions
-            (either product or folder).
-            """
-        ),
-    ] = "product",
     latest_per_folder: Annotated[
         bool,
         argdesc(
@@ -369,73 +360,74 @@ async def get_versions(
             )
 
     #
-    # Always-on CTEs (to get latest and hero versions)
+    # Latest / latest done / hero versions logic
     #
 
-    sql_cte.extend(
-        [
+    if (
+        fields.any_endswith("isLatest")
+        or fields.any_endswith("isLatestDone")
+        or fields.any_endswith("heroVersionId")
+        or latest_only
+        or hero_only
+        or hero_or_latest_only
+        or featured_only
+    ):
+        sql_cte.append(
             f"""
-            latest_versions AS (
-                SELECT DISTINCT ON (product_id) id, version, product_id
-                FROM project_{project_name}.versions
-                WHERE version >= 0
-                ORDER BY product_id, creation_order DESC
-            )
-            """,
-            f"""
-            done_statuses AS (
+            done_statuses AS MATERIALIZED (
                 SELECT name from project_{project_name}.statuses
                 WHERE data->>'state' = 'done'
             )
-            """,
-            f"""
-            latest_done_versions AS (
-                SELECT DISTINCT ON (v.product_id) v.id, v.version, v.product_id
-                FROM project_{project_name}.versions v
-                JOIN done_statuses ds
-                ON v.status = ds.name
-                WHERE v.version >= 0
-                ORDER BY v.product_id, v.creation_order DESC
-            )
-            """,
-            f"""
-            hero_versions AS (
-                SELECT version.id id, hero_version.id AS hero_version_id
-                FROM project_{project_name}.versions AS version
-                JOIN project_{project_name}.versions AS hero_version
-                ON hero_version.product_id = version.product_id
-                AND hero_version.version < 0
-                AND ABS(hero_version.version) = version.version
-            )
-            """,
-        ]
-    )
+            """
+        )
 
-    # Map versions to their hero versions
+        sql_joins.extend(
+            [
+                f"""
+                LEFT JOIN LATERAL (
+                    SELECT id
+                    FROM project_{project_name}.versions lv_inner
+                    WHERE lv_inner.product_id = versions.product_id
+                    AND lv_inner.version >= 0
+                    ORDER BY lv_inner.creation_order DESC
+                    LIMIT 1
+                ) lv ON true
+                """,
+                f"""
+                LEFT JOIN LATERAL (
+                    SELECT v.id
+                    FROM project_{project_name}.versions v
+                    WHERE v.product_id = versions.product_id
+                    AND v.version >= 0
+                    AND v.status IN (SELECT name FROM done_statuses)
+                    ORDER BY v.creation_order DESC
+                    LIMIT 1
+                ) ldv ON true
+                """,
+                f"""
+                LEFT JOIN LATERAL (
+                    SELECT
+                        versions_inner.id AS id,
+                        hero_versions.id AS hero_version_id
+                    FROM project_{project_name}.versions AS versions_inner
+                    JOIN project_{project_name}.versions AS hero_versions
+                    ON hero_versions.product_id = versions.product_id
+                    AND hero_versions.version < 0
+                    AND ABS(hero_versions.version) = versions_inner.version
+                    WHERE versions_inner.product_id = versions.product_id   -- add this
+                    LIMIT 1
+                ) hv ON true
+                """,
+            ]
+        )
 
-    sql_joins.append(
-        """
-        LEFT JOIN hero_versions
-        ON hero_versions.id = versions.id
-        """
-    )
-    sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
-
-    sql_joins.append(
-        """
-        LEFT JOIN latest_versions AS lv
-        ON lv.id = versions.id
-        """
-    )
-    sql_columns.append("lv IS NOT NULL AS is_latest")
-
-    sql_joins.append(
-        """
-        LEFT JOIN latest_done_versions AS ldv
-        ON ldv.id = versions.id
-        """
-    )
-    sql_columns.append("ldv IS NOT NULL AS is_latest_done")
+        sql_columns.extend(
+            [
+                "hv.hero_version_id AS hero_version_id",
+                "lv IS NOT NULL AS is_latest",
+                "ldv IS NOT NULL AS is_latest_done",
+            ]
+        )
 
     #
     # Filtering by latest / hero versions
@@ -447,7 +439,7 @@ async def get_versions(
 
     elif hero_only:
         # This returns actual (negative) hero versions only
-        # Not versions that point to hero via hero_versions CTE
+        # Not versions that point to hero via hero_versions
         sql_conditions.append("versions.version < 0")
 
     elif hero_or_latest_only:
@@ -465,77 +457,22 @@ async def get_versions(
         if not featured_only:
             return VersionsConnection()
 
-        # for every product, select only one version based on the order
-        # of flags in featured_only.
-
-        where_clauses = []
-        order_clause = "CASE "
-        for idx, flag in enumerate(featured_only):
-            if flag not in ("hero", "latestDone", "latest"):
+        coalesce_args = []
+        for flag in featured_only:
+            if flag == "hero":
+                coalesce_args.append("hv.id")
+            elif flag == "latestDone":
+                coalesce_args.append("ldv.id")
+            elif flag == "latest":
+                coalesce_args.append("lv.id")
+            else:
                 raise BadRequestException(
                     "Invalid featuredOnly value: "
                     f"'{flag}'. Must be one of 'hero', 'latestDone', 'latest'."
                 )
-            if flag == "hero":
-                where_clauses.append("hv.id IS NOT NULL")
-                order_clause += f"WHEN hv.id IS NOT NULL THEN {idx} "
-            elif flag == "latestDone":
-                where_clauses.append("ldv.id IS NOT NULL")
-                order_clause += f"WHEN ldv.id IS NOT NULL THEN {idx} "
-            elif flag == "latest":
-                where_clauses.append("lv.id IS NOT NULL")
-                order_clause += f"WHEN lv.id IS NOT NULL THEN {idx} "
 
-        order_clause += f"ELSE {len(featured_only)} END"
-
-        if featured_only_entity_type == "product":
-            sql_cte.append(
-                f"""
-                featured_versions AS (
-                    SELECT DISTINCT ON (versions.product_id) versions.id
-                    FROM project_{project_name}.versions AS versions
-                    LEFT JOIN latest_versions AS lv
-                    ON lv.id = versions.id
-                    LEFT JOIN latest_done_versions AS ldv
-                    ON ldv.id = versions.id
-                    LEFT JOIN hero_versions AS hv
-                    ON hv.id = versions.id
-                    WHERE {" OR ".join(where_clauses)}
-                    ORDER BY versions.product_id, {order_clause}
-                )
-                """
-            )
-        elif featured_only_entity_type == "folder":
-            sql_cte.append(
-                f"""
-                featured_versions AS (
-                    SELECT DISTINCT ON (products.folder_id) versions.id
-                    FROM project_{project_name}.versions AS versions
-                    JOIN project_{project_name}.products AS products
-                    ON products.id = versions.product_id
-                    LEFT JOIN latest_versions AS lv
-                    ON lv.id = versions.id
-                    LEFT JOIN latest_done_versions AS ldv
-                    ON ldv.id = versions.id
-                    LEFT JOIN hero_versions AS hv
-                    ON hv.id = versions.id
-                    WHERE {" OR ".join(where_clauses)}
-                    ORDER BY products.folder_id, {order_clause}
-                )
-                """
-            )
-        else:
-            raise BadRequestException(
-                "Invalid featuredByEntity value: "
-                f"'{featured_only_entity_type}'. Must be one of 'product', 'folder'."
-            )
-
-        sql_joins.append(
-            """
-            INNER JOIN featured_versions AS fv
-            ON fv.id = versions.id
-            """
-        )
+        # versions.id must equal whichever candidate wins by flag priority order
+        sql_conditions.append(f"versions.id = COALESCE({', '.join(coalesce_args)})")
 
     #
     # Filtering by links
@@ -871,11 +808,10 @@ async def get_versions(
         {raw_data_end}
     """
 
-    # print()
-    # print("Versions query:")
-    # print(query)
-    # print()
-    #
+    print()
+    print("Versions query:")
+    print(query)
+    print()
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)

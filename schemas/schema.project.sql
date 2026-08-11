@@ -332,6 +332,7 @@ CREATE INDEX version_thumbnail_idx ON versions(thumbnail_id);
 CREATE INDEX version_task_id_idx ON versions(task_id);
 CREATE INDEX version_status_idx ON versions(status);
 CREATE INDEX version_attrib_idx ON versions USING gin(attrib);
+CREATE INDEX version_product_status_corder_idx ON versions(product_id, status, creation_order DESC) WHERE version >= 0;
 CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
 CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, version) WHERE (active IS TRUE);
 
