@@ -238,7 +238,7 @@ def get_folder_fields_block(
         "folder_ex.attrib as _folder_inherited_attributes",
     ]
     exported_join = "INNER" if is_inner else "LEFT"
-    joins = []
+    joins: list[str] = []
 
     def has_join(alias_or_table: str) -> bool:
         all_joins = sql_joins + joins
