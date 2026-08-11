@@ -190,6 +190,29 @@ def create_child_folder_ctes(
     ]
 
 
+def get_product_fields_block(
+    product_alias: str = "products",
+) -> tuple[list[str], list[str]]:
+    """Return SQL columns and joins for resolving full product fields."""
+    columns = [
+        f"{product_alias}.id AS _product_id",
+        f"{product_alias}.name AS _product_name",
+        f"{product_alias}.folder_id AS _product_folder_id",
+        f"{product_alias}.product_type AS _product_product_type",
+        f"{product_alias}.product_base_type AS _product_product_base_type",
+        f"{product_alias}.status AS _product_status",
+        f"{product_alias}.tags AS _product_tags",
+        f"{product_alias}.data AS _product_data",
+        f"{product_alias}.active AS _product_active",
+        f"{product_alias}.created_at AS _product_created_at",
+        f"{product_alias}.updated_at AS _product_updated_at",
+        f"{product_alias}.created_by AS _product_created_by",
+        f"{product_alias}.updated_by AS _product_updated_by",
+        f"{product_alias}.attrib AS _product_attrib",
+    ]
+    return columns, []
+
+
 def get_folder_fields_block(
     project_name: str,
     folder_id_column: str,

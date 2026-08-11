@@ -20,6 +20,7 @@ from ayon_server.graphql.resolvers.common import (
     create_folder_access_list,
     get_folder_fields_block,
     get_has_links_conds,
+    get_product_fields_block,
     resolve,
     sortdesc,
 )
@@ -195,11 +196,16 @@ async def get_versions(
         "products.name AS _product_name",
     ]
 
-    folder_columns, folder_joins = get_folder_fields_block(
-        project_name, "products.folder_id"
-    )
-    sql_columns.extend(folder_columns)
-    sql_joins.extend(folder_joins)
+    if "product" in fields:
+        product_columns, product_joins = get_product_fields_block()
+        sql_columns.extend(product_columns)
+        sql_joins.extend(product_joins)
+
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id"
+        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     if fields.any_endswith("latestComments"):
         sql_cte.append(
