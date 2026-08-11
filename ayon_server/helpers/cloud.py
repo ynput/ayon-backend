@@ -192,8 +192,24 @@ class CloudUtils:
         await Redis.set("global", "ynput_cloud_key", key)
 
     @classmethod
-    async def remove_ynput_cloud_key(cls) -> None:
+    async def remove_ynput_cloud_key(
+        cls,
+        *,
+        disconnect_instance: bool = False,
+    ) -> None:
         """Remove the Ynput Cloud key from cache"""
+
+        if disconnect_instance:
+            try:
+                headers = await cls.get_api_headers()
+                async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+                    await client.delete(
+                        f"{ayonconfig.ynput_cloud_api_url}/api/ayon/info",
+                        headers=headers,
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to disconnect from Ynput Cloud: {e}")
+
         query = "DELETE FROM public.secrets WHERE name = 'ynput_cloud_key'"
         await Postgres.execute(query)
         await cls.clear_cloud_info_cache()

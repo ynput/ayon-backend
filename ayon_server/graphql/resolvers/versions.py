@@ -121,6 +121,15 @@ async def get_versions(
             "heroOnly, latestOnly and heroOrLatestOnly"
         ),
     ] = None,
+    featured_only_entity_type: Annotated[
+        str,
+        argdesc(
+            """
+            Specify entity type to group featured versions
+            (either product or folder).
+            """
+        ),
+    ] = "product",
     has_links: ARGHasLinks = None,
     search: Annotated[
         str | None,
@@ -129,6 +138,10 @@ async def get_versions(
     filter: Annotated[
         str | None,
         argdesc("Filter tasks using QueryFilter"),
+    ] = None,
+    folder_filter: Annotated[
+        str | None,
+        argdesc("Filter tasks by their folders using QueryFilter"),
     ] = None,
     task_filter: Annotated[
         str | None,
@@ -169,8 +182,8 @@ async def get_versions(
         ON products.id = versions.product_id
         """,
         f"""
-        INNER JOIN project_{project_name}.hierarchy AS hierarchy
-        ON hierarchy.id = products.folder_id
+        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON folder_ex.folder_id = products.folder_id
         """,
         f"""
         INNER JOIN project_{project_name}.folders AS folders
@@ -185,7 +198,7 @@ async def get_versions(
     sql_columns = [
         "versions.*",
         "versions.creation_order AS creation_order",
-        "hierarchy.path AS _folder_path",
+        "folder_ex.path AS _folder_path",
         "products.name AS _product_name",
     ]
 
@@ -366,7 +379,7 @@ async def get_versions(
                 SELECT DISTINCT ON (product_id) id, version, product_id
                 FROM project_{project_name}.versions
                 WHERE version >= 0
-                ORDER BY product_id, version DESC
+                ORDER BY product_id, creation_order DESC
             )
             """,
             f"""
@@ -382,7 +395,7 @@ async def get_versions(
                 JOIN done_statuses ds
                 ON v.status = ds.name
                 WHERE v.version >= 0
-                ORDER BY v.product_id, v.version DESC
+                ORDER BY v.product_id, v.creation_order DESC
             )
             """,
             f"""
@@ -475,22 +488,47 @@ async def get_versions(
 
         order_clause += f"ELSE {len(featured_only)} END"
 
-        sql_cte.append(
-            f"""
-            featured_versions AS (
-                SELECT DISTINCT ON (versions.product_id) versions.id
-                FROM project_{project_name}.versions AS versions
-                LEFT JOIN latest_versions AS lv
-                ON lv.id = versions.id
-                LEFT JOIN latest_done_versions AS ldv
-                ON ldv.id = versions.id
-                LEFT JOIN hero_versions AS hv
-                ON hv.id = versions.id
-                WHERE {" OR ".join(where_clauses)}
-                ORDER BY versions.product_id, {order_clause}
+        if featured_only_entity_type == "product":
+            sql_cte.append(
+                f"""
+                featured_versions AS (
+                    SELECT DISTINCT ON (versions.product_id) versions.id
+                    FROM project_{project_name}.versions AS versions
+                    LEFT JOIN latest_versions AS lv
+                    ON lv.id = versions.id
+                    LEFT JOIN latest_done_versions AS ldv
+                    ON ldv.id = versions.id
+                    LEFT JOIN hero_versions AS hv
+                    ON hv.id = versions.id
+                    WHERE {" OR ".join(where_clauses)}
+                    ORDER BY versions.product_id, {order_clause}
+                )
+                """
             )
-            """
-        )
+        elif featured_only_entity_type == "folder":
+            sql_cte.append(
+                f"""
+                featured_versions AS (
+                    SELECT DISTINCT ON (products.folder_id) versions.id
+                    FROM project_{project_name}.versions AS versions
+                    JOIN project_{project_name}.products AS products
+                    ON products.id = versions.product_id
+                    LEFT JOIN latest_versions AS lv
+                    ON lv.id = versions.id
+                    LEFT JOIN latest_done_versions AS ldv
+                    ON ldv.id = versions.id
+                    LEFT JOIN hero_versions AS hv
+                    ON hv.id = versions.id
+                    WHERE {" OR ".join(where_clauses)}
+                    ORDER BY products.folder_id, {order_clause}
+                )
+                """
+            )
+        else:
+            raise BadRequestException(
+                "Invalid featuredByEntity value: "
+                f"'{featured_only_entity_type}'. Must be one of 'product', 'folder'."
+            )
 
         sql_joins.append(
             """
@@ -561,7 +599,7 @@ async def get_versions(
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     #
@@ -682,6 +720,33 @@ async def get_versions(
         ):
             sql_conditions.append(fcond)
 
+    if folder_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_type",
+            "parent_id",
+            "status",
+            "attrib",
+            "data",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+
+        fdata = json.loads(folder_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "folder_ex.attrib"},
+        ):
+            sql_conditions.append(fcond)
+
     #
     # Pagination
     #
@@ -692,7 +757,7 @@ async def get_versions(
             status_type_case = get_status_sort_case(project, "versions.status")
             order_by.insert(0, status_type_case)
         elif sort_by == "path":
-            order_by = ["hierarchy.path", "products.name", "versions.version"]
+            order_by = ["folder_ex.path", "products.name", "versions.version"]
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):

@@ -161,8 +161,11 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         return [
             """
             v.id in (
-                SELECT l.ids[array_upper(l.ids, 1)]
-                FROM version_list AS l
+                SELECT vv.id
+                FROM versions vv
+                WHERE vv.product_id = s.id
+                ORDER BY vv.version DESC
+                LIMIT 1
             )
         """
         ]
