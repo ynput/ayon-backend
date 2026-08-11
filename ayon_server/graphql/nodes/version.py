@@ -147,10 +147,9 @@ async def version_from_record(
                     folder = None
                 else:
                     folder = await cfun(project_name, folder_data, context=context)
+                    product._folder = folder
             except KeyError:
                 pass
-
-        product._folder = folder
 
     current_user = context["user"]
     author = record["author"]
