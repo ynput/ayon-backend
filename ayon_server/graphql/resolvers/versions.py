@@ -359,46 +359,16 @@ async def get_versions(
             )
 
     #
-    # Always-on CTEs (to get latest and hero versions)
+    # Latest / latest done / hero versions logic
     #
 
-    sql_cte.extend(
-        [
-            # f"""
-            # latest_versions AS (
-            #     SELECT DISTINCT ON (product_id) id, version, product_id
-            #     FROM project_{project_name}.versions
-            #     WHERE version >= 0
-            #     ORDER BY product_id, creation_order DESC
-            # )
-            # """,
-            f"""
-            done_statuses AS MATERIALIZED (
-                SELECT name from project_{project_name}.statuses
-                WHERE data->>'state' = 'done'
-            )
-            """,
-            # f"""
-            # latest_done_versions AS (
-            #     SELECT DISTINCT ON (v.product_id) v.id, v.version, v.product_id
-            #     FROM project_{project_name}.versions v
-            #     JOIN done_statuses ds
-            #     ON v.status = ds.name
-            #     WHERE v.version >= 0
-            #     ORDER BY v.product_id, v.creation_order DESC
-            # )
-            # """,
-            # f"""
-            # hero_versions AS (
-            #     SELECT version.id id, hero_version.id AS hero_version_id
-            #     FROM project_{project_name}.versions AS version
-            #     JOIN project_{project_name}.versions AS hero_version
-            #     ON hero_version.product_id = version.product_id
-            #     AND hero_version.version < 0
-            #     AND ABS(hero_version.version) = version.version
-            # )
-            # """,
-        ]
+    sql_cte.append(
+        f"""
+        done_statuses AS MATERIALIZED (
+            SELECT name from project_{project_name}.statuses
+            WHERE data->>'state' = 'done'
+        )
+        """
     )
 
     sql_joins.extend(
@@ -445,32 +415,6 @@ async def get_versions(
             "ldv IS NOT NULL AS is_latest_done",
         ]
     )
-
-    # Map versions to their hero versions
-
-    # sql_joins.append(
-    #     """
-    #     LEFT JOIN hero_versions
-    #     ON hero_versions.id = versions.id
-    #     """
-    # )
-    # sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
-    #
-    # sql_joins.append(
-    #     """
-    #     LEFT JOIN latest_versions AS lv
-    #     ON lv.id = versions.id
-    #     """
-    # )
-    # sql_columns.append("lv IS NOT NULL AS is_latest")
-    #
-    # sql_joins.append(
-    #     """
-    #     LEFT JOIN latest_done_versions AS ldv
-    #     ON ldv.id = versions.id
-    #     """
-    # )
-    # sql_columns.append("ldv IS NOT NULL AS is_latest_done")
 
     #
     # Filtering by latest / hero versions
