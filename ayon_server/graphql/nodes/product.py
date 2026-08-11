@@ -74,7 +74,7 @@ class ProductNode(BaseNode):
         description="Simple (id /version) list of versions in the product",
     )
 
-    _folder: FolderNode | None = None
+    _folder: strawberry.Private[FolderNode | None] = None
 
     @strawberry.field(description="Parent folder of the product")
     async def folder(self, info: Info) -> FolderNode:
