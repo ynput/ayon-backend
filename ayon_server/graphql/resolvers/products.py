@@ -408,17 +408,6 @@ async def get_products(
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
 
-    if (
-        use_folder_query
-        or "folder" in fields
-        or sort_by in ["folderName", "folderType"]
-    ):
-        folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "products.folder_id", sql_joins=sql_joins
-        )
-        sql_columns.extend(folder_columns)
-        sql_joins.extend(folder_joins)
-
     #
     # Filter (actual product filter)
     #
@@ -474,6 +463,7 @@ async def get_products(
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
+            use_folder_query = True
 
     #
     # Filtering products by versions and tasks
@@ -578,6 +568,17 @@ async def get_products(
                 ON products.id = filtered_versions.product_id
                 """
             )
+
+    if (
+        use_folder_query
+        or "folder" in fields
+        or sort_by in ["folderName", "folderType"]
+    ):
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id", sql_joins=sql_joins
+        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Pagination

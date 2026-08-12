@@ -181,6 +181,8 @@ async def get_versions(
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
+    use_folder_query = False
+
     #
     # SQL
     #
@@ -212,17 +214,6 @@ async def get_versions(
         "folder_ex.path AS _folder_path",
         "products.name AS _product_name",
     ]
-
-    if any("product" in str(field) for field in fields):
-        product_columns, product_joins = get_product_fields_block()
-        sql_columns.extend(product_columns)
-        sql_joins.extend(product_joins)
-
-        folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "products.folder_id", sql_joins=sql_joins
-        )
-        sql_columns.extend(folder_columns)
-        sql_joins.extend(folder_joins)
 
     if fields.any_endswith("latestComments"):
         sql_cte.append(
@@ -701,6 +692,7 @@ async def get_versions(
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
+            use_folder_query = True
 
     #
     # Latest version per folder (from the set matching all filters above)
@@ -727,6 +719,17 @@ async def get_versions(
         # Every condition above is already baked into latest_matching_versions,
         # so the outer query only needs to look rows up by id (primary key).
         sql_conditions = []
+
+    if any("product" in str(field) for field in fields) or use_folder_query:
+        product_columns, product_joins = get_product_fields_block()
+        sql_columns.extend(product_columns)
+        sql_joins.extend(product_joins)
+
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id", sql_joins=sql_joins
+        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Pagination
