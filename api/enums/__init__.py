@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.enum import EnumItem, EnumRegistry
+from ayon_server.enum import EnumItem, EnumRegistry, EnumResolverInfo
 from ayon_server.exceptions import BadRequestException
 
 router = APIRouter(tags=["Enums"])
@@ -61,3 +61,9 @@ async def get_enum(
         user=current_user,
         **context,
     )
+
+
+@router.get("/list", response_model=list[EnumResolverInfo], tags=["Enums"])
+async def list_enums(current_user: CurrentUser) -> list[EnumResolverInfo]:
+    """List all available enum resolvers."""
+    return await EnumRegistry.list_resolvers()

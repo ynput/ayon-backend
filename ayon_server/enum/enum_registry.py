@@ -1,14 +1,40 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
+from ayon_server.types import Field, OPModel
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
 
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
+
+
+class EnumResolverInfo(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            title="Resolver name",
+            example="statuses",
+        ),
+    ]
+    accepted_params: Annotated[
+        dict[str, str],
+        Field(
+            title="Accepted parameters",
+            description="Dictionary of accepted query parameters and their type names",
+            example={"project_name": "str", "include_root": "bool"},
+        ),
+    ]
+    settings_form: Annotated[
+        list[dict[str, Any]] | None,
+        Field(
+            title="Settings form",
+            description="Optional form fields for resolver settings",
+        ),
+    ] = None
 
 
 class EnumRegistry:
@@ -107,3 +133,21 @@ class EnumRegistry:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
 
         await resolver.create_item(item, project_name, **kwargs)
+
+    @classmethod
+    async def list_resolvers(cls) -> list[EnumResolverInfo]:
+        result = []
+        for name, resolver in cls.resolvers.items():
+            params = await resolver.get_accepted_params()
+            accepted_params = {k: v.__name__ for k, v in params.items()}
+            settings_form = await resolver.get_settings_form()
+            if settings_form is not None:
+                settings_form = list(settings_form)
+            result.append(
+                EnumResolverInfo(
+                    name=name,
+                    accepted_params=accepted_params,
+                    settings_form=settings_form,
+                )
+            )
+        return result
