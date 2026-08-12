@@ -153,6 +153,7 @@ async def save_entity_list(
     summary = EntityListSummary(
         id=payload.id,
         entity_list_type=payload.entity_list_type,
+        entity_list_folder_id=payload.entity_list_folder_id,
         entity_type=payload.entity_type,
         label=payload.label,
         count=len(payload.items),

@@ -207,6 +207,9 @@ def build_pl_entity_change_events(
             result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
+        if column_name == "tags":
+            continue  # tags_changed is already emitted by the explicit block above
+
         if not hasattr(original_entity, column_name):
             continue
 
