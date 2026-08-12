@@ -619,7 +619,7 @@ async def get_versions(
     if search:
         if cond := build_search_conditions(
             search,
-            ["products.name", "products.product_type", "hierarchy.path"],
+            ["products.name", "products.product_type", "folder_ex.path"],
             version_check=True,
         ):
             sql_conditions.append(cond)

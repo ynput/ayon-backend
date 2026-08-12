@@ -478,7 +478,7 @@ async def get_products(
     if search:
         if cond := build_search_conditions(
             search,
-            ["products.name", "products.product_type", "hierarchy.path"],
+            ["products.name", "products.product_type", "folder_ex.path"],
         ):
             sql_conditions.append(cond)
 
