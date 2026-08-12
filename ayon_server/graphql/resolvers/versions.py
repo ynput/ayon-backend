@@ -114,6 +114,10 @@ async def get_versions(
         bool | None,
         argdesc("Filter versions that have reviewables"),
     ] = None,
+    has_hero: Annotated[
+        bool | None,
+        argdesc("Filter versions that have a hero version"),
+    ] = None,
     featured_only: Annotated[
         list[str] | None,
         argdesc(
@@ -411,14 +415,12 @@ async def get_versions(
                 f"""
                 LEFT JOIN LATERAL (
                     SELECT
-                        versions_inner.id AS id,
+                        versions.id AS id,
                         hero_versions.id AS hero_version_id
-                    FROM project_{project_name}.versions AS versions_inner
-                    JOIN project_{project_name}.versions AS hero_versions
-                    ON hero_versions.product_id = versions.product_id
+                    FROM project_{project_name}.versions AS hero_versions
+                    WHERE hero_versions.product_id = versions.product_id
                     AND hero_versions.version < 0
-                    AND ABS(hero_versions.version) = versions_inner.version
-                    WHERE versions_inner.product_id = versions.product_id   -- add this
+                    AND ABS(hero_versions.version) = versions.version
                     LIMIT 1
                 ) hv ON true
                 """,
@@ -452,6 +454,9 @@ async def get_versions(
         # The frontend uses new featuredVersion filter instead
 
         sql_conditions.append("(versions.version < 0 OR lv IS NOT NULL)")
+
+    elif has_hero:
+        sql_conditions.append("hv.id IS NOT NULL")
 
     #
     # Filtering by featured versions
@@ -608,7 +613,7 @@ async def get_versions(
                 "product_base_type": product_base_type_expr,
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
-                "hero_version_id": "hero_versions.hero_version_id",
+                "hero_version_id": "hv.hero_version_id",
             },
         ):
             sql_conditions.append(fcond)
