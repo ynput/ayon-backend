@@ -256,7 +256,7 @@ def get_folder_fields_block(
         joins.append(
             f"""
             {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
-                ON folders.parent_id = folder_ex.folder_id
+                ON folders.id = folder_ex.folder_id
             """
         )
 
