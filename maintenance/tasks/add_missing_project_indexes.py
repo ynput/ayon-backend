@@ -17,6 +17,7 @@ INDEXES = {
     "version_status_idx": "versions(status);",
     "version_parent_version_idx": "versions(product_id, version DESC);",
     "version_attrib_idx": "versions USING gin(attrib);",
+    "version_product_corder_idx": "versions(product_id, creation_order DESC) WHERE version >= 0;",  # noqa: E501
     "version_product_status_corder_idx": "versions(product_id, status, creation_order DESC) WHERE version >= 0;",  # noqa: E501
     "representation_status_idx": "representations(status);",
     "representation_attrib_idx": "representations USING gin(attrib);",
