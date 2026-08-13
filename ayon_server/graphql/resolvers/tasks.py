@@ -20,7 +20,9 @@ from ayon_server.graphql.resolvers.common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    create_child_folder_ctes,
     create_folder_access_list,
+    get_folder_fields_block,
     get_has_links_conds,
     resolve,
     sortdesc,
@@ -292,31 +294,7 @@ async def get_tasks(
 
         if include_folder_children:
             use_folder_query = True
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(folder_ids)}
-                )
-                """
-            )
-
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1
-                        FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.path = ANY (
-                        SELECT path FROM top_folder_paths
-                    )
-                )
-                """
-            )
+            sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
             sql_conditions.append(
                 "tasks.folder_id IN (SELECT id FROM child_folder_ids)"
             )
@@ -513,45 +491,11 @@ async def get_tasks(
 
     # Do we need the parent folder data?
     if use_folder_query or "folder" in fields or sort_by == "folderName":
-        sql_columns.extend(
-            [
-                "folders.id AS _folder_id",
-                "folders.name AS _folder_name",
-                "folders.label AS _folder_label",
-                "folders.folder_type AS _folder_folder_type",
-                "folders.thumbnail_id AS _folder_thumbnail_id",
-                "folders.parent_id AS _folder_parent_id",
-                "folders.attrib AS _folder_attrib",
-                "folders.data AS _folder_data",
-                "folders.active AS _folder_active",
-                "folders.status AS _folder_status",
-                "folders.tags AS _folder_tags",
-                "folders.created_at AS _folder_created_at",
-                "folders.updated_at AS _folder_updated_at",
-                "projects.attrib as _folder_project_attributes",
-                "pf_ex.attrib as _folder_inherited_attributes",
-            ]
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "tasks.folder_id", is_inner=False, sql_joins=sql_joins
         )
-
-        # Use inner join, tasks without folder cannot exist
-
-        sql_joins.extend(
-            [
-                f"""
-                INNER JOIN project_{project_name}.folders
-                ON folders.id = tasks.folder_id
-                """,
-                # but not here. parent's parent can be NULL
-                f"""
-                LEFT JOIN project_{project_name}.exported_attributes AS pf_ex
-                ON folders.parent_id = pf_ex.folder_id
-                """,
-                f"""
-                INNER JOIN public.projects AS projects
-                ON projects.name ILIKE '{project_name}'
-                """,
-            ]
-        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Pagination

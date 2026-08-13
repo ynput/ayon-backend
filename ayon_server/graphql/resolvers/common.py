@@ -11,6 +11,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import SQLTool
 
 from .pagination import encode_cursor
 
@@ -158,6 +159,115 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     # if root.__class__.__name__ != "ProjectNode":
     #     return None
     return await folder_access_list(user, project_name)
+
+
+def create_child_folder_ctes(
+    project_name: str,
+    folder_ids: list[str],
+) -> list[str]:
+    """Create CTE queries for resolving child folder IDs based on parent paths."""
+    return [
+        f"""
+        top_folder_paths AS (
+            SELECT path FROM project_{project_name}.hierarchy
+            WHERE id IN {SQLTool.id_array(folder_ids)}
+        )
+        """,
+        f"""
+        child_folder_ids AS (
+            SELECT id FROM project_{project_name}.hierarchy
+            WHERE EXISTS (
+                SELECT 1
+                FROM top_folder_paths
+                WHERE project_{project_name}.hierarchy.path
+                LIKE top_folder_paths.path || '/%'
+            )
+            OR project_{project_name}.hierarchy.path = ANY (
+                SELECT path FROM top_folder_paths
+            )
+        )
+        """,
+    ]
+
+
+def get_product_fields_block(
+    product_alias: str = "products",
+) -> tuple[list[str], list[str]]:
+    """Return SQL columns and joins for resolving full product fields."""
+    columns = [
+        f"{product_alias}.id AS _product_id",
+        f"{product_alias}.name AS _product_name",
+        f"{product_alias}.folder_id AS _product_folder_id",
+        f"{product_alias}.product_type AS _product_product_type",
+        f"{product_alias}.product_base_type AS _product_product_base_type",
+        f"{product_alias}.status AS _product_status",
+        f"{product_alias}.tags AS _product_tags",
+        f"{product_alias}.data AS _product_data",
+        f"{product_alias}.active AS _product_active",
+        f"{product_alias}.created_at AS _product_created_at",
+        f"{product_alias}.updated_at AS _product_updated_at",
+        f"{product_alias}.created_by AS _product_created_by",
+        f"{product_alias}.updated_by AS _product_updated_by",
+        f"{product_alias}.attrib AS _product_attrib",
+    ]
+    return columns, []
+
+
+def get_folder_fields_block(
+    project_name: str,
+    folder_id_column: str,
+    sql_joins: list[str],
+    is_inner: bool = True,
+) -> tuple[list[str], list[str]]:
+    """Return SQL columns and joins for resolving full folder fields."""
+    columns = [
+        "folders.id AS _folder_id",
+        "folders.name AS _folder_name",
+        "folders.label AS _folder_label",
+        "folders.folder_type AS _folder_folder_type",
+        "folders.thumbnail_id AS _folder_thumbnail_id",
+        "folders.parent_id AS _folder_parent_id",
+        "folders.attrib AS _folder_attrib",
+        "folders.data AS _folder_data",
+        "folders.active AS _folder_active",
+        "folders.status AS _folder_status",
+        "folders.tags AS _folder_tags",
+        "folders.created_at AS _folder_created_at",
+        "folders.updated_at AS _folder_updated_at",
+        "projects.attrib as _folder_project_attributes",
+        "folder_ex.attrib as _folder_inherited_attributes",
+    ]
+    exported_join = "INNER" if is_inner else "LEFT"
+    joins: list[str] = []
+
+    def has_join(alias_or_table: str) -> bool:
+        all_joins = sql_joins + joins
+        return any(alias_or_table in j for j in all_joins)
+
+    if not has_join(".folders"):
+        joins.append(
+            f"""
+            INNER JOIN project_{project_name}.folders AS folders
+                ON folders.id = {folder_id_column}
+            """
+        )
+
+    if not has_join("folder_ex"):
+        joins.append(
+            f"""
+            {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
+                ON folders.id = folder_ex.folder_id
+            """
+        )
+
+    if not has_join("public.projects"):
+        joins.append(
+            f"""
+            INNER JOIN public.projects AS projects
+                ON projects.name ILIKE '{project_name}'
+            """
+        )
+    return columns, joins
 
 
 #
