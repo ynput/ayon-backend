@@ -79,7 +79,7 @@ async def _do_migration(
             n.new_value
         )
         FROM new_values n
-        WHERE e.id = n.id
+        WHERE e.__IDENTIFIER__ = n.__IDENTIFIER__
         AND e.attrib ? $1
     """
 
@@ -103,9 +103,11 @@ async def migrate_attrib_type(
         for table_name in (
             "folders",
             "tasks",
+            "products",
             "versions",
             "representations",
             "workfiles",
+            "entity_lists",
         ):
             await _do_migration(
                 attrib_name=attrib_name,
@@ -119,6 +121,7 @@ async def migrate_attrib_type(
         await rebuild_hierarchy_cache(project.name)
 
     identifier = "name"
+
     for table_name in ("projects", "users"):
         rmv = ""
         if new_type == "string":
