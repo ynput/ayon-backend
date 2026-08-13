@@ -432,7 +432,7 @@ async def get_versions(
     #
 
     if latest_only:
-        sql_conditions.append("lv.id IS NOT NULL")
+        sql_conditions.append("versions.id = lv.id")
 
     elif hero_only:
         # This returns actual (negative) hero versions only
@@ -444,7 +444,7 @@ async def get_versions(
         # This is provided mainly for backward compatibility and the pipeline
         # The frontend uses new featuredVersion filter instead
 
-        sql_conditions.append("(versions.version < 0 OR lv IS NOT NULL)")
+        sql_conditions.append("(versions.version < 0 OR versions.version IS NOT NULL)")
 
     elif has_hero:
         sql_conditions.append("hv.id IS NOT NULL")
