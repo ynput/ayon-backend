@@ -40,6 +40,12 @@ class InfoResponseModel(OPModel):
     login_page_brand: str | None = Field(
         None,
         title="Brand logo",
+        description="Replaced by `studio_logo`, kept for backward compatibility",
+        deprecated=True,
+    )
+    studio_logo: str | None = Field(
+        None,
+        title="Brand logo",
         description="URL of the brand logo for the login page",
     )
     release_info: ReleaseInfo | None = Field(
@@ -318,7 +324,6 @@ async def get_site_info(
         site_platform = request.headers.get("x-ayon-platform")
         site_hostname = request.headers.get("x-ayon-hostname")
         site_version = request.headers.get("x-ayon-version")
-        sso_options = await get_sso_options(request)
         frontend_flags = server_config.customization.frontend_flags
 
         additional_info = await coalesce(
@@ -332,41 +337,47 @@ async def get_site_info(
             site_version,
         )
 
-        additional_info["sso_options"] = sso_options
         additional_info["frontend_flags"] = frontend_flags
 
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
-    elif full:
-        has_admin_user = await CloudUtils.get_admin_exists()
-        sso_options = await get_sso_options(request)
-        additional_info = {
-            "sso_options": sso_options,
-            "no_admin_user": (not has_admin_user) or None,
-            "password_recovery_available": bool(await is_mailing_enabled()),
-        }
+
+    if full:
         customization = server_config.customization
+        sso_options = await get_sso_options(request)
 
-        if customization.motd:
-            additional_info["motd"] = customization.motd
-        elif ayonconfig.motd:  # Deprecated
-            additional_info["motd"] = ayonconfig.motd
+        if not current_user:
+            has_admin_user = await CloudUtils.get_admin_exists()
+            additional_info["no_admin_user"] = (not has_admin_user) or None
+            additional_info["password_recovery_available"] = bool(
+                await is_mailing_enabled()
+            )
 
-        if customization.login_background:
-            url = f"/static/customization/{customization.login_background}"
-            additional_info["login_page_background"] = url
-        elif ayonconfig.login_page_background:  # Deprecated
-            additional_info["login_page_background"] = ayonconfig.login_page_background
+            if customization.motd:
+                additional_info["motd"] = customization.motd
+            elif ayonconfig.motd:  # Deprecated
+                additional_info["motd"] = ayonconfig.motd
+
+            if customization.login_background:
+                url = f"/static/customization/{customization.login_background}"
+                additional_info["login_page_background"] = url
+            elif ayonconfig.login_page_background:  # Deprecated
+                additional_info["login_page_background"] = (
+                    ayonconfig.login_page_background
+                )
+
+            if server_config.authentication.hide_password_auth:
+                additional_info["hide_password_auth"] = True
+
+        additional_info["sso_options"] = sso_options
 
         if customization.studio_logo:
             url = f"/static/customization/{customization.studio_logo}"
             additional_info["login_page_brand"] = url
+            additional_info["studio_logo"] = url
         elif ayonconfig.login_page_brand:  # Deprecated
-            additional_info["login_page_brand"] = ayonconfig.login_page_brand
-
-        if server_config.authentication.hide_password_auth:
-            additional_info["hide_password_auth"] = True
+            additional_info["studio_logo"] = ayonconfig.login_page_brand
 
     user_payload = None
     if current_user:
