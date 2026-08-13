@@ -73,10 +73,13 @@ async def _do_migration(
         )
 
         UPDATE {table_name} e
-        SET attrib = jsonb_set(
-            e.attrib,
-            ARRAY[$1],
-            n.new_value
+        SET attrib = COALESCE(
+            jsonb_set(
+                e.attrib,
+                ARRAY[$1],
+                n.new_value
+            ),
+            '{{}}'::jsonb
         )
         FROM new_values n
         WHERE e.__IDENTIFIER__ = n.__IDENTIFIER__
