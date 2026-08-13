@@ -586,21 +586,11 @@ async def get_folders(
                 task_conditions.append(tfilter)
 
         if task_search:
-            parts = task_search.split(",")
-            t1_conds = []
-
-            for part in parts:
-                terms = slugify(part, make_set=True, split_chars=" ")
-                t2_conds = []
-                for term in terms:
-                    t2_conds.append(
-                        f"(tasks.name ILIKE '%{term}%'"
-                        f"OR tasks.label ILIKE '%{term}%'"
-                        f"OR tasks.task_type ILIKE '%{term}%'"
-                        f"OR ex.path ILIKE '%{term}%')"
-                    )
-                t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-            task_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+            if cond := build_search_conditions(
+                task_search,
+                ["tasks.name", "tasks.label", "tasks.task_type", "ex.path"],
+            ):
+                task_conditions.append(cond)
 
         if task_conditions:
             sql_cte.append(
