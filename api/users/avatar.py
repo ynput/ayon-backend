@@ -82,6 +82,33 @@ def create_initials_svg(
     return svg_template.strip()
 
 
+def create_anonymous_svg(
+    name: str,
+    width: int = 100,
+    height: int = 100,
+    text_color: str = "white",
+) -> str:
+    bg_color = generate_color(f"{name}")
+
+    svg_template = f"""
+    <svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="{bg_color}"/>
+      <g
+        fill="none"
+        stroke="{text_color}"
+        stroke-width="6"
+        transform="scale(0.75) translate(0 -2)"
+        transform-origin="center"
+      >
+        <circle cx="50" cy="30" r="15" />
+        <path d="M 20 85 L 80 85 A 30 30, 0, 0, 0, 20 85 Z" />
+      </g>
+    </svg>
+    """
+
+    return svg_template.strip()
+
+
 async def load_avatar_file(user_name: str) -> bytes:
     """
     Load the avatar file for a given user.
@@ -134,6 +161,8 @@ async def obtain_avatar(user_name: str) -> bytes:
     )
 
     if not res:
+        if user_name.startswith("anonymous.guest."):
+            return create_anonymous_svg(user_name).encode()
         if user_name.startswith("guest."):
             # We cannot get full name for guests users,
             # as we do not know the current project.
