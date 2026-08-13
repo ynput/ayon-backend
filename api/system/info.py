@@ -377,6 +377,7 @@ async def get_site_info(
             additional_info["login_page_brand"] = url
             additional_info["studio_logo"] = url
         elif ayonconfig.login_page_brand:  # Deprecated
+            additional_info["login_page_brand"] = ayonconfig.login_page_brand
             additional_info["studio_logo"] = ayonconfig.login_page_brand
 
     user_payload = None
