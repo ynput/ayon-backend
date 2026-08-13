@@ -510,7 +510,7 @@ async def get_folders(
             )
         """
         sql_conditions.append(cond)
-    print(f"search::{search} filter::{filter} taskfilter::{task_filter}")
+
     if search:
         parts = search.split(",")
         t1_conds = []
