@@ -620,7 +620,7 @@ async def get_folders(
                         ON pr.name ILIKE '{project_name}'
                     LEFT JOIN project_{project_name}.exported_attributes AS ex
                         ON tasks.folder_id = ex.folder_id
-                    WHERE {SQLTool.conditions(task_conditions)}
+                    {SQLTool.conditions(task_conditions)}
                 )
                 """
             )
