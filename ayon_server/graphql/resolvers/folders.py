@@ -114,7 +114,8 @@ async def get_folders(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
-    task_filter: Annotated[str | None, argdesc("Fitler folders by tasks")] = None,
+    task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
+    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -551,7 +552,7 @@ async def get_folders(
         ):
             sql_conditions.append(fcond)
 
-    if task_filter:
+    if task_filter or task_search:
         column_whitelist = [
             "id",
             "name",
@@ -569,28 +570,49 @@ async def get_folders(
             "updated_by",
         ]
 
-        fdate = json.loads(task_filter)
-        fq = QueryFilter(**fdate)
-        tfilter = build_filter(
-            fq,
-            column_whitelist=column_whitelist,
-            table_prefix="tasks",
-            column_map={
-                "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
-            },
-        )
+        task_conditions = []
 
-        if tfilter:
+        if task_filter:
+            fdate = json.loads(task_filter)
+            fq = QueryFilter(**fdate)
+            if tfilter := build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="tasks",
+                column_map={
+                    "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
+                },
+            ):
+                task_conditions.append(tfilter)
+
+        if task_search:
+            parts = task_search.split(",")
+            t1_conds = []
+
+            for part in parts:
+                terms = slugify(part, make_set=True, split_chars=" ")
+                t2_conds = []
+                for term in terms:
+                    t2_conds.append(
+                        f"(tasks.name ILIKE '%{term}%'"
+                        f"OR tasks.label ILIKE '%{term}%'"
+                        f"OR tasks.task_type ILIKE '%{term}%'"
+                        f"OR ex.path ILIKE '%{term}%')"
+                    )
+                t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+            task_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+
+        if task_conditions:
             sql_cte.append(
                 f"""
                 filtered_tasks AS (
                     SELECT DISTINCT tasks.folder_id
-                    FROM project_{project_name}.tasks
+                    FROM project_{project_name}.tasks AS tasks
                     INNER JOIN public.projects AS pr
                         ON pr.name ILIKE '{project_name}'
                     LEFT JOIN project_{project_name}.exported_attributes AS ex
                         ON tasks.folder_id = ex.folder_id
-                    WHERE {tfilter}
+                    {SQLTool.conditions(task_conditions)}
                 )
                 """
             )
