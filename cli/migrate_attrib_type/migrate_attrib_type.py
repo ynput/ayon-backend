@@ -97,9 +97,11 @@ async def migrate_attrib_type(
 ) -> None:
     await ayon_init()
 
-    identifier = "id"
-
     start_time = time.perf_counter()
+
+    #
+    # Migrate the attributes in all projects tables
+    #
 
     projects = await get_project_list()
     for project in projects:
@@ -116,30 +118,46 @@ async def migrate_attrib_type(
                 attrib_name=attrib_name,
                 new_type=new_type,
                 table_name=f"project_{project.name}.{table_name}",
-                identifier=identifier,
+                identifier="id",
             )
 
     for project in projects:
         await rebuild_inherited_attributes(project.name)
         await rebuild_hierarchy_cache(project.name)
 
-    identifier = "name"
+    # Migrate the attributes in projects and users tables,
+    # which are not part of the project schema
 
     for table_name in ("projects", "users"):
-        rmv = ""
-        if new_type == "string":
-            rm = ["min_items", "max_items", "gt", "lt", "ge", "le"]
-            rmv = " - " + " - ".join(f"'{r}'" for r in rm)
-
-        elif new_type == "list_of_strings":
-            rm = ["min_length", "max_length", "gt", "lt", "ge", "le"]
-            rmv = " - " + " - ".join(f"'{r}'" for r in rm)
-
-        await Postgres.execute(
-            f"UPDATE attributes SET data = (data || $1) {rmv} WHERE name = $2",
-            {"type": new_type},
-            attrib_name,
+        await _do_migration(
+            attrib_name=attrib_name,
+            new_type=new_type,
+            table_name=f"public.{table_name}",
+            identifier="name",
         )
+
+    #
+    # Update the attribute type in the attributes table
+    #
+
+    rmv = ""
+    if new_type == "string":
+        rm = ["min_items", "max_items", "gt", "lt", "ge", "le"]
+        rmv = " - " + " - ".join(f"'{r}'" for r in rm)
+
+    elif new_type == "list_of_strings":
+        rm = ["min_length", "max_length", "gt", "lt", "ge", "le"]
+        rmv = " - " + " - ".join(f"'{r}'" for r in rm)
+
+    await Postgres.execute(
+        f"UPDATE attributes SET data = (data || $1) {rmv} WHERE name = $2",
+        {"type": new_type},
+        attrib_name,
+    )
+
+    #
+    # Finalize the migration
+    #
 
     elapsed_time = time.perf_counter() - start_time
 
