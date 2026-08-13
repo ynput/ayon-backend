@@ -16,12 +16,12 @@ def isinstance_namedtuple(obj: Any) -> bool:
     )
 
 
-def json_default_handler(value: Any) -> Any:
+def json_default_handler(value: Any) -> list[Any] | dict[str, Any] | str:
     if isinstance_namedtuple(value):
         return list(value)
 
     if isinstance(value, BaseModel):
-        value.dict()
+        return value.dict()
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()

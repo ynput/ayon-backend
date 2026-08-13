@@ -82,7 +82,7 @@ class TaskNode(BaseNode):
         description=get_workfiles.__doc__,
     )
 
-    _folder: FolderNode | None = None
+    _folder: strawberry.Private[FolderNode | None] = None
 
     @strawberry.field
     def type(self) -> str:

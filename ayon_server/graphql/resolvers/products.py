@@ -1,7 +1,6 @@
 import json
 from typing import Annotated
 
-from ayon_server.access.utils import folder_access_list
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProductsConnection
@@ -17,6 +16,9 @@ from ayon_server.graphql.resolvers.common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    create_child_folder_ctes,
+    create_folder_access_list,
+    get_folder_fields_block,
     get_has_links_conds,
     resolve,
     sortdesc,
@@ -148,36 +150,22 @@ async def get_products(
         if not ids:
             return ProductsConnection(edges=[])
 
-    #
-    # SQL
-    #
+    use_folder_query = False
 
     sql_columns = [
         "products.*",
-        "folders.id AS _folder_id",
-        "folders.name AS _folder_name",
-        "folders.label AS _folder_label",
-        "folders.folder_type AS _folder_folder_type",
-        "folders.parent_id AS _folder_parent_id",
-        "folders.thumbnail_id AS _folder_thumbnail_id",
-        "folders.attrib AS _folder_attrib",
-        "folders.data AS _folder_data",
-        "folders.active AS _folder_active",
-        "folders.status AS _folder_status",
-        "folders.tags AS _folder_tags",
-        "folders.created_at AS _folder_created_at",
-        "folders.updated_at AS _folder_updated_at",
-        "folder_ex.path AS _folder_path",
+        "hierarchy.path AS _folder_path",
+        "folder_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
         f"""
-        INNER JOIN project_{project_name}.folders
-        ON folders.id = products.folder_id
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON products.folder_id = hierarchy.id
         """,
         f"""
         INNER JOIN project_{project_name}.exported_attributes AS folder_ex
-        ON folders.id = folder_ex.folder_id
+        ON products.folder_id = folder_ex.folder_id
         """,
     ]
 
@@ -192,39 +180,15 @@ async def get_products(
     if folder_ids is not None:
         if not folder_ids:
             return ProductsConnection()
-        if not include_folder_children:
+        if include_folder_children:
+            use_folder_query = True
+            sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
             sql_conditions.append(
-                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
+                "products.folder_id IN (SELECT id FROM child_folder_ids)"
             )
         else:
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(folder_ids)}
-                )
-                """
-            )
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1 FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.path = ANY(
-                        SELECT path FROM top_folder_paths
-                    )
-                )
-                """
-            )
-            sql_joins.append(
-                """
-                INNER JOIN child_folder_ids AS cfi
-                ON cfi.id = products.folder_id
-                """
+            sql_conditions.append(
+                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
             )
 
     elif root.__class__.__name__ == "FolderNode":
@@ -287,56 +251,13 @@ async def get_products(
     # Access control
     #
 
-    access_list = None
-    if root.__class__.__name__ == "ProjectNode":
-        # Selecting products directly from the project node,
-        # so we need to check access rights
-        user = info.context["user"]
-        if user.is_guest:
-            # Guests need to provide explicit IDs
-            # that is handled above and provides a sufficient
-            # level of security.
-
-            # We may use additional checks for version lists in the future
-            pass
-        else:
-            access_list = await folder_access_list(user, project_name)
-            if access_list is not None:
-                sql_conditions.append(
-                    f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
-                )
-
-    #
-    # Do we need parent folder attributes?
-    # And most importantly - do we need to know which are inherited?
-    #
-
-    if any(field.endswith("folder.attrib") for field in fields):
-        sql_columns.extend(
-            [
-                "pr.attrib as _folder_project_attributes",
-                "ex.attrib as _folder_inherited_attributes",
-            ]
-        )
-        sql_joins.extend(
-            [
-                f"""
-                LEFT JOIN project_{project_name}.exported_attributes AS ex
-                ON folders.parent_id = ex.folder_id
-                """,
-                f"""
-                INNER JOIN public.projects AS pr
-                ON pr.name ILIKE '{project_name}'
-                """,
-            ]
-        )
-    else:
-        sql_columns.extend(
-            [
-                "'{}'::JSONB as _folder_project_attributes",
-                "'{}'::JSONB as _folder_inherited_attributes",
-            ]
-        )
+    user = info.context["user"]
+    if not user.is_manager:
+        access_list = await create_folder_access_list(root, info)
+        if access_list is not None:
+            sql_conditions.append(
+                f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
 
     if ff_field := fields.find_field("featuredVersion"):
         req_order = ff_field.arguments.get("order") or [
@@ -537,6 +458,7 @@ async def get_products(
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
+            use_folder_query = True
 
     #
     # Filtering products by versions and tasks
@@ -641,6 +563,17 @@ async def get_products(
                 ON products.id = filtered_versions.product_id
                 """
             )
+
+    if (
+        use_folder_query
+        or "folder" in fields
+        or sort_by in ["folderName", "folderType"]
+    ):
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id", sql_joins=sql_joins
+        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Pagination
