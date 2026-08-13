@@ -114,7 +114,7 @@ async def get_folders(
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
-    task_search: Annotated[str | None, argdesc("Search folders by tasks")] = None,
+    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
