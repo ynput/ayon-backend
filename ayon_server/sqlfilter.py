@@ -124,6 +124,23 @@ class QueryFilter(OPModel):
         return v.lower()
 
 
+def filter_columns(f: QueryFilter) -> set[str]:
+    """Return the set of columns a filter references.
+
+    Columns are returned in their snake_case form, without the path to
+    the key within JSON columns, so `attrib/fps` is reported as `attrib`.
+    Resolvers use this to find out which joins a filter needs.
+    """
+    result: set[str] = set()
+    for condition in f.conditions:
+        if isinstance(condition, QueryFilter):
+            result |= filter_columns(condition)
+        else:
+            key = condition.key.replace("/", ".").split(".")[0]
+            result.add(camel_to_snake(key.strip()))
+    return result
+
+
 JSON_FIELDS = [
     "summary",
     "payload",
