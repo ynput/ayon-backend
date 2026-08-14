@@ -260,33 +260,31 @@ async def get_versions(
         sql_columns.append("comments.comments AS latest_comments")
 
     if fields.any_endswith("hasReviewables") or (has_reviewables is not None):
-        sql_cte.append(
+        # A correlated LATERAL probe (indexed on activity_references.entity_id)
+        # instead of a "reviewables" CTE: the CTE gets referenced twice here
+        # (column + filter), which forces postgres to materialize it, i.e.
+        # compute reviewable status for every version in the whole project
+        # before pagination is applied, rather than per-row on demand.
+        sql_joins.append(
             f"""
-            reviewables AS (
-                SELECT entity_id FROM project_{project_name}.activity_feed
+            LEFT JOIN LATERAL (
+                SELECT entity_id AS id
+                FROM project_{project_name}.activity_feed
                 WHERE entity_type = 'version'
                 AND activity_type = 'reviewable'
-            )
+                AND entity_id = versions.id
+                LIMIT 1
+            ) rv ON true
             """
         )
 
-        sql_columns.append(
-            """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE entity_id = versions.id
-            ) AS has_reviewables
-            """
-        )
+        sql_columns.append("rv IS NOT NULL AS has_reviewables")
 
         if has_reviewables is not None:
             if has_reviewables:
-                sql_conditions.append(
-                    "EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"
-                )
+                sql_conditions.append("rv IS NOT NULL")
             else:
-                sql_conditions.append(
-                    "NOT EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"  # noqa 501
-                )
+                sql_conditions.append("rv IS NULL")
 
     #
     # Direct, version-specific filtering
@@ -820,10 +818,10 @@ async def get_versions(
         {raw_data_end}
     """
 
-    # print()
-    # print("Versions query:")
-    # print(query)
-    # print()
+    print()
+    print("Versions query:")
+    print(query)
+    print()
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
