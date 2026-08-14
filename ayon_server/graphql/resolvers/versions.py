@@ -275,8 +275,19 @@ class Joins:
         return self._emit(self._for_filter | self._for_sort)
 
     @property
+    def hydrating(self) -> list[str]:
+        """Joins of a main query whose rows come from the page CTE.
+
+        The page has already been filtered, so re-joining anything that
+        only filters would just give the planner a second, wider way to
+        reach the same rows - and a chance to run the LATERALs against
+        that one instead of against the page.
+        """
+        return self._emit(self._for_sort | self._for_output) + self._extra
+
+    @property
     def all(self) -> list[str]:
-        """Joins of the main query."""
+        """Joins of a main query that filters the rows itself."""
         used = self._for_filter | self._for_sort | self._for_output
         return self._emit(used) + self._extra
 
@@ -411,11 +422,11 @@ async def get_versions(
     sql_conditions = []
 
     joins = Joins(project_name)
-    # products is the root every folder-side join hangs off (they all
-    # match on products.folder_id), and it is what latestPerFolder groups
-    # by, so it takes part in filtering unconditionally.
+    # products is unconditional in both roles: it is the root every
+    # folder-side join hangs off (they all match on products.folder_id)
+    # and what latestPerFolder groups by, and it supplies output columns.
     joins.for_filter("products")
-    joins.for_output("folder_ex", "folders", "tasks")
+    joins.for_output("products", "folder_ex", "folders", "tasks")
 
     sql_columns = [
         "versions.*",
@@ -843,6 +854,9 @@ async def get_versions(
         sql_columns.extend(product_columns)
         joins.add(*product_joins)
 
+        # The block reads columns off both, and supplies only the
+        # public.projects join itself.
+        joins.for_output("folders", "folder_ex")
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "products.folder_id", sql_joins=joins.all
         )
@@ -871,6 +885,7 @@ async def get_versions(
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
     sql_from = f"project_{project_name}.versions AS versions"
+    main_joins = joins.all
 
     ordering = ""
     cursor = "''"
@@ -911,6 +926,7 @@ async def get_versions(
             INNER JOIN project_{project_name}.versions AS versions
             ON versions.id = page.id
             """
+        main_joins = joins.hydrating
         sql_conditions = []
 
     #
@@ -967,7 +983,7 @@ async def get_versions(
         {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM {sql_from}
-        {" ".join(joins.all)}
+        {" ".join(main_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
         {raw_data_end}
