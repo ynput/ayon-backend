@@ -214,6 +214,8 @@ async def get_versions(
         "folder_ex.path AS _folder_path",
         "products.name AS _product_name",
     ]
+    deferred_joins = []
+    deferred_columns = []
 
     if fields.any_endswith("latestComments"):
         # A correlated LATERAL fetch (indexed via activity_origin_desc_idx on
@@ -223,8 +225,7 @@ async def get_versions(
         # already forcing this query into a nested-loop-heavy plan, postgres
         # was never promoting that join to a hash join, and instead
         # rescanning the whole aggregated comment set per output row.
-        sql_joins.append(
-            f"""
+        comment_joins = f"""
             LEFT JOIN LATERAL (
                 SELECT json_agg(
                     json_build_object(
@@ -251,8 +252,12 @@ async def get_versions(
                 ) x
             ) comments ON true
             """
-        )
-        sql_columns.append("comments.comments AS latest_comments")
+        if latest_per_folder:
+            deferred_joins.append(comment_joins)
+            deferred_columns.append("comments.comments AS latest_comments")
+        else:
+            sql_joins.append(comment_joins)
+            sql_columns.append("comments.comments AS latest_comments")
 
     if fields.any_endswith("hasReviewables") or (has_reviewables is not None):
         # A correlated LATERAL probe (indexed on activity_references.entity_id)
@@ -260,8 +265,7 @@ async def get_versions(
         # (column + filter), which forces postgres to materialize it, i.e.
         # compute reviewable status for every version in the whole project
         # before pagination is applied, rather than per-row on demand.
-        sql_joins.append(
-            f"""
+        reviewable_join = f"""
             LEFT JOIN LATERAL (
                 SELECT entity_id AS id
                 FROM project_{project_name}.activity_feed
@@ -271,9 +275,16 @@ async def get_versions(
                 LIMIT 1
             ) rv ON true
             """
-        )
 
-        sql_columns.append("rv IS NOT NULL AS has_reviewables")
+        if has_reviewables is not None:
+            sql_joins.append(reviewable_join)
+            sql_columns.append("rv IS NOT NULL AS has_reviewables")
+        elif latest_per_folder:
+            deferred_joins.append(reviewable_join)
+            deferred_columns.append("rv IS NOT NULL AS has_reviewables")
+        else:
+            sql_joins.append(reviewable_join)
+            sql_columns.append("rv IS NOT NULL AS has_reviewables")
 
         if has_reviewables is not None:
             if has_reviewables:
@@ -373,9 +384,8 @@ async def get_versions(
             """
         )
 
-        sql_joins.extend(
-            [
-                f"""
+        latest_joins = [
+            f"""
                 LEFT JOIN LATERAL (
                     SELECT id
                     FROM project_{project_name}.versions lv_inner
@@ -409,7 +419,13 @@ async def get_versions(
                 ) hv ON true
                 """,
             ]
+        latest_lookup_used_for_filter = (
+            latest_only or has_hero or featured_only is not None
         )
+        if latest_per_folder and not latest_lookup_used_for_filter:
+            deferred_joins.extend(latest_joins)
+        else:
+            sql_joins.extend(latest_joins)
 
         sql_columns.extend(
             [
@@ -710,6 +726,9 @@ async def get_versions(
         sql_conditions = []
     else:
         versions_source = f"project_{project_name}.versions AS versions"
+
+    sql_joins.extend(deferred_joins)
+    sql_columns.extend(deferred_columns)
 
     if any("product" in str(field) for field in fields) or use_folder_query:
         product_columns, product_joins = get_product_fields_block()
