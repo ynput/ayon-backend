@@ -205,12 +205,7 @@ class FolderEntity(ProjectLevelEntity):
                     self.path.lstrip("/"),
                 )
 
-            res = await super().delete()
-            if not res:
-                return False
-            elif auto_commit:
-                await self.commit()
-        return res
+            return await super().delete(*args, auto_commit=auto_commit, **kwargs)
 
     async def get_versions(self) -> list[str]:
         """Return of version ids associated with this folder."""
