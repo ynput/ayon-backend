@@ -695,7 +695,7 @@ async def get_versions(
         sql_cte.append(
             f"""
             latest_matching_versions AS (
-                SELECT DISTINCT ON (products.folder_id) versions.id
+                SELECT DISTINCT ON (products.folder_id) versions.*
                 FROM project_{project_name}.versions AS versions
                 {" ".join(sql_joins)}
                 {SQLTool.conditions(sql_conditions)}
@@ -703,15 +703,13 @@ async def get_versions(
             )
             """
         )
-        sql_joins.append(
-            """
-            INNER JOIN latest_matching_versions AS lmv
-            ON lmv.id = versions.id
-            """
-        )
-        # Every condition above is already baked into latest_matching_versions,
-        # so the outer query only needs to look rows up by id (primary key).
+        # The CTE already contains the filtered, latest version for each folder.
+        # Use it as the source so the complete filter graph is not evaluated a
+        # second time just to look the selected versions up by ID.
+        versions_source = "latest_matching_versions AS versions"
         sql_conditions = []
+    else:
+        versions_source = f"project_{project_name}.versions AS versions"
 
     if any("product" in str(field) for field in fields) or use_folder_query:
         product_columns, product_joins = get_product_fields_block()
@@ -809,7 +807,7 @@ async def get_versions(
         {cte}
         {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
-        FROM project_{project_name}.versions AS versions
+        FROM {versions_source}
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
