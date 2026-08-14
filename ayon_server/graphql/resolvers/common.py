@@ -164,6 +164,7 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 def create_child_folder_ctes(
     project_name: str,
     folder_ids: list[str],
+    include_self: bool = True,
 ) -> list[str]:
     """Create a CTE resolving folder_ids plus all of their descendant folder
     ids, by walking folders.parent_id (indexed via folder_parent_idx).
@@ -177,6 +178,9 @@ def create_child_folder_ctes(
     estimate feeds into) badly enough to dominate query time. A recursive
     walk over parent_id gives it real, estimable per-level index lookups.
 
+    include_self=False resolves descendants only (e.g. for a "children of
+    these parents" filter), without folder_ids themselves.
+
     NOTE: the caller must wrap the combined CTE list in "WITH RECURSIVE",
     not plain "WITH", for this CTE's self-reference to be valid SQL.
 
@@ -185,11 +189,17 @@ def create_child_folder_ctes(
     reached by two different paths and recurse independently down each,
     duplicating ids (and downstream, duplicating joined result rows).
     """
+    base_case = (
+        f"SELECT id FROM project_{project_name}.folders "
+        f"WHERE id IN {SQLTool.id_array(folder_ids)}"
+        if include_self
+        else f"SELECT id FROM project_{project_name}.folders "
+        f"WHERE parent_id IN {SQLTool.id_array(folder_ids)}"
+    )
     return [
         f"""
         child_folder_ids AS (
-            SELECT id FROM project_{project_name}.folders
-            WHERE id IN {SQLTool.id_array(folder_ids)}
+            {base_case}
             UNION
             SELECT f.id
             FROM project_{project_name}.folders AS f
