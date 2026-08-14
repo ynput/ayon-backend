@@ -119,6 +119,11 @@ class Postgres:
             max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
             init=postgres_setup,
+            # Resolvers build ad-hoc SQL (conditions inlined into the query
+            # text, not parameterized), so almost every request gets its own
+            # distinct plan - postgres never amortizes JIT compilation across
+            # repeated executions the way a prepared-statement app would.
+            server_settings={"jit": "off"},
         )
 
     @classmethod
