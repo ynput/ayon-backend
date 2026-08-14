@@ -375,17 +375,45 @@ async def get_versions(
         or hero_or_latest_only
         or featured_only
     ):
-        sql_cte.append(
-            f"""
-            done_statuses AS MATERIALIZED (
-                SELECT name from project_{project_name}.statuses
-                WHERE data->>'state' = 'done'
-            )
-            """
+        needs_latest = fields.any_endswith("isLatest") or latest_only
+        needs_latest_done = fields.any_endswith("isLatestDone") or (
+            featured_only is not None and "latestDone" in featured_only
         )
+        needs_hero = fields.any_endswith("heroVersionId") or bool(has_hero)
+        if featured_only is not None:
+            needs_hero = needs_hero or "hero" in featured_only
+            needs_latest = needs_latest or "latest" in featured_only
 
-        latest_joins = [
-            f"""
+        latest_version_filter = latest_only and not (
+            featured_only is not None and "latest" in featured_only
+        )
+        if latest_version_filter:
+            sql_cte.append(
+                f"""
+                latest_version_ids AS (
+                    SELECT DISTINCT ON (product_id) id
+                    FROM project_{project_name}.versions
+                    WHERE version >= 0
+                    ORDER BY product_id, creation_order DESC
+                )
+                """
+            )
+            latest_version_filter = True
+
+        if needs_latest_done:
+            sql_cte.append(
+                f"""
+                done_statuses AS MATERIALIZED (
+                    SELECT name from project_{project_name}.statuses
+                    WHERE data->>'state' = 'done'
+                )
+                """
+            )
+
+        latest_joins = []
+        if needs_latest and not latest_version_filter:
+            latest_joins.append(
+                f"""
                 LEFT JOIN LATERAL (
                     SELECT id
                     FROM project_{project_name}.versions lv_inner
@@ -394,7 +422,11 @@ async def get_versions(
                     ORDER BY lv_inner.creation_order DESC
                     LIMIT 1
                 ) lv ON true
-                """,
+                """
+            )
+
+        if needs_latest_done:
+            latest_joins.append(
                 f"""
                 LEFT JOIN LATERAL (
                     SELECT v.id
@@ -405,7 +437,11 @@ async def get_versions(
                     ORDER BY v.creation_order DESC
                     LIMIT 1
                 ) ldv ON true
-                """,
+                """
+            )
+
+        if needs_hero:
+            latest_joins.append(
                 f"""
                 LEFT JOIN LATERAL (
                     SELECT
@@ -417,23 +453,27 @@ async def get_versions(
                     AND ABS(hero_versions.version) = versions.version
                     LIMIT 1
                 ) hv ON true
-                """,
-            ]
-        latest_lookup_used_for_filter = (
-            latest_only or has_hero or featured_only is not None
+                """
+            )
+
+        lookup_used_for_filter = has_hero or (
+            featured_only is not None
+            and any(flag in featured_only for flag in ("hero", "latestDone", "latest"))
         )
-        if latest_per_folder and not latest_lookup_used_for_filter:
+        if latest_per_folder and not lookup_used_for_filter:
             deferred_joins.extend(latest_joins)
         else:
             sql_joins.extend(latest_joins)
 
-        sql_columns.extend(
-            [
-                "hv.hero_version_id AS hero_version_id",
-                "lv IS NOT NULL AS is_latest",
-                "ldv IS NOT NULL AS is_latest_done",
-            ]
-        )
+        if fields.any_endswith("heroVersionId"):
+            sql_columns.append("hv.hero_version_id AS hero_version_id")
+        if fields.any_endswith("isLatest"):
+            if latest_version_filter:
+                sql_columns.append("TRUE AS is_latest")
+            else:
+                sql_columns.append("lv IS NOT NULL AS is_latest")
+        if fields.any_endswith("isLatestDone"):
+            sql_columns.append("ldv IS NOT NULL AS is_latest_done")
 
     #
     # Filtering by latest / hero versions
@@ -441,7 +481,12 @@ async def get_versions(
     #
 
     if latest_only:
-        sql_conditions.append("versions.id = lv.id")
+        if latest_version_filter:
+            sql_conditions.append(
+                "versions.id IN (SELECT id FROM latest_version_ids)"
+            )
+        else:
+            sql_conditions.append("versions.id = lv.id")
 
     elif hero_only:
         # This returns actual (negative) hero versions only
