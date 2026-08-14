@@ -3,6 +3,7 @@ from ayon_server.installer import background_installer
 from .background_worker import BackgroundWorker
 from .invalidate_actions import invalidate_actions
 from .log_collector import log_collector
+from .operations_queue import operations_queue
 
 
 class BackgroundWorkers:
@@ -24,6 +25,7 @@ class BackgroundWorkers:
             background_installer,
             invalidate_actions,
             log_collector,
+            operations_queue,
         ]
 
     def start(self):

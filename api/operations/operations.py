@@ -1,15 +1,15 @@
 from typing import Literal
 
-from fastapi import BackgroundTasks
-
 from ayon_server.api.context import get_request_context
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.background.operations_queue import (
+    BACKGROUND_OPS_TTL,
+    operations_queue,
+)
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
 from ayon_server.operations.project_level import (
     OperationModel,
-    OperationsProgress,
     OperationsResponseModel,
     ProjectLevelOperations,
 )
@@ -17,8 +17,6 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils.hashing import create_uuid
 
 from .router import router
-
-BACKGROUND_OPS_TTL = 1800  # 30 minutes
 
 
 class OperationsRequestModel(OPModel):
@@ -93,97 +91,19 @@ class BackgroundOperationsResponseModel(OPModel):
     result: OperationsResponseModel | None = None
 
 
-async def _execute_background_operations(
-    task_id: str,
-    ops: ProjectLevelOperations,
-    *,
-    can_fail: bool,
-) -> None:
-    try:
-        req_count = await Redis.incr(
-            "global",
-            "concurrent-background-operations",
-            ttl=BACKGROUND_OPS_TTL,
-        )
-
-        msg = "Starting background operations"
-        if req_count > 2:
-            msg += f" ({req_count - 1} already running)"
-            logger.debug(msg)
-        else:
-            logger.trace(msg)
-
-        await Redis.set_json(
-            "background-operations",
-            task_id,
-            {
-                "status": "in_progress",
-                "progress": 0.0,
-            },
-            ttl=BACKGROUND_OPS_TTL,
-        )
-
-        async def handle_progress(progress: OperationsProgress) -> None:
-            percent = (
-                (progress.index / progress.total) if progress.total else 0.0
-            ) * 100.0
-            try:
-                await Redis.set_json(
-                    "background-operations",
-                    task_id,
-                    {
-                        "status": "in_progress",
-                        "progress": percent,
-                    },
-                    ttl=BACKGROUND_OPS_TTL,
-                )
-                await Redis.expire(
-                    "global",
-                    "concurrent-background-operations",
-                    ttl=BACKGROUND_OPS_TTL,
-                )
-            except Exception:
-                pass  # not super important
-
-        response = await ops.process(
-            can_fail=can_fail,
-            raise_on_error=False,
-            wait_for_events=True,
-            progress_handler=handle_progress,
-        )
-
-        # TODO: To be discussed.
-        # should we use failed? probably not, because the task itself completed
-        # and the result is available. depending on can_fail,
-        # the result may contain errors, but the task itself is completed.
-        # status = "completed" if response.success else "failed"
-
-        await Redis.set_json(
-            "background-operations",
-            task_id,
-            {
-                "status": "completed",
-                "result": response.dict(),
-                "progress": 100.0,
-            },
-            ttl=BACKGROUND_OPS_TTL,
-        )
-
-    finally:
-        await Redis.decr("global", "concurrent-background-operations")
-
-
 @router.post("/projects/{project_name}/operations/background")
 async def background_operations(
     payload: OperationsRequestModel,
     project_name: ProjectName,
     user: CurrentUser,
-    background_tasks: BackgroundTasks,
 ) -> BackgroundOperationsResponseModel:
     """
     The same as `POST /projects/{project_name}/operations` but runs in the background.
     The response is returned immediately and contains a task ID that can be used to
     query the status of the task.
+
+    Queued tasks are processed one at a time per server replica, to avoid
+    overloading a single replica with concurrent operations.
     """
 
     request_context = get_request_context()
@@ -205,19 +125,16 @@ async def background_operations(
 
     task_id = create_uuid()
 
-    background_tasks.add_task(
-        _execute_background_operations,
-        task_id,
-        ops,
-        can_fail=payload.can_fail,
-    )
-
+    # Set the initial status before enqueueing: the queue worker may start
+    # processing (and overwrite the status) as soon as the item is queued.
     await Redis.set_json(
         "background-operations",
         task_id,
         {"status": "pending"},
         ttl=BACKGROUND_OPS_TTL,
     )
+    await operations_queue.enqueue(task_id, ops, can_fail=payload.can_fail)
+
     return BackgroundOperationsResponseModel(id=task_id)
 
 
