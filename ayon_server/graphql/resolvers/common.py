@@ -179,13 +179,18 @@ def create_child_folder_ctes(
 
     NOTE: the caller must wrap the combined CTE list in "WITH RECURSIVE",
     not plain "WITH", for this CTE's self-reference to be valid SQL.
+
+    Uses UNION, not UNION ALL: if folder_ids contains both a folder and one
+    of its own descendants, that descendant's subtree would otherwise be
+    reached by two different paths and recurse independently down each,
+    duplicating ids (and downstream, duplicating joined result rows).
     """
     return [
         f"""
         child_folder_ids AS (
             SELECT id FROM project_{project_name}.folders
             WHERE id IN {SQLTool.id_array(folder_ids)}
-            UNION ALL
+            UNION
             SELECT f.id
             FROM project_{project_name}.folders AS f
             INNER JOIN child_folder_ids AS cf ON f.parent_id = cf.id
