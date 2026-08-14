@@ -216,45 +216,40 @@ async def get_versions(
     ]
 
     if fields.any_endswith("latestComments"):
-        sql_cte.append(
+        # A correlated LATERAL fetch (indexed via activity_origin_desc_idx on
+        # entity_type, entity_id, created_at DESC) instead of a CTE that
+        # aggregates every version's comments project-wide and then joins
+        # that back in: with several other LATERAL joins (rv/lv/ldv/hv)
+        # already forcing this query into a nested-loop-heavy plan, postgres
+        # was never promoting that join to a hash join, and instead
+        # rescanning the whole aggregated comment set per output row.
+        sql_joins.append(
             f"""
-            comments AS (
-                SELECT
-                    entity_id,
-                    json_agg(
-                        json_build_object(
-                            'activity_id', activity_id,
-                            'body', body,
-                            'author', author,
-                            'created_at', created_at
-                        )
-                        ORDER BY created_at DESC
-                    ) AS comments
+            LEFT JOIN LATERAL (
+                SELECT json_agg(
+                    json_build_object(
+                        'activity_id', activity_id,
+                        'body', body,
+                        'author', author,
+                        'created_at', created_at
+                    )
+                    ORDER BY created_at DESC
+                ) AS comments
                 FROM (
                     SELECT
                         activity_id,
-                        entity_id,
                         body,
                         activity_data->>'author' AS author,
-                        created_at,
-                        row_number() OVER (
-                            PARTITION BY entity_id
-                            ORDER BY created_at DESC
-                        ) AS rn
+                        created_at
                     FROM project_{project_name}.activity_feed
                     WHERE activity_type = 'comment'
                     AND entity_type = 'version'
                     AND reference_type = 'origin'
+                    AND entity_id = versions.id
+                    ORDER BY created_at DESC
+                    LIMIT 5
                 ) x
-                WHERE rn <= 5
-                GROUP BY entity_id
-            )
-            """
-        )
-        sql_joins.append(
-            """
-            LEFT JOIN comments
-            ON comments.entity_id = versions.id
+            ) comments ON true
             """
         )
         sql_columns.append("comments.comments AS latest_comments")
@@ -767,7 +762,10 @@ async def get_versions(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        # RECURSIVE (harmless for the non-recursive CTEs here) is required
+        # when folder_ids+includeFolderChildren adds create_child_folder_ctes'
+        # self-referencing CTE.
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 

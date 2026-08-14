@@ -165,26 +165,30 @@ def create_child_folder_ctes(
     project_name: str,
     folder_ids: list[str],
 ) -> list[str]:
-    """Create CTE queries for resolving child folder IDs based on parent paths."""
+    """Create a CTE resolving folder_ids plus all of their descendant folder
+    ids, by walking folders.parent_id (indexed via folder_parent_idx).
+
+    This walks the live folders table instead of matching path strings
+    against the hierarchy materialized view: a LIKE 'prefix/%' match against
+    a per-row dynamic prefix can't use hierarchy_path_idx, so postgres falls
+    back to scanning the whole view and can't estimate its selectivity,
+    which on a project with thousands of folders skews the planner's cost
+    estimate for the entire query (and, incidentally, the JIT decision that
+    estimate feeds into) badly enough to dominate query time. A recursive
+    walk over parent_id gives it real, estimable per-level index lookups.
+
+    NOTE: the caller must wrap the combined CTE list in "WITH RECURSIVE",
+    not plain "WITH", for this CTE's self-reference to be valid SQL.
+    """
     return [
         f"""
-        top_folder_paths AS (
-            SELECT path FROM project_{project_name}.hierarchy
-            WHERE id IN {SQLTool.id_array(folder_ids)}
-        )
-        """,
-        f"""
         child_folder_ids AS (
-            SELECT id FROM project_{project_name}.hierarchy
-            WHERE EXISTS (
-                SELECT 1
-                FROM top_folder_paths
-                WHERE project_{project_name}.hierarchy.path
-                LIKE top_folder_paths.path || '/%'
-            )
-            OR project_{project_name}.hierarchy.path = ANY (
-                SELECT path FROM top_folder_paths
-            )
+            SELECT id FROM project_{project_name}.folders
+            WHERE id IN {SQLTool.id_array(folder_ids)}
+            UNION ALL
+            SELECT f.id
+            FROM project_{project_name}.folders AS f
+            INNER JOIN child_folder_ids AS cf ON f.parent_id = cf.id
         )
         """,
     ]
