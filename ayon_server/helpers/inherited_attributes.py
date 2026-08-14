@@ -76,15 +76,19 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
 async def rebuild_inherited_attributes(
     project_name: str,
     pattr: dict[str, Any] | None = None,
+    *,
+    refresh_hierarchy: bool = True,
     **kwargs,  # TODO: catch kwargs and log deprecation warning
 ):
     """Rebuild inherited attributes for all objects in the project."""
     start = time.monotonic()
 
     async with Postgres.transaction():
-        await Postgres.execute(
-            f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
-        )
+        if refresh_hierarchy:
+            logger.trace(f"Refreshing {project_name} hierarchy")
+            await Postgres.execute(
+                f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
+            )
 
         if pattr is None:
             project_attrib = attribute_library.project_defaults

@@ -204,7 +204,7 @@ class ProjectEntity(TopLevelEntity):
     #
 
     @classmethod
-    async def refresh_views(cls) -> None:
+    async def refresh_views(cls, **kwargs: Any) -> None:
         await build_project_list()
 
     async def commit(self):
