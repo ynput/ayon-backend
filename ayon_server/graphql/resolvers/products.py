@@ -623,6 +623,9 @@ async def get_products(
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
 
+        elif sort_by.startswith("task"):
+            pass  # this is not supported - not easily solvable
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
