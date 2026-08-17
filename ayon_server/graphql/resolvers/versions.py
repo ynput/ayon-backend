@@ -565,7 +565,6 @@ async def get_versions(
         # Same as above, but include latest if no hero exists
         # This is provided mainly for backward compatibility and the pipeline
         # The frontend uses new featuredVersion filter instead
-
         sql_conditions.append("(versions.version < 0 OR versions.version IS NOT NULL)")
 
     elif has_hero:
@@ -989,10 +988,10 @@ async def get_versions(
         {raw_data_end}
     """
 
-    print()
-    print("Versions query:")
-    print(query)
-    print()
+    # print()
+    # print("Versions query:")
+    # print(query)
+    # print()
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
