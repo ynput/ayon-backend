@@ -425,7 +425,7 @@ async def get_versions(
     # products is unconditional in both roles: it is the root every
     # folder-side join hangs off (they all match on products.folder_id)
     # and what latestPerFolder groups by, and it supplies output columns.
-    joins.for_filter("products", "folder_ex")
+    joins.for_filter("products")
     joins.for_output("products", "folder_ex", "folders", "tasks")
 
     sql_columns = [
