@@ -185,7 +185,7 @@ def generate_specific_stats_columns(
             ),
             "distribution": (
                 f"(SELECT json_agg(json_build_object('value', "
-                f"{column_name}, 'count', cnt)) FROM (SELECT "
+                f"\"{column_name}\", 'count', cnt)) FROM (SELECT "
                 f'{column_expr} AS "{column_name}", COUNT(*) AS cnt '
                 f"FROM raw_data WHERE {column_expr} IS NOT NULL "
                 f"GROUP BY {column_expr}) dist) AS "
