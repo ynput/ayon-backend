@@ -295,8 +295,11 @@ async def get_tasks(
         if include_folder_children:
             use_folder_query = True
             sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
-            sql_conditions.append(
-                "tasks.folder_id IN (SELECT id FROM child_folder_ids)"
+            sql_joins.append(
+                """
+                INNER JOIN child_folder_ids AS cfi
+                ON tasks.folder_id = cfi.id
+                """
             )
 
         else:
