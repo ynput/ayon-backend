@@ -170,7 +170,7 @@ class FolderEntity(ProjectLevelEntity):
             )
 
             if auto_commit:
-                await self.commit()
+                await self.commit(refresh_hierarchy=False)  # already refreshed
 
     @classmethod
     async def refresh_views(cls, project_name: str, **kwargs) -> None:
@@ -189,7 +189,8 @@ class FolderEntity(ProjectLevelEntity):
 
         refresh_hierarchy = kwargs.get("refresh_hierarchy", True)
         await rebuild_inherited_attributes(
-            project_name, refresh_hierarchy=refresh_hierarchy
+            project_name,
+            refresh_hierarchy=refresh_hierarchy,
         )
         await rebuild_hierarchy_cache(project_name)
 
