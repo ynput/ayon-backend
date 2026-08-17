@@ -383,12 +383,13 @@ async def create_activity(
                 notify_normal.append(ref.entity_name)
 
         notify_description = body.split("\n")[0]
+        inbox_summary = {"activityId": activity_id, "activityType": activity_type}
         if notify_important:
             await EventStream.dispatch(
                 "inbox.message",
                 project=project_name,
                 description=notify_description,
-                summary={"isImportant": True},
+                summary={**inbox_summary, "isImportant": True},
                 recipients=notify_important,
                 store=False,
                 user=user_name,
@@ -398,7 +399,7 @@ async def create_activity(
                 "inbox.message",
                 project=project_name,
                 description=notify_description,
-                summary={"isImportant": False},
+                summary={**inbox_summary, "isImportant": False},
                 recipients=notify_normal,
                 store=False,
                 user=user_name,
