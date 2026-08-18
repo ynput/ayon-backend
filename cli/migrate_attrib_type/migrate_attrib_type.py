@@ -18,16 +18,24 @@ async def _do_migration(
         replacement = """
             SELECT
                 __IDENTIFIER__,
-                CASE WHEN value IS NULL THEN NULL
+                CASE WHEN value IS NULL THEN 'null'::jsonb
 
                 -- if value is already a string, keep it
                 WHEN jsonb_typeof(value) = 'string'
                     THEN value
 
-                -- if it was a list of strings, take the first element as the new value
-                -- we don't care about the data loss here, since the user was warned
-                WHEN jsonb_typeof(value) = 'array'
+                -- if it was a non-empty list of strings, take the first
+                -- element as the new value. we don't care about the data
+                -- loss here, since the user was warned
+                WHEN jsonb_typeof(value) = 'array' AND jsonb_array_length(value) > 0
                     THEN value->0
+
+                -- an empty list , so the new value is null.
+                -- NEVER use a bare SQL NULL here: jsonb_set() is strict, so a NULL
+                -- new_value below would wipe out ALL attributes on the row, not
+                -- just this one
+                WHEN jsonb_typeof(value) = 'array'
+                    THEN 'null'::jsonb
 
                 -- for other types, convert to string
                 ELSE to_jsonb(value::text)
@@ -39,7 +47,7 @@ async def _do_migration(
         replacement = """
             SELECT
                 __IDENTIFIER__,
-                CASE WHEN value IS NULL THEN NULL
+                CASE WHEN value IS NULL THEN 'null'::jsonb
 
                 -- if value is already a list of strings, keep it
                 WHEN jsonb_typeof(value) = 'array'
