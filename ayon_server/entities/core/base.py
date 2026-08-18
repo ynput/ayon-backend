@@ -89,7 +89,6 @@ class BaseEntity:
                         + ALWAYS_WRITABLE_FIELDS
                         + self.always_writable_fields()
                     )
-                    print(f"writable_fields: {writable_fields}")
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
