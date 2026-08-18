@@ -161,6 +161,7 @@ class FolderEntity(ProjectLevelEntity):
 
             # This needs to run in save, not in refresh_views, because
             # we may need the hierarchy record in the same transaction
+            logger.trace(f"Refreshing {self.project_name} hierarchy")
             await Postgres.execute(
                 f"""
                 REFRESH MATERIALIZED VIEW
@@ -169,10 +170,10 @@ class FolderEntity(ProjectLevelEntity):
             )
 
             if auto_commit:
-                await self.commit()
+                await self.commit(refresh_hierarchy=False)  # already refreshed
 
     @classmethod
-    async def refresh_views(cls, project_name: str) -> None:
+    async def refresh_views(cls, project_name: str, **kwargs) -> None:
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
@@ -186,7 +187,11 @@ class FolderEntity(ProjectLevelEntity):
         #  - caches the hierarchy table in Redis
         #  - which depends on the exported_attributes table
 
-        await rebuild_inherited_attributes(project_name)
+        refresh_hierarchy = kwargs.get("refresh_hierarchy", True)
+        await rebuild_inherited_attributes(
+            project_name,
+            refresh_hierarchy=refresh_hierarchy,
+        )
         await rebuild_hierarchy_cache(project_name)
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
@@ -204,13 +209,7 @@ class FolderEntity(ProjectLevelEntity):
                     """,
                     self.path.lstrip("/"),
                 )
-
-            res = await super().delete()
-            if not res:
-                return False
-            elif auto_commit:
-                await self.commit()
-        return res
+            return await super().delete(*args, auto_commit=auto_commit, **kwargs)
 
     async def get_versions(self) -> list[str]:
         """Return of version ids associated with this folder."""

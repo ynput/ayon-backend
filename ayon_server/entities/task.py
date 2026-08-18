@@ -80,7 +80,7 @@ class TaskEntity(ProjectLevelEntity):
             await super().save(auto_commit=auto_commit)
 
     @classmethod
-    async def refresh_views(cls, project_name: str) -> None:
+    async def refresh_views(cls, project_name: str, **kwargs: Any) -> None:
         await rebuild_hierarchy_cache(project_name)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
