@@ -79,7 +79,7 @@ class RepresentationEntity(ProjectLevelEntity):
         )
 
     def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
-        return ["files"]
+        return ["files", "data"]
 
     #
     # Properties
