@@ -111,7 +111,6 @@ class VersionEntity(ProjectLevelEntity):
         )
 
     def always_writable_fields(self) -> list[str]:
-        print(f"version: {self.version}")
         if self.version < 0:
             return ["version", "files"]
         return []
