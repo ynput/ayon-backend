@@ -80,10 +80,16 @@ class BaseEntity:
 
                 if perms.attrib_write.enabled:
                     writable_attrs = (
-                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
+                        perms.attrib_write.attributes
+                        + ALWAYS_WRITABLE_ATTRS
+                        + self.always_writable_attrs()
                     )
-                    writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
-
+                    writable_fields = (
+                        perms.attrib_write.fields
+                        + ALWAYS_WRITABLE_FIELDS
+                        + self.always_writable_fields()
+                    )
+                    print(f"writable_fields: {writable_fields}")
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
@@ -132,6 +138,14 @@ class BaseEntity:
     def strawberry_attrib(cls):
         # fields = list(cls.model.attrib_model.__fields__.keys())
         return pydantic_type(model=cls.model.attrib_model, all_fields=True)
+
+    def always_writable_attrs(self) -> list[str]:
+        """Entity override of writable attributes."""
+        return []
+
+    def always_writable_fields(self) -> list[str]:
+        """Entity override of writable fields."""
+        return []
 
     #
     # DB
