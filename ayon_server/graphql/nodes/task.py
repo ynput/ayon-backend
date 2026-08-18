@@ -47,6 +47,7 @@ class SubTaskNode:
     end_date: datetime.datetime | None = None
     assignees: list[str] = strawberry.field(default_factory=list)
     is_done: bool = False
+    product_id: str | None = None
 
 
 @strawberry.type
@@ -180,6 +181,7 @@ async def task_from_record(
                     else None,
                     assignees=subtask_record.get("assignees") or [],
                     is_done=subtask_record.get("is_done") or False,
+                    product_id=subtask_record.get("product_id"),
                 )
             )
         except Exception:
