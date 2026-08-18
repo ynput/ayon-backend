@@ -115,7 +115,7 @@ class VersionEntity(ProjectLevelEntity):
 
     def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
         if self.version < 0:
-            return ["version", "files"]
+            return ["version"]
         return []
 
     #
