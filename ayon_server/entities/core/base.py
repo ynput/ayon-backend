@@ -139,11 +139,11 @@ class BaseEntity:
         # fields = list(cls.model.attrib_model.__fields__.keys())
         return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
-    def always_writable_attrs(self) -> list[str]:
+    def always_writable_attrs(self, user: Optional["UserEntity"] = None) -> list[str]:
         """Entity override of writable attributes."""
         return []
 
-    def always_writable_fields(self) -> list[str]:
+    def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
         """Entity override of writable fields."""
         return []
 

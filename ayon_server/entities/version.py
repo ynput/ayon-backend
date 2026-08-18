@@ -1,4 +1,4 @@
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn, Optional
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
@@ -8,6 +8,9 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
+
+if TYPE_CHECKING:
+    from ayon_server.entities.user import UserEntity
 
 BASE_GET_QUERY = """
     SELECT
@@ -110,7 +113,7 @@ class VersionEntity(ProjectLevelEntity):
             "publish",
         )
 
-    def always_writable_fields(self) -> list[str]:
+    def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
         if self.version < 0:
             return ["version", "files"]
         return []
