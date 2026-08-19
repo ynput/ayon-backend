@@ -428,7 +428,8 @@ def build_search_conditions(
         terms = part.lower().replace("'", "''").split()
         t2_conds = []
         for term in terms:
-            term = term.replace("\\", "\\\\").replace("_", "\\_").strip()
+            term = term.strip()
+            term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             if not term:
                 continue
             sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
