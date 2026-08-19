@@ -8,6 +8,7 @@ from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name,
@@ -161,7 +162,9 @@ async def get_folders(
         """,
     ]
     sql_group_by = ["folders.id", "pr.attrib", "ex.attrib", "hierarchy.path"]
-    sql_conditions = []
+    sql_conditions = [
+        f"ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'",
+    ]
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)

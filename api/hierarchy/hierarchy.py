@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
@@ -73,7 +74,10 @@ async def get_folder_hierarchy(
 
     hierarchy = HierarchyResolver()
 
-    conds = []
+    conds = [
+        f"path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'",
+    ]
+
     if type_list:
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
