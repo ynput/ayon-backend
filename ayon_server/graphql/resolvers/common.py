@@ -429,6 +429,8 @@ def build_search_conditions(
         t2_conds = []
         for term in terms:
             term = term.replace("\\", "\\\\").replace("_", "\\_")
+            if not term:
+                continue
             sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
             if version_check:
                 if term.isdigit():
