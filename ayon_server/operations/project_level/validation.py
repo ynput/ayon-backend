@@ -82,6 +82,8 @@ class Subtask(OPModel):
         ),
     ] = False
 
+    product_id: Annotated[str, Field(**EntityID.META, default_factory=EntityID.parse)]
+
 
 def validate_task(payload_dict: dict[str, Any]) -> None:
     """Validate and normalize task subtasks in the given payload.
