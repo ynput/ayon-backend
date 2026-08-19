@@ -425,7 +425,7 @@ def build_search_conditions(
     t1_conds = []
 
     for part in parts:
-        terms = part.lower().replace("'", "''").split(" ")
+        terms = part.lower().replace("'", "''").split()
         t2_conds = []
         for term in terms:
             term = term.replace("\\", "\\\\").replace("_", "\\_").strip()
