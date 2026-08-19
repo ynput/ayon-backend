@@ -100,6 +100,11 @@ class SystemMetrics:
         proc_mem = process.memory_info()
 
         redis_size = await Redis.get_total_size()
+        try:
+            cbo = await Redis.get("global", "concurrent-background-operations")
+            cbo_count = int(cbo.decode()) if cbo else 0
+        except Exception:
+            cbo_count = 0
 
         return [
             Metric("cpu_usage", psutil.cpu_percent()),
@@ -111,6 +116,10 @@ class SystemMetrics:
             Metric("runtime_seconds", time.time() - self.run_time),
             Metric("redis_size_total", redis_size),
             Metric("asyncio_tasks", len(asyncio.all_tasks())),
+            Metric(
+                "concurrent_background_operations",
+                cbo_count,
+            ),
         ]
 
     async def render_prometheus(self) -> str:

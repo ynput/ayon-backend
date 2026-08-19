@@ -2,7 +2,7 @@ import importlib
 import os
 import sys
 
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.version import __version__
 
 CLI_PLUGINS_DIRS = [
@@ -29,6 +29,7 @@ def main() -> None:
                 _ = importlib.import_module(module_name)
             except ImportError:
                 logger.error(f"Unable to initialize {module_name}")
+                log_traceback()
                 continue
     app()
 

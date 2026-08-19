@@ -12,7 +12,7 @@ from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
-from ayon_server.utils import camelize, json_dumps, json_loads
+from ayon_server.utils import RequestCoalescer, camelize, json_dumps, json_loads
 
 from .router import router
 
@@ -103,18 +103,8 @@ class FolderListLoader:
         self._executor = ThreadPoolExecutor(max_workers=10)
 
     async def get_folder_list(self, project_name: str) -> list[dict[str, Any]]:
-        async with self._lock:
-            if project_name not in self._current_futures:
-                self._current_futures[project_name] = asyncio.create_task(
-                    self._load_folders(project_name)
-                )
-
-        data = await self._current_futures[project_name]
-
-        async with self._lock:
-            self._current_futures.pop(project_name, None)
-
-        return data
+        coalesce = RequestCoalescer()
+        return await coalesce(self._load_folders, project_name)
 
     async def _load_folders(self, project_name: str) -> list[dict[str, Any]]:
         logger.trace(f"Loading folders for project {project_name}")

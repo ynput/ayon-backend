@@ -29,6 +29,7 @@ from .common import (
     FieldInfo,
     argdesc,
     build_search_conditions,
+    create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
     resolve,
@@ -357,30 +358,7 @@ async def get_folders(
             return FoldersConnection()
 
         if include_folder_children:
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT id, path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(ids)}
-                )
-                """
-            )
-
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1 FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.id
-                    IN (SELECT id FROM top_folder_paths)
-                )
-                """
-            )
-
+            sql_cte.extend(create_child_folder_ctes(project_name, ids))
             sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
 
         else:
@@ -399,26 +377,8 @@ async def get_folders(
             return FoldersConnection()
 
         if include_folder_children:
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT id, path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(parent_ids)}
-                )
-                """
-            )
-
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1 FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                )
-                """
+            sql_cte.extend(
+                create_child_folder_ctes(project_name, parent_ids, include_self=False)
             )
             sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
         else:
