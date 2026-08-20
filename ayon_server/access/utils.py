@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.utils import SQLTool
 
 if TYPE_CHECKING:
     from ayon_server.access.permissions import FolderAccessList
@@ -193,6 +192,7 @@ async def folder_access_list(
     return path_list
 
 
+@overload
 async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
@@ -200,78 +200,100 @@ async def ensure_entity_access(
     entity_id: str | None,
     access_type: "AccessType" = "read",
 ) -> Literal[True]:
+    pass
+
+
+@overload
+async def ensure_entity_access(
+    user: "UserEntity",
+    project_name: str,
+    entity_type: "ProjectLevelEntityType",
+    entity_id: list[str],
+    access_type: "AccessType" = "read",
+) -> Literal[True]:
+    pass
+
+
+async def ensure_entity_access(
+    user: "UserEntity",
+    project_name: str,
+    entity_type: "ProjectLevelEntityType",
+    entity_id: str | list[str] | None,
+    access_type: "AccessType" = "read",
+) -> Literal[True]:
     """Check whether the user has access to a given entity.
 
-    Warning: THIS IS SLOW. DO NOT USE IN BATCHES!
+    Should handle both single and multi entity access.
     """
+
+    if entity_id is None:
+        raise ForbiddenException("Limited access to project")
+
+    if isinstance(entity_id, str):
+        ids_to_check = [entity_id]
+    else:
+        ids_to_check = entity_id
+
+    if not ids_to_check:
+        return True
 
     access_list = await folder_access_list(
         user,
         project_name,
         access_type=access_type,
     )
+
     if access_list is None:
         return True
 
-    if entity_id is None:
-        raise ForbiddenException("Limited access to project")
+    access_list = [path.strip('"') for path in access_list]
 
-    conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
-
     if entity_type in ("product", "version", "representation"):
         joins.append(
-            f"""
-            INNER JOIN project_{project_name}.products
-            ON products.folder_id = hierarchy.id
-            """
+            f"INNER JOIN project_{project_name}.products "
+            f"ON products.folder_id = hierarchy.id"
         )
         if entity_type in ("version", "representation"):
             joins.append(
-                f"""
-                INNER JOIN project_{project_name}.versions
-                ON versions.product_id = products.id
-                """
+                f"INNER JOIN project_{project_name}.versions "
+                f"ON versions.product_id = products.id"
             )
             if entity_type == "representation":
                 joins.append(
-                    f"""
-                    INNER JOIN project_{project_name}.representations
-                    ON representations.version_id = versions.id
-                    """
+                    f"INNER JOIN project_{project_name}.representations "
+                    f"ON representations.version_id = versions.id"
                 )
-
     elif entity_type in ("task", "workfile"):
         joins.append(
-            f"""
-            INNER JOIN project_{project_name}.tasks
-            ON tasks.folder_id = hierarchy.id
-            """
+            f"INNER JOIN project_{project_name}.tasks ON tasks.folder_id = hierarchy.id"
         )
-
         if entity_type == "workfile":
             joins.append(
-                f"""
-                INNER JOIN project_{project_name}.workfiles
-                ON workfiles.task_id = tasks.id
-                """
+                f"INNER JOIN project_{project_name}.workfiles "
+                f"ON workfiles.task_id = tasks.id"
             )
 
-    if entity_type == "folder":
-        conditions.append(f"hierarchy.id = '{entity_id}'")
-    else:
-        conditions.append(f"{entity_type}s.id = '{entity_id}'")
+    id_column = "hierarchy.id" if entity_type == "folder" else f"{entity_type}s.id"
 
     query = f"""
-        SELECT hierarchy.id FROM project_{project_name}.hierarchy
-        {" ".join(joins)}
-        {SQLTool.conditions(conditions)}
-    """
+            SELECT DISTINCT {id_column} AS permitted_id
+            FROM project_{project_name}.hierarchy
+            {" ".join(joins)}
+            WHERE {id_column} = ANY ($1::uuid[]) AND
+                hierarchy.path LIKE ANY ($2::text[])
+        """
 
-    if await Postgres.fetchrow(query):
-        return True
+    rows = await Postgres.fetch(query, ids_to_check, access_list)
 
-    raise ForbiddenException("Entity access denied")
+    permitted_ids = {str(row["permitted_id"]) for row in rows}
+    forbidden_ids = [e_id for e_id in ids_to_check if e_id not in permitted_ids]
+    if forbidden_ids:
+        raise ForbiddenException(
+            detail=f"Access denied for {entity_type} IDs: {', '.join(forbidden_ids)}"
+        )
+
+    return True
 
 
 #
