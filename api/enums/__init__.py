@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException
 
@@ -46,10 +47,11 @@ async def get_enum(
         if param_name in query_params:
             try:
                 raw_value = query_params[param_name]
-                if param_type is bool:
+                param_cast = FIELD_TYPES[param_type]
+                if param_cast is bool:
                     value = raw_value.lower() in ("1", "true", "yes", "on")
                 else:
-                    value = param_type(raw_value)
+                    value = param_cast(raw_value)
                 context[param_name] = value
             except (ValueError, TypeError):
                 raise BadRequestException(
