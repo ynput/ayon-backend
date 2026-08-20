@@ -404,3 +404,9 @@ def get_has_links_conds(
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
         ]
     raise ValueError("Wrong has_links value")
+
+
+ARGIncludeInternalFolder = Annotated[
+    bool,
+    argdesc("Whether to include the AYON internal folder and its descendants"),
+]

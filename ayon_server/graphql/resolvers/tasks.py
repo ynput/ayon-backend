@@ -15,6 +15,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     AttributeFilterInput,
     ColumnMetadata,
@@ -28,6 +29,7 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
@@ -183,6 +185,7 @@ async def get_tasks(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -282,6 +285,9 @@ async def get_tasks(
             ON c.entity_id = tasks.id
             """
         )
+
+    if not include_internal_folder:
+        sql_conditions.append(f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if ids is not None:
         if not ids:

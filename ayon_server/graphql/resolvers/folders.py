@@ -24,6 +24,7 @@ from .common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     AttributeFilterInput,
     ColumnMetadata,
@@ -125,6 +126,7 @@ async def get_folders(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -162,12 +164,13 @@ async def get_folders(
         """,
     ]
     sql_group_by = ["folders.id", "pr.attrib", "ex.attrib", "hierarchy.path"]
-    sql_conditions = [
-        f"ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'",
-    ]
+    sql_conditions = []
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)
+
+    if not include_internal_folder:
+        sql_conditions.append(f"ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if access_list is not None:
         sql_conditions.append(
