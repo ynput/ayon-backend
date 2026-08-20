@@ -32,8 +32,9 @@ from ayon_server.types import (
     validate_status_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
+from .common import build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -667,21 +668,12 @@ async def get_versions(
 
     if search:
         joins.for_filter("folder_ex")
-        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
-
-        for term in terms:
-            sub_conditions = []
-            if term.isdigit():
-                sub_conditions.append(f"versions.version = {int(term)}")
-            elif term.startswith("v") and term[1:].isdigit():
-                sub_conditions.append(f"versions.version = {int(term[1:])}")
-
-            sub_conditions.append(f"products.name ILIKE '%{term}%'")
-            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"folder_ex.path ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            ["products.name", "products.product_type", "folder_ex.path"],
+            version_check=True,
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter

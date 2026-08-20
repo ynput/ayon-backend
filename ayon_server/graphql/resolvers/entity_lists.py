@@ -19,7 +19,8 @@ from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool, json_loads
-from ayon_server.utils.strings import slugify
+
+from .common import build_search_conditions
 
 SORT_OPTIONS = {
     "label": "label",
@@ -102,22 +103,8 @@ async def get_entity_lists(
             sql_conditions.append(fcond)
 
     if search:
-        parts = search.split(",")
-        t1_conds = []
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"""
-                    (
-                        label ILIKE '%{term}%'
-                        OR entity_type ILIKE '%{term}%'
-                    )
-                    """
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(search, ["label", "entity_type"]):
+            sql_conditions.append(cond)
 
     #
     # Pagination and sorting

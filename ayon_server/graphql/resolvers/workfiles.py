@@ -21,7 +21,9 @@ from ayon_server.graphql.resolvers.common import (
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
+
+from .common import build_search_conditions
 
 SORT_OPTIONS = {
     "name": "workfiles.name",
@@ -139,17 +141,16 @@ async def get_workfiles(
             )
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2)
-        for term in terms:
-            sub_conditions = []
-            term = term.replace("'", "''")  # Escape single quotes
-            sub_conditions.append(f"tasks.name ILIKE '%{term}%'")
-            sub_conditions.append(f"tasks.task_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
-            sub_conditions.append(f"workfiles.path ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            [
+                "tasks.name",
+                "tasks.task_type",
+                "hierarchy.path",
+                "workfiles.path",
+            ],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Pagination
