@@ -8,13 +8,14 @@ from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings.enum import get_primary_anatomy_preset
+from ayon_server.types import AttributeType
 
 
 class FolderTypesEnumResolver(BaseEnumResolver):
     name = "folderTypes"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
@@ -87,8 +88,8 @@ class FolderTypesEnumResolver(BaseEnumResolver):
 class TaskTypesEnumResolver(BaseEnumResolver):
     name = "taskTypes"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
@@ -156,10 +157,10 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
 
-    async def get_accepted_params(self) -> dict[str, type]:
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {
-            "project_name": str,
-            "entity_type": str,
+            "project_name": "string",
+            "entity_type": "string",
         }
 
     @classmethod
@@ -267,8 +268,8 @@ class StatusesEnumResolver(BaseEnumResolver):
 class TagsEnumResolver(BaseEnumResolver):
     name = "tags"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")

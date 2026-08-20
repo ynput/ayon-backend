@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
-from ayon_server.types import Field, OPModel
+from ayon_server.types import AttributeType, Field, OPModel
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
@@ -21,11 +21,11 @@ class EnumResolverInfo(OPModel):
         ),
     ]
     accepted_params: Annotated[
-        dict[str, str],
+        dict[str, AttributeType],
         Field(
             title="Accepted parameters",
             description="Dictionary of accepted query parameters and their type names",
-            example={"project_name": "str", "include_root": "bool"},
+            example={"project_name": "string", "include_root": "bool"},
         ),
     ]
     settings_form: Annotated[
@@ -69,7 +69,7 @@ class EnumRegistry:
         cls.resolvers.pop(resolver_name, None)
 
     @classmethod
-    async def get_accepted_params(cls, enum_name: str) -> dict[str, type]:
+    async def get_accepted_params(cls, enum_name: str) -> dict[str, AttributeType]:
         key = enum_name.split(".")[0]
         try:
             resolver = cls.resolvers[key]
@@ -139,14 +139,13 @@ class EnumRegistry:
         result = []
         for name, resolver in cls.resolvers.items():
             params = await resolver.get_accepted_params()
-            accepted_params = {k: v.__name__ for k, v in params.items()}
             settings_form = await resolver.get_settings_form()
             if settings_form is not None:
                 settings_form = list(settings_form)
             result.append(
                 EnumResolverInfo(
                     name=name,
-                    accepted_params=accepted_params,
+                    accepted_params=params,
                     settings_form=settings_form,
                 )
             )
