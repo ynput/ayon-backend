@@ -63,7 +63,7 @@ async def get_enum(
     )
 
 
-@router.get("/enums", response_model=list[EnumResolverInfo], tags=["Enums"])
+@router.get("/enum", response_model=list[EnumResolverInfo], tags=["Enums"])
 async def list_enums(current_user: CurrentUser) -> list[EnumResolverInfo]:
     """List all available enum resolvers."""
     return await EnumRegistry.list_resolvers()
