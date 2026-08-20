@@ -623,6 +623,9 @@ async def get_products(
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
 
+        elif sort_by.startswith("task"):
+            pass  # this is not supported - not easily solvable
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
@@ -644,7 +647,10 @@ async def get_products(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        # RECURSIVE (harmless for the non-recursive CTEs here) is required
+        # when folder_ids+includeFolderChildren adds create_child_folder_ctes'
+        # self-referencing CTE.
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 

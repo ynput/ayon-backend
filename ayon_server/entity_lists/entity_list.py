@@ -331,12 +331,13 @@ class EntityList:
             # Tags are always replaced, not merged
             item.tags = tags
 
-    async def remove(self, item_id: str) -> None:
+    async def remove(self, item_id: str, *, normalize_positions: bool = True) -> None:
         """Remove an item from the list"""
         for i, item in enumerate(self._payload.items):
             if item.id == item_id:
                 del self._payload.items[i]
-                self.normalize_positions()
+                if normalize_positions:
+                    self.normalize_positions()
                 return
         raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 

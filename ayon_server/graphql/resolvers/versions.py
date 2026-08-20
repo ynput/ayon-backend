@@ -26,7 +26,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.sqlfilter import QueryFilter, build_filter, filter_columns
 from ayon_server.types import (
     validate_name_list,
     validate_status_list,
@@ -59,6 +59,237 @@ SORT_OPTIONS = {
     "taskType": "tasks.task_type",
     "path": "",  # special case handled in the code (is here for docs)
 }
+
+# Joins the sortable columns come from. Sort keys that aren't listed here
+# (and attrib.* sorting) are columns of the versions table itself.
+SORT_JOINS = {
+    "productType": ("products",),
+    "productBaseType": ("products",),
+    "productName": ("products",),
+    "folderName": ("folders",),
+    "folderType": ("folders",),
+    "taskName": ("tasks",),
+    "taskType": ("tasks",),
+    "path": ("folder_ex", "products"),
+}
+
+# Backwards-compat fallback for projects with NULL product_base_type
+PRODUCT_BASE_TYPE = "COALESCE(products.product_base_type, products.product_type)"
+
+# Columns of the `filter` argument that don't live on the versions table:
+# the expression that provides them, and the join it comes from.
+FILTER_COLUMN_SOURCES = {
+    "product_type": ("products.product_type", "products"),
+    "product_base_type": (PRODUCT_BASE_TYPE, "products"),
+    "task_type": ("tasks.task_type", "tasks"),
+    "folder_type": ("folders.folder_type", "folders"),
+    "hero_version_id": ("hv.hero_version_id", "hv"),
+}
+
+
+def available_joins(project_name: str) -> dict[str, str]:
+    """Every join the versions query can use, keyed by its SQL alias.
+
+    Order matters: joins are emitted in the order they are defined here,
+    so a join may only reference the versions table or an alias above it.
+    """
+    return {
+        "products": f"""
+            INNER JOIN project_{project_name}.products AS products
+            ON products.id = versions.product_id
+            """,
+        "folder_ex": f"""
+            INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+            ON folder_ex.folder_id = products.folder_id
+            """,
+        "folders": f"""
+            INNER JOIN project_{project_name}.folders AS folders
+            ON folders.id = products.folder_id
+            """,
+        "tasks": f"""
+            LEFT JOIN project_{project_name}.tasks AS tasks
+            ON tasks.id = versions.task_id
+            """,
+        # Descendants of folder_ids, resolved by create_child_folder_ctes
+        "cfi": """
+            INNER JOIN child_folder_ids AS cfi
+            ON cfi.id = products.folder_id
+            """,
+        "gav": """
+            INNER JOIN guest_accessible_versions AS gav
+            ON gav.entity_id = versions.id
+            """,
+        # One version per folder, resolved by the latestPerFolder CTE.
+        # Looked up via the unique version_creation_order_idx.
+        "lvpf": """
+            INNER JOIN latest_versions_per_folder AS lvpf
+            ON lvpf.creation_order = versions.creation_order
+            """,
+        # A correlated LATERAL fetch (indexed via activity_origin_desc_idx on
+        # entity_type, entity_id, created_at DESC) instead of a CTE that
+        # aggregates every version's comments project-wide and then joins
+        # that back in: with several other LATERAL joins (rv/lv/ldv/hv)
+        # already forcing this query into a nested-loop-heavy plan, postgres
+        # was never promoting that join to a hash join, and instead
+        # rescanning the whole aggregated comment set per output row.
+        "comments": f"""
+            LEFT JOIN LATERAL (
+                SELECT json_agg(
+                    json_build_object(
+                        'activity_id', activity_id,
+                        'body', body,
+                        'author', author,
+                        'created_at', created_at
+                    )
+                    ORDER BY created_at DESC
+                ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = 'version'
+                    AND reference_type = 'origin'
+                    AND entity_id = versions.id
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                ) x
+            ) comments ON true
+            """,
+        # A correlated LATERAL probe (indexed on activity_references.entity_id)
+        # instead of a "reviewables" CTE: the CTE gets referenced twice here
+        # (column + filter), which forces postgres to materialize it, i.e.
+        # compute reviewable status for every version in the whole project
+        # before pagination is applied, rather than per-row on demand.
+        "rv": f"""
+            LEFT JOIN LATERAL (
+                SELECT entity_id AS id
+                FROM project_{project_name}.activity_feed
+                WHERE entity_type = 'version'
+                AND activity_type = 'reviewable'
+                AND entity_id = versions.id
+                LIMIT 1
+            ) rv ON true
+            """,
+        "lv": f"""
+            LEFT JOIN LATERAL (
+                SELECT id
+                FROM project_{project_name}.versions lv_inner
+                WHERE lv_inner.product_id = versions.product_id
+                AND lv_inner.version >= 0
+                ORDER BY lv_inner.creation_order DESC
+                LIMIT 1
+            ) lv ON true
+            """,
+        # Depends on the done_statuses CTE
+        "ldv": f"""
+            LEFT JOIN LATERAL (
+                SELECT v.id
+                FROM project_{project_name}.versions v
+                WHERE v.product_id = versions.product_id
+                AND v.version >= 0
+                AND v.status IN (SELECT name FROM done_statuses)
+                ORDER BY v.creation_order DESC
+                LIMIT 1
+            ) ldv ON true
+            """,
+        "hv": f"""
+            LEFT JOIN LATERAL (
+                SELECT
+                    versions.id AS id,
+                    hero_versions.id AS hero_version_id
+                FROM project_{project_name}.versions AS hero_versions
+                WHERE hero_versions.product_id = versions.product_id
+                AND hero_versions.version < 0
+                AND ABS(hero_versions.version) = versions.version
+                LIMIT 1
+            ) hv ON true
+            """,
+    }
+
+
+class Joins:
+    """Joins used by a single versions query, tracked by what needs them.
+
+    Every join is requested by its SQL alias, along with the reason:
+
+      - `for_filter` - one of the WHERE conditions references it
+      - `for_sort`   - one of the ORDER BY expressions references it
+      - `for_output` - a requested field needs one of its columns
+
+    The query is built in stages and each stage takes only what it needs:
+    latestPerFolder reduces the set to one version per folder using
+    `filtering`, the page CTE picks the rows to return using `selecting`,
+    and the main query hydrates that page using `all`. That is what keeps
+    the LATERALs out of the first two stages - being correlated, they
+    would otherwise be evaluated for every version the filters match,
+    rather than once per returned row.
+    """
+
+    def __init__(self, project_name: str) -> None:
+        self._available = available_joins(project_name)
+        self._for_filter: set[str] = set()
+        self._for_sort: set[str] = set()
+        self._for_output: set[str] = set()
+        self._extra: list[str] = []
+
+    def for_filter(self, *aliases: str) -> None:
+        self._for_filter.update(aliases)
+
+    def for_sort(self, *aliases: str) -> None:
+        self._for_sort.update(aliases)
+
+    def for_output(self, *aliases: str) -> None:
+        self._for_output.update(aliases)
+
+    def replace_filtering(self, *aliases: str) -> None:
+        """Drop the filtering joins in favour of ones that subsume them.
+
+        latestPerFolder bakes every condition - and the joins those
+        conditions needed - into a CTE of its own, so from that point on
+        joining that CTE is all the filtering the query has left to do.
+        """
+        self._for_filter = set(aliases)
+
+    def add(self, *sql: str) -> None:
+        """Add ready-made joins that only the main query needs.
+
+        Used for the dynamically built folder/product field blocks.
+        """
+        self._extra.extend(sql)
+
+    def _emit(self, aliases: set[str]) -> list[str]:
+        return [sql for alias, sql in self._available.items() if alias in aliases]
+
+    @property
+    def filtering(self) -> list[str]:
+        """Joins needed to evaluate the WHERE conditions."""
+        return self._emit(self._for_filter)
+
+    @property
+    def selecting(self) -> list[str]:
+        """Joins needed to pick and order the rows of a page."""
+        return self._emit(self._for_filter | self._for_sort)
+
+    @property
+    def hydrating(self) -> list[str]:
+        """Joins of a main query whose rows come from the page CTE.
+
+        The page has already been filtered, so re-joining anything that
+        only filters would just give the planner a second, wider way to
+        reach the same rows - and a chance to run the LATERALs against
+        that one instead of against the page.
+        """
+        return self._emit(self._for_sort | self._for_output) + self._extra
+
+    @property
+    def all(self) -> list[str]:
+        """Joins of a main query that filters the rows itself."""
+        used = self._for_filter | self._for_sort | self._for_output
+        return self._emit(used) + self._extra
 
 
 async def get_versions(
@@ -189,24 +420,13 @@ async def get_versions(
 
     sql_cte = []
     sql_conditions = []
-    sql_joins = [
-        f"""
-        INNER JOIN project_{project_name}.products AS products
-        ON products.id = versions.product_id
-        """,
-        f"""
-        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
-        ON folder_ex.folder_id = products.folder_id
-        """,
-        f"""
-        INNER JOIN project_{project_name}.folders AS folders
-        ON folders.id = products.folder_id
-        """,
-        f"""
-        LEFT JOIN project_{project_name}.tasks AS tasks
-        ON tasks.id = versions.task_id
-        """,
-    ]
+
+    joins = Joins(project_name)
+    # products is unconditional in both roles: it is the root every
+    # folder-side join hangs off (they all match on products.folder_id)
+    # and what latestPerFolder groups by, and it supplies output columns.
+    joins.for_filter("products")
+    joins.for_output("products", "folder_ex", "folders", "tasks")
 
     sql_columns = [
         "versions.*",
@@ -216,77 +436,19 @@ async def get_versions(
     ]
 
     if fields.any_endswith("latestComments"):
-        sql_cte.append(
-            f"""
-            comments AS (
-                SELECT
-                    entity_id,
-                    json_agg(
-                        json_build_object(
-                            'activity_id', activity_id,
-                            'body', body,
-                            'author', author,
-                            'created_at', created_at
-                        )
-                        ORDER BY created_at DESC
-                    ) AS comments
-                FROM (
-                    SELECT
-                        activity_id,
-                        entity_id,
-                        body,
-                        activity_data->>'author' AS author,
-                        created_at,
-                        row_number() OVER (
-                            PARTITION BY entity_id
-                            ORDER BY created_at DESC
-                        ) AS rn
-                    FROM project_{project_name}.activity_feed
-                    WHERE activity_type = 'comment'
-                    AND entity_type = 'version'
-                    AND reference_type = 'origin'
-                ) x
-                WHERE rn <= 5
-                GROUP BY entity_id
-            )
-            """
-        )
-        sql_joins.append(
-            """
-            LEFT JOIN comments
-            ON comments.entity_id = versions.id
-            """
-        )
+        joins.for_output("comments")
         sql_columns.append("comments.comments AS latest_comments")
 
     if fields.any_endswith("hasReviewables") or (has_reviewables is not None):
-        sql_cte.append(
-            f"""
-            reviewables AS (
-                SELECT entity_id FROM project_{project_name}.activity_feed
-                WHERE entity_type = 'version'
-                AND activity_type = 'reviewable'
-            )
-            """
-        )
-
-        sql_columns.append(
-            """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE entity_id = versions.id
-            ) AS has_reviewables
-            """
-        )
+        joins.for_output("rv")
+        sql_columns.append("rv IS NOT NULL AS has_reviewables")
 
         if has_reviewables is not None:
+            joins.for_filter("rv")
             if has_reviewables:
-                sql_conditions.append(
-                    "EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"
-                )
+                sql_conditions.append("rv IS NOT NULL")
             else:
-                sql_conditions.append(
-                    "NOT EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"  # noqa 501
-                )
+                sql_conditions.append("rv IS NULL")
 
     #
     # Direct, version-specific filtering
@@ -345,13 +507,8 @@ async def get_versions(
 
         if include_folder_children:
             sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
-
-            sql_joins.append(
-                """
-                INNER JOIN child_folder_ids AS cfi
-                ON cfi.id = products.folder_id
-                """
-            )
+            # The join itself is the filter
+            joins.for_filter("cfi")
 
         else:
             sql_conditions.append(
@@ -380,43 +537,7 @@ async def get_versions(
             """
         )
 
-        sql_joins.extend(
-            [
-                f"""
-                LEFT JOIN LATERAL (
-                    SELECT id
-                    FROM project_{project_name}.versions lv_inner
-                    WHERE lv_inner.product_id = versions.product_id
-                    AND lv_inner.version >= 0
-                    ORDER BY lv_inner.creation_order DESC
-                    LIMIT 1
-                ) lv ON true
-                """,
-                f"""
-                LEFT JOIN LATERAL (
-                    SELECT v.id
-                    FROM project_{project_name}.versions v
-                    WHERE v.product_id = versions.product_id
-                    AND v.version >= 0
-                    AND v.status IN (SELECT name FROM done_statuses)
-                    ORDER BY v.creation_order DESC
-                    LIMIT 1
-                ) ldv ON true
-                """,
-                f"""
-                LEFT JOIN LATERAL (
-                    SELECT
-                        versions.id AS id,
-                        hero_versions.id AS hero_version_id
-                    FROM project_{project_name}.versions AS hero_versions
-                    WHERE hero_versions.product_id = versions.product_id
-                    AND hero_versions.version < 0
-                    AND ABS(hero_versions.version) = versions.version
-                    LIMIT 1
-                ) hv ON true
-                """,
-            ]
-        )
+        joins.for_output("lv", "ldv", "hv")
 
         sql_columns.extend(
             [
@@ -432,7 +553,8 @@ async def get_versions(
     #
 
     if latest_only:
-        sql_conditions.append("lv.id IS NOT NULL")
+        joins.for_filter("lv")
+        sql_conditions.append("versions.id = lv.id")
 
     elif hero_only:
         # This returns actual (negative) hero versions only
@@ -443,10 +565,10 @@ async def get_versions(
         # Same as above, but include latest if no hero exists
         # This is provided mainly for backward compatibility and the pipeline
         # The frontend uses new featuredVersion filter instead
-
-        sql_conditions.append("(versions.version < 0 OR lv IS NOT NULL)")
+        sql_conditions.append("(versions.version < 0 OR versions.version IS NOT NULL)")
 
     elif has_hero:
+        joins.for_filter("hv")
         sql_conditions.append("hv.id IS NOT NULL")
 
     #
@@ -460,10 +582,13 @@ async def get_versions(
         coalesce_args = []
         for flag in featured_only:
             if flag == "hero":
+                joins.for_filter("hv")
                 coalesce_args.append("hv.id")
             elif flag == "latestDone":
+                joins.for_filter("ldv")
                 coalesce_args.append("ldv.id")
             elif flag == "latest":
+                joins.for_filter("lv")
                 coalesce_args.append("lv.id")
             else:
                 raise BadRequestException(
@@ -525,16 +650,13 @@ async def get_versions(
                     )
                 """
             )
-        sql_joins.append(
-            """
-            INNER JOIN guest_accessible_versions AS gav
-            ON gav.entity_id = versions.id
-            """
-        )
+        # The join itself is the filter
+        joins.for_filter("gav")
 
     elif not user.is_manager:
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
+            joins.for_filter("folder_ex")
             sql_conditions.append(
                 f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
@@ -544,6 +666,7 @@ async def get_versions(
     #
 
     if search:
+        joins.for_filter("folder_ex")
         terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
 
         for term in terms:
@@ -563,11 +686,6 @@ async def get_versions(
     #
     # Filter
     #
-
-    # Backwards-compat fallback for projects with NULL product_base_type
-    product_base_type_expr = (
-        "COALESCE(products.product_base_type, products.product_type)"
-    )
 
     if filter:
         column_whitelist = [
@@ -600,14 +718,14 @@ async def get_versions(
             column_whitelist=column_whitelist,
             table_prefix="versions",
             column_map={
-                "product_type": "products.product_type",
-                "product_base_type": product_base_type_expr,
-                "task_type": "tasks.task_type",
-                "folder_type": "folders.folder_type",
-                "hero_version_id": "hv.hero_version_id",
+                column: expression
+                for column, (expression, _) in FILTER_COLUMN_SOURCES.items()
             },
         ):
             sql_conditions.append(fcond)
+            for column in filter_columns(fq):
+                if source := FILTER_COLUMN_SOURCES.get(column):
+                    joins.for_filter(source[1])
 
     if product_filter:
         column_whitelist = [
@@ -634,7 +752,7 @@ async def get_versions(
             column_whitelist=column_whitelist,
             table_prefix="products",
             column_map={
-                "product_base_type": product_base_type_expr,
+                "product_base_type": PRODUCT_BASE_TYPE,
             },
         ):
             sql_conditions.append(fcond)
@@ -665,6 +783,7 @@ async def get_versions(
             table_prefix="tasks",
         ):
             sql_conditions.append(fcond)
+            joins.for_filter("tasks")
 
     if folder_filter:
         column_whitelist = [
@@ -692,6 +811,7 @@ async def get_versions(
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
+            joins.for_filter("folders", "folder_ex")
             use_folder_query = True
 
     #
@@ -699,37 +819,48 @@ async def get_versions(
     #
 
     if latest_per_folder:
+        # creation_order is unique and monotonic within a project, so the
+        # highest one in a folder *is* the folder's latest version, and
+        # max() over a hash aggregate (one entry per folder) replaces what
+        # DISTINCT ON (folder_id) can only do as a full sort of every
+        # matching version.
+        #
+        # joins.filtering keeps out everything the conditions don't need,
+        # which matters most for the LATERALs feeding latestComments /
+        # isLatest / hasReviewables: they are correlated subqueries, so
+        # having them in here means running them once per version in the
+        # project rather than once per returned row.
         sql_cte.append(
             f"""
-            latest_matching_versions AS (
-                SELECT DISTINCT ON (products.folder_id) versions.id
+            latest_versions_per_folder AS MATERIALIZED (
+                SELECT max(versions.creation_order) AS creation_order
                 FROM project_{project_name}.versions AS versions
-                {" ".join(sql_joins)}
+                {" ".join(joins.filtering)}
                 {SQLTool.conditions(sql_conditions)}
-                ORDER BY products.folder_id, versions.creation_order DESC
+                GROUP BY products.folder_id
             )
             """
         )
-        sql_joins.append(
-            """
-            INNER JOIN latest_matching_versions AS lmv
-            ON lmv.id = versions.id
-            """
-        )
-        # Every condition above is already baked into latest_matching_versions,
-        # so the outer query only needs to look rows up by id (primary key).
+
+        # Everything above is now baked into latest_versions_per_folder,
+        # so joining it replaces both the conditions and the joins they
+        # needed. products stays: the sort and output joins hang off it.
+        joins.replace_filtering("products", "lvpf")
         sql_conditions = []
 
     if any("product" in str(field) for field in fields) or use_folder_query:
         product_columns, product_joins = get_product_fields_block()
         sql_columns.extend(product_columns)
-        sql_joins.extend(product_joins)
+        joins.add(*product_joins)
 
+        # The block reads columns off both, and supplies only the
+        # public.projects join itself.
+        joins.for_output("folders", "folder_ex")
         folder_columns, folder_joins = get_folder_fields_block(
-            project_name, "products.folder_id", sql_joins=sql_joins
+            project_name, "products.folder_id", sql_joins=joins.all
         )
         sql_columns.extend(folder_columns)
-        sql_joins.extend(folder_joins)
+        joins.add(*folder_joins)
 
     #
     # Pagination
@@ -737,6 +868,7 @@ async def get_versions(
 
     order_by = ["versions.creation_order"]
     if sort_by is not None:
+        joins.for_sort(*SORT_JOINS.get(sort_by, ()))
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "versions.status")
             order_by.insert(0, status_type_case)
@@ -751,6 +883,9 @@ async def get_versions(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
+    sql_from = f"project_{project_name}.versions AS versions"
+    main_joins = joins.all
+
     ordering = ""
     cursor = "''"
     if not calculate_statistics and not calculate_specific_statistics:
@@ -763,13 +898,46 @@ async def get_versions(
         )
         sql_conditions.append(paging_conds)
 
+        # Pick the page first, using only the joins needed to filter and
+        # sort, and hydrate those rows below. The main query is a wide one
+        # - every LATERAL in it is correlated, and the field blocks join
+        # in whole folders and products - and without this it all happens
+        # before ORDER BY ... LIMIT, i.e. for every version the filters
+        # match. Postgres can't defer it on its own: a LIMIT makes a
+        # fast-start nested loop look cheap, so it starts feeding rows
+        # through the LATERALs in sort order and hopes to hit the limit
+        # early, which never happens when the surviving rows are rare.
+        sql_cte.append(
+            f"""
+            page AS MATERIALIZED (
+                SELECT versions.id
+                FROM project_{project_name}.versions AS versions
+                {" ".join(joins.selecting)}
+                {SQLTool.conditions(sql_conditions)}
+                {ordering}
+            )
+            """
+        )
+
+        # Rows to return, and nothing else, drive the main query.
+        sql_from = f"""
+            page
+            INNER JOIN project_{project_name}.versions AS versions
+            ON versions.id = page.id
+            """
+        main_joins = joins.hydrating
+        sql_conditions = []
+
     #
     # Query
     #
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        # RECURSIVE (harmless for the non-recursive CTEs here) is required
+        # when folder_ids+includeFolderChildren adds create_child_folder_ctes'
+        # self-referencing CTE.
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 
@@ -813,8 +981,8 @@ async def get_versions(
         {cte}
         {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
-        FROM project_{project_name}.versions AS versions
-        {" ".join(sql_joins)}
+        FROM {sql_from}
+        {" ".join(main_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
         {raw_data_end}
