@@ -25,7 +25,7 @@ from ayon_server.graphql.nodes.entity_list import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
 from .common import (
     ARGAfter,
@@ -35,6 +35,7 @@ from .common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    build_search_conditions,
     create_folder_access_list,
     resolve,
 )
@@ -590,32 +591,12 @@ async def get_entity_list_items(
         else:
             sql_columns.append("e.name AS _search_entity_name")
 
-        parts = search.split(",")
-        t1_conds = []
-        for part in parts:
-            part = part.replace("'", "''")  # Escape single quotes
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                sub_conditions = [
-                    f"label ILIKE '%{term}%'",
-                    f"_search_entity_name ILIKE '%{term}%'",
-                ]
-                if hierarchy_path_col is not None:
-                    sub_conditions.append(f"{hierarchy_path_col} ILIKE '%{term}%'")
+        search_columns = ["label", "_search_entity_name"]
+        if hierarchy_path_col is not None:
+            search_columns.append(hierarchy_path_col)
 
-                t2_conds.append(
-                    f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
-                )
-            if t2_conds:
-                t1_conds.append(
-                    f"({SQLTool.conditions(t2_conds, 'AND', add_where=False)})"
-                )
-
-        if t1_conds:
-            sql_conditions.append(
-                f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
-            )
+        if cond := build_search_conditions(search, search_columns):
+            sql_conditions.append(cond)
 
     #
     # Construct the query

@@ -18,6 +18,12 @@ from .pagination import encode_cursor
 DEFAULT_PAGE_SIZE = 100
 
 
+ARGIncludeInternalFolder = Annotated[
+    bool,
+    argdesc("Whether to include the AYON internal folder and its descendants"),
+]
+
+
 @strawberry.enum
 class HasLinksFilter(Enum):
     NONE = "none"
@@ -406,7 +412,45 @@ def get_has_links_conds(
     raise ValueError("Wrong has_links value")
 
 
-ARGIncludeInternalFolder = Annotated[
-    bool,
-    argdesc("Whether to include the AYON internal folder and its descendants"),
-]
+def build_search_conditions(
+    search: str,
+    columns: list[str],
+    *,
+    version_check: bool = False,
+) -> str | None:
+    """Build SQL search conditions from a search string.
+
+    The search string is split by commas (OR between comma-separated parts).
+    Within each part, slugified terms are AND'd together.
+    Within each term, the specified columns are OR'd together.
+
+    Returns a SQL condition string, or None if search is empty
+    or no conditions could be built.
+    """
+    parts = search.split(",")
+    t1_conds = []
+
+    for part in parts:
+        terms = part.lower().replace("'", "''").split()
+        t2_conds = []
+        for term in terms:
+            term = term.strip()
+            term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            if not term:
+                continue
+            sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
+            if version_check:
+                if term.isdigit():
+                    sub_conditions.append(f"versions.version = {int(term)}")
+                elif term.startswith("v") and term[1:].isdigit():
+                    sub_conditions.append(f"versions.version = {int(term[1:])}")
+            t2_conds.append(
+                f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
+            )
+        if t2_conds:
+            t1_conds.append(f"({SQLTool.conditions(t2_conds, 'AND', add_where=False)})")
+
+    if t1_conds:
+        return f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
+
+    return None

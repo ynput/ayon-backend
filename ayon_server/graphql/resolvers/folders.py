@@ -16,7 +16,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import EntityID, SQLTool, slugify
+from ayon_server.utils import EntityID, SQLTool
 
 from .common import (
     ARGAfter,
@@ -30,6 +30,7 @@ from .common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    build_search_conditions,
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
@@ -478,20 +479,11 @@ async def get_folders(
         sql_conditions.append(cond)
 
     if search:
-        parts = search.split(",")
-        t1_conds = []
-
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(folders.name ILIKE '%{term}%' OR "
-                    f"folders.label ILIKE '%{term}%' OR "
-                    f"hierarchy.path ILIKE '%{term}%')"
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(
+            search,
+            ["folders.name", "folders.label", "hierarchy.path"],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter
@@ -560,21 +552,11 @@ async def get_folders(
                 task_conditions.append(tfilter)
 
         if task_search:
-            parts = task_search.split(",")
-            t1_conds = []
-
-            for part in parts:
-                terms = slugify(part, make_set=True, split_chars=" ")
-                t2_conds = []
-                for term in terms:
-                    t2_conds.append(
-                        f"(tasks.name ILIKE '%{term}%'"
-                        f"OR tasks.label ILIKE '%{term}%'"
-                        f"OR tasks.task_type ILIKE '%{term}%'"
-                        f"OR ex.path ILIKE '%{term}%')"
-                    )
-                t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-            task_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+            if cond := build_search_conditions(
+                task_search,
+                ["tasks.name", "tasks.label", "tasks.task_type", "ex.path"],
+            ):
+                task_conditions.append(cond)
 
         if task_conditions:
             sql_cte.append(

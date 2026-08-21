@@ -38,8 +38,9 @@ from ayon_server.types import (
     validate_type_name_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
+from .common import build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -477,21 +478,16 @@ async def get_tasks(
 
     if search:
         use_folder_query = True
-        parts = search.split(",")
-        t1_conds = []
-
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(tasks.name ILIKE '%{term}%'"
-                    f"OR tasks.label ILIKE '%{term}%'"
-                    f"OR tasks.task_type ILIKE '%{term}%'"
-                    f"OR hierarchy.path ILIKE '%{term}%')"
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(
+            search,
+            [
+                "tasks.name",
+                "tasks.label",
+                "tasks.task_type",
+                "hierarchy.path",
+            ],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Additional joins
