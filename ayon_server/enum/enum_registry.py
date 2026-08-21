@@ -5,6 +5,7 @@ from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
 from ayon_server.types import AttributeType, Field, OPModel
 
+from ..forms import SimpleFormField
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
 
@@ -29,7 +30,7 @@ class EnumResolverInfo(OPModel):
         ),
     ]
     settings_form: Annotated[
-        list[dict[str, Any]] | None,
+        list[SimpleFormField] | None,
         Field(
             title="Settings form",
             description="Optional form fields for resolver settings",
