@@ -34,6 +34,40 @@ class GuestUserModel(OPModel):
     ] = "pending"
 
 
+class GuestUserPatchModel(OPModel):
+    new_email: Annotated[
+        str | None,
+        Field(
+            title="New Email",
+            example="foo.bar@example.com",
+        ),
+    ]
+
+    avatar_url: Annotated[
+        str | None,
+        Field(
+            title="Avatar URL",
+            example="http://example.com/avatar.png",
+        ),
+    ]
+
+    full_name: Annotated[
+        str | None,
+        Field(
+            title="Full name",
+            example="Foo Bar",
+        ),
+    ] = None
+
+    status: Annotated[
+        GuestUserStatus | None,
+        Field(
+            title="Status",
+            example="pending",
+        ),
+    ] = None
+
+
 class GuestUsersListModel(OPModel):
     users: Annotated[
         list[GuestUserModel],
@@ -96,3 +130,15 @@ async def remove_guest_user(
     user.check_permissions("project.access", project_name, write=True)
 
     await GuestUsers.remove(email=email, project_name=project_name)
+
+
+@router.patch("/projects/{project_name}/guests/{email}")
+async def patch_guest_user(
+    user: CurrentUser,
+    project_name: ProjectName,
+    email: str,
+    payload: GuestUserPatchModel,
+):
+    user.check_permissions("project.access", project_name, write=True)
+    patch_data_dict = payload.dict(exclude_unset=True)
+    await GuestUsers.update(email, project_name=project_name, **patch_data_dict)
