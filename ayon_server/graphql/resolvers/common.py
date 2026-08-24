@@ -18,12 +18,6 @@ from .pagination import encode_cursor
 DEFAULT_PAGE_SIZE = 100
 
 
-ARGIncludeInternalFolder = Annotated[
-    bool,
-    argdesc("Whether to include the AYON internal folder and its descendants"),
-]
-
-
 @strawberry.enum
 class HasLinksFilter(Enum):
     NONE = "none"
@@ -71,6 +65,10 @@ ARGLast = Annotated[int | None, argdesc("Pagination: last")]
 ARGBefore = Annotated[str | None, argdesc("Pagination: before")]
 ARGIds = Annotated[list[str] | None, argdesc("List of ids to be returned")]
 ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence")]
+ARGIncludeInternalFolder = Annotated[
+    bool,
+    argdesc("Whether to include the AYON internal folder and its descendants"),
+]
 
 
 class FieldInfo:
