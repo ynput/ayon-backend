@@ -6,6 +6,7 @@ from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.models import IconModel
+from ayon_server.types import AttributeType
 
 query = """
     SELECT name, attrib, data FROM public.users
@@ -16,8 +17,8 @@ query = """
 class UsersEnumResolver(BaseEnumResolver):
     name = "users"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         result: list[EnumItem] = []
