@@ -439,9 +439,6 @@ async def get_versions(
         "products.name AS _product_name",
     ]
 
-    if not include_internal_folder:
-        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
-
     if fields.any_endswith("latestComments"):
         joins.for_output("comments")
         sql_columns.append("comments.comments AS latest_comments")
@@ -614,6 +611,10 @@ async def get_versions(
         sql_conditions.extend(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
+
+    if not include_internal_folder:
+        joins.for_filter("folder_ex")
+        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     #
     # Access control
