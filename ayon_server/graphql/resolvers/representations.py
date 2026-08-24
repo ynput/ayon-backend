@@ -147,7 +147,7 @@ async def get_representations(
 
         if not include_internal_folder:
             sql_conditions.append(
-                f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
             )
 
         if access_list is not None:
