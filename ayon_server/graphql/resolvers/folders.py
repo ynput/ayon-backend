@@ -464,13 +464,14 @@ async def get_folders(
 
     if assignees is not None:
         validate_name_list(assignees)
-        cond = f"""
+        sql_conditions.append(
+            f"""
             folders.id IN (
                 SELECT folder_id FROM project_{project_name}.tasks
                 WHERE assignees @> {SQLTool.array(assignees, curly=True)}
             )
-        """
-        sql_conditions.append(cond)
+            """
+        )
 
     if search:
         if cond := build_search_conditions(

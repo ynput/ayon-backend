@@ -141,13 +141,13 @@ class EnumRegistry:
         for name, resolver in cls.resolvers.items():
             params = await resolver.get_accepted_params()
             settings_form = await resolver.get_settings_form()
-            if settings_form is not None:
-                settings_form = list(settings_form)
             result.append(
                 EnumResolverInfo(
                     name=name,
                     accepted_params=params,
-                    settings_form=settings_form,
+                    settings_form=list(settings_form)
+                    if settings_form is not None
+                    else None,
                 )
             )
         return result
