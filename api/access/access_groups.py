@@ -96,6 +96,41 @@ class AccessGroupObject(OPModel):
     ]
 
 
+@router.get("/accessGroups")
+async def get_studio_access_groups(user: CurrentUser) -> list[AccessGroupObject]:
+    """Get a list of access group for a given project"""
+
+    if not user.is_manager:
+        # if user is not a manager, they must have project.access permission
+        # on at least one project to be able to see the list of access groups
+        project_names = user.data.get("accessGroups", {}).keys()
+        for project_name in project_names:
+            try:
+                user.check_permissions(
+                    "project.access", project_name=project_name, write=False
+                )
+                break
+            except ForbiddenException:
+                continue
+
+        else:
+            raise ForbiddenException("You do not have permission to view access groups")
+
+    query = """
+        SELECT name, FALSE AS is_project_level
+        FROM public.access_groups ORDER BY name
+    """
+    result = []
+    async for row in Postgres.iterate(query):
+        result.append(
+            AccessGroupObject(
+                name=row["name"],
+                is_project_level=row["is_project_level"],
+            )
+        )
+    return result
+
+
 @router.get("/accessGroups/{project_name}")
 async def get_access_groups(
     user: CurrentUser,
