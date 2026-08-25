@@ -114,6 +114,8 @@ class VersionEntity(ProjectLevelEntity):
         )
 
     def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
+        # Allow editing for hero versions because those are
+        # published in-place of an existing version
         if self.version < 0:
             return ["version", "data"]
         return []
