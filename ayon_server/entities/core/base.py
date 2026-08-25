@@ -82,12 +82,12 @@ class BaseEntity:
                     writable_attrs = (
                         perms.attrib_write.attributes
                         + ALWAYS_WRITABLE_ATTRS
-                        + self.always_writable_attrs()
+                        + self.always_writable_attrs(user)
                     )
                     writable_fields = (
                         perms.attrib_write.fields
                         + ALWAYS_WRITABLE_FIELDS
-                        + self.always_writable_fields()
+                        + self.always_writable_fields(user)
                     )
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
