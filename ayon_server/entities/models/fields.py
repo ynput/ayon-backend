@@ -402,7 +402,7 @@ representation_fields: list[FieldDefinitionDict] = [
         "dynamic": True,
     },
     {
-        "name": "is_hero",
+        "name": "belongs_to_hero",
         "type": "boolean",
         "title": "Belongs to HERO version",
         "example": False,

@@ -52,7 +52,7 @@ class RepresentationEntity(ProjectLevelEntity):
             vname = version_name(record["version"])
             rname = record["name"]
             record["path"] = f"/{hierarchy_path}/{product_name}/{vname}/{rname}"
-        record["is_hero"] = record["version"] < 0
+        record["belongs_to_hero"] = record["version"] < 0
         return record
 
     async def ensure_create_access(self, user, **kwargs) -> None:
@@ -80,7 +80,7 @@ class RepresentationEntity(ProjectLevelEntity):
         )
 
     def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
-        if self.payload.is_hero:
+        if self.payload.belongs_to_hero:
             return ["files", "data"]
         return []
 
