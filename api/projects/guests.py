@@ -35,7 +35,7 @@ class GuestUserModel(OPModel):
 
 
 class GuestUserPatchModel(OPModel):
-    new_email: Annotated[
+    email: Annotated[
         str | None,
         Field(
             title="New Email",
@@ -141,4 +141,4 @@ async def patch_guest_user(
 ):
     user.check_permissions("project.access", project_name, write=True)
     patch_data_dict = payload.dict(exclude_unset=True)
-    await GuestUsers.update(email, project_name=project_name, **patch_data_dict)
+    await GuestUsers.update(email, project_name=project_name, payload=patch_data_dict)

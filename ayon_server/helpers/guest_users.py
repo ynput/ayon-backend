@@ -110,11 +110,11 @@ class GuestUsers:
         email: str,
         *,
         project_name: str,
-        **kwargs: Any,
+        payload: dict[str, str],
     ) -> None:
         """Update guest user attributes in a project."""
 
-        new_email = kwargs.pop("new_email", None)
+        new_email = payload.pop("email", None)
 
         async with Postgres.transaction():
             project = await ProjectEntity.load(name=project_name, for_update=True)
@@ -134,7 +134,7 @@ class GuestUsers:
                 guest_users[new_email] = guest_users.pop(email)
                 current_email = new_email
 
-            for key, value in kwargs.items():
+            for key, value in payload.items():
                 if value is not None:
                     guest_users[current_email][camelize(key)] = value
 
