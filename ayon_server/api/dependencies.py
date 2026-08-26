@@ -42,6 +42,21 @@ AllowGuests = Depends(lambda: None)
 AllowProjectSkeleton = Depends(lambda: None)
 
 
+def dep_require_ready(request: Request) -> None:
+    """Reject requests until the server has finished starting up.
+
+    Used as a router-level dependency for core API modules and addon
+    endpoints, so callers get a clean 503 instead of hitting handlers
+    that assume the database, addons, etc. are already initialized.
+    """
+
+    if not getattr(request.app.state, "ready", False):
+        raise ServiceUnavailableException("Server is starting up")
+
+
+RequireReady = Depends(dep_require_ready)
+
+
 def dep_current_addon(request: Request) -> BaseServerAddon:
     path = request.url.path
     parts = path.split("/")

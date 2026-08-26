@@ -16,7 +16,12 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
 from ayon_server.api.context import RequestContextMiddleware
-from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    CurrentUserOptional,
+    NoTraces,
+    RequireReady,
+)
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
@@ -49,6 +54,44 @@ app = FastAPI(
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
+
+
+#
+# Liveness / readiness probes
+#
+# These live under /api (rather than at the root) so they don't collide
+# with the SPA catch-all route, and are registered directly on the app
+# (bypassing init_api/init_addon_endpoints) so they respond as soon as
+# the process is accepting connections - before the database, addons,
+# or the frontend have been initialized.
+#
+
+
+@app.get("/api/livez", include_in_schema=False, dependencies=[NoTraces])
+async def livez() -> JSONResponse:
+    """Always returns 200 as soon as the process is up.
+
+    Intended for a Kubernetes livenessProbe: it must not depend on the
+    database, Redis, or addons being ready, otherwise a slow startup
+    (many addons, a slow DB) looks like a crash and the pod gets
+    restarted before it has a chance to finish booting.
+    """
+
+    return JSONResponse(status_code=200, content={"status": "alive"})
+
+
+@app.get("/api/readyz", include_in_schema=False, dependencies=[NoTraces])
+async def readyz() -> JSONResponse:
+    """Returns 200 once startup (db/redis/addons/frontend) has finished.
+
+    Intended for a Kubernetes readinessProbe/startupProbe: while this
+    returns 503 the pod should stay out of Service rotation, but should
+    NOT be restarted.
+    """
+
+    if getattr(app.state, "ready", False):
+        return JSONResponse(status_code=200, content={"status": "ready"})
+    return JSONResponse(status_code=503, content={"status": "starting"})
 
 
 #
@@ -271,7 +314,9 @@ def init_api(target_app: FastAPI, plugin_dir: str = "api") -> None:
             logger.debug(f"API plug-in '{module_name}' has no router")
             continue
 
-        target_app.include_router(module.router, prefix="/api")
+        target_app.include_router(
+            module.router, prefix="/api", dependencies=[RequireReady]
+        )
 
     # Use endpoints function names as operation_ids
     for route in app.routes:

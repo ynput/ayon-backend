@@ -1,12 +1,13 @@
+import asyncio
+import contextlib
 import inspect
 import os
 import traceback
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-import semver
-
 from ayon_server.addons import AddonLibrary
+from ayon_server.api.dependencies import RequireReady
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.static import addon_static_router
@@ -18,7 +19,7 @@ from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logger
+from ayon_server.logging import log_exception, log_traceback, logger
 from ayon_server.utils import slugify
 from maintenance.scheduler import MaintenanceScheduler
 
@@ -58,6 +59,7 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     prefix=f"/api/addons/{addon_name}/{version}",
                     tags=[f"{addon_definition.friendly_name} {version}"],
                     include_in_schema=ayonconfig.openapi_include_addon_endpoints,
+                    dependencies=[RequireReady],
                     generate_unique_id_function=lambda x: slugify(
                         f"{addon_name}_{version}_{x.name}", separator="_"
                     ),
@@ -79,6 +81,7 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
                     tags=[f"{addon_definition.friendly_name} {version}"],
+                    dependencies=[RequireReady],
                     operation_id=slugify(
                         f"{addon_name}_{version}_{endpoint['name']}",
                         separator="_",
@@ -107,6 +110,14 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                         f"{addon_name}_{version}_api_docs", separator="_"
                     ),
                 )
+
+
+async def maybe_run_async(func, *args, **kwargs) -> None:
+    """Run a function, whether it's async or not."""
+    if inspect.iscoroutinefunction(func):
+        await func(*args, **kwargs)
+    else:
+        func(*args, **kwargs)
 
 
 def init_addon_static(target_app: "FastAPI") -> None:
@@ -211,12 +222,17 @@ async def addon_update(library: AddonLibrary) -> None:
             logger.debug("Production bundle updated with required addons")
 
 
-@asynccontextmanager
-async def lifespan(app: "FastAPI"):
-    _ = app
-    # Save the process PID
-    with open("/var/run/ayon.pid", "w") as f:
-        f.write(str(os.getpid()))
+async def _startup(app: "FastAPI") -> None:
+    """Perform the slow part of server startup in the background.
+
+    This runs as a fire-and-forget task kicked off from `lifespan()`, so
+    the ASGI app can start accepting connections (and /api/livez, /ws,
+    etc. become reachable) immediately, instead of only after the whole
+    chain below - which, with many addons or a slow database, can take
+    long enough that k8s liveness probes kill the pod before it boots.
+    `app.state.ready` is flipped to True only once everything below,
+    including addon endpoints and the frontend, is actually usable.
+    """
 
     await ayon_init()
     await load_access_groups()
@@ -249,12 +265,8 @@ async def lifespan(app: "FastAPI"):
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
             try:
-                if inspect.iscoroutinefunction(version.pre_setup):
-                    # Since setup may, but does not have to be async, we need to
-                    # silence mypy here.
-                    await version.pre_setup()
-                else:
-                    version.pre_setup()
+                await maybe_run_async(version.pre_setup)
+
                 if (not restart_requested) and version.restart_requested:
                     logger.warning(
                         f"Restart requested during addon {addon_name} pre-setup."
@@ -276,19 +288,9 @@ async def lifespan(app: "FastAPI"):
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
-            # This is a fix of a bug in the 1.0.4 and earlier versions of the addon
-            # where automatic addon update triggers an error
-            if addon_name == "ynputcloud" and semver.VersionInfo.parse(
-                version.version
-            ) < semver.VersionInfo.parse("1.0.5"):
-                logger.debug(f"Skipping {addon_name} {version.version} setup.")
-                continue
-
             try:
-                if inspect.iscoroutinefunction(version.setup):
-                    await version.setup()
-                else:
-                    version.setup()
+                await maybe_run_async(version.setup)
+
                 if (not restart_requested) and version.restart_requested:
                     logger.warning(
                         f"Restart requested during addon {addon_name} setup."
@@ -333,6 +335,10 @@ async def lifespan(app: "FastAPI"):
         await AddonLibrary.clear_addon_list_cache()
         await clear_server_restart_required()
 
+        logger.trace(f"{len(app.routes)} routes registered")
+        logger.info("Server is now ready to connect")
+        app.state.ready = True
+
         if start_event is not None:
             await EventStream.update(
                 start_event,
@@ -340,12 +346,34 @@ async def lifespan(app: "FastAPI"):
                 description="Server started",
             )
 
-        logger.trace(f"{len(app.routes)} routes registered")
-        logger.info("Server is now ready to connect")
+
+def _log_startup_task_exception(task: "asyncio.Task[None]") -> None:
+    if task.cancelled():
+        return
+    if (exc := task.exception()) is not None:
+        log_exception(exc, message="Unhandled error during server startup")
+
+
+@asynccontextmanager
+async def lifespan(app: "FastAPI"):
+    # Save the process PID
+    with open("/var/run/ayon.pid", "w") as f:
+        f.write(str(os.getpid()))
+
+    app.state.ready = False
+    startup_task = asyncio.create_task(_startup(app))
+    startup_task.add_done_callback(_log_startup_task_exception)
 
     yield
 
     logger.info("Server is shutting down")
+    app.state.ready = False
+
+    if not startup_task.done():
+        startup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await startup_task
+
     await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
