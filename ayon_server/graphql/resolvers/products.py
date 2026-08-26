@@ -12,6 +12,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     ColumnMetadata,
     FieldInfo,
@@ -25,6 +26,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name_list,
@@ -138,6 +140,7 @@ async def get_products(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> ProductsConnection:
     """Return a list of products."""
 
@@ -171,6 +174,9 @@ async def get_products(
 
     sql_cte = []
     sql_conditions = []
+
+    if not include_internal_folder:
+        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if ids is not None:
         if not ids:

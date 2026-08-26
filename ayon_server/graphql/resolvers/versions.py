@@ -12,6 +12,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     ColumnMetadata,
     FieldInfo,
@@ -26,6 +27,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter, filter_columns
 from ayon_server.types import (
     validate_name_list,
@@ -405,6 +407,7 @@ async def get_versions(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -608,6 +611,10 @@ async def get_versions(
         sql_conditions.extend(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
+
+    if not include_internal_folder:
+        joins.for_filter("folder_ex")
+        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     #
     # Access control

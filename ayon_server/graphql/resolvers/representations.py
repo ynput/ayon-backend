@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     FieldInfo,
     argdesc,
@@ -20,6 +21,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
@@ -47,6 +49,7 @@ async def get_representations(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -141,6 +144,11 @@ async def get_representations(
                 "versions.version AS _version_number",
             ]
         )
+
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+            )
 
         if access_list is not None:
             sql_conditions.append(

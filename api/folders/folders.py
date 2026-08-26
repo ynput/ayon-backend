@@ -3,6 +3,8 @@ from fastapi import Query
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import FolderEntity
+from ayon_server.exceptions import BadRequestException
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.operations.project_level import ProjectLevelOperations
 
 from .router import router
@@ -38,6 +40,9 @@ async def create_folder(
 ) -> EntityIdResponse:
     """Create a new folder."""
 
+    if post_data.name.startswith(AYON_INTERNAL_FOLDER_NAME):
+        raise BadRequestException("reserved folder name")
+
     ops = ProjectLevelOperations(project_name, user=user)
 
     ops.create("folder", **post_data.dict(exclude_unset=True))
@@ -64,6 +69,9 @@ async def update_folder(
     Once there is a version published, the folder's name and hierarchy
     cannot be changed.
     """
+
+    if post_data.name.startswith(AYON_INTERNAL_FOLDER_NAME):
+        raise BadRequestException("reserved folder name")
 
     ops = ProjectLevelOperations(project_name, user=user)
     ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))

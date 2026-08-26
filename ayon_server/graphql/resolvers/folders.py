@@ -8,6 +8,7 @@ from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name,
@@ -23,6 +24,7 @@ from .common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     AttributeFilterInput,
     ColumnMetadata,
@@ -125,6 +127,7 @@ async def get_folders(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -166,6 +169,9 @@ async def get_folders(
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)
+
+    if not include_internal_folder:
+        sql_conditions.append(f"ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if access_list is not None:
         sql_conditions.append(
