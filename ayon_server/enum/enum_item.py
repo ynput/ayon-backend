@@ -82,6 +82,15 @@ class EnumItem(OPModel):
         ),
     ] = None
 
+    hidden: Annotated[
+        bool,
+        Field(
+            title="Is hidden",
+            description="Enum item is not visible in the dropdown",
+            example=False,
+        ),
+    ] = False
+
     @validator("label", pre=True, always=True)
     def set_label(cls, v: str | None, values: dict[str, Any]) -> str:
         if v is None and "value" in values:
