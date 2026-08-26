@@ -344,11 +344,14 @@ async def _startup(app: "FastAPI") -> None:
             )
 
 
-def _log_startup_task_exception(task: "asyncio.Task[None]") -> None:
+def _log_startup_task_exception(
+    app: "FastAPI", task: "asyncio.Task[None]"
+) -> None:
     if task.cancelled():
         return
     if (exc := task.exception()) is not None:
         log_exception(exc, message="Unhandled error during server startup")
+        app.state.startup_failed = True
 
 
 @asynccontextmanager
@@ -358,8 +361,11 @@ async def lifespan(app: "FastAPI"):
         f.write(str(os.getpid()))
 
     app.state.ready = False
+    app.state.startup_failed = False
     startup_task = asyncio.create_task(_startup(app))
-    startup_task.add_done_callback(_log_startup_task_exception)
+    startup_task.add_done_callback(
+        lambda t: _log_startup_task_exception(app, t)
+    )
 
     yield
 
