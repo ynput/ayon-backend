@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import RequireReady
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.static import addon_static_router
@@ -59,7 +58,6 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     prefix=f"/api/addons/{addon_name}/{version}",
                     tags=[f"{addon_definition.friendly_name} {version}"],
                     include_in_schema=ayonconfig.openapi_include_addon_endpoints,
-                    dependencies=[RequireReady],
                     generate_unique_id_function=lambda x: slugify(
                         f"{addon_name}_{version}_{x.name}", separator="_"
                     ),
@@ -81,7 +79,6 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
                     tags=[f"{addon_definition.friendly_name} {version}"],
-                    dependencies=[RequireReady],
                     operation_id=slugify(
                         f"{addon_name}_{version}_{endpoint['name']}",
                         separator="_",

@@ -16,16 +16,12 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
 from ayon_server.api.context import RequestContextMiddleware
-from ayon_server.api.dependencies import (
-    CurrentUser,
-    CurrentUserOptional,
-    NoTraces,
-    RequireReady,
-)
+from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional, NoTraces
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
+from ayon_server.api.readiness import ReadinessMiddleware
 from ayon_server.api.static import serve_static_file
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
@@ -54,16 +50,18 @@ app = FastAPI(
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
+app.add_middleware(ReadinessMiddleware)
 
 
 #
 # Liveness / readiness probes
 #
-# These live under /api (rather than at the root) so they don't collide
-# with the SPA catch-all route, and are registered directly on the app
-# (bypassing init_api/init_addon_endpoints) so they respond as soon as
-# the process is accepting connections - before the database, addons,
-# or the frontend have been initialized.
+# These are registered directly on the app (bypassing init_api /
+# init_addon_endpoints) so they respond as soon as the process is
+# accepting connections - before the database, addons, or the frontend
+# have been initialized. They're declared here, before init_frontend()
+# mounts the SPA catch-all route later on, so Starlette's first-match
+# routing resolves them before falling through to the SPA.
 #
 
 
@@ -314,9 +312,7 @@ def init_api(target_app: FastAPI, plugin_dir: str = "api") -> None:
             logger.debug(f"API plug-in '{module_name}' has no router")
             continue
 
-        target_app.include_router(
-            module.router, prefix="/api", dependencies=[RequireReady]
-        )
+        target_app.include_router(module.router, prefix="/api")
 
     # Use endpoints function names as operation_ids
     for route in app.routes:
