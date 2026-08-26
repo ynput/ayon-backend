@@ -16,11 +16,12 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
 from ayon_server.api.context import RequestContextMiddleware
-from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
+from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional, NoTraces
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
+from ayon_server.api.readiness import ReadinessMiddleware
 from ayon_server.api.static import serve_static_file
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
@@ -49,6 +50,45 @@ app = FastAPI(
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
+app.add_middleware(ReadinessMiddleware)
+
+
+#
+# Liveness / readiness probes
+#
+
+# These live at the root and are registered before the SPA catch-all route.
+# They are registered directly on the app (bypassing
+# init_api/init_addon_endpoints) so they respond as soon as
+# the process is accepting connections - before the database, addons,
+# or the frontend have been initialized.
+
+
+@app.get("/livez", include_in_schema=False, dependencies=[NoTraces])
+async def livez() -> JSONResponse:
+    """Always returns 200 as soon as the process is up.
+
+    Intended for a Kubernetes livenessProbe: it must not depend on the
+    database, Redis, or addons being ready, otherwise a slow startup
+    (many addons, a slow DB) looks like a crash and the pod gets
+    restarted before it has a chance to finish booting.
+    """
+
+    return JSONResponse(status_code=200, content={"status": "alive"})
+
+
+@app.get("/readyz", include_in_schema=False, dependencies=[NoTraces])
+async def readyz() -> JSONResponse:
+    """Returns 200 once startup (db/redis/addons/frontend) has finished.
+
+    Intended for a Kubernetes readinessProbe/startupProbe: while this
+    returns 503 the pod should stay out of Service rotation, but should
+    NOT be restarted.
+    """
+
+    if getattr(app.state, "ready", False):
+        return JSONResponse(status_code=200, content={"status": "ready"})
+    return JSONResponse(status_code=503, content={"status": "starting"})
 
 
 #
