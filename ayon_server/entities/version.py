@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, NoReturn, Optional
+from typing import Any, NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
@@ -8,9 +8,6 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
-
-if TYPE_CHECKING:
-    from ayon_server.entities.user import UserEntity
 
 BASE_GET_QUERY = """
     SELECT
@@ -112,13 +109,6 @@ class VersionEntity(ProjectLevelEntity):
             self.product_id,
             "publish",
         )
-
-    def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
-        # Allow editing for hero versions because those are
-        # published in-place of an existing version
-        if self.version < 0:
-            return ["version", "data"]
-        return []
 
     #
     # Properties

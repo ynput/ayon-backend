@@ -68,7 +68,7 @@ class BaseEntity:
         pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
-            if not (user.is_manager):
+            if not user.is_manager and not self._skip_check():
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
@@ -80,15 +80,9 @@ class BaseEntity:
 
                 if perms.attrib_write.enabled:
                     writable_attrs = (
-                        perms.attrib_write.attributes
-                        + ALWAYS_WRITABLE_ATTRS
-                        + self.always_writable_attrs(user)
+                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
                     )
-                    writable_fields = (
-                        perms.attrib_write.fields
-                        + ALWAYS_WRITABLE_FIELDS
-                        + self.always_writable_fields(user)
-                    )
+                    writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
@@ -137,14 +131,6 @@ class BaseEntity:
     def strawberry_attrib(cls):
         # fields = list(cls.model.attrib_model.__fields__.keys())
         return pydantic_type(model=cls.model.attrib_model, all_fields=True)
-
-    def always_writable_attrs(self, user: Optional["UserEntity"] = None) -> list[str]:
-        """Entity override of writable attributes."""
-        return []
-
-    def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
-        """Entity override of writable fields."""
-        return []
 
     #
     # DB
@@ -212,3 +198,13 @@ class BaseEntity:
     @updated_at.setter
     def updated_at(self, value: float) -> None:
         self._payload.updated_at = value  # type: ignore
+
+    def _skip_check(self) -> bool:
+        """Checks if current entity is not HERO version or repre."""
+        if hasattr(self.payload, "version"):
+            return self.payload.version < 0
+
+        if hasattr(self.payload, "belongs_to_hero"):
+            return self.payload.belongs_to_hero
+
+        return False

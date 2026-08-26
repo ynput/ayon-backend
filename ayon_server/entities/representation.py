@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
@@ -6,9 +6,6 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.types import ProjectLevelEntityType
 
 from .version import version_name
-
-if TYPE_CHECKING:
-    from ayon_server.entities.user import UserEntity
 
 BASE_GET_QUERY = """
     SELECT
@@ -78,11 +75,6 @@ class RepresentationEntity(ProjectLevelEntity):
             self.version_id,
             "publish",
         )
-
-    def always_writable_fields(self, user: Optional["UserEntity"] = None) -> list[str]:
-        if self.payload.belongs_to_hero:
-            return ["files", "data"]
-        return []
 
     #
     # Properties
