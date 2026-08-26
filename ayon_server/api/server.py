@@ -67,7 +67,7 @@ app.add_middleware(AuthMiddleware)
 #
 
 
-@app.get("/api/livez", include_in_schema=False, dependencies=[NoTraces])
+@app.get("/livez", include_in_schema=False, dependencies=[NoTraces])
 async def livez() -> JSONResponse:
     """Always returns 200 as soon as the process is up.
 
@@ -80,7 +80,7 @@ async def livez() -> JSONResponse:
     return JSONResponse(status_code=200, content={"status": "alive"})
 
 
-@app.get("/api/readyz", include_in_schema=False, dependencies=[NoTraces])
+@app.get("/readyz", include_in_schema=False, dependencies=[NoTraces])
 async def readyz() -> JSONResponse:
     """Returns 200 once startup (db/redis/addons/frontend) has finished.
 
