@@ -59,9 +59,9 @@ app.add_middleware(AuthMiddleware)
 #
 # Liveness / readiness probes
 #
-# These live under /api (rather than at the root) so they don't collide
-# with the SPA catch-all route, and are registered directly on the app
-# (bypassing init_api/init_addon_endpoints) so they respond as soon as
+# These live at the root and are registered before the SPA catch-all route.
+# They are registered directly on the app (bypassing
+# init_api/init_addon_endpoints) so they respond as soon as
 # the process is accepting connections - before the database, addons,
 # or the frontend have been initialized.
 #
