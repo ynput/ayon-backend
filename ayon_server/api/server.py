@@ -56,13 +56,12 @@ app.add_middleware(ReadinessMiddleware)
 #
 # Liveness / readiness probes
 #
-# These are registered directly on the app (bypassing init_api /
-# init_addon_endpoints) so they respond as soon as the process is
-# accepting connections - before the database, addons, or the frontend
-# have been initialized. They're declared here, before init_frontend()
-# mounts the SPA catch-all route later on, so Starlette's first-match
-# routing resolves them before falling through to the SPA.
-#
+
+# These live at the root and are registered before the SPA catch-all route.
+# They are registered directly on the app (bypassing
+# init_api/init_addon_endpoints) so they respond as soon as
+# the process is accepting connections - before the database, addons,
+# or the frontend have been initialized.
 
 
 @app.get("/livez", include_in_schema=False, dependencies=[NoTraces])

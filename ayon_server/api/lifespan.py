@@ -223,7 +223,7 @@ async def _startup(app: "FastAPI") -> None:
     """Perform the slow part of server startup in the background.
 
     This runs as a fire-and-forget task kicked off from `lifespan()`, so
-    the ASGI app can start accepting connections (and /api/livez, /ws,
+    the ASGI app can start accepting connections (and /livez, /ws,
     etc. become reachable) immediately, instead of only after the whole
     chain below - which, with many addons or a slow database, can take
     long enough that k8s liveness probes kill the pod before it boots.
