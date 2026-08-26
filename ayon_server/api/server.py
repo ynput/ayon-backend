@@ -66,14 +66,19 @@ app.add_middleware(ReadinessMiddleware)
 
 @app.get("/livez", include_in_schema=False, dependencies=[NoTraces])
 async def livez() -> JSONResponse:
-    """Always returns 200 as soon as the process is up.
+    """Returns 200 while the process is alive and startup has not failed.
 
     Intended for a Kubernetes livenessProbe: it must not depend on the
     database, Redis, or addons being ready, otherwise a slow startup
     (many addons, a slow DB) looks like a crash and the pod gets
     restarted before it has a chance to finish booting.
+    If the startup task raised an unhandled exception the worker is
+    permanently broken; returning 500 lets the liveness probe trigger
+    a restart instead of leaving it stuck.
     """
 
+    if getattr(app.state, "startup_failed", False):
+        return JSONResponse(status_code=500, content={"status": "startup failed"})
     return JSONResponse(status_code=200, content={"status": "alive"})
 
 
