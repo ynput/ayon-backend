@@ -392,7 +392,8 @@ class ProjectStorage:
             f"""
             SELECT size,
             data->>'mime' as content_type,
-            data->>'filename' as filename
+            data->>'filename' as filename,
+            data->'mediaInfo' as media_info
             FROM project_{self.project_name}.files
             WHERE id = $1
             """,
@@ -413,6 +414,7 @@ class ProjectStorage:
             if finfo:
                 result.filename = finfo["filename"]
                 result.content_type = finfo["content_type"]
+                result.media_info = finfo.get("media_info")
                 return result
 
         raise AyonException("Unknown storage type")

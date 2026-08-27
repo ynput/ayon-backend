@@ -103,6 +103,23 @@ async def upload_project_file(
             file_id,
         )
 
+    if content_type.startswith("video"):
+        try:
+            media_info = await storage.extract_media_info(file_id)
+        except Exception as e:
+            logger.warning(f"Failed to extract media info for {file_id}: {e}")
+            media_info = {}
+        if media_info:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET data = data || $1::jsonb
+                WHERE id = $2
+                """,
+                {"mediaInfo": media_info},
+                file_id,
+            )
+
     return CreateFileResponseModel(id=file_id)
 
 
