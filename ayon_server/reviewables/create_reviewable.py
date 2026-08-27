@@ -38,6 +38,7 @@ async def create_reviewable(
     user_name: str | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    send_notifications: bool = True,
 ) -> ReviewableModel:
     """Creates a reviewable for a given version.
 
@@ -83,6 +84,7 @@ async def create_reviewable(
         data={"reviewableLabel": label},
         user_name=user_name,
         bump_entity_updated_at=True,
+        send_notifications=send_notifications,
     )
 
     summary = {
@@ -136,15 +138,16 @@ async def create_reviewable(
             f"for version {version.id}"
         )
 
-    await EventStream.dispatch(
-        "reviewable.created",
-        sender=sender,
-        sender_type=sender_type,
-        user=user_name,
-        project=project_name,
-        summary=summary,
-        description=f"Reviewable '{file_name}' uploaded",
-    )
+    if send_notifications:
+        await EventStream.dispatch(
+            "reviewable.created",
+            sender=sender,
+            sender_type=sender_type,
+            user=user_name,
+            project=project_name,
+            summary=summary,
+            description=f"Reviewable '{file_name}' uploaded",
+        )
 
     return ReviewableModel(
         file_id=file_id,
