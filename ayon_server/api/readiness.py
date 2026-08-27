@@ -7,6 +7,20 @@ from starlette.responses import JSONResponse
 # short-circuited by this middleware.
 STARTUP_PROBE_PATHS = ("/livez", "/readyz")
 
+# Mirrors app.state.ready, but not tied to a request/app instance, so
+# non-request code (e.g. the websocket messaging background worker) can
+# check it too without risking a circular import on ayon_server.api.server.
+_ready = False
+
+
+def set_ready(ready: bool) -> None:
+    global _ready
+    _ready = ready
+
+
+def is_ready() -> bool:
+    return _ready
+
 
 class ReadinessMiddleware(BaseHTTPMiddleware):
     """Reject every request but the startup probes until the server is ready.

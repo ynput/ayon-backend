@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
+from ayon_server.api.readiness import set_ready
 from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.background.workers import background_workers
@@ -335,6 +336,7 @@ async def _startup(app: "FastAPI") -> None:
         logger.trace(f"{len(app.routes)} routes registered")
         logger.info("Server is now ready to connect")
         app.state.ready = True
+        set_ready(True)
 
         if start_event is not None:
             await EventStream.update(
@@ -344,9 +346,7 @@ async def _startup(app: "FastAPI") -> None:
             )
 
 
-def _log_startup_task_exception(
-    app: "FastAPI", task: "asyncio.Task[None]"
-) -> None:
+def _log_startup_task_exception(app: "FastAPI", task: "asyncio.Task[None]") -> None:
     if task.cancelled():
         return
     if (exc := task.exception()) is not None:
@@ -362,15 +362,15 @@ async def lifespan(app: "FastAPI"):
 
     app.state.ready = False
     app.state.startup_failed = False
+    set_ready(False)
     startup_task = asyncio.create_task(_startup(app))
-    startup_task.add_done_callback(
-        lambda t: _log_startup_task_exception(app, t)
-    )
+    startup_task.add_done_callback(lambda t: _log_startup_task_exception(app, t))
 
     yield
 
     logger.info("Server is shutting down")
     app.state.ready = False
+    set_ready(False)
 
     if not startup_task.done():
         startup_task.cancel()
