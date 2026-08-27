@@ -129,6 +129,11 @@ async def create_guest_user_session(
     if not user_name:
         user_name = slugify(f"guest.{email}", separator=".")
 
+    # Invalidate any existing sessions for this guest user, so that
+    # requesting (and using) a new invite link ends any previously
+    # created guest sessions, even in a different browser.
+    await Session.logout_user(user_name)
+
     user_data: dict[str, Any] = {"isGuest": True}
     if guest_access:
         user_data["guestAccess"] = guest_access
@@ -207,10 +212,6 @@ async def handle_token_auth_callback(
         # For future use. For now we only support guest users.
         msg = "Token is not for guest use"
         raise BadRequestException(msg)
-
-    if current_user and current_user.session:
-        # user is already logged in. invalidate the original session
-        await Session.delete(current_user.session.token)
 
     return await create_guest_user_session(
         email=payload.email,
