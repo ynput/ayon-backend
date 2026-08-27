@@ -58,6 +58,7 @@ async def create_activity(
     sender: str | None = None,
     sender_type: str | None = None,
     bump_entity_updated_at: bool = False,
+    create_events: bool = True,
 ) -> str:
     """Create an activity.
 
@@ -325,84 +326,87 @@ async def create_activity(
         "body": body,
     }
 
-    with logger.contextualize(activity_id=activity_id, activity_type=activity_type):
-        await EventStream.dispatch(
-            "activity.created",
-            project=project_name,
-            description=f"Created {activity_type} activity",
-            summary=summary,
-            store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
-            user=user_name,
-            sender=sender,
-            sender_type=sender_type,
-            payload=event_payload,
-        )
+    if create_events:
+        with logger.contextualize(activity_id=activity_id, activity_type=activity_type):
+            await EventStream.dispatch(
+                "activity.created",
+                project=project_name,
+                description=f"Created {activity_type} activity",
+                summary=summary,
+                store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
+                user=user_name,
+                sender=sender,
+                sender_type=sender_type,
+                payload=event_payload,
+            )
 
-        # Send inbox notifications
+            # Send inbox notifications
 
-        notify_important: list[str] = []
-        notify_normal: list[str] = []
-        _prj: ProjectEntity | None = None
-        for ref in references:
-            if ref.entity_type != "user":
-                continue
-            assert ref.entity_name is not None, "This should have been checked before"
-            if ref.reference_type == "author":
-                continue
-
-            if category := data.get("category"):
-                category = str(category).strip()
-                if _prj is None:
-                    _prj = await ProjectEntity.load(project_name)
-                try:
-                    _usr = await UserEntity.load(ref.entity_name)
-                except NotFoundException:
-                    # User does not exist, skip notification
+            notify_important: list[str] = []
+            notify_normal: list[str] = []
+            _prj: ProjectEntity | None = None
+            for ref in references:
+                if ref.entity_type != "user":
                     continue
-                accessible_categories = (
-                    await ActivityCategories.get_accessible_categories(
-                        _usr,
-                        project=_prj,
-                    )
+                assert ref.entity_name is not None, (
+                    "This should have been checked before"
                 )
-                if category not in accessible_categories:
-                    # Just for debugging purposes
-                    # logger.trace(
-                    #     f"Not notifying user {ref.entity_name} "
-                    #     f"about activity {activity_id} "
-                    #     f"due to inaccessible category '{category}'"
-                    # )
+                if ref.reference_type == "author":
                     continue
 
-            if (
-                ref.reference_type in ["mention", "watching"]
-                and activity_type != "status.change"
-            ):
-                notify_important.append(ref.entity_name)
-            elif ref.entity_name not in notify_important:
-                notify_normal.append(ref.entity_name)
+                if category := data.get("category"):
+                    category = str(category).strip()
+                    if _prj is None:
+                        _prj = await ProjectEntity.load(project_name)
+                    try:
+                        _usr = await UserEntity.load(ref.entity_name)
+                    except NotFoundException:
+                        # User does not exist, skip notification
+                        continue
+                    accessible_categories = (
+                        await ActivityCategories.get_accessible_categories(
+                            _usr,
+                            project=_prj,
+                        )
+                    )
+                    if category not in accessible_categories:
+                        # Just for debugging purposes
+                        # logger.trace(
+                        #     f"Not notifying user {ref.entity_name} "
+                        #     f"about activity {activity_id} "
+                        #     f"due to inaccessible category '{category}'"
+                        # )
+                        continue
 
-        notify_description = body.split("\n")[0]
-        inbox_summary = {"activityId": activity_id, "activityType": activity_type}
-        if notify_important:
-            await EventStream.dispatch(
-                "inbox.message",
-                project=project_name,
-                description=notify_description,
-                summary={**inbox_summary, "isImportant": True},
-                recipients=notify_important,
-                store=False,
-                user=user_name,
-            )
-        if notify_normal:
-            await EventStream.dispatch(
-                "inbox.message",
-                project=project_name,
-                description=notify_description,
-                summary={**inbox_summary, "isImportant": False},
-                recipients=notify_normal,
-                store=False,
-                user=user_name,
-            )
+                if (
+                    ref.reference_type in ["mention", "watching"]
+                    and activity_type != "status.change"
+                ):
+                    notify_important.append(ref.entity_name)
+                elif ref.entity_name not in notify_important:
+                    notify_normal.append(ref.entity_name)
+
+            notify_description = body.split("\n")[0]
+            inbox_summary = {"activityId": activity_id, "activityType": activity_type}
+            if notify_important:
+                await EventStream.dispatch(
+                    "inbox.message",
+                    project=project_name,
+                    description=notify_description,
+                    summary={**inbox_summary, "isImportant": True},
+                    recipients=notify_important,
+                    store=False,
+                    user=user_name,
+                )
+            if notify_normal:
+                await EventStream.dispatch(
+                    "inbox.message",
+                    project=project_name,
+                    description=notify_description,
+                    summary={**inbox_summary, "isImportant": False},
+                    recipients=notify_normal,
+                    store=False,
+                    user=user_name,
+                )
 
     return activity_id
