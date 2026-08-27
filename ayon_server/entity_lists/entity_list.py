@@ -347,7 +347,7 @@ class EntityList:
         user: UserEntity | None = None,
         sender: str | None = None,
         sender_type: str | None = None,
-        send_notifications=True,
+        create_events: bool = True,
     ) -> EntityListSummary:
         """Save the entity list to the database"""
         _user = user or self._user
@@ -358,7 +358,7 @@ class EntityList:
                 user=_user,
                 sender=sender,
                 sender_type=sender_type,
-                send_notifications=send_notifications,
+                create_events=create_events,
             )
 
     async def delete(

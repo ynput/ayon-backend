@@ -17,7 +17,7 @@ async def delete_activity(
     is_admin: bool = False,
     sender: str | None = None,
     sender_type: str | None = None,
-    send_notifications=True,
+    create_events: bool = True,
 ) -> None:
     """Delete an activity.
 
@@ -91,7 +91,7 @@ async def delete_activity(
         )
 
         # Notify the front-end about the deleted activity
-        if send_notifications:
+        if create_events:
             await EventStream.dispatch(
                 "activity.deleted",
                 project=project_name,

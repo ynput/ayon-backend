@@ -58,7 +58,7 @@ async def create_activity(
     sender: str | None = None,
     sender_type: str | None = None,
     bump_entity_updated_at: bool = False,
-    send_notifications: bool = True,
+    create_events: bool = True,
 ) -> str:
     """Create an activity.
 
@@ -326,7 +326,7 @@ async def create_activity(
         "body": body,
     }
 
-    if send_notifications:
+    if create_events:
         with logger.contextualize(activity_id=activity_id, activity_type=activity_type):
             await EventStream.dispatch(
                 "activity.created",

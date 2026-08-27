@@ -13,7 +13,7 @@ async def save_entity_list(
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
-    send_notifications=True,
+    create_events: bool = True,
 ) -> EntityListSummary:
     """
     Save the entity list to the database.
@@ -162,7 +162,7 @@ async def save_entity_list(
 
     description = f"Entity list {payload.label} {mode}"
 
-    if send_notifications:
+    if create_events:
         await EventStream.dispatch(
             f"entity_list.{mode}",
             description=description,
