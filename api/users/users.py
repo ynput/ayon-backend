@@ -11,7 +11,6 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
-from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
@@ -180,11 +179,8 @@ async def delete_user(
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
         "summary": {"entityName": user_name},
+        "entityData": target_user.dict_simple(),
     }
-    if ayonconfig.audit_trail:
-        event["payload"] = {
-            "entityData": target_user.dict_simple(),
-        }
 
     await target_user.delete()
     await EventStream.dispatch("entity.user.deleted", **event)
