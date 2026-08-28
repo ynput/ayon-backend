@@ -200,6 +200,6 @@ class BaseEntity:
         self._payload.updated_at = value  # type: ignore
 
     def skip_patch_permissions_check(self) -> bool:
-        """Checks if current entity is not HERO version or repre."""
+        """Return whether patch permission check should be skipped for this entity."""
 
         return False
