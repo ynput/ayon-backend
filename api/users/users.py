@@ -179,7 +179,7 @@ async def delete_user(
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
         "summary": {"entityName": user_name},
-        "entityData": target_user.dict_simple(),
+        "payload": {"entityData": target_user.dict_simple()},
     }
 
     await target_user.delete()
