@@ -170,3 +170,8 @@ class VersionEntity(ProjectLevelEntity):
     @property
     def path(self) -> str:
         return self._payload.path  # type: ignore
+
+    def skip_patch_permissions_check(self) -> bool:
+        """Checks if current entity is HERO version."""
+
+        return self.payload.version < 0

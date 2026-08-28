@@ -49,6 +49,7 @@ class RepresentationEntity(ProjectLevelEntity):
             vname = version_name(record["version"])
             rname = record["name"]
             record["path"] = f"/{hierarchy_path}/{product_name}/{vname}/{rname}"
+        record["belongs_to_hero"] = record["version"] < 0
         return record
 
     async def ensure_create_access(self, user, **kwargs) -> None:
@@ -90,3 +91,7 @@ class RepresentationEntity(ProjectLevelEntity):
     @property
     def parent_id(self) -> str:
         return self.version_id
+
+    def skip_patch_permissions_check(self) -> bool:
+        """Checks if current entity is HERO version representation."""
+        return self.payload.belongs_to_hero
