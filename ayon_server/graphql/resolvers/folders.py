@@ -171,7 +171,9 @@ async def get_folders(
     access_list = await create_folder_access_list(root, info)
 
     if not include_internal_folder:
-        sql_conditions.append(f"ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
+        sql_conditions.append(
+            f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
+        )
 
     if access_list is not None:
         sql_conditions.append(
@@ -709,7 +711,8 @@ async def get_folders(
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
     #
-    # logger.debug(f"Folder query\n{query}")
+    # print("Folder query")
+    # print(query)
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
