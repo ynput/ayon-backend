@@ -238,7 +238,7 @@ def rebuild_graphql_schema() -> None:
       1. Regenerate the fields on each attrib type in-place (same class object,
          so existing return-type annotations on node resolvers remain valid).
       2. Rebuild the compiled schema so graphql-core validates queries against
-         the updated type defThe initions.
+         the updated type definitions.
     """
     from strawberry.experimental.pydantic import type as pydantic_type_decorator
 
