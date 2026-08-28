@@ -170,3 +170,8 @@ class VersionEntity(ProjectLevelEntity):
     @property
     def path(self) -> str:
         return self._payload.path  # type: ignore
+
+    def skip_check(self) -> bool:
+        """Checks if current entity is not HERO version or repre."""
+
+        return self.payload.version < 0
