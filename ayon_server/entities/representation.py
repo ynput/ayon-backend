@@ -92,6 +92,6 @@ class RepresentationEntity(ProjectLevelEntity):
     def parent_id(self) -> str:
         return self.version_id
 
-    def skip_check(self) -> bool:
+    def skip_patch_permissions_check(self) -> bool:
         """Checks if current entity is not HERO version or repre."""
         return self.payload.belongs_to_hero

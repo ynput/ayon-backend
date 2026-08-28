@@ -68,7 +68,7 @@ class BaseEntity:
         pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
-            if not user.is_manager and not self.skip_check():
+            if not user.is_manager and not self.skip_patch_permissions_check():
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
@@ -199,7 +199,7 @@ class BaseEntity:
     def updated_at(self, value: float) -> None:
         self._payload.updated_at = value  # type: ignore
 
-    def skip_check(self) -> bool:
+    def skip_patch_permissions_check(self) -> bool:
         """Checks if current entity is not HERO version or repre."""
 
         return False
