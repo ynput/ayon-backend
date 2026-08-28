@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
+from strawberry.scalars import JSON
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.exceptions import ForbiddenException
@@ -40,6 +41,9 @@ class ActivityFileNode:
     author: str | None = strawberry.field()
     name: str | None = strawberry.field()
     mime: str | None = strawberry.field()
+    media_info: JSON | None = strawberry.field(
+        default=None, description="Media info extracted from the file"
+    )
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
 
@@ -191,6 +195,7 @@ class ActivityNode:
                     size=str(file.get("size", "0")),
                     author=file.get("author"),
                     mime=file.get("mime"),
+                    media_info=file.get("mediaInfo"),
                     created_at=file["created_at"],
                     updated_at=file["updated_at"],
                 )
