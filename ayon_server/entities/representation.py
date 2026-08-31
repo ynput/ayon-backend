@@ -94,4 +94,4 @@ class RepresentationEntity(ProjectLevelEntity):
 
     def skip_patch_permissions_check(self) -> bool:
         """Checks if current entity is HERO version representation."""
-        return self.payload.belongs_to_hero
+        return self.payload.belongs_to_hero  # type: ignore

@@ -174,4 +174,4 @@ class VersionEntity(ProjectLevelEntity):
     def skip_patch_permissions_check(self) -> bool:
         """Checks if current entity is HERO version."""
 
-        return self.payload.version < 0
+        return self.payload.version < 0  # type: ignore
