@@ -11,6 +11,7 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.settings.anatomy import Anatomy
+from ayon_server.settings.anatomy.link_types import default_link_types
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
@@ -81,6 +82,22 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
                 data=data,
             )
         )
+
+    for default_link_type in default_link_types:
+        if default_link_type not in anatomy.link_types:
+            logger.debug(
+                f"Adding missing default link type {default_link_type.name} "
+                "to project anatomy"
+            )
+            link_types.append(
+                LinkTypeModel(
+                    name=name,
+                    link_type=default_link_type.link_type,
+                    input_type=default_link_type.input_type,
+                    output_type=default_link_type.output_type,
+                    data=data,
+                )
+            )
 
     result = {
         "task_types": task_types,

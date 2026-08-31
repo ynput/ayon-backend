@@ -4,7 +4,7 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -26,10 +26,34 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
+
+
+async def ensure_required_project_link_types(
+    project_name: str,
+    existing_link_types: Iterable[tuple[str, str, str]],
+) -> None:
+    """Ensure that the required link types exist in the project.
+    Create them if they do not exist.
+    """
+
+    from ayon_server.settings.anatomy.link_types import default_link_types
+
+    for link_type in default_link_types:
+        if (
+            link_type.link_type,
+            link_type.input_type,
+            link_type.output_type,
+        ) in existing_link_types:
+            continue
+
+        logger.debug(
+            f"Creating missing link type {link_type.name} in project {project_name}"
+        )
 
 
 class ProjectEntity(TopLevelEntity):
@@ -194,6 +218,12 @@ class ProjectEntity(TopLevelEntity):
             raise ServiceUnavailableException(
                 f"Project '{project_name}' is currently being modified"
             )
+
+        lt_tuples = [
+            (lt["link_type"], lt["input_type"], lt["output_type"]) for lt in link_types
+        ]
+
+        await ensure_required_project_link_types(project_name, lt_tuples)
 
         cls.original_attributes = project_data["attrib"]
         await Redis.set_json("project-data", project_name, payload, ttl=3600)
