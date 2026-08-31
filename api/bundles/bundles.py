@@ -261,10 +261,13 @@ async def update_bundle(
             addon_development_dict[key] = AddonDevelopmentItem(**value)
 
         addons = data.get("addons", {})
+        if not isinstance(addons, dict):
+            addons = {}
+
         for addon_name, addon_version in list(addons.items()):
             try:
                 _ = AddonLibrary.addon(addon_name, addon_version)
-            except Exception:
+            except NotFoundException:
                 logger.warning(
                     f"Addon {addon_name} version {addon_version} does not exist, "
                     f"removing from bundle {bundle_name}"
