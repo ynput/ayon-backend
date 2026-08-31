@@ -23,7 +23,6 @@ class UsersEnumResolver(BaseEnumResolver):
         return {
             "project_name": "string",
             "include_teams": "boolean",
-            "include_support": "boolean",
             "hide_inactive": "boolean",  # Hide inactive users and users without license
             "hide_users": "boolean",  # Hide all users (when listing teams only)
         }
@@ -121,7 +120,7 @@ class UsersEnumResolver(BaseEnumResolver):
                 if not active:
                     return True
 
-                if user_pool_ids and udata.get("userPool") not in user_pool_ids:
+                if user_pool_ids and (udata.get("userPool") not in user_pool_ids):
                     return True
 
             return False
