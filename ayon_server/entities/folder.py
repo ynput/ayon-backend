@@ -235,7 +235,7 @@ class FolderEntity(ProjectLevelEntity):
 
         if self.parent_id is None:
             try:
-                # if user can create a project, they can create a root folders
+                # if user can create a project, they can create root folders
                 user.check_permissions("studio.create_projects")
             except ForbiddenException:
                 pass
