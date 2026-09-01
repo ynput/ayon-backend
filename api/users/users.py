@@ -176,10 +176,14 @@ async def delete_user(
 
     target_user = await UserEntity.load(user_name)
 
+    entity_data = target_user.dict_simple()
+    entity_data["data"].pop("password", None)
+    entity_data["data"].pop("apiKey", None)
+
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
         "summary": {"entityName": user_name},
-        "payload": {"entityData": target_user.dict_simple()},
+        "payload": {"entityData": entity_data},
     }
 
     await target_user.delete()
