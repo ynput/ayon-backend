@@ -232,14 +232,15 @@ class FolderEntity(ProjectLevelEntity):
         Reimplements the method from the parent class, because in
         case of folders we need to check the parent folder.
         """
-        try:
-            if self.parent_id is None:
+
+        if self.parent_id is None:
+            try:
                 # if user can create a project, they can create a root folders
                 user.check_permissions("studio.create_projects")
-        except ForbiddenException:
-            pass
-        else:
-            return
+            except ForbiddenException:
+                pass
+            else:
+                return
 
         await ensure_entity_access(
             user,
