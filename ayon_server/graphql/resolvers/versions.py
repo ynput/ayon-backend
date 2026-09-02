@@ -612,7 +612,9 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    if not include_internal_folder:
+    has_ids = ids is not None and len(ids) > 0
+
+    if not include_internal_folder and not has_ids:
         joins.for_filter("folder_ex")
         sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
