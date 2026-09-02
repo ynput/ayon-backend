@@ -14,6 +14,11 @@ from ayon_server.utils import SQLTool
 from .router import router
 
 
+class RegistryAuth(OPModel):
+    username: str
+    password: str
+
+
 class ServiceConfigModel(OPModel):
     volumes: list[str] | None = Field(None, title="Volumes", example=["/tmp:/tmp"])
     ports: list[str] | None = Field(None, title="Ports", example=["8080:8080"])
@@ -21,6 +26,7 @@ class ServiceConfigModel(OPModel):
     user: str | None = Field(None, title="User", example="1000")
     env: dict[str, Any] = Field(default_factory=dict)
     storage_path: str | None = Field(None, title="Storage", example="/mnt/storage")
+    registry_auth: RegistryAuth | None = None
 
 
 class ServiceDataModel(ServiceConfigModel):
