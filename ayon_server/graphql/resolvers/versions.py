@@ -1014,7 +1014,7 @@ async def get_version(root, info: Info, id: str) -> VersionNode:
     """Return a task node based on its ID"""
     if not id:
         raise BadRequestException("Version ID not specified")
-    connection = await get_versions(root, info, ids=[id])
+    connection = await get_versions(root, info, ids=[id], include_internal_folder=True)
     if not connection.edges:
         raise NotFoundException("Version not found")
     return connection.edges[0].node
