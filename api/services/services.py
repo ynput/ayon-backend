@@ -31,6 +31,7 @@ class ServiceConfigModel(OPModel):
 
 class ServiceDataModel(ServiceConfigModel):
     image: str | None = Field(None, example="ayon/ftrack-addon-leecher:2.0.0")
+    error: str | None = Field(None, title="Error", example="Failed to start service")
 
 
 class ServiceModel(OPModel):
@@ -131,6 +132,7 @@ async def delete_service(user: CurrentUser, name: str = Path(...)) -> EmptyRespo
 
 class PatchServiceRequestModel(ServiceConfigModel):
     should_run: bool | None = Field(None)
+    error: str | None = Field(None)
     hostname: str | None = Field(None)
 
     # Deprecated, kept for backwards compatibility
@@ -166,6 +168,12 @@ async def patch_service(
 
     if (hostname := patch_dict.pop("hostname", None)) is not None:
         service_data["hostname"] = hostname
+
+    if (error := patch_dict.pop("error", None)) is not None:
+        if service_data["should_run"]:
+            service_data["data"].pop("error", None)
+        else:
+            service_data["data"]["error"] = error
 
     # Old-style config (deprecated)
     if (patch_config := patch_dict.pop("config", None)) is not None:
