@@ -101,6 +101,10 @@ async def get_products(
     product_base_types: Annotated[
         list[str] | None, argdesc("List of base types")
     ] = None,
+    has_reviewables: Annotated[
+        bool | None,
+        argdesc("Filter versions that have reviewables"),
+    ] = None,
     statuses: Annotated[
         list[str] | None,
         argdesc("List of statuses to filter by"),
@@ -252,6 +256,26 @@ async def get_products(
     if path_ex is not None:
         # TODO: sanitize
         sql_conditions.append(f"'/' || folder_ex.path ~ '{path_ex}'")
+
+    if has_reviewables:
+        sql_cte.append(
+            f"""
+            product_ids_with_reviewables AS (
+                SELECT DISTINCT product_id
+                FROM project_{project_name}.versions AS v
+                JOIN project_{project_name}.activity_feed AS af
+                ON af.entity_id = v.id
+                WHERE af.entity_type = 'version'
+                AND af.activity_type = 'reviewable'
+            )
+            """
+        )
+        sql_joins.append(
+            """
+            JOIN product_ids_with_reviewables AS pr
+            ON products.id = pr.product_id
+            """
+        )
 
     #
     # Access control
@@ -697,10 +721,10 @@ async def get_products(
         {raw_data_end}
     """
 
-    # print()
-    # print("Products query:")
-    # print(query)
-    # print()
+    print()
+    print("Products query:")
+    print(query)
+    print()
     #
 
     if stats_select_clause:
