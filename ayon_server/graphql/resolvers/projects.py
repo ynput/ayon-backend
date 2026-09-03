@@ -40,6 +40,10 @@ async def get_projects(
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
+    user = info.context["user"]
+
+    sql_cte = []
+    sql_joins = []
     sql_conditions = []
     if name is not None:
         validate_name(name)
@@ -74,6 +78,28 @@ async def get_projects(
     if fields.has_any("data", "bundle") or info.context["user"].is_guest:
         cols.append("data")
 
+    if not user.is_manager:
+        sql_cte.append(
+            f"""
+            accessible_projects AS (
+                SELECT
+                    ag.key AS project
+                FROM users u
+                CROSS JOIN LATERAL jsonb_each(u.data->'accessGroups') AS ag(key, value)
+                WHERE u.name = '{user.name}'
+                AND jsonb_typeof(ag.value) = 'array'
+                AND jsonb_array_length(ag.value) > 0
+            )
+            """
+        )
+
+        sql_joins.append(
+            """
+            JOIN accessible_projects ap
+            ON ap.project = projects.name
+            """
+        )
+
     #
     # Pagination
     #
@@ -89,9 +115,17 @@ async def get_projects(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {", ".join(cols)}
         FROM public.projects
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
