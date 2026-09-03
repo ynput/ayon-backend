@@ -78,7 +78,16 @@ async def get_projects(
     if fields.has_any("data", "bundle") or info.context["user"].is_guest:
         cols.append("data")
 
-    if not user.is_manager:
+    if user.is_guest:
+        if guest_access := user.data.get("guestAccess"):
+            pnames = [g.get("projectName") for g in guest_access]
+            sql_conditions.append(f"projects.name IN {SQLTool.array(pnames)}")
+        else:
+            sql_conditions.append(
+                f"data->'guestUsers'->'{user.attrib.email}' IS NOT NULL"
+            )
+
+    elif not user.is_manager:
         sql_cte.append(
             f"""
             accessible_projects AS (
@@ -129,6 +138,11 @@ async def get_projects(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    # print()
+    # print ("get_projects query")
+    # print(query)
+    # print()
 
     return await resolve(
         ProjectsConnection,
