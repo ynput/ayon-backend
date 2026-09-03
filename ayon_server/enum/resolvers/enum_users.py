@@ -66,6 +66,11 @@ def should_hide_user(
     them, but not selecting them.
     """
 
+    if context.get("hide_users"):
+        # caller only wants teams listed, but users must still resolve
+        # (e.g. metadata for an already-selected user)
+        return True
+
     if (
         current_user
         and (not current_user.data.get("isSupport", False))
