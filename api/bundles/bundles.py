@@ -246,6 +246,8 @@ async def update_bundle(
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
 
+    addon_library = AddonLibrary.getinstance()
+
     async with Postgres.transaction():
         res = await Postgres.fetch(
             "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
@@ -266,7 +268,7 @@ async def update_bundle(
 
         for addon_name, addon_version in list(addons.items()):
             try:
-                _ = AddonLibrary.addon(addon_name, addon_version)
+                addon_library.addon(addon_name, addon_version)
             except NotFoundException:
                 logger.warning(
                     f"Addon {addon_name} version {addon_version} does not exist, "
@@ -338,10 +340,9 @@ async def update_bundle(
         server_bundle_migrations = []
 
         if patch.addons is not None:
-            library = AddonLibrary.getinstance()
             addons = {**bundle.addons}
             for addon_name, addon_version in patch.addons.items():
-                addon_definition = library.get(addon_name)
+                addon_definition = addon_library.get(addon_name)
                 if addon_definition is None:
                     logger.warning(f"Addon {addon_name} does not exist, ignoring")
                     continue
@@ -431,7 +432,7 @@ async def update_bundle(
         )
 
     if patch.is_production is not None or patch.is_staging is not None or patch.addons:
-        await AddonLibrary.clear_addon_list_cache()
+        await addon_library.clear_addon_list_cache()
 
     await EventStream.dispatch(
         "bundle.updated",
