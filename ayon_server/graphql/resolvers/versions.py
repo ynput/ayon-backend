@@ -831,13 +831,15 @@ async def get_versions(
         # isLatest / hasReviewables: they are correlated subqueries, so
         # having them in here means running them once per version in the
         # project rather than once per returned row.
+        #
+        # Excluding hero versions as they mess with creation order
         sql_cte.append(
             f"""
             latest_versions_per_folder AS MATERIALIZED (
                 SELECT max(versions.creation_order) AS creation_order
                 FROM project_{project_name}.versions AS versions
                 {" ".join(joins.filtering)}
-                {SQLTool.conditions(sql_conditions)}
+                {SQLTool.conditions(sql_conditions + ["versions.version >= 0"])}
                 GROUP BY products.folder_id
             )
             """
