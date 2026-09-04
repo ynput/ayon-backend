@@ -260,10 +260,24 @@ async def update_bundle(
         for key, value in data.get("addon_development", {}).items():
             addon_development_dict[key] = AddonDevelopmentItem(**value)
 
+        addons = data.get("addons", {})
+        if not isinstance(addons, dict):
+            addons = {}
+
+        for addon_name, addon_version in list(addons.items()):
+            try:
+                _ = AddonLibrary.addon(addon_name, addon_version)
+            except NotFoundException:
+                logger.warning(
+                    f"Addon {addon_name} version {addon_version} does not exist, "
+                    f"removing from bundle {bundle_name}"
+                )
+                addons.pop(addon_name)
+
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
-            addons=data["addons"],
+            addons=addons,
             installer_version=data.get("installer_version", None),
             dependency_packages=data.get("dependency_packages", {}),
             addon_development=addon_development_dict,
