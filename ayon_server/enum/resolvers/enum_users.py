@@ -6,6 +6,7 @@ from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.models import IconModel
+from ayon_server.types import AttributeType
 
 query = """
     SELECT name, attrib, data FROM public.users
@@ -16,8 +17,8 @@ query = """
 class UsersEnumResolver(BaseEnumResolver):
     name = "users"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         result: list[EnumItem] = []
@@ -62,6 +63,14 @@ class UsersEnumResolver(BaseEnumResolver):
         def should_show_user(udata: dict[str, Any]) -> bool:
             is_admin = udata.get("isAdmin", False)
             is_manager = udata.get("isManager", False)
+
+            if (
+                current_user
+                and (not current_user.data.get("isSupport", False))
+                and udata.get("isSupport", False)
+            ):
+                # we don't show support users to non-support users
+                return False
 
             if is_admin or is_manager:
                 # we always show admins and managers

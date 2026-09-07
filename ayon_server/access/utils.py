@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import SQLTool
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 
 if TYPE_CHECKING:
     from ayon_server.access.permissions import FolderAccessList
@@ -38,6 +39,41 @@ def path_to_paths(
     return result
 
 
+class AssignedTaskFolderPathsCache(TypedDict):
+    paths: list[str]
+
+
+@Redis.cached(
+    "assigned-task-folder-paths",
+    "{project_name}:{user_name}",
+    ttl=120,
+)
+async def get_assigned_task_folder_paths(
+    project_name: str,
+    user_name: str,
+) -> AssignedTaskFolderPathsCache:
+    """Return cached folder paths for tasks assigned to the user."""
+
+    logger.trace(
+        f"Resolving assigned task folder paths for {user_name} "
+        f"in project {project_name}"
+    )
+
+    query = f"""
+        SELECT DISTINCT (h.path)
+        FROM project_{project_name}.hierarchy as h
+        INNER JOIN project_{project_name}.tasks as t
+            ON h.id = t.folder_id
+        WHERE
+            $1 = ANY (t.assignees)
+        """
+
+    paths: list[str] = [
+        record["path"] for record in await Postgres.fetch(query, user_name)
+    ]
+    return {"paths": paths}
+
+
 async def parse_permset(
     user: "UserEntity",
     project_name: str,
@@ -48,12 +84,6 @@ async def parse_permset(
     """Convert a permission set to a list of paths"""
     if not permset.enabled:
         return None
-
-    # TODO: Enable caching when we figure out how to invalidate it
-    # ns = "folder-access-list"
-    # key = f"{project_name}:{user.name}:{access_type}"
-    # if (cached := await Redis.get_json(ns, key)) is not None:
-    #     return cached
 
     fpaths = set()
     for perm in permset.access_list:
@@ -76,29 +106,16 @@ async def parse_permset(
                 fpaths.add(path)
 
         elif perm.access_type == "assigned":
-            query = f"""
-                SELECT
-                    h.path
-                FROM
-                    project_{project_name}.hierarchy as h
-                INNER JOIN
-                    project_{project_name}.tasks as t
-                    ON h.id = t.folder_id
-                WHERE
-                    '{user.name}' = ANY (t.assignees)
-                """
-            async for record in Postgres.iterate(query):
-                for path in path_to_paths(
-                    record["path"],
-                    include_parents=access_type == "read" and not no_parents,
-                ):
-                    fpaths.add(path)
+            cres = await get_assigned_task_folder_paths(project_name, user.name)
+            for path in cres.get("paths") or []:
+                fpaths.update(
+                    path_to_paths(
+                        path,
+                        include_parents=access_type == "read" and not no_parents,
+                    )
+                )
+
     folder_list = list(fpaths)
-    # logger.trace(
-    #     f"Caching {user.name} {project_name} {access_type} "
-    #     f"access: {', '.join(folder_list)}"
-    # )
-    # await Redis.set_json(ns, key, folder_list)
     return folder_list
 
 
@@ -175,6 +192,7 @@ async def folder_access_list(
     return path_list
 
 
+@overload
 async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
@@ -182,78 +200,105 @@ async def ensure_entity_access(
     entity_id: str | None,
     access_type: "AccessType" = "read",
 ) -> Literal[True]:
+    pass
+
+
+@overload
+async def ensure_entity_access(
+    user: "UserEntity",
+    project_name: str,
+    entity_type: "ProjectLevelEntityType",
+    entity_id: list[str],
+    access_type: "AccessType" = "read",
+) -> Literal[True]:
+    pass
+
+
+async def ensure_entity_access(
+    user: "UserEntity",
+    project_name: str,
+    entity_type: "ProjectLevelEntityType",
+    entity_id: str | list[str] | None,
+    access_type: "AccessType" = "read",
+) -> Literal[True]:
     """Check whether the user has access to a given entity.
 
-    Warning: THIS IS SLOW. DO NOT USE IN BATCHES!
+    Should handle both single and multi entity access.
     """
+
+    if entity_id is None:
+        raise ForbiddenException("Limited access to project")
+
+    if isinstance(entity_id, str):
+        ids_to_check = [entity_id]
+    else:
+        ids_to_check = entity_id
+
+    if not ids_to_check:
+        return True
 
     access_list = await folder_access_list(
         user,
         project_name,
         access_type=access_type,
     )
+
     if access_list is None:
         return True
 
-    if entity_id is None:
-        raise ForbiddenException("Limited access to project")
+    access_list = [path.strip('"') for path in access_list]
 
-    conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
-
     if entity_type in ("product", "version", "representation"):
         joins.append(
-            f"""
-            INNER JOIN project_{project_name}.products
-            ON products.folder_id = hierarchy.id
-            """
+            f"INNER JOIN project_{project_name}.products "
+            f"ON products.folder_id = hierarchy.id"
         )
         if entity_type in ("version", "representation"):
             joins.append(
-                f"""
-                INNER JOIN project_{project_name}.versions
-                ON versions.product_id = products.id
-                """
+                f"INNER JOIN project_{project_name}.versions "
+                f"ON versions.product_id = products.id"
             )
             if entity_type == "representation":
                 joins.append(
-                    f"""
-                    INNER JOIN project_{project_name}.representations
-                    ON representations.version_id = versions.id
-                    """
+                    f"INNER JOIN project_{project_name}.representations "
+                    f"ON representations.version_id = versions.id"
                 )
-
     elif entity_type in ("task", "workfile"):
         joins.append(
-            f"""
-            INNER JOIN project_{project_name}.tasks
-            ON tasks.folder_id = hierarchy.id
-            """
+            f"INNER JOIN project_{project_name}.tasks ON tasks.folder_id = hierarchy.id"
         )
-
         if entity_type == "workfile":
             joins.append(
-                f"""
-                INNER JOIN project_{project_name}.workfiles
-                ON workfiles.task_id = tasks.id
-                """
+                f"INNER JOIN project_{project_name}.workfiles "
+                f"ON workfiles.task_id = tasks.id"
             )
 
-    if entity_type == "folder":
-        conditions.append(f"hierarchy.id = '{entity_id}'")
-    else:
-        conditions.append(f"{entity_type}s.id = '{entity_id}'")
+    id_column = "hierarchy.id" if entity_type == "folder" else f"{entity_type}s.id"
 
     query = f"""
-        SELECT hierarchy.id FROM project_{project_name}.hierarchy
-        {" ".join(joins)}
-        {SQLTool.conditions(conditions)}
-    """
+            SELECT DISTINCT {id_column} AS permitted_id
+            FROM project_{project_name}.hierarchy
+            {" ".join(joins)}
+            WHERE {id_column} = ANY ($1::uuid[]) AND
+                hierarchy.path LIKE ANY ($2::text[])
+        """
 
-    if await Postgres.fetchrow(query):
-        return True
+    rows = await Postgres.fetch(query, ids_to_check, access_list)
 
-    raise ForbiddenException("Entity access denied")
+    permitted_ids = {str(row["permitted_id"]) for row in rows}
+    forbidden_ids = [e_id for e_id in ids_to_check if e_id not in permitted_ids]
+    if forbidden_ids:
+        raise ForbiddenException(
+            detail=f"Access denied for {entity_type} IDs: {', '.join(forbidden_ids)}"
+        )
+
+    return True
+
+
+#
+# AccessChecker
+#
 
 
 class TrieNode:
@@ -270,9 +315,13 @@ class AccessChecker:
     AccessChecker is used to determine if a user has access
     to specific paths within a project.
 
+
     This class builds a trie (prefix tree) structure to efficiently
     check if a given path is accessible based on the user's permissions.
     It also supports exact path matching and wildcard path matching.
+
+    It is useful when you need to check access for multiple paths in a project
+    during a single request, as it avoids repeated database queries.
 
     Usage:
         access_checker = AccessChecker()
@@ -287,7 +336,7 @@ class AccessChecker:
 
     def __init__(self) -> None:
         self.root = TrieNode()
-        self.exact_paths = set()
+        self.exact_paths: set[str] = set()
         self.is_none = False
 
     def __getitem__(self, path: str) -> bool:

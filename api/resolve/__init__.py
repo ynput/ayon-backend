@@ -161,8 +161,26 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         return [
             """
             v.id in (
-                SELECT l.ids[array_upper(l.ids, 1)]
-                FROM version_list AS l
+                SELECT vv.id
+                FROM versions vv
+                WHERE vv.product_id = s.id
+                ORDER BY vv.version DESC
+                LIMIT 1
+            )
+        """
+        ]
+
+    if version_name == "latestdone":
+        return [
+            """
+            v.id in (
+                    SELECT vv.id
+                    FROM versions vv
+                    JOIN statuses st ON st.name = vv.status
+                    WHERE vv.product_id = s.id
+                      AND st.data->>'state' = 'done'
+                    ORDER BY vv.version DESC
+                    LIMIT 1
             )
         """
         ]

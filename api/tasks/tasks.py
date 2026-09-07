@@ -6,7 +6,6 @@ from ayon_server.api.dependencies import (
     TaskID,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
-from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
@@ -157,11 +156,10 @@ async def assign_users_to_task(
         "summary": {"entityId": task.id, "parentId": task.folder_id},
         "user": user.name,
     }
-    if ayonconfig.audit_trail:
-        event_payload["payload"] = {
-            "oldValue": list(original_assignees),
-            "newValue": list(assignees),
-        }
+    event_payload["payload"] = {
+        "oldValue": list(original_assignees),
+        "newValue": list(assignees),
+    }
 
     await EventStream.dispatch("entity.task.assignees_changed", **event_payload)
 

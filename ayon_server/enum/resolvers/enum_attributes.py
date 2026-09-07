@@ -4,13 +4,14 @@ from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import BadRequestException
+from ayon_server.types import AttributeType
 
 
 class AttributeEnumResolver(BaseEnumResolver):
     name = "attrib"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str, "name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string", "name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         key = context.get("name")

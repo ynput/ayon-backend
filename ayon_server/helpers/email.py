@@ -193,7 +193,7 @@ async def get_studio_logo_url(base_url: str | None) -> str:
         customization = config.customization
         file_name = customization.studio_logo
     if not file_name:
-        return "https://static.ynput.team/AYON_whiteG_dot.png"
+        return "https://static.ynput.io/AYON_whiteG_dot.png"
     return f"{base_url}/static/customization/{file_name}"
 
 

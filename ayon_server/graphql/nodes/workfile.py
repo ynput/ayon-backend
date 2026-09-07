@@ -25,6 +25,7 @@ class WorkfileNode(BaseNode):
     task_id: str | None
     thumbnail_id: str | None
     thumbnail: ThumbnailInfo | None = None
+    thumbnail_hash: str = strawberry.field()
     status: str
     data: str | None
     tags: list[str]
@@ -61,6 +62,7 @@ async def workfile_from_record(
     """Construct a version node from a DB row."""
 
     data = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
     npath = record["path"].replace("\\", "/")
     name = npath.split("/")[-1] if npath else ""
 
@@ -89,6 +91,7 @@ async def workfile_from_record(
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
         thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         active=record["active"],
         status=record["status"],
         tags=record["tags"],

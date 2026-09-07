@@ -1,8 +1,8 @@
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel
 
-from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 
@@ -66,6 +66,8 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
 def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
+    *,
+    calculated_attributes: Iterable[str] | None = None,
 ) -> list[EventData]:
     """Return a listof events triggered by a patch on a project level entity.
 
@@ -114,12 +116,11 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": original_entity.name,
-                    "newValue": new_name,
-                }
-                result[-1]["payload"] = payload
+            result[-1]["summary"]["value"] = new_name
+            result[-1]["payload"] = {
+                "oldValue": original_entity.name,
+                "newValue": new_name,
+            }
 
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
@@ -133,12 +134,11 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": original_entity.status,
-                    "newValue": new_status,
-                }
-                result[-1]["payload"] = payload
+            result[-1]["summary"]["value"] = new_status
+            result[-1]["payload"] = {
+                "oldValue": original_entity.status,
+                "newValue": new_status,
+            }
 
     if (new_tags := patch_data.get("tags")) is not None:
         if new_tags != original_entity.tags:
@@ -155,12 +155,11 @@ def build_pl_entity_change_events(
                         **common_data,
                     }
                 )
-                if ayonconfig.audit_trail:
-                    payload = {
-                        "oldValue": original_entity.tags,
-                        "newValue": new_tags,
-                    }
-                    result[-1]["payload"] = payload
+                result[-1]["summary"]["value"] = new_tags
+                result[-1]["payload"] = {
+                    "oldValue": original_entity.tags,
+                    "newValue": new_tags,
+                }
 
     if new_attributes := patch_data.get("attrib", {}):
         evt = {
@@ -182,20 +181,28 @@ def build_pl_entity_change_events(
                 old_attributes.pop(key, None)
                 new_attributes.pop(key, None)
 
-        if ayonconfig.audit_trail:
-            evt["payload"] = {
-                "oldValue": old_attributes,
-                "newValue": new_attributes,
-            }
+        evt["payload"] = {
+            "oldValue": old_attributes,
+            "newValue": new_attributes,
+        }
+
+        if calculated_attributes:
+            evt["payload"]["calculatedAttributes"] = list(calculated_attributes)  # type: ignore[index]
 
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())
             evt["description"] = (
                 f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
             )
+            # Do not include new attributes in the summary, until we have entity-level
+            # ACL on WS events
+            # evt["summary"]["value"] = new_attributes
             result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
+        if column_name == "tags":
+            continue  # tags_changed is already emitted by the explicit block above
+
         if not hasattr(original_entity, column_name):
             continue
 
@@ -226,12 +233,23 @@ def build_pl_entity_change_events(
                 **common_data,
             }
         )
-        if ayonconfig.audit_trail:
-            payload = {
-                "oldValue": getattr(original_entity, column_name),
-                "newValue": patch_data[column_name],
-            }
-            result[-1]["payload"] = payload
+
+        if topic_name not in (
+            "data",
+            "config",
+            "files",
+            "statuses",
+            "tags",
+            "folder_types",
+            "task_types",
+        ):
+            # for simple columns, we include new value in summary as well
+            result[-1]["summary"]["value"] = patch_data[column_name]
+
+        result[-1]["payload"] = {
+            "oldValue": getattr(original_entity, column_name),
+            "newValue": patch_data[column_name],
+        }
 
     return result
 
@@ -267,12 +285,10 @@ def build_project_change_events(
             nval[key] = new_value
 
         if oval or nval:
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": oval,
-                    "newValue": nval,
-                }
-                evt["payload"] = payload
+            evt["payload"] = {
+                "oldValue": oval,
+                "newValue": nval,
+            }
 
             result.append(evt)
 
@@ -304,17 +320,14 @@ def build_project_change_events(
                 description = "Project deactivated"
 
         evt = {
+            **common_data,
             "topic": f"entity.{etype}.{topic_name}",
             "description": description,
-            **common_data,
-        }
-        if ayonconfig.audit_trail:
-            payload = {
+            "payload": {
                 "oldValue": oval,
                 "newValue": nval,
-            }
-            evt["payload"] = payload
-
+            },
+        }
         result.append(evt)
 
     # Original entity.project.changed event

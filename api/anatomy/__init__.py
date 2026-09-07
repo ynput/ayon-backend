@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter
 
@@ -54,7 +54,11 @@ async def get_anatomy_presets(user: CurrentUser) -> AnatomyPresetListModel:
     """Return a list of stored anatomy presets."""
 
     presets = []
-    query = "SELECT * from anatomy_presets ORDER BY name, version"
+    query = """
+        SELECT name, is_primary, version
+        FROM anatomy_presets
+        ORDER BY name, version
+        """
     async for row in Postgres.iterate(query):
         presets.append(
             AnatomyPresetListItem(
@@ -171,11 +175,13 @@ async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResp
 
 
 class RenamePresetModel(OPModel):
-    name: str = Field(
-        ...,
-        title="New name of the anatomy preset",
-        description="The new name of the anatomy preset.",
-    )
+    name: Annotated[
+        str,
+        Field(
+            title="New name of the anatomy preset",
+            description="The new name of the anatomy preset.",
+        ),
+    ]
 
 
 @router.post("/presets/{preset_name}/rename", status_code=204)

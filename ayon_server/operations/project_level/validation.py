@@ -31,9 +31,10 @@ class Subtask(OPModel):
 
     @root_validator(pre=True)
     def validate_name(cls, values: dict[str, Any]) -> dict[str, Any]:
-        value = values.get("name", "").strip()
+        value = (values.get("name") or "").strip()
+        label = (values.get("label") or "").strip()
         if not value:
-            value = slugify(values.get("label", "").strip(), separator="_")
+            value = slugify(label, separator="_")
         if not value:
             raise ValueError("Subtask name/label cannot be empty")
         values["name"] = value

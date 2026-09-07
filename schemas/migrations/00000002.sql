@@ -66,24 +66,18 @@ DO $$
 DECLARE rec RECORD;
 BEGIN
 FOR rec IN
-    SELECT DISTINCT
-        tc.table_schema project_schema,
-        tc.table_name,
-        kcu.column_name,
-        tc.constraint_name,
-        pc.confupdtype
-    FROM
-        information_schema.table_constraints AS tc
-    JOIN information_schema.key_column_usage AS kcu
-        ON tc.constraint_name = kcu.constraint_name
-        AND kcu.column_name = 'user_name'
-    JOIN pg_constraint AS pc
-        ON tc.constraint_name = pc.conname
-        AND tc.table_schema = pc.connamespace::regnamespace::text
-        AND pc.confupdtype != 'c'
-    WHERE
-        tc.table_schema LIKE 'project_%'
-        AND tc.constraint_type = 'FOREIGN KEY'
+    SELECT ns.nspname AS project_schema,
+           c.relname AS table_name,
+           con.conname AS constraint_name,
+           a.attname AS column_name
+    FROM pg_constraint con
+    JOIN pg_class c ON con.conrelid = c.oid
+    JOIN pg_namespace ns ON c.relnamespace = ns.oid
+    JOIN pg_attribute a ON a.attnum = ANY (con.conkey) AND a.attrelid = c.oid
+    WHERE con.contype = 'f'
+      AND con.confupdtype != 'c'
+      AND a.attname = 'user_name'
+      AND ns.nspname LIKE 'project_%'
 LOOP
     RAISE WARNING 'Fixing user_name foreign key on %.%', rec.project_schema, rec.table_name;
 

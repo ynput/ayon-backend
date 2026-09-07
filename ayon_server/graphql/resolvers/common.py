@@ -1,6 +1,7 @@
 from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, Any, Literal
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -9,6 +10,8 @@ from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
+from ayon_server.utils import SQLTool
 
 from .pagination import encode_cursor
 
@@ -30,6 +33,21 @@ class AttributeFilterInput:
     values: list[str]
 
 
+ColumnMetadataDataType = Literal["string", "uuid", "bool", "numeric", "jsonb"]
+
+
+@dataclass(frozen=True)
+class ColumnMetadata:
+    column_name: str
+    data_type: ColumnMetadataDataType
+
+    # These are only used if we are unpacking a JSONB field
+    is_nested: bool = False
+    parent_json_column: str | None = None
+    json_key: str | None = None
+    nested_sub_type: ColumnMetadataDataType | None = None
+
+
 def argdesc(description: str) -> StrawberryArgumentAnnotation:
     description = "\n".join([line.strip() for line in description.split("\n")])
     return strawberry.argument(description=description)
@@ -47,6 +65,10 @@ ARGLast = Annotated[int | None, argdesc("Pagination: last")]
 ARGBefore = Annotated[str | None, argdesc("Pagination: before")]
 ARGIds = Annotated[list[str] | None, argdesc("List of ids to be returned")]
 ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence")]
+ARGIncludeInternalFolder = Annotated[
+    bool,
+    argdesc("Whether to include the AYON internal folder and its descendants"),
+]
 
 
 class FieldInfo:
@@ -71,7 +93,7 @@ class FieldInfo:
         def parse_fields(
             fields: list[Any],
             name: str | None = None,
-        ) -> Generator[str, None, None]:
+        ) -> Generator[str]:
             for field in fields:
                 if hasattr(field, "name"):
                     fname = name + "." + field.name if name else field.name
@@ -143,14 +165,140 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     return await folder_access_list(user, project_name)
 
 
+def create_child_folder_ctes(
+    project_name: str,
+    folder_ids: list[str],
+    include_self: bool = True,
+) -> list[str]:
+    """Create a CTE resolving folder_ids plus all of their descendant folder
+    ids, by walking folders.parent_id (indexed via folder_parent_idx).
+
+    This walks the live folders table instead of matching path strings
+    against the hierarchy materialized view: a LIKE 'prefix/%' match against
+    a per-row dynamic prefix can't use hierarchy_path_idx, so postgres falls
+    back to scanning the whole view and can't estimate its selectivity,
+    which on a project with thousands of folders skews the planner's cost
+    estimate for the entire query (and, incidentally, the JIT decision that
+    estimate feeds into) badly enough to dominate query time. A recursive
+    walk over parent_id gives it real, estimable per-level index lookups.
+
+    include_self=False resolves descendants only (e.g. for a "children of
+    these parents" filter), without folder_ids themselves.
+
+    NOTE: the caller must wrap the combined CTE list in "WITH RECURSIVE",
+    not plain "WITH", for this CTE's self-reference to be valid SQL.
+
+    Uses UNION, not UNION ALL: if folder_ids contains both a folder and one
+    of its own descendants, that descendant's subtree would otherwise be
+    reached by two different paths and recurse independently down each,
+    duplicating ids (and downstream, duplicating joined result rows).
+    """
+    base_case = (
+        f"SELECT id FROM project_{project_name}.folders "
+        f"WHERE id IN {SQLTool.id_array(folder_ids)}"
+        if include_self
+        else f"SELECT id FROM project_{project_name}.folders "
+        f"WHERE parent_id IN {SQLTool.id_array(folder_ids)}"
+    )
+    return [
+        f"""
+        child_folder_ids AS (
+            {base_case}
+            UNION
+            SELECT f.id
+            FROM project_{project_name}.folders AS f
+            INNER JOIN child_folder_ids AS cf ON f.parent_id = cf.id
+        )
+        """,
+    ]
+
+
+def get_product_fields_block(
+    product_alias: str = "products",
+) -> tuple[list[str], list[str]]:
+    """Return SQL columns and joins for resolving full product fields."""
+    columns = [
+        f"{product_alias}.id AS _product_id",
+        f"{product_alias}.name AS _product_name",
+        f"{product_alias}.folder_id AS _product_folder_id",
+        f"{product_alias}.product_type AS _product_product_type",
+        f"{product_alias}.product_base_type AS _product_product_base_type",
+        f"{product_alias}.status AS _product_status",
+        f"{product_alias}.tags AS _product_tags",
+        f"{product_alias}.data AS _product_data",
+        f"{product_alias}.active AS _product_active",
+        f"{product_alias}.created_at AS _product_created_at",
+        f"{product_alias}.updated_at AS _product_updated_at",
+        f"{product_alias}.created_by AS _product_created_by",
+        f"{product_alias}.updated_by AS _product_updated_by",
+        f"{product_alias}.attrib AS _product_attrib",
+    ]
+    return columns, []
+
+
+def get_folder_fields_block(
+    project_name: str,
+    folder_id_column: str,
+    sql_joins: list[str],
+    is_inner: bool = True,
+) -> tuple[list[str], list[str]]:
+    """Return SQL columns and joins for resolving full folder fields."""
+    columns = [
+        "folders.id AS _folder_id",
+        "folders.name AS _folder_name",
+        "folders.label AS _folder_label",
+        "folders.folder_type AS _folder_folder_type",
+        "folders.thumbnail_id AS _folder_thumbnail_id",
+        "folders.parent_id AS _folder_parent_id",
+        "folders.attrib AS _folder_attrib",
+        "folders.data AS _folder_data",
+        "folders.active AS _folder_active",
+        "folders.status AS _folder_status",
+        "folders.tags AS _folder_tags",
+        "folders.created_at AS _folder_created_at",
+        "folders.updated_at AS _folder_updated_at",
+        "projects.attrib as _folder_project_attributes",
+        "folder_ex.attrib as _folder_inherited_attributes",
+    ]
+    exported_join = "INNER" if is_inner else "LEFT"
+    joins: list[str] = []
+
+    def has_join(alias_or_table: str) -> bool:
+        all_joins = sql_joins + joins
+        return any(alias_or_table in j for j in all_joins)
+
+    if not has_join(".folders"):
+        joins.append(
+            f"""
+            INNER JOIN project_{project_name}.folders AS folders
+                ON folders.id = {folder_id_column}
+            """
+        )
+
+    if not has_join("folder_ex"):
+        joins.append(
+            f"""
+            {exported_join} JOIN project_{project_name}.exported_attributes AS folder_ex
+                ON folders.id = folder_ex.folder_id
+            """
+        )
+
+    if not has_join("public.projects"):
+        joins.append(
+            f"""
+            INNER JOIN public.projects AS projects
+                ON projects.name ILIKE '{project_name}'
+            """
+        )
+    return columns, joins
+
+
 #
 # Actual resolver
 #
 
-R = TypeVar("R")
 
-
-async def resolve(
+async def resolve[R](
     connection_type: Callable[..., R],
     edge_type,
     node_type,
@@ -172,6 +320,7 @@ async def resolve(
         count = first = DEFAULT_PAGE_SIZE
 
     edges: list[Any] = []
+    # Now execute the original query for the actual data
     async for record in Postgres.iterate(query):
         # Create a standard dictionary from the record
         record_dict = dict(record)
@@ -191,6 +340,7 @@ async def resolve(
                     project_name, record_dict, context=context
                 )
             except ForbiddenException:
+                logger.trace(f"Skipping node {node_type} due to ForbiddenException")
                 continue
             edges.append(edge_type(node=node, cursor=cursor))
 
@@ -258,3 +408,47 @@ def get_has_links_conds(
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
         ]
     raise ValueError("Wrong has_links value")
+
+
+def build_search_conditions(
+    search: str,
+    columns: list[str],
+    *,
+    version_check: bool = False,
+) -> str | None:
+    """Build SQL search conditions from a search string.
+
+    The search string is split by commas (OR between comma-separated parts).
+    Within each part, slugified terms are AND'd together.
+    Within each term, the specified columns are OR'd together.
+
+    Returns a SQL condition string, or None if search is empty
+    or no conditions could be built.
+    """
+    parts = search.split(",")
+    t1_conds = []
+
+    for part in parts:
+        terms = part.lower().replace("'", "''").split()
+        t2_conds = []
+        for term in terms:
+            term = term.strip()
+            term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            if not term:
+                continue
+            sub_conditions = [f"{col} ILIKE '%{term}%'" for col in columns]
+            if version_check:
+                if term.isdigit():
+                    sub_conditions.append(f"versions.version = {int(term)}")
+                elif term.startswith("v") and term[1:].isdigit():
+                    sub_conditions.append(f"versions.version = {int(term[1:])}")
+            t2_conds.append(
+                f"({SQLTool.conditions(sub_conditions, 'OR', add_where=False)})"
+            )
+        if t2_conds:
+            t1_conds.append(f"({SQLTool.conditions(t2_conds, 'AND', add_where=False)})")
+
+    if t1_conds:
+        return f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
+
+    return None

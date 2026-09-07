@@ -1,7 +1,6 @@
 import json
 from typing import Annotated
 
-from ayon_server.access.utils import folder_access_list
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProductsConnection
@@ -13,28 +12,40 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
+    create_child_folder_ctes,
+    create_folder_access_list,
+    get_folder_fields_block,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name_list,
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
+from .common import build_search_conditions
+from .field_stats import (
+    MetricTargetInput,
+    generate_field_stats,
+    generate_specific_stats_columns,
+    generate_stats_columns,
+)
 from .sorting import get_attrib_sort_case, get_status_sort_case
 
 SORT_OPTIONS = {
     "name": "products.name",
-    "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
@@ -45,6 +56,8 @@ SORT_OPTIONS = {
     "createdBy": "products.created_by",
     "updatedBy": "products.updated_by",
     "tags": "array_to_string(products.tags, '')",
+    "path": "",  # for docs only
+    "version": "",  # for docs only
 }
 
 
@@ -104,6 +117,10 @@ async def get_products(
         str | None,
         argdesc("Filter products using QueryFilter"),
     ] = None,
+    folder_filter: Annotated[
+        str | None,
+        argdesc("Filter products by their parent folders using QueryFilter"),
+    ] = None,
     version_filter: Annotated[
         str | None,
         argdesc("Filter products by their versions using QueryFilter"),
@@ -116,6 +133,14 @@ async def get_products(
         str | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> ProductsConnection:
     """Return a list of products."""
 
@@ -128,41 +153,30 @@ async def get_products(
         if not ids:
             return ProductsConnection(edges=[])
 
-    #
-    # SQL
-    #
+    use_folder_query = False
 
     sql_columns = [
         "products.*",
-        "folders.id AS _folder_id",
-        "folders.name AS _folder_name",
-        "folders.label AS _folder_label",
-        "folders.folder_type AS _folder_folder_type",
-        "folders.parent_id AS _folder_parent_id",
-        "folders.thumbnail_id AS _folder_thumbnail_id",
-        "folders.attrib AS _folder_attrib",
-        "folders.data AS _folder_data",
-        "folders.active AS _folder_active",
-        "folders.status AS _folder_status",
-        "folders.tags AS _folder_tags",
-        "folders.created_at AS _folder_created_at",
-        "folders.updated_at AS _folder_updated_at",
         "hierarchy.path AS _folder_path",
+        "folder_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
         f"""
-        INNER JOIN project_{project_name}.folders
-        ON folders.id = products.folder_id
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON products.folder_id = hierarchy.id
         """,
         f"""
-        INNER JOIN project_{project_name}.hierarchy AS hierarchy
-        ON folders.id = hierarchy.id
+        INNER JOIN project_{project_name}.exported_attributes AS folder_ex
+        ON products.folder_id = folder_ex.folder_id
         """,
     ]
 
     sql_cte = []
     sql_conditions = []
+
+    if not include_internal_folder:
+        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if ids is not None:
         if not ids:
@@ -172,39 +186,15 @@ async def get_products(
     if folder_ids is not None:
         if not folder_ids:
             return ProductsConnection()
-        if not include_folder_children:
+        if include_folder_children:
+            use_folder_query = True
+            sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
             sql_conditions.append(
-                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
+                "products.folder_id IN (SELECT id FROM child_folder_ids)"
             )
         else:
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(folder_ids)}
-                )
-                """
-            )
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1 FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.path = ANY(
-                        SELECT path FROM top_folder_paths
-                    )
-                )
-                """
-            )
-            sql_joins.append(
-                """
-                INNER JOIN child_folder_ids AS cfi
-                ON cfi.id = products.folder_id
-                """
+            sql_conditions.append(
+                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
             )
 
     elif root.__class__.__name__ == "FolderNode":
@@ -261,62 +251,19 @@ async def get_products(
 
     if path_ex is not None:
         # TODO: sanitize
-        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
+        sql_conditions.append(f"'/' || folder_ex.path ~ '{path_ex}'")
 
     #
     # Access control
     #
 
-    access_list = None
-    if root.__class__.__name__ == "ProjectNode":
-        # Selecting products directly from the project node,
-        # so we need to check access rights
-        user = info.context["user"]
-        if user.is_guest:
-            # Guests need to provide explicit IDs
-            # that is handled above and provides a sufficient
-            # level of security.
-
-            # We may use additional checks for version lists in the future
-            pass
-        else:
-            access_list = await folder_access_list(user, project_name)
-            if access_list is not None:
-                sql_conditions.append(
-                    f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-                )
-
-    #
-    # Do we need parent folder attributes?
-    # And most importantly - do we need to know which are inherited?
-    #
-
-    if any(field.endswith("folder.attrib") for field in fields):
-        sql_columns.extend(
-            [
-                "pr.attrib as _folder_project_attributes",
-                "ex.attrib as _folder_inherited_attributes",
-            ]
-        )
-        sql_joins.extend(
-            [
-                f"""
-                LEFT JOIN project_{project_name}.exported_attributes AS ex
-                ON folders.parent_id = ex.folder_id
-                """,
-                f"""
-                INNER JOIN public.projects AS pr
-                ON pr.name ILIKE '{project_name}'
-                """,
-            ]
-        )
-    else:
-        sql_columns.extend(
-            [
-                "'{}'::JSONB as _folder_project_attributes",
-                "'{}'::JSONB as _folder_inherited_attributes",
-            ]
-        )
+    user = info.context["user"]
+    if not user.is_manager:
+        access_list = await create_folder_access_list(root, info)
+        if access_list is not None:
+            sql_conditions.append(
+                f"folder_ex.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
 
     if ff_field := fields.find_field("featuredVersion"):
         req_order = ff_field.arguments.get("order") or [
@@ -354,7 +301,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -391,7 +338,7 @@ async def get_products(
                     LEFT JOIN reviewables AS rv
                     ON versions.id = rv.entity_id
 
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -418,7 +365,7 @@ async def get_products(
                     ON versions.id = rv.entity_id
 
                     WHERE versions.version >= 0
-                    ORDER BY versions.product_id, versions.version DESC
+                    ORDER BY versions.product_id, versions.creation_order DESC
                 )
                 """
             )
@@ -441,9 +388,13 @@ async def get_products(
         )
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.version_list
-                ON products.id = version_list.product_id
+            LEFT JOIN LATERAL (
+                SELECT
+                    array_agg(v.id ORDER BY v.version) AS ids,
+                    array_agg(v.version ORDER BY v.version) AS versions
+                FROM project_{project_name}.versions AS v
+                WHERE v.product_id = products.id
+            ) AS version_list ON TRUE
             """
         )
 
@@ -452,16 +403,11 @@ async def get_products(
     #
 
     if search:
-        terms = slugify(search, make_set=True, split_chars=" ")
-        for term in terms:
-            sub_conditions = []
-            term = term.replace("'", "''")
-            sub_conditions.append(f"products.name ILIKE '%{term}%'")
-            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            ["products.name", "products.product_type", "folder_ex.path"],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter (actual product filter)
@@ -492,6 +438,33 @@ async def get_products(
             table_prefix="products",
         ):
             sql_conditions.append(fcond)
+
+    if folder_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "label",
+            "folder_type",
+            "parent_id",
+            "thumbnail_id",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(folder_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "folder_ex.attrib"},
+        ):
+            sql_conditions.append(fcond)
+            use_folder_query = True
 
     #
     # Filtering products by versions and tasks
@@ -597,6 +570,17 @@ async def get_products(
                 """
             )
 
+    if (
+        use_folder_query
+        or "folder" in fields
+        or sort_by in ["folderName", "folderType"]
+    ):
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "products.folder_id", sql_joins=sql_joins
+        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
+
     #
     # Pagination
     #
@@ -606,12 +590,10 @@ async def get_products(
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "products.status")
             order_by.insert(0, status_type_case)
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
-            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.insert(0, attr_case)
+
+        elif sort_by == "path":
+            order_by = ["folder_ex.path", "products.name"]
+
         elif sort_by == "version":
             # count by product version count
             sql_cte.append(
@@ -634,17 +616,31 @@ async def get_products(
             )
             order_by.insert(0, "COALESCE(pvc.version_count, 0)")
 
+        elif sort_by.startswith("attrib."):
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
+            order_by.insert(0, attr_case)
+
+        elif sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+
+        elif sort_by.startswith("task"):
+            pass  # this is not supported - not easily solvable
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    ordering, paging_conds, cursor = create_pagination(
-        order_by,
-        first,
-        after,
-        last,
-        before,
-    )
-    sql_conditions.append(paging_conds)
+    ordering = ""
+    cursor = "''"
+    if not calculate_statistics and not calculate_specific_statistics:
+        ordering, paging_conds, cursor = create_pagination(
+            order_by,
+            first,
+            after,
+            last,
+            before,
+        )
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -652,26 +648,66 @@ async def get_products(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        # RECURSIVE (harmless for the non-recursive CTEs here) is required
+        # when folder_ids+includeFolderChildren adds create_child_folder_ctes'
+        # self-referencing CTE.
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 
     sql_columns.insert(0, cursor)
     sql_columns_str = ",\n".join(sql_columns)
 
+    default_columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("name", "string"),
+        ColumnMetadata("product_type", "string"),
+        ColumnMetadata("product_base_type", "string"),
+        ColumnMetadata("active", "bool"),
+        ColumnMetadata("status", "string"),
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(default_columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+            )
+            SELECT
+                {stats_select_clause}
+            FROM raw_data;
+            """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {sql_columns_str}
         FROM project_{project_name}.products
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
+        {raw_data_end}
     """
 
     # print()
-    # print (query)
+    # print("Products query:")
+    # print(query)
     # print()
     #
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return ProductsConnection(edges=[], field_stats=field_stats)
+
     return await resolve(
         ProductsConnection,
         ProductEdge,

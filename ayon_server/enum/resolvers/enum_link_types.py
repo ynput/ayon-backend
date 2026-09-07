@@ -8,6 +8,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.anatomy.link_types import LinkType
+from ayon_server.types import AttributeType
 
 
 def link_type_to_enum_item(link_type: LinkType) -> EnumItem:
@@ -44,8 +45,8 @@ async def _resolve_link_types_project(project_name: str) -> list[EnumItem]:
 class LinkTypesEnumResolver(BaseEnumResolver):
     name = "linkTypes"
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")

@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_tags ON activities USING gin(tags);
+CREATE INDEX IF NOT EXISTS activity_author_idx ON activities((data->>'author'));
+CREATE INDEX IF NOT EXISTS activity_watcher_idx ON activities((data->>'watcher')) WHERE activity_type = 'watch';
 
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
@@ -91,6 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_referen
 CREATE INDEX IF NOT EXISTS idx_activity_reference_updated_at ON activity_references(updated_at);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
+
+CREATE INDEX IF NOT EXISTS activity_origin_desc_idx ON activity_references (entity_type, entity_id, created_at DESC) 
+  WHERE reference_type = 'origin';
 
 
 -- This will be implemented later.
@@ -143,12 +148,14 @@ CREATE TABLE IF NOT EXISTS files (
   size BIGINT NOT NULL,
   author VARCHAR,
   activity_id UUID REFERENCES activities(id) ON DELETE SET NULL,
+  thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB, -- contains mime, original file name etc
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
+CREATE INDEX IF NOT EXISTS idx_files_thumbnail_id ON files(thumbnail_id);
 
 -------------------
 -- BASE ENTITIES --
@@ -220,6 +227,7 @@ AS
    SELECT base_id AS id, path FROM htable;
 
 CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
+CREATE INDEX hierarchy_path_idx ON hierarchy(path);
 
 
 CREATE TABLE exported_attributes(
@@ -324,11 +332,15 @@ CREATE INDEX version_thumbnail_idx ON versions(thumbnail_id);
 CREATE INDEX version_task_id_idx ON versions(task_id);
 CREATE INDEX version_status_idx ON versions(status);
 CREATE INDEX version_attrib_idx ON versions USING gin(attrib);
+CREATE INDEX version_product_corder_idx ON versions(product_id, creation_order DESC) WHERE version >= 0;
+CREATE INDEX version_product_status_corder_idx ON versions(product_id, status, creation_order DESC) WHERE version >= 0;
 CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
 CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, version) WHERE (active IS TRUE);
 
 -- Version list VIEW
 -- Materialized view used as a shorthand to get product versions
+-- TODO:This view is deprecated and will be removed in the future. As of 1.16.1, it is only present to maintain
+-- backwrads compatibility, but it is no longer updated upon version changes
 
 CREATE MATERIALIZED VIEW version_list
 AS

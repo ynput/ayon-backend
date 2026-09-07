@@ -2,7 +2,14 @@ import json
 import re
 from typing import Annotated, Any, Literal, Union, cast
 
-from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr, validator
+from pydantic import (
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    root_validator,
+    validator,
+)
 
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -73,20 +80,26 @@ class QueryCondition(OPModel):
         ),
     ] = "eq"
 
-    @validator("operator", pre=True, always=True)
+    @validator("operator", pre=True)
     def convert_operator_to_lowercase(cls, v):
         return v.lower().replace("-", "").replace("_", "")
 
-    @validator("value")
-    def validate_value(cls, v: ValueType, values: dict[str, Any]):
-        if values.get("operator") in ("in", "notin", "any"):
-            if not isinstance(v, list):
+    @root_validator(pre=True)
+    def validate_value(cls, values: dict[str, Any]):
+        operator = (
+            values.get("operator", "eq").lower().replace("-", "").replace("_", "")
+        )
+        value = values.get("value")
+
+        if operator in ("in", "notin", "any"):
+            if not isinstance(value, list):
                 raise ValueError("Value must be a list")
-        if values.get("operator") not in ("isnull", "notnull"):
-            if v is None:
+
+        if operator not in ("isnull", "notnull"):
+            if value is None:
                 raise ValueError("Value cannot be null")
 
-        return v
+        return values
 
 
 class QueryFilter(OPModel):
@@ -109,6 +122,23 @@ class QueryFilter(OPModel):
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
         return v.lower()
+
+
+def filter_columns(f: QueryFilter) -> set[str]:
+    """Return the set of columns a filter references.
+
+    Columns are returned in their snake_case form, without the path to
+    the key within JSON columns, so `attrib/fps` is reported as `attrib`.
+    Resolvers use this to find out which joins a filter needs.
+    """
+    result: set[str] = set()
+    for condition in f.conditions:
+        if isinstance(condition, QueryFilter):
+            result |= filter_columns(condition)
+        else:
+            key = condition.key.replace("/", ".").split(".")[0]
+            result.add(camel_to_snake(key.strip()))
+    return result
 
 
 JSON_FIELDS = [

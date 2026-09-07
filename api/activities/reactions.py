@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Path
 
@@ -125,7 +125,13 @@ async def modify_reactions(
 
 
 class CreateReactionModel(OPModel):
-    reaction: str = Field(..., description="The reaction to be created", example="like")
+    reaction: Annotated[
+        str,
+        Field(
+            description="The reaction to be created",
+            example="like",
+        ),
+    ]
 
 
 @router.post(
@@ -160,12 +166,14 @@ async def delete_reaction_to_activity(
     user: CurrentUser,
     project_name: ProjectName,
     activity_id: ActivityID,
-    reaction: str = Path(
-        ...,
-        description="The reaction to be deleted",
-        example="like",
-        regex=NAME_REGEX,
-    ),
+    reaction: Annotated[
+        str,
+        Path(
+            description="The reaction to be deleted",
+            example="like",
+            regex=NAME_REGEX,
+        ),
+    ],
 ):
     await modify_reactions(
         project_name,

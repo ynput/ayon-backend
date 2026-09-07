@@ -1,5 +1,7 @@
 # import time
 
+from collections.abc import Iterable
+
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
@@ -13,6 +15,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.users import get_manager_names
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import validate_name_list, validate_user_name_list
@@ -25,9 +28,12 @@ def user_has_access(user: UserEntity, project_name: str) -> bool:
     return project_name in user.data.get("accessGroups", {})
 
 
-async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
+async def get_accessible_users(
+    user: UserEntity,
+    project_names: Iterable[str],
+) -> dict[str, set[str]] | None:
     """
-    Reurns a dictionary mapping project names to lists of users
+    Returns a dictionary mapping project names to lists of users
     that the given user has access to.
 
     For managers, this returns None, indicating no restrictions.
@@ -35,81 +41,71 @@ async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
 
     if user.is_manager:
         return None  # No restrictions for managers
-    result: dict[str, set[str]] = {}
 
     if ayonconfig.limit_user_visibility:
-        agcond = """WHERE (
-            a.access_groups <@ m.access_groups
-            OR a.access_groups @> m.access_groups
-            OR a.project_name = '__all__'
-        )"""
+        fquery = """
+        SELECT
+            ua.user_name,
+            array_agg(DISTINCT ua.project_name) AS project_names
+        FROM user_access ua
+        JOIN my_access ma
+        ON ua.project_name = ma.project_name
+        AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements_text(ua.access_groups) ag1
+            JOIN jsonb_array_elements_text(ma.access_groups) ag2
+            ON ag1 = ag2
+        )
+        GROUP BY ua.user_name
+        """
+
     else:
-        agcond = ""
+        fquery = """
+            SELECT
+                ua.user_name,
+                array_agg(DISTINCT ua.project_name) AS project_names
+            FROM user_access ua
+            JOIN my_access ma
+            ON ua.project_name = ma.project_name
+            GROUP BY ua.user_name
+        """
 
     query = f"""
-        WITH all_user_access AS (
+        WITH user_access AS (
             SELECT
-                name as user_name,
-                jsonb_object_keys(data->'accessGroups') AS project_name
-            from users
-        ),
-
-        all_user_ag AS (
-            SELECT
-                u.name user_name,
-                CASE WHEN
-                    (u.data->>'isAdmin' = 'true' OR u.data->>'isManager' = 'true')
-                    THEN '__all__'
-                ELSE a.project_name
-                END AS project_name,
-
-                u.data->'accessGroups'->a.project_name as access_groups
-
+                u.name AS user_name,
+                p.project_name,
+                u.data->'accessGroups'->p.project_name AS access_groups
             FROM users u
-            LEFT JOIN all_user_access a ON u.name = a.user_name
-
-            WHERE
-                jsonb_array_length(u.data->'accessGroups'->a.project_name) > 0
-                OR u.data->>'isAdmin' = 'true' OR u.data->>'isManager' = 'true'
+            CROSS JOIN unnest($2::text[]) AS p(project_name)
+            WHERE u.data->'accessGroups' ? p.project_name
         ),
 
         my_access AS (
             SELECT
                 project_name,
-                jsonb_array_elements(data->'accessGroups'->project_name) AS access_group
-            FROM users, jsonb_object_keys(data->'accessGroups') AS project_name
-            WHERE name = $1
-        ),
-
-        my_ag AS (
-            SELECT
-                u.name user_name,
-                a.project_name,
-                u.data->'accessGroups'->a.project_name AS access_groups
-            FROM users u
-            JOIN my_access a
-                ON jsonb_array_length(u.data->'accessGroups'->a.project_name) > 0
-                WHERE u.name = $1
-            GROUP BY u.name, a.project_name, u.data->'accessGroups'->a.project_name
+                access_groups
+            FROM user_access
+            WHERE user_name = $1
         )
 
-        SELECT
-            a.user_name,
-            a.project_name
-        FROM all_user_ag a
-        JOIN my_ag m ON (a.project_name = m.project_name OR a.project_name = '__all__')
-        {agcond}
-        ORDER BY a.user_name, a.project_name;
+        {fquery}
     """
 
-    async for row in Postgres.iterate(query, user.name):
+    manager_names = set(await get_manager_names())
+
+    result: dict[str, set[str]] = {}
+    res = await Postgres.fetch(query, user.name, project_names)
+    for row in res:
         user_name = row["user_name"]
-        project_name = row["project_name"]
+        user_project_names = row["project_names"]
+        for project_name in user_project_names:
+            if project_name not in result:
+                result[project_name] = set()
+            result[project_name].add(user_name)
 
-        if project_name not in result:
-            result[project_name] = set()
-
-        result[project_name].add(user_name)
+    for project_name in result:
+        result[project_name] |= manager_names
 
     return result
 
@@ -166,7 +162,11 @@ async def get_kanban(
     DEFAULT_PRIORITY = project_defaults.get("priority", "normal")
 
     if not projects:
-        q = "SELECT name, code FROM public.projects WHERE active IS TRUE"
+        q = """
+        SELECT name, code FROM public.projects
+        WHERE active IS TRUE
+        AND data->>'isSkeleton' IS DISTINCT FROM 'true'
+        """
     else:
         validate_name_list(projects)
         q = f"""
@@ -176,9 +176,12 @@ async def get_kanban(
                 attrib->>'priority' as priority
             FROM public.projects
             WHERE name = ANY({SQLTool.array(projects, curly=True)})
+            AND data->>'isSkeleton' IS DISTINCT FROM 'true'
         """
-    async for row in Postgres.iterate(q):
-        project_data.append(row)
+
+    res = await Postgres.fetch(q)
+    project_data = [dict(row) for row in res]
+    project_names = {p["name"] for p in project_data}
 
     if not user.is_manager:
         project_data = [p for p in project_data if user_has_access(user, p["name"])]
@@ -198,7 +201,7 @@ async def get_kanban(
         c = f"t.id IN {SQLTool.id_array(task_ids)}"
         sub_query_conds.append(c)
 
-    umap = await get_accessible_users(user)
+    umap = await get_accessible_users(user, project_names=project_names)
 
     union_queries = []
     for pdata in project_data:
@@ -226,7 +229,6 @@ async def get_kanban(
 
             else:
                 users = umap.get(project_name, set())
-                users = users.union(umap.get("__all__", set()))
                 if assignees_any:
                     users = users.intersection(assignees_any)
 
@@ -263,6 +265,7 @@ async def get_kanban(
                 h.attrib->>'priority' as folder_priority,
                 t.thumbnail_id as thumbnail_id,
                 t.data->'thumbnailInfo' as thumbnail_info,
+                t.data->'thumbnailHash' as thumbnail_hash,
                 EXISTS (
                     SELECT 1 FROM {project_schema}.versions v
                     INNER JOIN {project_schema}.activity_feed af

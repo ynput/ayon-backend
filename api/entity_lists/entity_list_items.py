@@ -124,8 +124,13 @@ async def _multi_merge(
 
     for i, item in enumerate(payload):
         if item.id in existing_ids:
-            pos = i if item.position is None else item.position
             patched_fields = item.dict(exclude_unset=True).keys()
+            if "entity_id" in patched_fields and item.entity_id is None:
+                await entity_list.remove(item.id, normalize_positions=False)
+                existing_ids.remove(item.id)
+                continue
+
+            pos = i if item.position is None else item.position
             await entity_list.update(
                 item.id,
                 entity_id=item.entity_id,
@@ -156,6 +161,9 @@ async def _multi_merge(
                 tags=item.tags,
                 normalize_positions=False,
             )
+
+            if item.id:
+                existing_ids.add(item.id)
 
     entity_list.items.sort(key=lambda item: item.position)
     entity_list.normalize_positions()

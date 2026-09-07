@@ -68,7 +68,7 @@ class BaseEntity:
         pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
-            if not (user.is_manager):
+            if not user.is_manager and not self.skip_patch_permissions_check():
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
@@ -83,7 +83,6 @@ class BaseEntity:
                         perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
                     )
                     writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
-
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
@@ -199,3 +198,8 @@ class BaseEntity:
     @updated_at.setter
     def updated_at(self, value: float) -> None:
         self._payload.updated_at = value  # type: ignore
+
+    def skip_patch_permissions_check(self) -> bool:
+        """Return whether patch permission check should be skipped for this entity."""
+
+        return False

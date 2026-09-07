@@ -5,9 +5,10 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.ffprobe import availability_from_media_info
-from ayon_server.helpers.preview import get_file_preview
-from ayon_server.logging import logger
+from ayon_server.helpers.preview import obtain_file_preview
+from ayon_server.logging import log_traceback, logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
+from ayon_server.utils.hashing import create_uuid
 
 
 def check_valid_mime(content_type: str) -> None:
@@ -37,6 +38,7 @@ async def create_reviewable(
     user_name: str | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    create_events: bool = True,
 ) -> ReviewableModel:
     """Creates a reviewable for a given version.
 
@@ -82,6 +84,7 @@ async def create_reviewable(
         data={"reviewableLabel": label},
         user_name=user_name,
         bump_entity_updated_at=True,
+        create_events=create_events,
     )
 
     summary = {
@@ -94,16 +97,6 @@ async def create_reviewable(
         "label": label,
         "mimetype": content_type,
     }
-
-    await EventStream.dispatch(
-        "reviewable.created",
-        sender=sender,
-        sender_type=sender_type,
-        user=user_name,
-        project=project_name,
-        summary=summary,
-        description=f"Reviewable '{file_name}' uploaded",
-    )
 
     availability = availability_from_media_info(media_info)
 
@@ -127,13 +120,34 @@ async def create_reviewable(
     else:
         author = ReviewableAuthor(name="system", full_name=None)
 
-    # Ensure the file preview is generated and cached,
-    # so it is not generated when the client requests it for the first time,
-    # which would cause a delay for the user.
+    # If a version doesn't have a thumbnail, assign the reviewable as a thumbnail.
+
+    file_thumbnail_id = create_uuid()
     try:
-        await get_file_preview(project_name, file_id)
-    except Exception as e:
-        logger.warning(f"Failed to generate preview for reviewable {file_id}: {e}")
+        await obtain_file_preview(
+            project_name,
+            file_id,
+            thumbnail=True,
+            thumbnail_id=file_thumbnail_id,
+            user=user_name,
+            for_entity=version if version.thumbnail_id is None else None,
+        )
+    except Exception:
+        log_traceback(
+            f"Unable to create thumbnail for reviewable {file_id} "
+            f"for version {version.id}"
+        )
+
+    if create_events:
+        await EventStream.dispatch(
+            "reviewable.created",
+            sender=sender,
+            sender_type=sender_type,
+            user=user_name,
+            project=project_name,
+            summary=summary,
+            description=f"Reviewable '{file_name}' uploaded",
+        )
 
     return ReviewableModel(
         file_id=file_id,

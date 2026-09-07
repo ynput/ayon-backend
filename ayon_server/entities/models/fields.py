@@ -401,6 +401,13 @@ representation_fields: list[FieldDefinitionDict] = [
         "example": "/assets/characters/xenomorph/modelMain/v003/ma",
         "dynamic": True,
     },
+    {
+        "name": "belongs_to_hero",
+        "type": "boolean",
+        "title": "Belongs to HERO version",
+        "example": False,
+        "dynamic": True,
+    },
 ]
 
 workfile_fields: list[FieldDefinitionDict] = [

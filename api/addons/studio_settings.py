@@ -7,7 +7,6 @@ from pydantic.error_wrappers import ValidationError
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
@@ -264,11 +263,10 @@ async def set_raw_addon_studio_overrides(
         return EmptyResponse()
     original_data = res[0]["original_data"]
     updated_data = res[0]["updated_data"]
-    if ayonconfig.audit_trail:
-        payload = {
-            "originalValue": original_data or {},
-            "newValue": updated_data or {},
-        }
+    payload = {
+        "originalValue": original_data or {},
+        "newValue": updated_data or {},
+    }
 
     description = (
         f"{addon_name} {addon_version} {variant} overrides changed using low-level API"

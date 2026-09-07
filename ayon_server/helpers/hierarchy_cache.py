@@ -6,6 +6,8 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
+AYON_INTERNAL_FOLDER_NAME = "__ayon_internal__"
+
 
 async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     start_time = time.monotonic()
@@ -47,6 +49,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             f.status,
             f.attrib,
             f.tags,
+            f.data->>'thumbnailHash' AS thumbnail_hash,
             f.created_at,
             f.updated_at,
             ea.attrib as all_attrib,
@@ -69,6 +72,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
 
         LEFT JOIN reviewables r
         ON r.folder_id = f.id
+
+        WHERE ea.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'
 
         GROUP BY f.id, ea.attrib, ea.path, fwv.ancestor_id, r.folder_id
     """
@@ -99,6 +104,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "own_attrib": list(row["attrib"].keys()),
                     "has_reviewables": row["has_reviewables"],
                     "has_versions": row["has_versions"],
+                    "thumbnail_hash": row["thumbnail_hash"] or row["id"][-6:],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                 }

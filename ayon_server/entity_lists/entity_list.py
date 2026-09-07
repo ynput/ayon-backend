@@ -200,7 +200,9 @@ class EntityList:
         #
 
         access_level = EntityAccessHelper.MANAGE
-        if user:
+        if user and not user.get_guest_access(
+            type="entityList", project_name=project_name, id=res["id"]
+        ):
             project = await ProjectEntity.load(project_name)
             access_level = EntityAccessHelper.MANAGE
             try:
@@ -329,12 +331,13 @@ class EntityList:
             # Tags are always replaced, not merged
             item.tags = tags
 
-    async def remove(self, item_id: str) -> None:
+    async def remove(self, item_id: str, *, normalize_positions: bool = True) -> None:
         """Remove an item from the list"""
         for i, item in enumerate(self._payload.items):
             if item.id == item_id:
                 del self._payload.items[i]
-                self.normalize_positions()
+                if normalize_positions:
+                    self.normalize_positions()
                 return
         raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
@@ -344,6 +347,7 @@ class EntityList:
         user: UserEntity | None = None,
         sender: str | None = None,
         sender_type: str | None = None,
+        create_events: bool = True,
     ) -> EntityListSummary:
         """Save the entity list to the database"""
         _user = user or self._user
@@ -354,6 +358,7 @@ class EntityList:
                 user=_user,
                 sender=sender,
                 sender_type=sender_type,
+                create_events=create_events,
             )
 
     async def delete(

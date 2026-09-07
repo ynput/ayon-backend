@@ -13,6 +13,7 @@ async def save_entity_list(
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    create_events: bool = True,
 ) -> EntityListSummary:
     """
     Save the entity list to the database.
@@ -153,6 +154,7 @@ async def save_entity_list(
     summary = EntityListSummary(
         id=payload.id,
         entity_list_type=payload.entity_list_type,
+        entity_list_folder_id=payload.entity_list_folder_id,
         entity_type=payload.entity_type,
         label=payload.label,
         count=len(payload.items),
@@ -160,13 +162,15 @@ async def save_entity_list(
 
     description = f"Entity list {payload.label} {mode}"
 
-    await EventStream.dispatch(
-        f"entity_list.{mode}",
-        description=description,
-        summary=summary.dict(),
-        project=project_name,
-        user=user.name if user else None,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    if create_events:
+        await EventStream.dispatch(
+            f"entity_list.{mode}",
+            description=description,
+            summary=summary.dict(),
+            project=project_name,
+            user=user.name if user else None,
+            sender=sender,
+            sender_type=sender_type,
+        )
+
     return summary

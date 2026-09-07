@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     FieldInfo,
     argdesc,
@@ -20,10 +21,12 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
-from ayon_server.utils.strings import slugify
+
+from .common import build_search_conditions
 
 
 async def get_representations(
@@ -46,6 +49,7 @@ async def get_representations(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -141,28 +145,28 @@ async def get_representations(
             ]
         )
 
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+            )
+
         if access_list is not None:
             sql_conditions.append(
                 f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
-        for term in terms:
-            sub_conditions = []
-            if term.isdigit():
-                sub_conditions.append(f"versions.version = {int(term)}")
-            elif term.startswith("v") and term[1:].isdigit():
-                sub_conditions.append(f"versions.version = {int(term[1:])}")
-
-            term = term.replace("'", "''")  # Escape single quotes
-            sub_conditions.append(f"products.name ILIKE '%{term}%'")
-            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
-            sub_conditions.append(f"representations.name ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            [
+                "products.name",
+                "products.product_type",
+                "hierarchy.path",
+                "representations.name",
+            ],
+            version_check=True,
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter

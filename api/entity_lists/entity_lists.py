@@ -149,15 +149,27 @@ async def get_entity_list(
         payload.created_by = None
         payload.updated_by = None
 
-        guest_activity_category = payload.data.get("guestActivityCategories", {}).get(
-            user.attrib.email
-        )
+        guest_activity_category = None
+
+        if (
+            guest_access := user.get_guest_access(
+                type="entityList",
+                project_name=project_name,
+                id=entity_list_id,
+            )
+        ) is not None:
+            guest_activity_category = guest_access.get("activityCategory")
+        else:
+            guest_activity_category = payload.data.get(
+                "guestActivityCategories", {}
+            ).get(user.attrib.email)
         payload.data = {}
-        if guest_activity_category:
+        if guest_activity_category and guest_activity_category.strip():
             payload.data["guestActivityCategories"] = {
-                user.attrib.email: guest_activity_category
+                user.attrib.email: guest_activity_category.strip()
             }
 
+    payload.data.pop("publicLinks", None)
     return payload
 
 

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from collections.abc import AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
@@ -9,7 +10,6 @@ import httpx
 from fastapi import Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from typing_extensions import AsyncGenerator
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, NotFoundException
@@ -219,7 +219,7 @@ class FileIterator:
 
 async def list_s3_files(
     storage: "ProjectStorage", file_group: FileGroup
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str]:
     assert file_group in ["uploads", "thumbnails"], "Invalid file group"
     file_iterator = FileIterator(storage, file_group)
     await file_iterator.init_iterator()
@@ -326,12 +326,16 @@ class S3Uploader:
         )
         self._worker_task = asyncio.create_task(self._worker())
 
-    async def push_chunk(self, chunk: bytes):
+    async def push_chunk(self, chunk: bytes | bytearray):
         """
         Push chunk to the queue for background processing by the worker.
         If the queue is full, wait until there's space.
         """
-        await self._queue.put(chunk)
+
+        if isinstance(chunk, bytearray):
+            await self._queue.put(bytes(memoryview(chunk)))
+        else:
+            await self._queue.put(chunk)
 
     def _complete(self):
         if not self._multipart:
@@ -418,14 +422,14 @@ async def handle_s3_upload(
         try:
             await uploader.init_file_upload(path)
             buffer_size = 1024 * 1024 * 5
-            buff = b""
+            buff = bytearray()
 
             async for chunk in request.stream():
                 buff += chunk
-                if len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff)
-                    i += len(buff)
-                    buff = b""
+                while len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff[:buffer_size])
+                    i += buffer_size
+                    del buff[:buffer_size]
 
             if buff:
                 await uploader.push_chunk(buff)
@@ -467,7 +471,7 @@ async def remote_to_s3(
 
     i = 0
     buffer_size = 1024 * 1024 * 5
-    buff = b""
+    buff = bytearray()
 
     async with httpx.AsyncClient(
         timeout=timeout or ayonconfig.http_timeout,
@@ -485,10 +489,10 @@ async def remote_to_s3(
 
             async for chunk in response.aiter_bytes():
                 buff += chunk
-                if len(buff) >= buffer_size:
-                    await uploader.push_chunk(buff)
-                    i += len(buff)
-                    buff = b""
+                while len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff[:buffer_size])
+                    i += buffer_size
+                    del buff[:buffer_size]
 
             if buff:
                 await uploader.push_chunk(buff)

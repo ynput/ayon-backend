@@ -249,6 +249,9 @@ async def should_post_metrics() -> bool:
 
 
 async def post_metrics():
+    if ayonconfig.metrics_disabled:
+        return
+
     try:
         headers = await CloudUtils.get_api_headers()
     except Exception:
