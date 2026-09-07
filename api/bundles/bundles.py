@@ -271,15 +271,24 @@ async def update_bundle(
             addons = {}
 
         for addon_name, addon_version in list(addons.items()):
+            # Project bundle placeholders (and disabled addons) are not real versions.
+            # Only validate addon existence in that case.
+            if addon_version in (None, "__inherit__", "__disable__"):
+                if AddonLibrary.get(addon_name) is None:
+                    logger.warning(
+                        f"Addon {addon_name} does not exist, removing from bundle {bundle_name}"
+                    )
+                    addons.pop(addon_name, None)
+                continue
+
             try:
-                addon_library.addon(addon_name, addon_version)
+                AddonLibrary.addon(addon_name, addon_version)
             except NotFoundException:
                 logger.warning(
                     f"Addon {addon_name} version {addon_version} does not exist, "
                     f"removing from bundle {bundle_name}"
                 )
-                addons.pop(addon_name)
-
+                addons.pop(addon_name, None)
         installer_version = data.get("installer_version")
         if installer_version is not None:
             existing_installer_versions = await list_installer_versions()
