@@ -4,7 +4,7 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -35,25 +35,52 @@ if TYPE_CHECKING:
 
 async def ensure_required_project_link_types(
     project_name: str,
-    existing_link_types: Iterable[tuple[str, str, str]],
+    link_types: list[dict[str, Any]],
 ) -> None:
     """Ensure that the required link types exist in the project.
-    Create them if they do not exist.
+
+    Creates any missing default link types in the database and appends
+    them to `link_types` in place, so the caller's already-built payload
+    (which holds the same list instance) picks up the new entries too.
     """
 
     from ayon_server.settings.anatomy.link_types import default_link_types
 
-    for link_type in default_link_types:
-        if (
-            link_type.link_type,
-            link_type.input_type,
-            link_type.output_type,
-        ) in existing_link_types:
+    # LinkTypeModel equality/hash only consider (link_type, input_type,
+    # output_type) - color/style ("data") is cosmetic and irrelevant here.
+    existing = {LinkTypeModel(**lt) for lt in link_types}
+
+    for default_link_type in default_link_types:
+        candidate = LinkTypeModel(
+            name=default_link_type.name,
+            link_type=default_link_type.link_type,
+            input_type=default_link_type.input_type,
+            output_type=default_link_type.output_type,
+            data={"color": default_link_type.color, "style": default_link_type.style},
+        )
+        if candidate in existing:
             continue
 
         logger.debug(
-            f"Creating missing link type {link_type.name} in project {project_name}"
+            f"Creating missing link type {candidate.name} in project {project_name}"
         )
+
+        await Postgres.execute(
+            f"""
+            INSERT INTO project_{project_name}.link_types
+                (name, link_type, input_type, output_type, data)
+            VALUES
+                ($1, $2, $3, $4, $5)
+            ON CONFLICT (name) DO NOTHING
+            """,
+            candidate.name,
+            candidate.link_type,
+            candidate.input_type,
+            candidate.output_type,
+            candidate.data,
+        )
+
+        link_types.append(candidate.dict())
 
 
 class ProjectEntity(TopLevelEntity):
@@ -219,11 +246,7 @@ class ProjectEntity(TopLevelEntity):
                 f"Project '{project_name}' is currently being modified"
             )
 
-        lt_tuples = [
-            (lt["link_type"], lt["input_type"], lt["output_type"]) for lt in link_types
-        ]
-
-        await ensure_required_project_link_types(project_name, lt_tuples)
+        await ensure_required_project_link_types(project_name, link_types)
 
         cls.original_attributes = project_data["attrib"]
         await Redis.set_json("project-data", project_name, payload, ttl=3600)

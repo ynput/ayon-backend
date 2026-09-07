@@ -84,20 +84,25 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         )
 
     for default_link_type in default_link_types:
-        if default_link_type not in anatomy.link_types:
-            logger.debug(
-                f"Adding missing default link type {default_link_type.name} "
-                "to project anatomy"
+        if default_link_type in anatomy.link_types:
+            continue
+
+        logger.debug(
+            f"Adding missing default link type {default_link_type.name} "
+            "to project anatomy"
+        )
+        link_types.append(
+            LinkTypeModel(
+                name=default_link_type.name,
+                link_type=default_link_type.link_type,
+                input_type=default_link_type.input_type,
+                output_type=default_link_type.output_type,
+                data={
+                    "color": default_link_type.color,
+                    "style": default_link_type.style,
+                },
             )
-            link_types.append(
-                LinkTypeModel(
-                    name=name,
-                    link_type=default_link_type.link_type,
-                    input_type=default_link_type.input_type,
-                    output_type=default_link_type.output_type,
-                    data=data,
-                )
-            )
+        )
 
     result = {
         "task_types": task_types,
