@@ -86,6 +86,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
             }
             if details:
                 vinf["client_pyproject"] = await addon.get_client_pyproject()
+                vinf["client_metadata"] = await addon.get_client_metadata()
 
                 source_info = await addon.get_client_source_info(base_url=base_url)
                 if source_info is None:
