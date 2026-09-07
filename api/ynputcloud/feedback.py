@@ -31,6 +31,14 @@ async def _get_feedback_verification(
         if data := await Redis.get_json("feedback-verification", user.name):
             return UserVerificationResponse(**data)
 
+    user_level = "user"
+    if user.is_manager:
+        user_level = "manager"
+    if user.is_admin:
+        user_level = "admin"
+
+    user_pool = user.data.get("userPool", None)
+
     res = None
     payload = {
         "name": user.name,
@@ -38,6 +46,8 @@ async def _get_feedback_verification(
         "fullName": user.attrib.fullName or None,
         "avatarUrl": user.attrib.avatarUrl,
         "level": await user.get_ui_exposure_level(),
+        "userLevel": user_level,
+        "userPool": user_pool,
         "serverVersion": __version__,
     }
 
