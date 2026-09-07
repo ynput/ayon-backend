@@ -36,6 +36,8 @@ async def _get_feedback_verification(
         user_level = "manager"
     if user.is_admin:
         user_level = "admin"
+    if user.is_developer:
+        user_level = "developer"
 
     user_pool = user.data.get("userPool", None)
 
