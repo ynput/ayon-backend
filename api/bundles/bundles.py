@@ -12,6 +12,10 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.installer.common import (
+    list_dependency_packages,
+    list_installer_versions,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
@@ -276,12 +280,37 @@ async def update_bundle(
                 )
                 addons.pop(addon_name)
 
+        installer_version = data.get("installer_version")
+        if installer_version is not None:
+            existing_installer_versions = await list_installer_versions()
+            if installer_version not in existing_installer_versions:
+                logger.warning(
+                    f"Installer version {installer_version} does not exist, "
+                    f"removing from bundle {bundle_name}"
+                )
+                installer_version = None
+
+        dependency_packages = data.get("dependency_packages", {})
+        if not isinstance(dependency_packages, dict):
+            dependency_packages = {}
+        else:
+            existing_dependency_packages = await list_dependency_packages()
+            for platform, filename in list(dependency_packages.items()):
+                if filename is None:
+                    continue
+                if filename not in existing_dependency_packages.get(platform, []):
+                    logger.warning(
+                        f"Dependency package {filename} does not exist, "
+                        f"removing from bundle {bundle_name}"
+                    )
+                    dependency_packages.pop(platform)
+
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
             addons=addons,
-            installer_version=data.get("installer_version", None),
-            dependency_packages=data.get("dependency_packages", {}),
+            installer_version=installer_version,
+            dependency_packages=dependency_packages,
             addon_development=addon_development_dict,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
@@ -362,7 +391,10 @@ async def update_bundle(
                         )
 
                 if not bundle.is_dev and not is_server:
-                    pass
+                    raise BadRequestException(
+                        f"Addon {addon_name} is not a server addon and cannot be "
+                        "patched on a non-dev bundle"
+                    )
 
                 if addon_version is None:
                     addons.pop(addon_name, None)
