@@ -41,7 +41,7 @@ async def create_folder(
     """Create a new folder."""
 
     if post_data.name.startswith(AYON_INTERNAL_FOLDER_NAME):
-        raise BadRequestException("reserved folder name")
+        raise BadRequestException("Reserved folder name")
 
     ops = ProjectLevelOperations(project_name, user=user)
 
@@ -70,8 +70,8 @@ async def update_folder(
     cannot be changed.
     """
 
-    if post_data.name.startswith(AYON_INTERNAL_FOLDER_NAME):
-        raise BadRequestException("reserved folder name")
+    if post_data.name and post_data.name.startswith(AYON_INTERNAL_FOLDER_NAME):
+        raise BadRequestException("Reserved folder name")
 
     ops = ProjectLevelOperations(project_name, user=user)
     ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))
