@@ -254,9 +254,9 @@ async def get_folders(
                 f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
             )
         if visibility == EntityVisibility.VISIBLE:
-            sql_conditions.append("ex.active IS TRUE")
+            sql_conditions.append("(ex.active AND folders.active)")
         elif visibility == EntityVisibility.HIDDEN:
-            sql_conditions.append("ex.active IS FALSE")
+            sql_conditions.append("(NOT ex.active OR NOT folders.active")
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(

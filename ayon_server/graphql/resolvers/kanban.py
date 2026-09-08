@@ -279,7 +279,9 @@ async def get_kanban(
                     ON f.id = t.folder_id
                 JOIN {project_schema}.exported_attributes h
                     ON h.folder_id = f.id
-                    {"AND h.active IS TRUE AND t.active IS TRUE" if not task_ids else ""}
+                    {
+            "AND h.active IS TRUE AND t.active IS TRUE" if not task_ids else ""
+        }
                 {SQLTool.conditions(sq_conds)}
         """
         union_queries.append(uq)
