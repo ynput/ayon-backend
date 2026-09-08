@@ -26,8 +26,10 @@ from .common import (
     ARGIds,
     ARGIncludeInternalFolder,
     ARGLast,
+    ARGVisibility,
     AttributeFilterInput,
     ColumnMetadata,
+    EntityVisibility,
     FieldInfo,
     argdesc,
     build_search_conditions,
@@ -128,6 +130,7 @@ async def get_folders(
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -207,6 +210,11 @@ async def get_folders(
             ON folders.id = tasks.folder_id
             """
         )
+
+    if visibility == EntityVisibility.VISIBLE:
+        sql_conditions.append("ex.active IS TRUE")
+    elif visibility == EntityVisibility.HIDDEN:
+        sql_conditions.append("ex.active IS FALSE")
 
     # Total count fields (for delete info). Only computed when ids filter
     # is provided to prevent expensive full-project scans.
