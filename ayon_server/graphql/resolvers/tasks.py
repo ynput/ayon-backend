@@ -40,7 +40,7 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import build_search_conditions
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -187,6 +187,7 @@ async def get_tasks(
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -287,13 +288,20 @@ async def get_tasks(
             """
         )
 
-    if not include_internal_folder:
-        sql_conditions.append(f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
-
     if ids is not None:
         if not ids:
             return TasksConnection()
         sql_conditions.append(f"tasks.id IN {SQLTool.id_array(ids)}")
+    else:
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+            )
+
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("(tasks.active AND f_ex.active)")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("(NOT tasks.active OR NOT f_ex.active)")
 
     if folder_ids is not None:
         if not folder_ids:

@@ -26,7 +26,7 @@ from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
-from .common import build_search_conditions
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
 
 async def get_representations(
@@ -50,6 +50,7 @@ async def get_representations(
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -73,6 +74,32 @@ async def get_representations(
         if not ids:
             return RepresentationsConnection()
         sql_conditions.append(f"representations.id IN {SQLTool.id_array(ids)}")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append(
+                """
+                (
+                    representations.active
+                    AND versions.active
+                    AND products.active
+                    AND f_ex.active
+                )
+                """
+            )
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                """
+                (
+                    NOT representations.active
+                    OR NOT versions.active
+                    OR NOT products.active
+                    OR NOT f_ex.active
+                )
+                """
+            )
+
+        if not include_internal_folder:
+            sql_conditions.append(f"f_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     if version_ids is not None:
         if not version_ids:
@@ -119,6 +146,8 @@ async def get_representations(
         or search
         or fields.any_endswith("path")
         or fields.any_endswith("parents")
+        or visibility != EntityVisibility.ALL
+        or not include_internal_folder
     ):
         sql_joins.extend(
             [
@@ -131,28 +160,23 @@ async def get_representations(
                 ON products.id = versions.product_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = products.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS f_ex
+                ON f_ex.folder_id = products.folder_id
                 """,
             ]
         )
 
         sql_columns.extend(
             [
-                "hierarchy.path AS _folder_path",
+                "f_ex.path AS _folder_path",
                 "products.name AS _product_name",
                 "versions.version AS _version_number",
             ]
         )
 
-        if not include_internal_folder:
-            sql_conditions.append(
-                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
-            )
-
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"f_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     if search:
@@ -161,7 +185,7 @@ async def get_representations(
             [
                 "products.name",
                 "products.product_type",
-                "hierarchy.path",
+                "f_ex.path",
                 "representations.name",
             ],
             version_check=True,

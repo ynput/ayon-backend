@@ -172,12 +172,6 @@ async def get_folders(
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)
-
-    if not include_internal_folder:
-        sql_conditions.append(
-            f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
-        )
-
     if access_list is not None:
         sql_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
@@ -210,11 +204,6 @@ async def get_folders(
             ON folders.id = tasks.folder_id
             """
         )
-
-    if visibility == EntityVisibility.VISIBLE:
-        sql_conditions.append("ex.active IS TRUE")
-    elif visibility == EntityVisibility.HIDDEN:
-        sql_conditions.append("ex.active IS FALSE")
 
     # Total count fields (for delete info). Only computed when ids filter
     # is provided to prevent expensive full-project scans.
@@ -257,6 +246,17 @@ async def get_folders(
                 OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count
                 """
             )
+    else:
+        # If no specific ids are requested,
+        # we can filter by visibility and internal folder
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("ex.active IS TRUE")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("ex.active IS FALSE")
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
