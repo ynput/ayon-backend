@@ -251,7 +251,8 @@ async def get_folders(
         # we can filter by visibility and internal folder
         if not include_internal_folder:
             sql_conditions.append(
-                f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
+                f"(hierarchy.path <> '{AYON_INTERNAL_FOLDER_NAME}' AND "
+                f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}/'))"
             )
         if visibility == EntityVisibility.VISIBLE:
             sql_conditions.append("(COALESCE(ex.active, TRUE) AND folders.active)")
