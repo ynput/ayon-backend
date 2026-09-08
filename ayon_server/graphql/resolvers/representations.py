@@ -99,7 +99,9 @@ async def get_representations(
             )
 
         if not include_internal_folder:
-            sql_conditions.append(f"f_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
+            sql_conditions.append(
+                f"NOT starts_with(f_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
 
     if version_ids is not None:
         if not version_ids:

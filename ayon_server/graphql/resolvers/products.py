@@ -183,7 +183,7 @@ async def get_products(
     else:
         if not include_internal_folder:
             sql_conditions.append(
-                f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+                f"NOT starts_with(folder_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
             )
 
         if visibility == EntityVisibility.VISIBLE:

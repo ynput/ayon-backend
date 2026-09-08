@@ -73,7 +73,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
         LEFT JOIN reviewables r
         ON r.folder_id = f.id
 
-        WHERE ea.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'
+        WHERE NOT starts_with(ea.path, '{AYON_INTERNAL_FOLDER_NAME}')
 
         GROUP BY f.id, ea.attrib, ea.path, fwv.ancestor_id, r.folder_id
     """

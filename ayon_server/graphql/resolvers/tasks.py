@@ -295,7 +295,7 @@ async def get_tasks(
     else:
         if not include_internal_folder:
             sql_conditions.append(
-                f"hierarchy.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'"
+                f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}')"
             )
 
         if visibility == EntityVisibility.VISIBLE:
