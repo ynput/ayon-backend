@@ -79,8 +79,8 @@ ARGIncludeInternalFolder = Annotated[
 ARGVisibility = Annotated[
     EntityVisibility,
     argdesc(
-        "Filter by visibility. 'visible' returns only visible entities, "
-        "'hidden' returns only hidden entities, 'all' (default) returns both."
+        "Filter by visibility. VISIBLE returns only visible entities, "
+        "HIDDEN returns only hidden entities, ALL (default) returns both."
     ),
 ]
 
