@@ -214,6 +214,17 @@ def available_joins(project_name: str) -> dict[str, str]:
                 LIMIT 1
             ) hv ON true
             """,
+        "repr": f"""
+            INNER JOIN LATERAL (
+                SELECT
+                    versions.id AS id,
+                    r.name as repr_name,
+                    COALESCE(r.attrib->>'path', '') AS repr_path
+                FROM project_{project_name}.representations r
+                WHERE r.version_id = versions.id
+                LIMIT 1
+            ) repr ON true
+        """,
     }
 
 
@@ -517,21 +528,17 @@ async def get_versions(
         )
         path_conditions = " OR ".join(
             [
-                f"lower(COALESCE(rep.attrib->>'path', '')) LIKE '%.{extension}'"
+                f"lower(repr_path) LIKE '%.{extension}'"
                 for extension in normalized_extensions
             ]
         )
+        joins.for_filter("repr")
         sql_conditions.append(
             f"""
-            EXISTS (
-                SELECT 1
-                FROM project_{project_name}.representations AS rep
-                WHERE rep.version_id = versions.id
-                AND (
-                    rep.name IN {SQLTool.array(representation_names)}
+                (
+                    repr_name IN {SQLTool.array(representation_names)}
                     OR ({path_conditions})
                 )
-            )
             """
         )
 
