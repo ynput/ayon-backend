@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Annotated
 
 from ayon_server.entities import ProjectEntity
@@ -44,6 +45,8 @@ from .field_stats import (
     generate_stats_columns,
 )
 from .sorting import get_attrib_sort_case, get_status_sort_case
+
+REPRESENTATION_EXTENSION_REGEX = re.compile(r"^[a-z0-9][a-z0-9._+-]*$")
 
 SORT_OPTIONS = {
     "author": "versions.author",
@@ -312,6 +315,13 @@ async def get_versions(
         list[str] | None,
         argdesc("List of tags to filter by"),
     ] = None,
+    representation_extensions: Annotated[
+        list[str] | None,
+        argdesc(
+            "List of file extensions (e.g. pdf, mov, .jpg) to filter by "
+            "representation path/name"
+        ),
+    ] = None,
     product_ids: Annotated[
         list[str] | None,
         argdesc("List of parent products IDs"),
@@ -492,6 +502,38 @@ async def get_versions(
             return VersionsConnection()
         validate_name_list(tags)
         sql_conditions.append(f"versions.tags @> {SQLTool.array(tags, curly=True)}")
+
+    if representation_extensions is not None:
+        if not representation_extensions:
+            return VersionsConnection()
+        normalized_extensions = _normalize_representation_extensions(
+            representation_extensions
+        )
+
+        representation_names = list(
+            dict.fromkeys(
+                [*normalized_extensions, *[f".{ext}" for ext in normalized_extensions]]
+            )
+        )
+        path_conditions = " OR ".join(
+            [
+                f"lower(COALESCE(rep.attrib->>'path', '')) LIKE '%.{extension}'"
+                for extension in normalized_extensions
+            ]
+        )
+        sql_conditions.append(
+            f"""
+            EXISTS (
+                SELECT 1
+                FROM project_{project_name}.representations AS rep
+                WHERE rep.version_id = versions.id
+                AND (
+                    rep.name IN {SQLTool.array(representation_names)}
+                    OR ({path_conditions})
+                )
+            )
+            """
+        )
 
     if product_ids is not None:
         if not product_ids:
@@ -1022,3 +1064,15 @@ async def get_version(root, info: Info, id: str) -> VersionNode:
     if not connection.edges:
         raise NotFoundException("Version not found")
     return connection.edges[0].node
+
+
+def _normalize_representation_extensions(extensions: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for extension in extensions:
+        value = extension.strip().lower().lstrip(".")
+        if not value:
+            raise BadRequestException("Representation extension cannot be empty")
+        if not REPRESENTATION_EXTENSION_REGEX.match(value):
+            raise BadRequestException(f"Invalid representation extension '{extension}'")
+        normalized.append(value)
+    return list(dict.fromkeys(normalized))
