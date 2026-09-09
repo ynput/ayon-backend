@@ -6,6 +6,7 @@ from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.forms.simple_form import SimpleForm
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.models import IconModel
@@ -193,3 +194,11 @@ class UsersEnumResolver(BaseEnumResolver):
                 result.append(item)
 
         return result
+
+    async def get_settings_form(self) -> SimpleForm | None:
+        return (
+            SimpleForm()
+            .boolean("hide_inactive", "Hide inactive users", False)
+            .boolean("hide_users", "Hide all users (for showing teams only)", False)
+            .boolean("include_teams", "Include teams in the list", False)
+        )
