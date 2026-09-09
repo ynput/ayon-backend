@@ -67,7 +67,7 @@ def should_hide_user(
     them, but not selecting them.
     """
 
-    if context.get("hide_users"):
+    if context.get("mode", "users") == "teams":
         # caller only wants teams listed, but users must still resolve
         # (e.g. metadata for an already-selected user)
         return True
@@ -96,9 +96,8 @@ class UsersEnumResolver(BaseEnumResolver):
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {
             "project_name": "string",
-            "include_teams": "boolean",
+            "mode": "string",
             "hide_inactive": "boolean",  # Hide inactive users and users without license
-            "hide_users": "boolean",  # Hide all users (when listing teams only)
         }
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
@@ -178,7 +177,9 @@ class UsersEnumResolver(BaseEnumResolver):
                 )
                 result.append(item)
 
-        if context.get("include_teams") and context.get("project_name"):
+        mode = context.get("mode", "users")
+
+        if mode in ("teams", "both") and context.get("project_name"):
             project = await ProjectEntity.load(context["project_name"])
             for team in project.data.get("teams", []):
                 team_name = team.get("name") or "Unnamed Team"
@@ -199,6 +200,14 @@ class UsersEnumResolver(BaseEnumResolver):
         return (
             SimpleForm()
             .boolean("hide_inactive", "Hide inactive users", False)
-            .boolean("hide_users", "Hide all users (for showing teams only)", False)
-            .boolean("include_teams", "Include teams in the list", False)
+            .select(
+                "mode",
+                [
+                    {"value": "users", "label": "Users"},
+                    {"value": "teams", "label": "Teams"},
+                    {"value": "both", "label": "Users and teams"},
+                ],
+                "Mode",
+                "users",
+            )
         )
