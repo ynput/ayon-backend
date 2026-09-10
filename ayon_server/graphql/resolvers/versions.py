@@ -214,17 +214,6 @@ def available_joins(project_name: str) -> dict[str, str]:
                 LIMIT 1
             ) hv ON true
             """,
-        "repr": f"""
-            INNER JOIN LATERAL (
-                SELECT
-                    versions.id AS id,
-                    r.name as repr_name,
-                    COALESCE(r.attrib->>'path', '') AS repr_path
-                FROM project_{project_name}.representations r
-                WHERE r.version_id = versions.id
-                LIMIT 1
-            ) repr ON true
-        """,
     }
 
 
@@ -326,13 +315,6 @@ async def get_versions(
         list[str] | None,
         argdesc("List of tags to filter by"),
     ] = None,
-    representation_extensions: Annotated[
-        list[str] | None,
-        argdesc(
-            "List of file extensions (e.g. pdf, mov, .jpg) to filter by "
-            "representation path/name"
-        ),
-    ] = None,
     product_ids: Annotated[
         list[str] | None,
         argdesc("List of parent products IDs"),
@@ -416,6 +398,10 @@ async def get_versions(
     product_filter: Annotated[
         str | None,
         argdesc("Filter versions by their product using QueryFilter"),
+    ] = None,
+    representation_filter: Annotated[
+        str | None,
+        argdesc("Filter versions by their representations using QueryFilter"),
     ] = None,
     sort_by: Annotated[
         str | None,
@@ -513,34 +499,6 @@ async def get_versions(
             return VersionsConnection()
         validate_name_list(tags)
         sql_conditions.append(f"versions.tags @> {SQLTool.array(tags, curly=True)}")
-
-    if representation_extensions is not None:
-        if not representation_extensions:
-            return VersionsConnection()
-        normalized_extensions = _normalize_representation_extensions(
-            representation_extensions
-        )
-
-        representation_names = list(
-            dict.fromkeys(
-                [*normalized_extensions, *[f".{ext}" for ext in normalized_extensions]]
-            )
-        )
-        path_conditions = " OR ".join(
-            [
-                f"lower(repr_path) LIKE '%.{extension}'"
-                for extension in normalized_extensions
-            ]
-        )
-        joins.for_filter("repr")
-        sql_conditions.append(
-            f"""
-                (
-                    repr_name IN {SQLTool.array(representation_names)}
-                    OR ({path_conditions})
-                )
-            """
-        )
 
     if product_ids is not None:
         if not product_ids:
@@ -863,6 +821,48 @@ async def get_versions(
             sql_conditions.append(fcond)
             joins.for_filter("folders", "folder_ex")
             use_folder_query = True
+
+    representation_filter_conditions = []
+    if representation_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "version_id",
+            "files",
+            "attrib",
+            "data",
+            "traits",
+            "status",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(representation_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="representations",
+        ):
+            representation_filter_conditions.append(fcond)
+
+    if representation_filter_conditions:
+        sql_conditions.append(
+            f"""
+                EXISTS (
+                    SELECT 1
+                    FROM project_{project_name}.representations AS representations
+                    {
+                SQLTool.conditions(
+                    ["representations.version_id = versions.id"]
+                    + representation_filter_conditions
+                )
+            }
+                )
+                """
+        )
 
     #
     # Latest version per folder (from the set matching all filters above)
