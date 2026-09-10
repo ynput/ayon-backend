@@ -25,7 +25,7 @@ from ayon_server.activities.utils import (
     process_activity_files,
 )
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
-from ayon_server.entities import UserEntity
+from ayon_server.entities import FolderEntity, TaskEntity, UserEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.events.eventstream import EventStream
@@ -345,6 +345,11 @@ async def create_activity(
             notify_important: list[str] = []
             notify_normal: list[str] = []
             _prj: ProjectEntity | None = None
+
+            review_important_users = await _get_review_important_users(
+                activity_type, entity, project_name, references
+            )
+
             for ref in references:
                 if ref.entity_type != "user":
                     continue
@@ -381,7 +386,7 @@ async def create_activity(
                 if (
                     ref.reference_type in ["mention", "watching"]
                     and activity_type != "status.change"
-                ):
+                ) or (ref.entity_name in review_important_users):
                     notify_important.append(ref.entity_name)
                 elif ref.entity_name not in notify_important:
                     notify_normal.append(ref.entity_name)
@@ -410,3 +415,40 @@ async def create_activity(
                 )
 
     return activity_id
+
+
+async def _get_review_important_users(
+    activity_type: ActivityType,
+    entity: ProjectLevelEntity,
+    project_name: str,
+    references: set[ActivityReferenceModel],
+):
+    """Get also watchers from parent entity for version.review"""
+    review_important_users: set[str] = set()
+    if activity_type != "version.review":
+        return review_important_users
+
+    version_entity: VersionEntity
+    if isinstance(entity, VersionEntity):
+        version_entity = entity
+    else:
+        version_entity = await VersionEntity.load(project_name, entity.id)
+
+    if version_entity.author:
+        review_important_users.add(version_entity.author)
+
+    watcher_entities: list[ProjectLevelEntity] = [version_entity]
+
+    ENTITY_LOADERS = {
+        "task": TaskEntity,
+        "folder": FolderEntity,
+    }
+    for ref in references:
+        if ref.reference_type == "relation" and ref.entity_id:
+            loader = ENTITY_LOADERS.get(ref.entity_type)
+            if loader:
+                watcher_entities.append(await loader.load(project_name, ref.entity_id))
+
+    for watched_entity in watcher_entities:
+        review_important_users.update(await get_watcher_list(watched_entity))
+    return review_important_users
