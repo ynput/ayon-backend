@@ -6,12 +6,20 @@ from fastapi import Path
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, NoTraces
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import SQLTool
 
 from .router import router
+
+#
+# Models
+#
 
 
 class RegistryAuth(OPModel):
@@ -51,15 +59,83 @@ class ServiceListModel(OPModel):
     services: list[ServiceModel] = Field(default_factory=list)
 
 
+#
+# Utilities
+#
+
+
+async def validate_data(
+    addon_name: str,
+    addon_version: str,
+    service: str,
+    data: dict[str, Any],
+) -> None:
+    addon = AddonLibrary.addon(addon_name, addon_version)
+
+    if service not in addon.services:
+        raise BadRequestException("No such service")
+
+    service_def = addon.services[service]
+
+    if "image" in data:
+        image = data["image"]
+        if image != service_def.get("image"):
+            raise BadRequestException("Invalid image")
+
+
+#
+# Endpoints
+#
+
+
 @router.get("/services", dependencies=[NoTraces])
 async def list_services(user: CurrentUser) -> ServiceListModel:
+    if not user.is_admin:
+        return ServiceListModel(services=[])
+
     query = """
         SELECT *, extract(epoch from (now() - last_seen)) as last_seen_delta
         FROM services ORDER BY name ASC
     """
+
     services = []
-    async for row in Postgres.iterate(query):
+    disable_services = {}
+    for row in await Postgres.fetch(query):
         services.append(ServiceModel(**row))
+
+        if services[-1].is_running and services[-1].data.error is not None:
+            services[-1].data.error = None
+            await Postgres.execute(
+                """
+                UPDATE services SET
+                    data = jsonb_set(data, '{error}', 'null'::jsonb)
+                WHERE name = $1
+                """,
+                row["name"],
+            )
+
+        try:
+            await validate_data(
+                addon_name=row["addon_name"],
+                addon_version=row["addon_version"],
+                service=row["service"],
+                data=row["data"],
+            )
+        except (NotFoundException, BadRequestException) as e:
+            disable_services[row["name"]] = str(e)
+            services[-1].should_run = False
+
+    for s_name, s_error in disable_services.items():
+        await Postgres.execute(
+            """
+            UPDATE services SET
+                should_run = false,
+                data = jsonb_set(data, '{error}', $1)
+            WHERE name = $2
+            """,
+            s_error,
+            s_name,
+        )
 
     return ServiceListModel(services=services)
 
@@ -93,10 +169,18 @@ async def spawn_service(
         raise NotFoundException("This addon does not have this service")
 
     image = addon.services[payload.service].get("image")
-    assert image is not None  # TODO: raise smarter exception
+    if image is None:
+        raise BadRequestException("This service does not have an image")
 
     data = payload.config.dict()
     data["image"] = image
+
+    await validate_data(
+        addon_name=payload.addon_name,
+        addon_version=payload.addon_version,
+        service=payload.service,
+        data=data,
+    )
 
     await Postgres.execute(
         """
@@ -154,7 +238,16 @@ async def patch_service(
     if not user.is_admin:
         raise ForbiddenException("Only admins can modify services")
 
-    query = "SELECT should_run, data FROM services WHERE name = $1 LIMIT 1"
+    query = """
+        SELECT
+            should_run,
+            addon_name,
+            addon_version,
+            service,
+            data
+        FROM services
+        WHERE name = $1 LIMIT 1
+    """
     service_data_record = await Postgres.fetchrow(query, service_name)
     if service_data_record is None:
         raise NotFoundException("Service not found")
@@ -182,6 +275,13 @@ async def patch_service(
     # at this point patch_dict should only contain config fields
     # and this is the new style config that should take precedence
     service_data["data"].update(patch_dict)
+
+    await validate_data(
+        addon_name=service_data["addon_name"],
+        addon_version=service_data["addon_version"],
+        service=service_data["service"],
+        data=service_data["data"],
+    )
 
     await Postgres.execute(
         *SQLTool.update(
