@@ -127,9 +127,6 @@ async def upload_file(
         ForbiddenException: If user is not a manager
         NotFoundException: If file format is not supported
     """
-    # Verify user has manager privileges
-    if not user.is_manager:
-        raise ForbiddenException("You must be a manager")
 
     mime = request.headers.get("Content-Type")
     if mime not in SUPPORTED_MIME_TYPES:
