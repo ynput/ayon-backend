@@ -170,11 +170,20 @@ async def import_data(
     Returns:
         ImportStatus: Summary of import results
     """
-    if not user.is_manager:
-        raise ForbiddenException("You must be a manager")
-
     if project_name is not None:
         project_name = await normalize_project_name(project_name)
+
+        if not user.is_manager:
+            permissions = user.permissions(project_name=project_name)
+            # If either create or attrib_write permission check is enabled,
+            # raise ForbiddenException to prevent import. User has to have
+            # full write access to the hierarchy in order to import data.
+            if permissions.create.enabled or permissions.attrib_write.enabled:
+                raise ForbiddenException("Insufficient permissions to import data")
+
+    elif not user.is_manager:
+        # For user import, user must be a manager
+        raise ForbiddenException("You must be a manager")
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
