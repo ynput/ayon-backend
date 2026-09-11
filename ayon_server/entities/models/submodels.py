@@ -47,3 +47,14 @@ class LinkTypeModel(OPModel):
         default_factory=dict,
         description="Additional link type data",
     )
+
+    def _identity(self) -> tuple[str, str, str]:
+        return (self.link_type, self.input_type, self.output_type)
+
+    def __hash__(self) -> int:
+        return hash(self._identity())
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, LinkTypeModel):
+            return NotImplemented
+        return self._identity() == other._identity()

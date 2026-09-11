@@ -26,10 +26,61 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
+
+
+async def ensure_required_project_link_types(
+    project_name: str,
+    link_types: list[dict[str, Any]],
+) -> None:
+    """Ensure that the required link types exist in the project.
+
+    Creates any missing default link types in the database and appends
+    them to `link_types` in place, so the caller's already-built payload
+    (which holds the same list instance) picks up the new entries too.
+    """
+
+    from ayon_server.settings.anatomy.link_types import default_link_types
+
+    # LinkTypeModel equality/hash only consider (link_type, input_type,
+    # output_type) - color/style ("data") is cosmetic and irrelevant here.
+    existing = {LinkTypeModel(**lt) for lt in link_types}
+
+    for default_link_type in default_link_types:
+        candidate = LinkTypeModel(
+            name=default_link_type.name,
+            link_type=default_link_type.link_type,
+            input_type=default_link_type.input_type,
+            output_type=default_link_type.output_type,
+            data={"color": default_link_type.color, "style": default_link_type.style},
+        )
+        if candidate in existing:
+            continue
+
+        logger.debug(
+            f"Creating missing link type {candidate.name} in project {project_name}"
+        )
+
+        await Postgres.execute(
+            f"""
+            INSERT INTO project_{project_name}.link_types
+                (name, link_type, input_type, output_type, data)
+            VALUES
+                ($1, $2, $3, $4, $5)
+            ON CONFLICT (name) DO NOTHING
+            """,
+            candidate.name,
+            candidate.link_type,
+            candidate.input_type,
+            candidate.output_type,
+            candidate.data,
+        )
+
+        link_types.append(candidate.dict())
 
 
 class ProjectEntity(TopLevelEntity):
@@ -194,6 +245,8 @@ class ProjectEntity(TopLevelEntity):
             raise ServiceUnavailableException(
                 f"Project '{project_name}' is currently being modified"
             )
+
+        await ensure_required_project_link_types(project_name, link_types)
 
         cls.original_attributes = project_data["attrib"]
         await Redis.set_json("project-data", project_name, payload, ttl=3600)
