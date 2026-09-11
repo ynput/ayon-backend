@@ -129,14 +129,10 @@ def _template_vars(value: Any) -> set[str]:
     """Collect `{{fieldName}}` references out of a (possibly nested) value."""
     if isinstance(value, str):
         return set(_TEMPLATE_VAR_PATTERN.findall(value))
-    if isinstance(value, dict):
+    if isinstance(value, (dict, list, tuple)):
+        items = value.values() if isinstance(value, dict) else value
         result: set[str] = set()
-        for v in value.values():
-            result |= _template_vars(v)
-        return result
-    if isinstance(value, (list, tuple)):
-        result = set()
-        for v in value:
+        for v in items:
             result |= _template_vars(v)
         return result
     return set()
