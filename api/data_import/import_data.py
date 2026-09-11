@@ -127,9 +127,6 @@ async def upload_file(
         ForbiddenException: If user is not a manager
         NotFoundException: If file format is not supported
     """
-    # Verify user has manager privileges
-    if not user.is_manager:
-        raise ForbiddenException("You must be a manager")
 
     mime = request.headers.get("Content-Type")
     if mime not in SUPPORTED_MIME_TYPES:
@@ -170,11 +167,25 @@ async def import_data(
     Returns:
         ImportStatus: Summary of import results
     """
-    if not user.is_manager:
-        raise ForbiddenException("You must be a manager")
+
+    if import_type == "user" and not user.is_admin:
+        raise ForbiddenException("You must be an admin to import users")
 
     if project_name is not None:
         project_name = await normalize_project_name(project_name)
+
+        if not user.is_manager:
+            permissions = user.permissions(project_name=project_name)
+            # If either create or attrib_write permission check is enabled,
+            # raise ForbiddenException to prevent import. User has to have
+            # full write access to the hierarchy in order to import data.
+            if permissions.create.enabled or permissions.attrib_write.enabled:
+                raise ForbiddenException("Insufficient permissions to import data")
+
+    elif not user.is_manager:
+        # This technically should not happen as project_name is required
+        # for folder/task imports, but we check anyway
+        raise ForbiddenException("You must be a manager to import data")
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
