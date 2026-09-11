@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Annotated
 
 from ayon_server.entities import ProjectEntity
@@ -44,6 +45,8 @@ from .field_stats import (
     generate_stats_columns,
 )
 from .sorting import get_attrib_sort_case, get_status_sort_case
+
+REPRESENTATION_EXTENSION_REGEX = re.compile(r"^[a-z0-9][a-z0-9._+-]*$")
 
 SORT_OPTIONS = {
     "author": "versions.author",
@@ -395,6 +398,10 @@ async def get_versions(
     product_filter: Annotated[
         str | None,
         argdesc("Filter versions by their product using QueryFilter"),
+    ] = None,
+    representation_filter: Annotated[
+        str | None,
+        argdesc("Filter versions by their representations using QueryFilter"),
     ] = None,
     sort_by: Annotated[
         str | None,
@@ -815,6 +822,48 @@ async def get_versions(
             joins.for_filter("folders", "folder_ex")
             use_folder_query = True
 
+    representation_filter_conditions = []
+    if representation_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "version_id",
+            "files",
+            "attrib",
+            "data",
+            "traits",
+            "status",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(representation_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="representations",
+        ):
+            representation_filter_conditions.append(fcond)
+
+    if representation_filter_conditions:
+        sql_conditions.append(
+            f"""
+                EXISTS (
+                    SELECT 1
+                    FROM project_{project_name}.representations AS representations
+                    {
+                SQLTool.conditions(
+                    ["representations.version_id = versions.id"]
+                    + representation_filter_conditions
+                )
+            }
+                )
+                """
+        )
+
     #
     # Latest version per folder (from the set matching all filters above)
     #
@@ -1022,3 +1071,15 @@ async def get_version(root, info: Info, id: str) -> VersionNode:
     if not connection.edges:
         raise NotFoundException("Version not found")
     return connection.edges[0].node
+
+
+def _normalize_representation_extensions(extensions: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for extension in extensions:
+        value = extension.strip().lower().lstrip(".")
+        if not value:
+            raise BadRequestException("Representation extension cannot be empty")
+        if not REPRESENTATION_EXTENSION_REGEX.match(value):
+            raise BadRequestException(f"Invalid representation extension '{extension}'")
+        normalized.append(value)
+    return list(dict.fromkeys(normalized))
