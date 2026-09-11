@@ -1,11 +1,15 @@
 from typing import TYPE_CHECKING, Any
 
-from ayon_server.forms import SimpleForm
-
 from ..types import AttributeType
 from .enum_item import EnumItem
 
 if TYPE_CHECKING:
+    # SimpleForm (ayon_server.forms) reuses EnumItem for its select/multiselect
+    # options, so ayon_server.forms imports from ayon_server.enum - importing
+    # SimpleForm here for real would make that a cycle. It's only ever used
+    # as a return-type annotation below, so keep it type-checking only.
+    from ayon_server.forms import SimpleForm
+
     from .enum_registry import EnumRegistry
 
 
@@ -21,7 +25,7 @@ class BaseEnumResolver:
         """Return a dictionary of accepted parameters and their types."""
         return {}
 
-    async def get_settings_form(self) -> SimpleForm | None:
+    async def get_settings_form(self) -> "SimpleForm | None":
         """Return a form for resolver settings.
 
         Settings are used to provide additional context to the resolver.
