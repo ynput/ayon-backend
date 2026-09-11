@@ -233,7 +233,8 @@ CREATE INDEX hierarchy_path_idx ON hierarchy(path);
 CREATE TABLE exported_attributes(
   folder_id UUID NOT NULL PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE,
   path VARCHAR NOT NULL,
-  attrib JSONB NOT NULL DEFAULT '{}'::JSONB
+  attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
+  active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -----------

@@ -27,6 +27,13 @@ class HasLinksFilter(Enum):
     BOTH = "both"
 
 
+@strawberry.enum
+class EntityVisibility(Enum):
+    ALL = "all"
+    VISIBLE = "visible"
+    HIDDEN = "hidden"
+
+
 @strawberry.input
 class AttributeFilterInput:
     name: str
@@ -68,6 +75,13 @@ ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence
 ARGIncludeInternalFolder = Annotated[
     bool,
     argdesc("Whether to include the AYON internal folder and its descendants"),
+]
+ARGVisibility = Annotated[
+    EntityVisibility,
+    argdesc(
+        "Filter by visibility. VISIBLE returns only visible entities, "
+        "HIDDEN returns only hidden entities, ALL (default) returns both."
+    ),
 ]
 
 

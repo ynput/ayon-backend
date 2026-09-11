@@ -75,7 +75,7 @@ async def get_folder_hierarchy(
     hierarchy = HierarchyResolver()
 
     conds = [
-        f"path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'",
+        f"NOT starts_with(path, '{AYON_INTERNAL_FOLDER_NAME}')",
     ]
 
     if type_list:
