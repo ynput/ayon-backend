@@ -1,5 +1,4 @@
 import json
-import re
 from typing import Annotated
 
 from ayon_server.entities import ProjectEntity
@@ -45,8 +44,6 @@ from .field_stats import (
     generate_stats_columns,
 )
 from .sorting import get_attrib_sort_case, get_status_sort_case
-
-REPRESENTATION_EXTENSION_REGEX = re.compile(r"^[a-z0-9][a-z0-9._+-]*$")
 
 SORT_OPTIONS = {
     "author": "versions.author",
@@ -1071,15 +1068,3 @@ async def get_version(root, info: Info, id: str) -> VersionNode:
     if not connection.edges:
         raise NotFoundException("Version not found")
     return connection.edges[0].node
-
-
-def _normalize_representation_extensions(extensions: list[str]) -> list[str]:
-    normalized: list[str] = []
-    for extension in extensions:
-        value = extension.strip().lower().lstrip(".")
-        if not value:
-            raise BadRequestException("Representation extension cannot be empty")
-        if not REPRESENTATION_EXTENSION_REGEX.match(value):
-            raise BadRequestException(f"Invalid representation extension '{extension}'")
-        normalized.append(value)
-    return list(dict.fromkeys(normalized))
