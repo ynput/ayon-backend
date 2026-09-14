@@ -396,6 +396,10 @@ async def get_versions(
         str | None,
         argdesc("Filter versions by their product using QueryFilter"),
     ] = None,
+    representation_filter: Annotated[
+        str | None,
+        argdesc("Filter versions by their representations using QueryFilter"),
+    ] = None,
     sort_by: Annotated[
         str | None,
         sortdesc(SORT_OPTIONS),
@@ -827,6 +831,48 @@ async def get_versions(
             sql_conditions.append(fcond)
             joins.for_filter("folders", "folder_ex")
             use_folder_query = True
+
+    representation_filter_conditions = []
+    if representation_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "version_id",
+            "files",
+            "attrib",
+            "data",
+            "traits",
+            "status",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(representation_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="representations",
+        ):
+            representation_filter_conditions.append(fcond)
+
+    if representation_filter_conditions:
+        sql_conditions.append(
+            f"""
+                EXISTS (
+                    SELECT 1
+                    FROM project_{project_name}.representations AS representations
+                    {
+                SQLTool.conditions(
+                    ["representations.version_id = versions.id"]
+                    + representation_filter_conditions
+                )
+            }
+                )
+                """
+        )
 
     #
     # Latest version per folder (from the set matching all filters above)
