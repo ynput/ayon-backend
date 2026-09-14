@@ -54,6 +54,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             f.updated_at,
             ea.attrib as all_attrib,
             ea.path as path,
+            ea.active as visible,
+            f.active as active,
             COUNT (tasks.id) AS task_count,
             array_agg(DISTINCT tasks.name) AS task_names,
             (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions,
@@ -75,7 +77,13 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
 
         WHERE NOT starts_with(ea.path, '{AYON_INTERNAL_FOLDER_NAME}')
 
-        GROUP BY f.id, ea.attrib, ea.path, fwv.ancestor_id, r.folder_id
+        GROUP BY
+            f.id,
+            ea.attrib,
+            ea.path,
+            fwv.ancestor_id,
+            r.folder_id,
+            ea.active
     """
 
     result = []
@@ -105,6 +113,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "has_reviewables": row["has_reviewables"],
                     "has_versions": row["has_versions"],
                     "thumbnail_hash": row["thumbnail_hash"] or row["id"][-6:],
+                    "active": row["active"],
+                    "visible": row["visible"],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                 }
