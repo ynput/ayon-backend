@@ -36,7 +36,7 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import build_search_conditions
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -408,6 +408,7 @@ async def get_versions(
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -459,6 +460,7 @@ async def get_versions(
     #
 
     # Empty overrides. Skip querying
+    # TODO: is this deprecated?
     if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
 
@@ -466,6 +468,23 @@ async def get_versions(
         if not ids:
             return VersionsConnection()
         sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
+    else:
+        if not include_internal_folder:
+            joins.for_filter("folder_ex")
+            sql_conditions.append(
+                f"NOT starts_with(folder_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
+
+        if visibility == EntityVisibility.VISIBLE:
+            joins.for_filter("folder_ex")
+            sql_conditions.append(
+                "(products.active and folder_ex.active and versions.active)"
+            )
+        elif visibility == EntityVisibility.HIDDEN:
+            joins.for_filter("folder_ex")
+            sql_conditions.append(
+                "(NOT products.active or NOT folder_ex.active or NOT versions.active)"
+            )
 
     if version:
         sql_conditions.append(f"versions.version = {version}")
@@ -611,12 +630,6 @@ async def get_versions(
         sql_conditions.extend(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
-
-    has_ids = ids is not None and len(ids) > 0
-
-    if not include_internal_folder and not has_ids:
-        joins.for_filter("folder_ex")
-        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
 
     #
     # Access control

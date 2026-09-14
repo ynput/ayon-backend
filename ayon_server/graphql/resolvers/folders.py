@@ -26,8 +26,10 @@ from .common import (
     ARGIds,
     ARGIncludeInternalFolder,
     ARGLast,
+    ARGVisibility,
     AttributeFilterInput,
     ColumnMetadata,
+    EntityVisibility,
     FieldInfo,
     argdesc,
     build_search_conditions,
@@ -128,6 +130,7 @@ async def get_folders(
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -169,12 +172,6 @@ async def get_folders(
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)
-
-    if not include_internal_folder:
-        sql_conditions.append(
-            f"NOT starts_with(COALESCE(ex.path, ''), '{AYON_INTERNAL_FOLDER_NAME}')"
-        )
-
     if access_list is not None:
         sql_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
@@ -248,6 +245,20 @@ async def get_folders(
                 WHERE h2.path = hierarchy.path
                 OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count
                 """
+            )
+    else:
+        # If no specific ids are requested,
+        # we can filter by visibility and internal folder
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"(hierarchy.path <> '{AYON_INTERNAL_FOLDER_NAME}' AND "
+                f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}/'))"
+            )
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("(COALESCE(ex.active, TRUE) AND folders.active)")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                "(NOT COALESCE(ex.active, TRUE) OR NOT folders.active)"
             )
 
     if fields.any_endswith("hasReviewables"):
