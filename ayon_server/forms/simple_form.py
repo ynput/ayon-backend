@@ -100,7 +100,10 @@ class FormFieldPatch(TypedDict, total=False):
     label: str
     placeholder: Any
     options: list[FormOptionItem]
-    readOnly: bool
+    enum_resolver: str
+    enum_resolver_params: dict[str, Any]
+    read_only: bool
+    hidden: bool
     disabled: bool
     hidden: bool
     highlight: SimpleFormHighlightType
@@ -227,8 +230,8 @@ class SimpleFormField(TypedDict):
     readOnly: NotRequired[bool]
     disabled: NotRequired[bool]
     hidden: NotRequired[bool]
-    enumResolver: NotRequired[str]
-    enumResolverParams: NotRequired[dict[str, Any]]
+    enum_resolver: NotRequired[str]
+    enum_resolver_params: NotRequired[dict[str, Any]]
     rules: NotRequired[list[FormFieldRule]]
 
 
@@ -292,17 +295,21 @@ class SimpleForm(list[SimpleFormField]):
         name: str,
         *,
         rules: list[FormFieldRule] | None = None,
-        enumResolverParams: dict[str, Any] | None = None,
+        enum_resolver_params: dict[str, Any] | None = None,
         **props: Any,
     ) -> Self:
         field: SimpleFormField = {"type": type_, "name": name}
         for key, value in props.items():
-            if value is not None:
-                field[key] = value  # type: ignore[literal-required]
+            if value is None:
+                continue
+            if key == "hidden" and not value:
+                continue  # don't store falsey hidden
 
-        if enumResolverParams is not None:
-            self._check_forward_refs(name, _template_vars(enumResolverParams))
-            field["enumResolverParams"] = enumResolverParams
+            field[key] = value  # type: ignore[literal-required]
+
+        if enum_resolver_params is not None:
+            self._check_forward_refs(name, _template_vars(enum_resolver_params))
+            field["enum_resolver_params"] = enum_resolver_params
 
         if rules:
             field["rules"] = self._validate_rules(name, rules)
@@ -316,6 +323,7 @@ class SimpleForm(list[SimpleFormField]):
         *,
         highlight: Literal["info", "warning", "error"] | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a label to the form.
 
@@ -328,6 +336,7 @@ class SimpleForm(list[SimpleFormField]):
             value=text,
             highlight=highlight,
             rules=rules,
+            hidden=hidden,
         )
 
     def text(
@@ -341,6 +350,7 @@ class SimpleForm(list[SimpleFormField]):
         multiline: bool = False,
         syntax: str | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a text input field to the form.
 
@@ -362,6 +372,7 @@ class SimpleForm(list[SimpleFormField]):
             multiline=multiline or None,
             syntax=syntax,
             rules=rules,
+            hidden=hidden,
         )
 
     def boolean(
@@ -371,14 +382,11 @@ class SimpleForm(list[SimpleFormField]):
         value: bool = False,
         *,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a checkbox or switch field to the form."""
         return self._add_field(
-            "boolean",
-            name,
-            label=label,
-            value=value,
-            rules=rules,
+            "boolean", name, label=label, value=value, rules=rules, hidden=hidden
         )
 
     def select(
@@ -388,33 +396,41 @@ class SimpleForm(list[SimpleFormField]):
         label: str | None = None,
         value: str | None = None,
         *,
-        enumResolver: str | None = None,
-        enumResolverParams: dict[str, Any] | None = None,
+        enum_resolver: str | None = None,
+        enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a select field (dropdown) to the form.
 
         The select field is used to get a single value from the user.
         Option must be provided either as a list of strings or as a
         list of {"value": "value", "label": "label"} dictionaries -
-        or, instead of a static list, an `enumResolver` name may be given
+        or, instead of a static list, an `enum_resolver` name may be given
         so the frontend fetches live options from `/api/enum`.
-        `enumResolverParams` are passed to the resolver and may reference
+        `enum_resolver_params` are passed to the resolver and may reference
         earlier fields' values with `{{fieldName}}` templates.
         """
-        if options is None and enumResolver is None:
+        if options is None and enum_resolver is None:
             raise ValueError(
-                f"Field '{name}': either 'options' or 'enumResolver' is required."
+                f"Field '{name}': either 'options' or 'enum_resolver' is required."
             )
+
+        if options and enum_resolver:
+            raise ValueError(
+                f"Field '{name}': 'options' and 'enum_resolver' are mutually exclusive."
+            )
+
         return self._add_field(
             "select",
             name,
             label=label,
             value=value,
             options=normalize_options(options) if options is not None else None,
-            enumResolver=enumResolver,
-            enumResolverParams=enumResolverParams,
+            enum_resolver=enum_resolver,
+            enum_resolver_params=enum_resolver_params,
             rules=rules,
+            hidden=hidden,
         )
 
     def multiselect(
@@ -424,35 +440,43 @@ class SimpleForm(list[SimpleFormField]):
         label: str | None = None,
         value: list[str] | None = None,
         *,
-        enumResolver: str | None = None,
-        enumResolverParams: dict[str, Any] | None = None,
+        enum_resolver: str | None = None,
+        enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a multiselect field (dropdown) to the form.
 
         The multiselect field is used to get multiple values from the user.
         Option must be provided either as a list of strings or as a
         list of {"value": "value", "label": "label"} dictionaries -
-        or, instead of a static list, an `enumResolver` name may be given
+        or, instead of a static list, an `enum_resolver` name may be given
         so the frontend fetches live options from `/api/enum`.
-        `enumResolverParams` are passed to the resolver and may reference
+        `enum_resolver_params` are passed to the resolver and may reference
         earlier fields' values with `{{fieldName}}` templates.
 
         Value must be provided as a list of strings.
         """
-        if options is None and enumResolver is None:
+        if options is None and enum_resolver is None:
             raise ValueError(
-                f"Field '{name}': either 'options' or 'enumResolver' is required."
+                f"Field '{name}': either 'options' or 'enum_resolver' is required."
             )
+
+        if options and enum_resolver:
+            raise ValueError(
+                f"Field '{name}': 'options' and 'enum_resolver' are mutually exclusive."
+            )
+
         return self._add_field(
             "multiselect",
             name,
             label=label,
             value=value,
             options=normalize_options(options) if options is not None else None,
-            enumResolver=enumResolver,
-            enumResolverParams=enumResolverParams,
+            enum_resolver=enum_resolver,
+            enum_resolver_params=enum_resolver_params,
             rules=rules,
+            hidden=hidden,
         )
 
     def hidden(
@@ -479,6 +503,7 @@ class SimpleForm(list[SimpleFormField]):
         valid_extensions: list[str] | None = None,
         *,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add file input / file download field to the form.
 
@@ -507,6 +532,7 @@ class SimpleForm(list[SimpleFormField]):
             # only meaningful for uploads, i.e. when value is not set
             valid_extensions=valid_extensions if file_value is None else None,
             rules=rules,
+            hidden=hidden,
         )
 
     def integer(
@@ -519,6 +545,7 @@ class SimpleForm(list[SimpleFormField]):
         min: int | None = None,
         max: int | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add an integer input field to the form.
 
@@ -536,6 +563,7 @@ class SimpleForm(list[SimpleFormField]):
             min=min,
             max=max,
             rules=rules,
+            hidden=hidden,
         )
 
     def float(
@@ -548,6 +576,7 @@ class SimpleForm(list[SimpleFormField]):
         min: float | None = None,
         max: float | None = None,
         rules: list[FormFieldRule] | None = None,
+        hidden: bool = False,
     ) -> Self:
         """Add a float input field to the form.
 
@@ -565,4 +594,5 @@ class SimpleForm(list[SimpleFormField]):
             min=min,
             max=max,
             rules=rules,
+            hidden=hidden,
         )
