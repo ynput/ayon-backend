@@ -255,6 +255,15 @@ async def upload_dependency_package(
 
     await handle_upload(request, manifest.local_file_path)
     await Redis.delete("desktop", "dependency-packages")
+
+    await EventStream.dispatch(
+        "dependency_package.install",
+        description=f"Installed dependency_package: {filename}",
+        summary={"filename": filename},
+        user=user.name,
+        finished=True,
+    )
+
     return EmptyResponse(status_code=204)
 
 
