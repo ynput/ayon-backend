@@ -11,6 +11,104 @@ from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import SimpleValue, camelize
 
 
+def populate_schema_defaults(
+    schema: dict[str, Any],
+    model: type[BaseSettingsModel],
+) -> None:
+    definitions = {
+        **schema.get("$defs", {}),
+        **schema.get("definitions", {}),
+    }
+    missing = object()
+
+    def resolve(node: dict[str, Any]) -> dict[str, Any]:
+        if ref := node.get("$ref"):
+            definition_name = ref.rsplit("/", 1)[-1]
+            return definitions.get(definition_name, node)
+        return node
+
+    def serialize(value: Any) -> Any:
+        if isinstance(value, BaseSettingsModel):
+            return value.dict()
+        if isinstance(value, list):
+            return [serialize(item) for item in value]
+        if isinstance(value, dict):
+            return {key: serialize(item) for key, item in value.items()}
+        return value
+
+    def is_settings_model(value: Any) -> bool:
+        try:
+            return inspect.isclass(value) and issubclass(value, BaseSettingsModel)
+        except TypeError:
+            return False
+
+    def get_child_model(field: Any) -> type[BaseSettingsModel] | None:
+        candidates = [field.type_]
+        candidates.extend(sub_field.type_ for sub_field in field.sub_fields or [])
+        for candidate in candidates:
+            if is_settings_model(candidate):
+                return candidate
+        return None
+
+    def build_model_defaults(
+        current_model: type[BaseSettingsModel],
+        stack: set[type[BaseSettingsModel]] | None = None,
+    ) -> Any:
+        stack = stack or set()
+        if current_model in stack:
+            return missing
+
+        defaults = {}
+        next_stack = {*stack, current_model}
+        for field_name, field in current_model.__fields__.items():
+            default = get_field_default(field, next_stack)
+            if default is not missing:
+                defaults[field_name] = default
+        return defaults or missing
+
+    def get_field_default(
+        field: Any,
+        stack: set[type[BaseSettingsModel]] | None = None,
+    ) -> Any:
+        if field.default_factory is not None:
+            if is_settings_model(field.default_factory):
+                return build_model_defaults(field.default_factory, stack)
+            return serialize(field.default_factory())
+        if not field.required:
+            return serialize(field.default)
+        return missing
+
+    def populate(node: dict[str, Any], current_model: type[BaseSettingsModel]) -> None:
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            for sub_schema in all_of:
+                if isinstance(sub_schema, dict):
+                    populate(sub_schema, current_model)
+
+        resolved = resolve(node)
+        if resolved is not node:
+            node = resolved
+
+        for name, field in current_model.__fields__.items():
+            child_schema = node.get("properties", {}).get(name)
+            if child_schema is None:
+                continue
+
+            if "default" not in child_schema:
+                default = get_field_default(field)
+                if default is not missing:
+                    child_schema["default"] = default
+
+            child_model = get_child_model(field)
+            if child_model is not None:
+                nested_schema = child_schema
+                if isinstance(child_schema.get("items"), dict):
+                    nested_schema = child_schema["items"]
+                populate(nested_schema, child_model)
+
+    populate(schema, model)
+
+
 async def get_attrib_enum(
     name: str,
 ) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
