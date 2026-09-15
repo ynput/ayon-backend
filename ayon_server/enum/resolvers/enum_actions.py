@@ -43,6 +43,11 @@ class ActionsEnumResolver(BaseEnumResolver):
                         if action.identifier in action_idents:
                             continue
 
+                        if action.icon and action.icon.url:
+                            action.icon.url = action.icon.url.format(
+                                addon_url=f"/addons/{addon_name}/{addon_version}"
+                            )
+
                         action_idents.add(action.identifier)
                         result.append(
                             EnumItem(
