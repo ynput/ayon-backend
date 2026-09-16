@@ -62,7 +62,8 @@ async def get_enum(
 
     user_name = query_params.get("user")
     if user_name is not None:
-        current_user.check_permissions("studio.list_all_users")
+        if not current_user.is_admin:
+            raise BadRequestException("Only admins can resolve enums for another user")
         user = await UserEntity.load(user_name)
 
     return await EnumRegistry.resolve(
