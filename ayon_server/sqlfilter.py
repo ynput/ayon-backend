@@ -30,6 +30,7 @@ ValueType = (
 OperatorType = Literal[
     "eq",
     "like",
+    "re",
     "lt",
     "gt",
     "lte",
@@ -257,13 +258,13 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator == "like":
+        if operator in ("like", "re"):
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{safe_value}'"
             else:
-                raise ValueError("Value must be a string for 'like' operator")
+                raise ValueError("Value must be a string for 'like' or 're' operators")
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -407,6 +408,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         # replace last -> with ->> to get text value
         column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
+    elif operator == "re":
+        # replace last -> with ->> to get text value
+        column = re.sub(r"->(?!.*->)", "->>", column)
+        return f"({column}) SIMILAR TO {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
     elif operator == "gt":

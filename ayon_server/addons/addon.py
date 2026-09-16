@@ -9,7 +9,7 @@ except ModuleNotFoundError:
     toml = None  # type: ignore
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse
@@ -85,8 +85,8 @@ class BaseServerAddon:
     settings_model: type[BaseSettingsModel] | None = None
     site_settings_model: type[BaseSettingsModel] | None = None
     app_host_name: str | None = None
-    frontend_scopes: FrontendScopes = {}
-    frontend_modules: FrontendModules = {}
+    frontend_scopes: ClassVar[FrontendScopes] = {}
+    frontend_modules: ClassVar[FrontendModules] = {}
 
     compatibility: AddonCompatibilityModel | None = None
 

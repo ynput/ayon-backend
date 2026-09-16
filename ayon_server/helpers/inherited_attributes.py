@@ -10,8 +10,13 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
     st_crawl = await Postgres.prepare(
         f"""
         SELECT
-            h.id, h.path, f.attrib as own,
-            e.attrib as exported, e.path as exported_path
+            h.id,
+            h.path,
+            f.attrib as own,
+            f.active as own_active,
+            e.attrib as exported,
+            e.path as exported_path,
+            e.active as exported_active
         FROM project_{project_name}.hierarchy h
         INNER JOIN project_{project_name}.folders f
         ON h.id = f.id
@@ -24,42 +29,54 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
     st_upsert = await Postgres.prepare(
         f"""
          INSERT INTO project_{project_name}.exported_attributes
-             (folder_id, path, attrib)
+             (folder_id, path, attrib, active)
          VALUES
-            ($1, $2, $3)
+            ($1, $2, $3, $4)
          ON CONFLICT (folder_id)
-         DO UPDATE SET path = EXCLUDED.path, attrib = EXCLUDED.attrib
+         DO UPDATE SET
+            path = EXCLUDED.path,
+            attrib = EXCLUDED.attrib,
+            active = EXCLUDED.active
          """
     )
 
     # path: attrib_set cache to use when returning from child to parent
     caching: dict[tuple[str, ...], dict[str, Any]] = {}
+    active_caching: dict[tuple[str, ...], bool] = {}
 
     current_attrib_set: dict[str, Any] = {}
-    buff: list[tuple[str, str, dict[str, Any]]] = []
+    current_active = True
+    buff: list[tuple[str, str, dict[str, Any], bool]] = []
 
     async for record in st_crawl.cursor():
         path_elements = tuple(record["path"].split("/"))
         if len(path_elements) == 1:
             current_attrib_set = project_attrib.copy()
+            current_active = True
 
         elif path_elements[:-1] in caching:
             current_attrib_set = caching[path_elements[:-1]]
+            current_active = active_caching[path_elements[:-1]]
 
         new_attrib_set = current_attrib_set.copy()
         new_attrib_set.update(record["own"])
 
+        new_active = current_active and record["own_active"]
+
         caching[path_elements] = new_attrib_set
+        active_caching[path_elements] = new_active
 
         if (
             record["exported"] != new_attrib_set
             or record["exported_path"] != record["path"]
+            or record["exported_active"] != new_active
         ):
             buff.append(
                 (
                     record["id"],
                     record["path"],
                     new_attrib_set,
+                    new_active,
                 )
             )
 
@@ -68,6 +85,7 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
             buff = []
 
         current_attrib_set = new_attrib_set
+        current_active = new_active
 
     if buff:
         await st_upsert.executemany(buff)

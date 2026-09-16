@@ -226,6 +226,16 @@ async def ensure_entity_access(
     Should handle both single and multi entity access.
     """
 
+    if entity_id is None and entity_type == "folder":
+        # creating root folder is allowed if user has
+        # no permission limit
+        if user.is_manager:
+            return True
+
+        perms = user.permissions(project_name)
+        if not getattr(perms, access_type).enabled:
+            return True
+
     if entity_id is None:
         raise ForbiddenException("Limited access to project")
 

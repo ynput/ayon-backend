@@ -9,6 +9,8 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    ARGVisibility,
+    EntityVisibility,
     FieldInfo,
     argdesc,
     resolve,
@@ -37,6 +39,7 @@ async def get_projects(
     last: ARGLast = None,
     before: ARGBefore = None,
     include_skeleton: bool = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
@@ -48,6 +51,11 @@ async def get_projects(
     if name is not None:
         validate_name(name)
         sql_conditions.append(f"projects.name ILIKE '{name}'")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("projects.active IS TRUE")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("projects.active IS FALSE")
 
     if code is not None:
         validate_name(code)
