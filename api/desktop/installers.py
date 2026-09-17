@@ -95,43 +95,7 @@ async def list_installers(
     platform: Platform | None = Query(None, description="Platform of the package"),
     variant: Literal["production", "staging"] | None = Query(None),
 ) -> InstallerListModel:
-    result: list[Installer] = []
-
-    if variant in ["production", "staging"]:
-        r = await Postgres.fetch(
-            f"""
-            SELECT data->>'installer_version' as v
-            FROM bundles WHERE is_{variant} IS TRUE
-            """
-        )
-        if r:
-            version = r[0]["v"]
-        else:
-            raise NotFoundException(f"No {variant} bundle found")
-
-    for filename in iter_names("installers"):
-        try:
-            manifest = get_manifest(filename)
-        except Exception as e:
-            logger.warning(f"Failed to load manifest file {filename}: {e}")
-            continue
-
-        if filename != manifest.filename:
-            logger.warning(
-                f"Filenames in manifest don't match: {filename} != {manifest.filename}"
-            )
-            continue
-
-        # Filtering
-
-        if platform is not None and platform != manifest.platform:
-            continue
-
-        if version is not None and version != manifest.version:
-            continue
-
-        result.append(manifest)
-    return InstallerListModel(installers=result)
+    return await get_installers(version=version, platform=platform, variant=variant)
 
 
 @router.post("/installers", status_code=201)
@@ -263,3 +227,47 @@ async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatc
     async with aiofiles.open(manifest.path, "w") as f:
         await f.write(manifest.json(exclude_none=True))
     return EmptyResponse(status_code=204)
+
+
+async def get_installers(
+    version: str | None = None,
+    platform: Platform | None = None,
+    variant: Literal["production", "staging"] | None = None,
+) -> InstallerListModel:
+    result: list[Installer] = []
+
+    if variant in ["production", "staging"]:
+        r = await Postgres.fetch(
+            f"""
+            SELECT data->>'installer_version' as v
+            FROM bundles WHERE is_{variant} IS TRUE
+            """
+        )
+        if r:
+            version = r[0]["v"]
+        else:
+            raise NotFoundException(f"No {variant} bundle found")
+
+    for filename in iter_names("installers"):
+        try:
+            manifest = get_manifest(filename)
+        except Exception as e:
+            logger.warning(f"Failed to load manifest file {filename}: {e}")
+            continue
+
+        if filename != manifest.filename:
+            logger.warning(
+                f"Filenames in manifest don't match: {filename} != {manifest.filename}"
+            )
+            continue
+
+        # Filtering
+
+        if platform is not None and platform != manifest.platform:
+            continue
+
+        if version is not None and version != manifest.version:
+            continue
+
+        result.append(manifest)
+    return InstallerListModel(installers=result)
