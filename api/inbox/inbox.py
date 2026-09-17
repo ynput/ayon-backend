@@ -36,12 +36,6 @@ class ManageInboxItemRequest(OPModel):
         ),
     ] = None
 
-    all: bool = Field(
-        False,
-        title="All",
-        description="If true, all items will be managed",
-    )
-
     status: Literal["unread", "read", "inactive"] = Field(
         ...,
         title="Status",
@@ -62,9 +56,6 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     # cleared: sets active to false and sets refence_data->>'read' to true
     # read: sets refence_data->>'read' to true
     # unread: sets active to true and deletes refence_data->>'read'
-    if not request.ids and not request.all and request.itemFilter is None:
-        raise ValueError("Either ids or all or itemFilter should be provided")
-
     if request.status == "unread":
         body = "active = true, data = data - 'read'"
     elif request.status == "read":
@@ -76,7 +67,7 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
 
     filter_conditions: list[str] = []
     filter_params: list[object] = []
-    base_param_count = 1 if request.all else 2
+    base_param_count = 1 if request.ids is None else 2
 
     if request.itemFilter is not None:
         if request.itemFilter.active is not None:
@@ -121,7 +112,7 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     if filter_conditions:
         filter_sql = "\n        AND " + "\n        AND ".join(filter_conditions)
 
-    if request.all:
+    if request.ids is None:
         base_query = f"""
             UPDATE project_{request.project_name}.activity_references
             SET {body}
@@ -130,13 +121,14 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
         await Postgres.execute(base_query, user.name, *filter_params)
         return None
 
-    base_query = f"""
-        UPDATE project_{request.project_name}.activity_references
-        SET {body}
-        WHERE id = ANY($1)
-        AND entity_type = 'user'
-        AND entity_name = $2
-        {filter_sql}
-    """
+    else:
+        base_query = f"""
+            UPDATE project_{request.project_name}.activity_references
+            SET {body}
+            WHERE id = ANY($1)
+            AND entity_type = 'user'
+            AND entity_name = $2
+            {filter_sql}
+        """
     await Postgres.execute(base_query, request.ids, user.name, *filter_params)
     return None
