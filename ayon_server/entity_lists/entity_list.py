@@ -178,7 +178,27 @@ class EntityList:
 
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
-            query = "SELECT * FROM entity_lists WHERE id = $1"
+            query = """
+                SELECT
+                    id,
+                    entity_list_type,
+                    entity_list_folder_id,
+                    entity_type,
+                    label,
+                    owner,
+                    access,
+                    template,
+                    attrib,
+                    data,
+                    tags,
+                    active,
+                    created_at,
+                    updated_at,
+                    created_by,
+                    updated_by
+                FROM entity_lists
+                WHERE id = $1
+            """
             res = await Postgres.fetchrow(query, id)
             if not res:
                 raise NotFoundException(f"Entity list {id} not found")
