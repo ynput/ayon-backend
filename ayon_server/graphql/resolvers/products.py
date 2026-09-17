@@ -129,6 +129,10 @@ async def get_products(
         str | None,
         argdesc("Filter products by their tasks (via versions) using QueryFilter"),
     ] = None,
+    has_reviewables: Annotated[
+        bool | None,
+        argdesc("Filter products that have at least one version with reviewables"),
+    ] = None,
     sort_by: Annotated[
         str | None,
         sortdesc(SORT_OPTIONS),
@@ -253,6 +257,22 @@ async def get_products(
         sql_conditions.extend(
             get_has_links_conds(project_name, "products.id", has_links)
         )
+
+    if has_reviewables is not None:
+        reviewables_cond = f"""
+            EXISTS (
+                SELECT 1 FROM project_{project_name}.versions AS v
+                JOIN project_{project_name}.activity_feed AS af
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND af.activity_type = 'reviewable'
+                WHERE v.product_id = products.id
+            )
+        """
+        if has_reviewables:
+            sql_conditions.append(reviewables_cond)
+        else:
+            sql_conditions.append(f"NOT {reviewables_cond}")
 
     if name_ex is not None:
         sql_conditions.append(f"products.name ~ '{name_ex}'")
