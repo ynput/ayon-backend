@@ -262,13 +262,19 @@ async def update_bundle(
         row = res[0]
         data = row["data"]
 
+        addon_development = data.get("addon_development") or {}
+        if not isinstance(addon_development, dict):
+            addon_development = {}
+
         addon_development_dict: dict[str, AddonDevelopmentItem] = {}
-        for key, value in data.get("addon_development", {}).items():
+        for key, value in addon_development.items():
             addon_development_dict[key] = AddonDevelopmentItem(**value)
 
-        addons = data.get("addons", {})
+        addons = data.get("addons") or {}
         if not isinstance(addons, dict):
             addons = {}
+        else:
+            addons = dict(addons)
 
         for addon_name, addon_version in list(addons.items()):
             # Project bundle placeholders (and disabled addons) are not real versions.
@@ -276,7 +282,8 @@ async def update_bundle(
             if addon_version in (None, "__inherit__", "__disable__"):
                 if AddonLibrary.get(addon_name) is None:
                     logger.warning(
-                        f"Addon {addon_name} does not exist, removing from bundle {bundle_name}"
+                        f"Addon {addon_name} does not exist, "
+                        f"removing from bundle {bundle_name}"
                     )
                     addons.pop(addon_name, None)
                 continue
