@@ -36,12 +36,16 @@ if TYPE_CHECKING:
 async def ensure_required_project_link_types(
     project_name: str,
     link_types: list[dict[str, Any]],
-) -> None:
+) -> bool:
     """Ensure that the required link types exist in the project.
 
     Creates any missing default link types in the database and appends
     them to `link_types` in place, so the caller's already-built payload
     (which holds the same list instance) picks up the new entries too.
+
+    Returns True if any link type was added, so callers that cache
+    `link_types` (e.g. as part of a larger payload) know they need to
+    refresh that cache.
     """
 
     from ayon_server.settings.anatomy.link_types import default_link_types
@@ -49,6 +53,7 @@ async def ensure_required_project_link_types(
     # LinkTypeModel equality/hash only consider (link_type, input_type,
     # output_type) - color/style ("data") is cosmetic and irrelevant here.
     existing = {LinkTypeModel(**lt) for lt in link_types}
+    added = False
 
     for default_link_type in default_link_types:
         candidate = LinkTypeModel(
@@ -81,6 +86,14 @@ async def ensure_required_project_link_types(
         )
 
         link_types.append(candidate.dict())
+        added = True
+
+    if added:
+        # invalidate the separate anatomy cache (helpers.anatomy.get_project_anatomy)
+        # so it doesn't keep serving the stale link types until its own TTL expires
+        await Redis.delete("project-anatomy", project_name)
+
+    return added
 
 
 class ProjectEntity(TopLevelEntity):
@@ -148,6 +161,14 @@ class ProjectEntity(TopLevelEntity):
 
                 if payload["data"].get("isSkeleton", False):
                     return cls.return_project_skeleton(payload=payload)
+
+                if await ensure_required_project_link_types(
+                    project_name, payload["link_types"]
+                ):
+                    await Redis.set_json(
+                        "project-data", project_name, payload, ttl=3600
+                    )
+
                 return cls.from_record(payload=payload)
 
         try:
