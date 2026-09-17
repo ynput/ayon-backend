@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.entities import UserEntity
 from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.enum import EnumItem, EnumRegistry, EnumResolverInfo
 from ayon_server.exceptions import BadRequestException
@@ -40,6 +41,7 @@ async def get_enum(
     """
 
     context = {}
+    user = current_user
     accepted_params = await EnumRegistry.get_accepted_params(enum_name)
 
     query_params = request.query_params
@@ -58,9 +60,15 @@ async def get_enum(
                     f"Invalid value for parameter '{param_name}': {raw_value}"
                 ) from None
 
+    user_name = query_params.get("user")
+    if user_name is not None:
+        if not current_user.is_admin:
+            raise BadRequestException("Only admins can resolve enums for another user")
+        user = await UserEntity.load(user_name)
+
     return await EnumRegistry.resolve(
         enum_name,
-        user=current_user,
+        user=user,
         **context,
     )
 
