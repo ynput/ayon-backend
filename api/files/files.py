@@ -33,7 +33,6 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
 from .router import router
-from .video import serve_video
 
 
 class CreateFileResponseModel(OPModel):
@@ -262,9 +261,6 @@ async def get_project_file_payload(
 
     await user.ensure_project_access(project_name)
     headers = await get_file_headers(project_name, file_id)
-
-    if headers["Content-Type"].startswith("video"):
-        return await serve_video(request, path, content_type=headers["Content-Type"])
 
     return FileResponse(path, headers=headers)
 

@@ -173,11 +173,6 @@ class AyonConfig(BaseModel):
         description="Disable REST API documentation",
     )
 
-    audit_trail: bool = Field(
-        default=True,
-        description="Enable audit trail",
-    )
-
     openapi_include_internal_endpoints: bool = Field(
         default=False,
         description="Include internal endpoints in the OpenAPI schema",

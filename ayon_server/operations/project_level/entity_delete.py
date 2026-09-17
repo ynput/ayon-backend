@@ -1,6 +1,5 @@
 from typing import Any
 
-from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import ForbiddenException
@@ -41,7 +40,6 @@ async def delete_project_level_entity(
             "user": user.name if user else None,
         }
     ]
-    if ayonconfig.audit_trail:
-        events[0]["payload"] = {"entityData": entity.dict_simple()}
+    events[0]["payload"] = {"entityData": entity.dict_simple()}
     await entity.delete(force=operation.force, auto_commit=False)
     return entity.id, events, 204

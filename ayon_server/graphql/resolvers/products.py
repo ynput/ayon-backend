@@ -35,7 +35,7 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import build_search_conditions
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -129,6 +129,10 @@ async def get_products(
         str | None,
         argdesc("Filter products by their tasks (via versions) using QueryFilter"),
     ] = None,
+    has_reviewables: Annotated[
+        bool | None,
+        argdesc("Filter products that have at least one version with reviewables"),
+    ] = None,
     sort_by: Annotated[
         str | None,
         sortdesc(SORT_OPTIONS),
@@ -141,6 +145,7 @@ async def get_products(
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> ProductsConnection:
     """Return a list of products."""
 
@@ -175,13 +180,20 @@ async def get_products(
     sql_cte = []
     sql_conditions = []
 
-    if not include_internal_folder:
-        sql_conditions.append(f"folder_ex.path NOT LIKE '{AYON_INTERNAL_FOLDER_NAME}%'")
-
     if ids is not None:
         if not ids:
             return ProductsConnection()
         sql_conditions.append(f"products.id IN {SQLTool.id_array(ids)}")
+    else:
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(folder_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
+
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("products.active AND folder_ex.active")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("(NOT products.active OR NOT folder_ex.active)")
 
     if folder_ids is not None:
         if not folder_ids:
@@ -245,6 +257,22 @@ async def get_products(
         sql_conditions.extend(
             get_has_links_conds(project_name, "products.id", has_links)
         )
+
+    if has_reviewables is not None:
+        reviewables_cond = f"""
+            EXISTS (
+                SELECT 1 FROM project_{project_name}.versions AS v
+                JOIN project_{project_name}.activity_feed AS af
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND af.activity_type = 'reviewable'
+                WHERE v.product_id = products.id
+            )
+        """
+        if has_reviewables:
+            sql_conditions.append(reviewables_cond)
+        else:
+            sql_conditions.append(f"NOT {reviewables_cond}")
 
     if name_ex is not None:
         sql_conditions.append(f"products.name ~ '{name_ex}'")

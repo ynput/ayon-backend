@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any
 
-from ayon_server.config import ayonconfig
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -54,14 +53,12 @@ async def _migrate_addon_settings(
             original_data = res[0]["data"]
             if original_data != new_studio_overrides:
                 do_copy = True
-                if ayonconfig.audit_trail:
-                    event_payload["originalValue"] = original_data
-                    event_payload["newValue"] = new_studio_overrides
+                event_payload["originalValue"] = original_data
+                event_payload["newValue"] = new_studio_overrides
         else:
             do_copy = True
-            if ayonconfig.audit_trail:
-                event_payload["originalValue"] = {}
-                event_payload["newValue"] = new_studio_overrides
+            event_payload["originalValue"] = {}
+            event_payload["newValue"] = new_studio_overrides
 
         if do_copy:
             event_created = True
@@ -93,8 +90,7 @@ async def _migrate_addon_settings(
         if res:
             event_created = True
             event_description = "studio overrides removed during migration"
-            if ayonconfig.audit_trail:
-                event_payload = {"originalValue": res[0]["data"], "newValue": {}}
+            event_payload = {"originalValue": res[0]["data"], "newValue": {}}
 
     if event_created:
         summary = {
@@ -150,14 +146,12 @@ async def _migrate_addon_settings(
                 original_data = res[0]["data"]
                 if original_data != new_project_overrides:
                     do_copy = True
-                    if ayonconfig.audit_trail:
-                        event_payload["originalValue"] = original_data
-                        event_payload["newValue"] = new_project_overrides
+                    event_payload["originalValue"] = original_data
+                    event_payload["newValue"] = new_project_overrides
             else:
                 do_copy = True
-                if ayonconfig.audit_trail:
-                    event_payload["originalValue"] = {}
-                    event_payload["newValue"] = new_project_overrides
+                event_payload["originalValue"] = {}
+                event_payload["newValue"] = new_project_overrides
 
             if do_copy:
                 event_created = True
@@ -191,8 +185,7 @@ async def _migrate_addon_settings(
             if res:
                 event_created = True
                 event_description = "project overrides removed during migration"
-                if ayonconfig.audit_trail:
-                    event_payload = {"originalValue": res[0]["data"], "newValue": {}}
+                event_payload = {"originalValue": res[0]["data"], "newValue": {}}
 
         if event_created:
             summary = {

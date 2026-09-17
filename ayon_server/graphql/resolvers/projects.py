@@ -9,6 +9,8 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    ARGVisibility,
+    EntityVisibility,
     FieldInfo,
     argdesc,
     resolve,
@@ -37,13 +39,23 @@ async def get_projects(
     last: ARGLast = None,
     before: ARGBefore = None,
     include_skeleton: bool = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
+    user = info.context["user"]
+
+    sql_cte = []
+    sql_joins = []
     sql_conditions = []
     if name is not None:
         validate_name(name)
         sql_conditions.append(f"projects.name ILIKE '{name}'")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("projects.active IS TRUE")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("projects.active IS FALSE")
 
     if code is not None:
         validate_name(code)
@@ -74,6 +86,37 @@ async def get_projects(
     if fields.has_any("data", "bundle") or info.context["user"].is_guest:
         cols.append("data")
 
+    if user.is_guest:
+        if guest_access := user.data.get("guestAccess"):
+            pnames = [g.get("projectName") for g in guest_access]
+            sql_conditions.append(f"projects.name IN {SQLTool.array(pnames)}")
+        else:
+            sql_conditions.append(
+                f"data->'guestUsers'->'{user.attrib.email}' IS NOT NULL"
+            )
+
+    elif not user.is_manager:
+        sql_cte.append(
+            f"""
+            accessible_projects AS (
+                SELECT
+                    ag.key AS project
+                FROM users u
+                CROSS JOIN LATERAL jsonb_each(u.data->'accessGroups') AS ag(key, value)
+                WHERE u.name = '{user.name}'
+                AND jsonb_typeof(ag.value) = 'array'
+                AND jsonb_array_length(ag.value) > 0
+            )
+            """
+        )
+
+        sql_joins.append(
+            """
+            JOIN accessible_projects ap
+            ON ap.project = projects.name
+            """
+        )
+
     #
     # Pagination
     #
@@ -89,12 +132,25 @@ async def get_projects(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {", ".join(cols)}
         FROM public.projects
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    # print()
+    # print ("get_projects query")
+    # print(query)
+    # print()
 
     return await resolve(
         ProjectsConnection,
