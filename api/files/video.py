@@ -1,19 +1,18 @@
+# This is a monument to the previous implementation. It is no longer used,
+# but it is kept here for reference. The new implementation uses native starlette
+# FileResponse, that covers range requests and streaming out of the box.
+
 import os
+from collections.abc import AsyncIterable
 
 import aiofiles
-from fastapi import Request, Response, status
+from fastapi import Request, status
+from fastapi.responses import StreamingResponse
 
 from ayon_server.exceptions import (
     NotFoundException,
     RangeNotSatisfiableException,
 )
-
-MAX_200_SIZE = 1024 * 1024 * 12
-MAX_CHUNK_SIZE = 1024 * 1024 * 2
-
-
-class VideoResponse(Response):
-    pass
 
 
 def get_file_size(file_name: str) -> int:
@@ -45,24 +44,38 @@ def _get_range_header(range_header: str, file_size: int) -> tuple[int, int]:
     return start, end
 
 
+async def stream_video(
+    file_path: str,
+    start: int,
+    end: int,
+    *,
+    request: Request,
+) -> AsyncIterable[bytes]:
+    async with aiofiles.open(file_path, mode="rb") as f:
+        await f.seek(start)
+        pos = start
+        read_size = end - pos + 1
+        while read_size > 0:
+            if await request.is_disconnected():
+                break
+            chunk_size = min(1024 * 1024, read_size)  # Read in 1MB chunks
+            data = await f.read(chunk_size)
+            if not data:
+                break
+            yield data
+            pos += len(data)
+            read_size -= len(data)
+
+
 async def range_requests_response(
     request: Request,
     file_path: str,
     content_type: str,
-) -> VideoResponse:
+) -> StreamingResponse:
     """Handle range requests for video files."""
 
     file_size = get_file_size(file_path)
-    max_chunk_size = 1024 * 1024 * 4
     range_header = request.headers.get("range")
-    max_200_size = MAX_200_SIZE
-
-    # screw firefox
-    if ua := request.headers.get("user-agent"):
-        if "firefox" in ua.lower():
-            max_chunk_size = file_size
-        elif "safari" in ua.lower():
-            max_200_size = 0
 
     headers = {
         "content-type": content_type,
@@ -73,46 +86,38 @@ async def range_requests_response(
             "content-range, content-encoding"
         ),
     }
+
     start = 0
     end = file_size - 1
-    status_code = status.HTTP_200_OK
 
-    if file_size <= max_200_size:
-        # if the file has a sane size, we return the whole thing
-        # in one go. That allows the browser to cache the video
-        # and prevent unnecessary requests.
-
-        headers["content-range"] = f"bytes 0-{end}/{file_size}"
-
-    elif range_header is not None:
+    if range_header is not None:
         start, end = _get_range_header(range_header, file_size)
-        end = min(end, start + max_chunk_size - 1, file_size - 1)
+        status_code = status.HTTP_206_PARTIAL_CONTENT
+    else:
+        start = 0
+        end = file_size - 1
+        status_code = status.HTTP_200_OK
 
-        size = end - start + 1
-        headers["content-length"] = str(size)
-        headers["content-range"] = f"bytes {start}-{end}/{file_size}"
-
-        if size == file_size:
-            status_code = status.HTTP_200_OK
-        else:
-            status_code = status.HTTP_206_PARTIAL_CONTENT
-
-    payload = await get_bytes_range(file_path, start, end)
+    size = end - start + 1
 
     if status_code == status.HTTP_200_OK:
         headers["cache-control"] = "private, max-age=600"
 
-    # print("Video Response", start, end, file_size, status_code)
-    return VideoResponse(
-        content=payload,
-        headers=headers,
+    headers["content-length"] = str(size)
+    headers["content-range"] = f"bytes {start}-{end}/{file_size}"
+
+    return StreamingResponse(
+        stream_video(file_path, start, end, request=request),
         status_code=status_code,
+        headers=headers,
     )
 
 
 async def serve_video(
-    request: Request, video_path: str, content_type: str
-) -> VideoResponse:
+    request: Request,
+    video_path: str,
+    content_type: str,
+) -> StreamingResponse:
     if not os.path.exists(video_path):
         raise NotFoundException("Video not found")
 
