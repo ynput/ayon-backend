@@ -202,12 +202,12 @@ class UsersEnumResolver(BaseEnumResolver):
             .boolean("hide_inactive", "Hide inactive users", False)
             .select(
                 "mode",
-                [
+                options=[
                     {"value": "users", "label": "Users"},
                     {"value": "teams", "label": "Teams"},
                     {"value": "both", "label": "Users and teams"},
                 ],
-                "Mode",
-                "users",
+                label="Mode",
+                value="users",
             )
         )
