@@ -72,16 +72,18 @@ async def ensure_required_project_link_types(
 
         # `name` isn't guaranteed to match (link_type, input_type, output_type) -
         # e.g. custom link types created via the enum "add new" flow can have an
-        # arbitrary name. If some other row already occupies `candidate.name`,
-        # the insert is a no-op, so verify what's actually in the database
-        # before assuming the required link type exists.
+        # arbitrary name. The table also has a unique index on the
+        # (link_type, input_type, output_type) triple, so a conflict can occur
+        # on either constraint - omit the conflict target to catch both, then
+        # verify what's actually in the database before assuming the insert
+        # succeeded or the required link type is genuinely unavailable.
         inserted = await Postgres.fetchrow(
             f"""
             INSERT INTO project_{project_name}.link_types
                 (name, link_type, input_type, output_type, data)
             VALUES
                 ($1, $2, $3, $4, $5)
-            ON CONFLICT (name) DO NOTHING
+            ON CONFLICT DO NOTHING
             RETURNING name, link_type, input_type, output_type, data
             """,
             candidate.name,
@@ -97,16 +99,32 @@ async def ensure_required_project_link_types(
                 SELECT name, link_type, input_type, output_type, data
                 FROM project_{project_name}.link_types
                 WHERE name = $1
+                   OR (link_type, input_type, output_type) = ($2, $3, $4)
                 """,
                 candidate.name,
+                candidate.link_type,
+                candidate.input_type,
+                candidate.output_type,
             )
-            if conflicting is None or LinkTypeModel(**dict(conflicting)) != candidate:
+            existing_row = (
+                LinkTypeModel(**dict(conflicting)) if conflicting is not None else None
+            )
+            if existing_row is None or existing_row != candidate:
+                # either the row vanished (raced with a delete) or it's a
+                # genuine conflict (same name, different identity) - can't
+                # safely create or assume the required link type
                 logger.warning(
                     f"Cannot create required link type {candidate.name} in "
-                    f"project {project_name}: name is taken by a conflicting "
+                    f"project {project_name}: conflicts with an existing "
                     "link type"
                 )
                 continue
+
+            # the required triple already exists, just under a different
+            # name - reflect the row that's actually in the database
+            link_types.append(existing_row.dict())
+            added = True
+            continue
 
         link_types.append(candidate.dict())
         added = True
