@@ -20,6 +20,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
@@ -112,6 +113,9 @@ async def save_link_type(
         request_model.data,
     )
 
+    await Redis.delete("project-data", project_name)
+    await Redis.delete("project-anatomy", project_name)
+
     return EmptyResponse()
 
 
@@ -133,6 +137,9 @@ async def delete_link_type(
         WHERE name = $1
         """
     await Postgres.execute(query, f"{link_type[0]}|{link_type[1]}|{link_type[2]}")
+
+    await Redis.delete("project-data", project_name)
+    await Redis.delete("project-anatomy", project_name)
 
     return EmptyResponse()
 
