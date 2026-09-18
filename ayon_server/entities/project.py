@@ -70,13 +70,19 @@ async def ensure_required_project_link_types(
             f"Creating missing link type {candidate.name} in project {project_name}"
         )
 
-        await Postgres.execute(
+        # `name` isn't guaranteed to match (link_type, input_type, output_type) -
+        # e.g. custom link types created via the enum "add new" flow can have an
+        # arbitrary name. If some other row already occupies `candidate.name`,
+        # the insert is a no-op, so verify what's actually in the database
+        # before assuming the required link type exists.
+        inserted = await Postgres.fetchrow(
             f"""
             INSERT INTO project_{project_name}.link_types
                 (name, link_type, input_type, output_type, data)
             VALUES
                 ($1, $2, $3, $4, $5)
             ON CONFLICT (name) DO NOTHING
+            RETURNING name, link_type, input_type, output_type, data
             """,
             candidate.name,
             candidate.link_type,
@@ -84,6 +90,23 @@ async def ensure_required_project_link_types(
             candidate.output_type,
             candidate.data,
         )
+
+        if inserted is None:
+            conflicting = await Postgres.fetchrow(
+                f"""
+                SELECT name, link_type, input_type, output_type, data
+                FROM project_{project_name}.link_types
+                WHERE name = $1
+                """,
+                candidate.name,
+            )
+            if conflicting is None or LinkTypeModel(**dict(conflicting)) != candidate:
+                logger.warning(
+                    f"Cannot create required link type {candidate.name} in "
+                    f"project {project_name}: name is taken by a conflicting "
+                    "link type"
+                )
+                continue
 
         link_types.append(candidate.dict())
         added = True
