@@ -6,7 +6,7 @@ from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.forms.simple_form import SimpleForm
+from ayon_server.forms.simple_form import FormOptionItem, SimpleForm
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.models import IconModel
@@ -197,16 +197,17 @@ class UsersEnumResolver(BaseEnumResolver):
         return result
 
     async def get_settings_form(self) -> SimpleForm | None:
+        mode_options: list[FormOptionItem] = [
+            {"value": "users", "label": "Users"},
+            {"value": "teams", "label": "Teams"},
+            {"value": "both", "label": "Users and teams"},
+        ]
         return (
             SimpleForm()
             .boolean("hide_inactive", "Hide inactive users", False)
             .select(
                 "mode",
-                options=[
-                    {"value": "users", "label": "Users"},
-                    {"value": "teams", "label": "Teams"},
-                    {"value": "both", "label": "Users and teams"},
-                ],
+                options=mode_options,
                 label="Mode",
                 value="users",
             )
