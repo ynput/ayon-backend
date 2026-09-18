@@ -7,6 +7,24 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 
+class ManageInboxItemFilter(OPModel):
+    active: bool | None = Field(
+        None,
+        title="Active",
+        description="Filter by the active flag when provided",
+    )
+    read: bool | None = Field(
+        None,
+        title="Read",
+        description="Filter by read state when provided",
+    )
+    important: bool | None = Field(
+        None,
+        title="Important",
+        description="Filter by whether the item belongs to the Important split",
+    )
+
+
 class ManageInboxItemRequest(OPModel):
     project_name: str = Field(...)
 
@@ -18,16 +36,16 @@ class ManageInboxItemRequest(OPModel):
         ),
     ] = None
 
-    all: bool = Field(
-        False,
-        title="All",
-        description="If true, all items will be managed",
-    )
-
     status: Literal["unread", "read", "inactive"] = Field(
         ...,
         title="Status",
         description="Status to set for the items",
+    )
+
+    itemFilter: ManageInboxItemFilter | None = Field(
+        None,
+        title="Item filter",
+        description="Optional filter selecting which inbox items should be updated",
     )
 
 
@@ -38,10 +56,6 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     # cleared: sets active to false and sets refence_data->>'read' to true
     # read: sets refence_data->>'read' to true
     # unread: sets active to true and deletes refence_data->>'read'
-
-    if not request.ids and not request.all:
-        raise ValueError("Either ids or all should be provided")
-
     if request.status == "unread":
         body = "active = true, data = data - 'read'"
     elif request.status == "read":
@@ -51,20 +65,70 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     else:
         raise ValueError("Invalid status. This should not happen.")
 
-    if request.all:
+    filter_conditions: list[str] = []
+    filter_params: list[object] = []
+    base_param_count = 1 if request.ids is None else 2
+
+    if request.itemFilter is not None:
+        if request.itemFilter.active is not None:
+            filter_params.append(request.itemFilter.active)
+            filter_conditions.append(
+                f"active = ${base_param_count + len(filter_params)}"
+            )
+
+        if request.itemFilter.read is not None:
+            filter_params.append(request.itemFilter.read)
+            filter_conditions.append(
+                "COALESCE((data->>'read')::boolean, false) = "
+                f"${base_param_count + len(filter_params)}"
+            )
+
+        if request.itemFilter.important is not None:
+            if request.itemFilter.important:
+                operator = "IN"
+                extra_status_cond = (
+                    "AND activity_id IN ("
+                    f"SELECT id FROM project_{request.project_name}.activities "
+                    "WHERE activity_type != 'status.change'"
+                    ")"
+                )
+            else:
+                operator = "NOT IN"
+                extra_status_cond = (
+                    "OR activity_id IN ("
+                    f"SELECT id FROM project_{request.project_name}.activities "
+                    "WHERE activity_type = 'status.change'"
+                    ")"
+                )
+
+            filter_conditions.append(
+                "("
+                f"reference_type {operator} ('mention', 'watching') "
+                f"{extra_status_cond}"
+                ")"
+            )
+
+    filter_sql = ""
+    if filter_conditions:
+        filter_sql = "\n        AND " + "\n        AND ".join(filter_conditions)
+
+    if request.ids is None:
         base_query = f"""
             UPDATE project_{request.project_name}.activity_references
-            SET {body} WHERE entity_type = 'user' AND entity_name = $1
+            SET {body}
+            WHERE entity_type = 'user' AND entity_name = $1{filter_sql}
         """
-        await Postgres.execute(base_query, user.name)
+        await Postgres.execute(base_query, user.name, *filter_params)
         return None
 
-    base_query = f"""
-        UPDATE project_{request.project_name}.activity_references
-        SET {body}
-        WHERE id = ANY($1)
-        AND entity_type = 'user'
-        AND entity_name = $2
-    """
-    await Postgres.execute(base_query, request.ids, user.name)
+    else:
+        base_query = f"""
+            UPDATE project_{request.project_name}.activity_references
+            SET {body}
+            WHERE id = ANY($1)
+            AND entity_type = 'user'
+            AND entity_name = $2
+            {filter_sql}
+        """
+    await Postgres.execute(base_query, request.ids, user.name, *filter_params)
     return None
