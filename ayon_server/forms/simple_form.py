@@ -105,7 +105,6 @@ class FormFieldPatch(TypedDict, total=False):
     read_only: bool
     hidden: bool
     disabled: bool
-    hidden: bool
     highlight: SimpleFormHighlightType
 
 
