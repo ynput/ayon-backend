@@ -9,7 +9,10 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.settings.postprocess import postprocess_settings_schema
+from ayon_server.settings.postprocess import (
+    populate_schema_defaults,
+    postprocess_settings_schema,
+)
 
 from .router import router
 
@@ -32,6 +35,7 @@ async def get_addon_site_settings_schema(
         return {}
 
     schema = copy.deepcopy(model.schema())
+    populate_schema_defaults(schema, model)
     context = {
         "addon": addon,
         "user_name": user.name,
