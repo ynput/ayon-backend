@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import SQLTool
@@ -54,6 +55,8 @@ class ManageInboxItemRequest(OPModel):
 async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) -> None:
     """Manage inbox items"""
 
+    project_name = await normalize_project_name(request.project_name)
+
     # cleared: sets active to false and sets refence_data->>'read' to true
     # read: sets refence_data->>'read' to true
     # unread: sets active to true and deletes refence_data->>'read'
@@ -92,7 +95,7 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) 
                 operator = "IN"
                 extra_status_cond = (
                     "AND activity_id IN ("
-                    f"SELECT id FROM project_{request.project_name}.activities "
+                    f"SELECT id FROM project_{project_name}.activities "
                     "WHERE activity_type != 'status.change'"
                     ")"
                 )
@@ -100,7 +103,7 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) 
                 operator = "NOT IN"
                 extra_status_cond = (
                     "OR activity_id IN ("
-                    f"SELECT id FROM project_{request.project_name}.activities "
+                    f"SELECT id FROM project_{project_name}.activities "
                     "WHERE activity_type = 'status.change'"
                     ")"
                 )
@@ -113,7 +116,7 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) 
             )
 
     base_query = f"""
-        UPDATE project_{request.project_name}.activity_references
+        UPDATE project_{project_name}.activity_references
         SET {body}
         {SQLTool.conditions(filter_conditions)}
     """
