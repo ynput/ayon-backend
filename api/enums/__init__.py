@@ -1,7 +1,7 @@
 __all__ = ["router"]
 
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Path, Request
 
@@ -42,7 +42,7 @@ async def get_enum(
     but when requested from a project context, `project_name` should be provided.
     """
 
-    context = {"user": current_user}
+    context: dict[str, Any] = {"user": current_user}
 
     accepted_params = await EnumRegistry.get_accepted_params(enum_name)
 
