@@ -105,7 +105,6 @@ class FormFieldPatch(TypedDict, total=False):
     read_only: bool
     hidden: bool
     disabled: bool
-    hidden: bool
     highlight: SimpleFormHighlightType
 
 
@@ -158,9 +157,6 @@ def _condition_field_names(f: QueryFilter) -> set[str]:
     return result
 
 
-_OPTION_KEYS = frozenset(FormOptionItem.__annotations__)
-
-
 def _option_from_enum_item(item: EnumItem) -> FormOptionItem:
     """Coalesce an EnumItem down to only the keys it actually sets."""
     option: FormOptionItem = {"value": item.value}
@@ -203,9 +199,6 @@ def normalize_options(
         elif isinstance(option, dict):
             if "value" not in option:
                 raise ValueError("Option must contain a 'value' key.")
-            unknown_keys = set(option) - _OPTION_KEYS
-            if unknown_keys:
-                raise ValueError(f"Unsupported option key(s): {sorted(unknown_keys)}")
             result.append(dict(option))  # type: ignore[arg-type]
         else:
             raise ValueError("Option must be a string, a dict or an EnumItem.")
@@ -227,7 +220,7 @@ class SimpleFormField(TypedDict):
     min: NotRequired[int | float]
     max: NotRequired[int | float]
     valid_extensions: NotRequired[list[str]]
-    readOnly: NotRequired[bool]
+    read_only: NotRequired[bool]
     disabled: NotRequired[bool]
     hidden: NotRequired[bool]
     enum_resolver: NotRequired[str]
@@ -351,6 +344,7 @@ class SimpleForm(list[SimpleFormField]):
         syntax: str | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a text input field to the form.
 
@@ -373,6 +367,7 @@ class SimpleForm(list[SimpleFormField]):
             syntax=syntax,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def boolean(
@@ -383,10 +378,17 @@ class SimpleForm(list[SimpleFormField]):
         *,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a checkbox or switch field to the form."""
         return self._add_field(
-            "boolean", name, label=label, value=value, rules=rules, hidden=hidden
+            "boolean",
+            name,
+            label=label,
+            value=value,
+            rules=rules,
+            hidden=hidden,
+            read_only=read_only,
         )
 
     def select(
@@ -400,6 +402,7 @@ class SimpleForm(list[SimpleFormField]):
         enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a select field (dropdown) to the form.
 
@@ -431,6 +434,7 @@ class SimpleForm(list[SimpleFormField]):
             enum_resolver_params=enum_resolver_params,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def multiselect(
@@ -444,6 +448,7 @@ class SimpleForm(list[SimpleFormField]):
         enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a multiselect field (dropdown) to the form.
 
@@ -477,6 +482,7 @@ class SimpleForm(list[SimpleFormField]):
             enum_resolver_params=enum_resolver_params,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def hidden(
@@ -546,6 +552,7 @@ class SimpleForm(list[SimpleFormField]):
         max: int | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add an integer input field to the form.
 
@@ -564,6 +571,7 @@ class SimpleForm(list[SimpleFormField]):
             max=max,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def float(
@@ -577,6 +585,7 @@ class SimpleForm(list[SimpleFormField]):
         max: float | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a float input field to the form.
 
@@ -595,4 +604,5 @@ class SimpleForm(list[SimpleFormField]):
             max=max,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
