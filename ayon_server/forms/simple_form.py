@@ -226,7 +226,7 @@ class SimpleFormField(TypedDict):
     min: NotRequired[int | float]
     max: NotRequired[int | float]
     valid_extensions: NotRequired[list[str]]
-    readOnly: NotRequired[bool]
+    read_only: NotRequired[bool]
     disabled: NotRequired[bool]
     hidden: NotRequired[bool]
     enum_resolver: NotRequired[str]
@@ -350,6 +350,7 @@ class SimpleForm(list[SimpleFormField]):
         syntax: str | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a text input field to the form.
 
@@ -372,6 +373,7 @@ class SimpleForm(list[SimpleFormField]):
             syntax=syntax,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def boolean(
@@ -382,10 +384,17 @@ class SimpleForm(list[SimpleFormField]):
         *,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a checkbox or switch field to the form."""
         return self._add_field(
-            "boolean", name, label=label, value=value, rules=rules, hidden=hidden
+            "boolean",
+            name,
+            label=label,
+            value=value,
+            rules=rules,
+            hidden=hidden,
+            read_only=read_only,
         )
 
     def select(
@@ -399,6 +408,7 @@ class SimpleForm(list[SimpleFormField]):
         enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a select field (dropdown) to the form.
 
@@ -430,6 +440,7 @@ class SimpleForm(list[SimpleFormField]):
             enum_resolver_params=enum_resolver_params,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def multiselect(
@@ -443,6 +454,7 @@ class SimpleForm(list[SimpleFormField]):
         enum_resolver_params: dict[str, Any] | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a multiselect field (dropdown) to the form.
 
@@ -476,6 +488,7 @@ class SimpleForm(list[SimpleFormField]):
             enum_resolver_params=enum_resolver_params,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def hidden(
@@ -545,6 +558,7 @@ class SimpleForm(list[SimpleFormField]):
         max: int | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add an integer input field to the form.
 
@@ -563,6 +577,7 @@ class SimpleForm(list[SimpleFormField]):
             max=max,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
 
     def float(
@@ -576,6 +591,7 @@ class SimpleForm(list[SimpleFormField]):
         max: float | None = None,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        read_only: bool = False,
     ) -> Self:
         """Add a float input field to the form.
 
@@ -594,4 +610,5 @@ class SimpleForm(list[SimpleFormField]):
             max=max,
             rules=rules,
             hidden=hidden,
+            read_only=read_only,
         )
