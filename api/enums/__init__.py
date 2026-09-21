@@ -1,7 +1,7 @@
 __all__ = ["router"]
 
 
-from typing import Annotated, Any, Literal, overload
+from typing import Annotated
 
 from fastapi import APIRouter, Path, Request
 
@@ -10,62 +10,14 @@ from ayon_server.entities import UserEntity
 from ayon_server.enum import EnumItem, EnumRegistry, EnumResolverInfo
 from ayon_server.exceptions import BadRequestException
 from ayon_server.logging import logger
-from ayon_server.types import AttributeType
+
+from .parse_enum_param import parse_enum_param
 
 router = APIRouter(tags=["Enums"])
 
 #
 # GET
 #
-
-
-@overload
-def parse_param(param_type: str, raw_value: Literal["string"]) -> str: ...
-
-
-@overload
-def parse_param(param_type: str, raw_value: Literal["integer"]) -> int: ...
-
-
-@overload
-def parse_param(param_type: str, raw_value: Literal["float"]) -> float: ...
-
-
-@overload
-def parse_param(param_type: str, raw_value: Literal["boolean"]) -> bool: ...
-
-
-@overload
-def parse_param(
-    param_type: str, raw_value: Literal["list_of_strings"]
-) -> list[str]: ...
-
-
-@overload
-def parse_param(
-    param_type: str, raw_value: Literal["list_of_integers"]
-) -> list[int]: ...
-
-
-@overload
-def parse_param(param_type: str, raw_value: AttributeType) -> Any: ...
-
-
-def parse_param(param_type: str, raw_value: AttributeType) -> Any:
-    """Parse a query parameter value based on its expected type."""
-    if param_type == "bool":
-        return raw_value.lower() in ("1", "true", "yes", "on")
-    if param_type == "int":
-        return int(raw_value)
-    if param_type == "float":
-        return float(raw_value)
-    if param_type == "list_of_strings":
-        return [r.strip() for r in raw_value.split(",")]
-    if param_type == "list_of_integers":
-        return [int(r.strip()) for r in raw_value.split(",")]
-    if param_type == "string":
-        return raw_value
-    raise BadRequestException(f"Unsupported parameter type: {param_type}")
 
 
 @router.get("/enum/{enum_name}", response_model_exclude_none=True)
@@ -103,7 +55,7 @@ async def get_enum(
                 continue  # Parameter not provided, skip
 
             if isinstance(raw_value, str):
-                context[param_name] = parse_param(raw_value, param_type)
+                context[param_name] = parse_enum_param(param_type, raw_value)
 
             logger.warning(
                 f"Expected string value for parameter '{param_name}' "
@@ -115,6 +67,8 @@ async def get_enum(
         if not current_user.is_admin:
             raise BadRequestException("Only admins can resolve enums for another user")
         context["user"] = await UserEntity.load(user_name)
+
+    # logger.trace(f"Resolving enum '{enum_name}' with context: {context}")
 
     return await EnumRegistry.resolve(
         enum_name,
