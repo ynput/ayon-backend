@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import SQLTool
 
 from .router import router
 
@@ -42,7 +43,7 @@ class ManageInboxItemRequest(OPModel):
         description="Status to set for the items",
     )
 
-    itemFilter: ManageInboxItemFilter | None = Field(
+    item_filter: ManageInboxItemFilter | None = Field(
         None,
         title="Item filter",
         description="Optional filter selecting which inbox items should be updated",
@@ -50,7 +51,7 @@ class ManageInboxItemRequest(OPModel):
 
 
 @router.post("")
-async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
+async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) -> None:
     """Manage inbox items"""
 
     # cleared: sets active to false and sets refence_data->>'read' to true
@@ -65,26 +66,29 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     else:
         raise ValueError("Invalid status. This should not happen.")
 
-    filter_conditions: list[str] = []
-    filter_params: list[object] = []
-    base_param_count = 1 if request.ids is None else 2
+    filter_conditions: list[str] = ["entity_type = 'user'", "entity_name = $1"]
+    filter_params: list[object] = [user.name]
 
-    if request.itemFilter is not None:
-        if request.itemFilter.active is not None:
-            filter_params.append(request.itemFilter.active)
+    def idx() -> str:
+        return f"${len(filter_params)}"
+
+    if request.ids is not None:
+        filter_params.append(request.ids)
+        filter_conditions.append(f"id = ANY({idx()})")
+
+    if request.item_filter is not None:
+        if request.item_filter.active is not None:
+            filter_params.append(request.item_filter.active)
+            filter_conditions.append(f"active = {idx()}")
+
+        if request.item_filter.read is not None:
+            filter_params.append(request.item_filter.read)
             filter_conditions.append(
-                f"active = ${base_param_count + len(filter_params)}"
+                f"COALESCE((data->>'read')::boolean, false) = {idx()}"
             )
 
-        if request.itemFilter.read is not None:
-            filter_params.append(request.itemFilter.read)
-            filter_conditions.append(
-                "COALESCE((data->>'read')::boolean, false) = "
-                f"${base_param_count + len(filter_params)}"
-            )
-
-        if request.itemFilter.important is not None:
-            if request.itemFilter.important:
+        if request.item_filter.important is not None:
+            if request.item_filter.important:
                 operator = "IN"
                 extra_status_cond = (
                     "AND activity_id IN ("
@@ -108,27 +112,9 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
                 ")"
             )
 
-    filter_sql = ""
-    if filter_conditions:
-        filter_sql = "\n        AND " + "\n        AND ".join(filter_conditions)
-
-    if request.ids is None:
-        base_query = f"""
-            UPDATE project_{request.project_name}.activity_references
-            SET {body}
-            WHERE entity_type = 'user' AND entity_name = $1{filter_sql}
-        """
-        await Postgres.execute(base_query, user.name, *filter_params)
-        return None
-
-    else:
-        base_query = f"""
-            UPDATE project_{request.project_name}.activity_references
-            SET {body}
-            WHERE id = ANY($1)
-            AND entity_type = 'user'
-            AND entity_name = $2
-            {filter_sql}
-        """
-    await Postgres.execute(base_query, request.ids, user.name, *filter_params)
-    return None
+    base_query = f"""
+        UPDATE project_{request.project_name}.activity_references
+        SET {body}
+        {SQLTool.conditions(filter_conditions)}
+    """
+    await Postgres.execute(base_query, *filter_params)
