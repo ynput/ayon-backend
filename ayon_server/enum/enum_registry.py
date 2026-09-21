@@ -1,3 +1,4 @@
+import inspect
 from typing import TYPE_CHECKING, Annotated, Any
 
 from ayon_server.exceptions import BadRequestException
@@ -29,6 +30,14 @@ class EnumResolverInfo(OPModel):
             example="Statuses",
         ),
     ]
+    description: Annotated[
+        str | None,
+        Field(
+            title="Resolver description",
+            description="Optional human-readable description for the resolver",
+            example="List of available statuses for tasks",
+        ),
+    ] = None
     accepted_params: Annotated[
         dict[str, AttributeType],
         Field(
@@ -163,10 +172,16 @@ class EnumRegistry:
         for name, resolver in cls.resolvers.items():
             params = await resolver.get_accepted_params()
             settings_form = await resolver.get_settings_form()
+
+            description = resolver.__doc__.strip() if resolver.__doc__ else None
+            if description is not None:
+                description = inspect.cleandoc(description)
+
             result.append(
                 EnumResolverInfo(
                     name=name,
                     label=resolver.label or name,
+                    description=description,
                     accepted_params=params,
                     settings_form=list(settings_form)
                     if settings_form is not None
