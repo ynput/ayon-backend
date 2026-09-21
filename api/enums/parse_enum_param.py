@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal, NoReturn, overload
 
-from ayon_server.exceptions import BadRequestException
 from ayon_server.types import AttributeType
 
 
@@ -76,8 +75,5 @@ def parse_enum_param(param_type: AttributeType, raw_value: str) -> Any:
     if param_type == "string":
         return raw_value
     if param_type == "datetime":
-        try:
-            return datetime.fromisoformat(raw_value)
-        except ValueError:
-            raise BadRequestException(f"Invalid datetime format: {raw_value}")
-    raise BadRequestException(f"Unsupported parameter type: {param_type}")
+        return datetime.fromisoformat(raw_value)
+    raise ValueError(f"Unsupported parameter type: {param_type}")

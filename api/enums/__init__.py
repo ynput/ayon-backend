@@ -55,7 +55,12 @@ async def get_enum(
                 continue  # Parameter not provided, skip
 
             if isinstance(raw_value, str):
-                context[param_name] = parse_enum_param(param_type, raw_value)
+                try:
+                    context[param_name] = parse_enum_param(param_type, raw_value)
+                except ValueError as e:
+                    raise BadRequestException(
+                        f"Invalid value for parameter '{param_name}': {e}"
+                    )
 
             logger.warning(
                 f"Expected string value for parameter '{param_name}' "
