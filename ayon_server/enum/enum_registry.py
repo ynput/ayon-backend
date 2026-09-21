@@ -21,6 +21,14 @@ class EnumResolverInfo(OPModel):
             example="statuses",
         ),
     ]
+    label: Annotated[
+        str,
+        Field(
+            title="Resolver label",
+            description="Optional human-readable label for the resolver",
+            example="Statuses",
+        ),
+    ]
     accepted_params: Annotated[
         dict[str, AttributeType],
         Field(
@@ -38,28 +46,42 @@ class EnumResolverInfo(OPModel):
     ] = None
 
 
+reserved_params = {"project_name", "user"}
+
+
+async def resolver_sanity_check(resolver: BaseEnumResolver) -> None:
+    accepted_params = await resolver.get_accepted_params()
+    if any(param in reserved_params for param in accepted_params):
+        logger.warning(
+            f"Resolver '{resolver.name}' uses reserved parameter names: "
+            f"{reserved_params & set(accepted_params)}"
+        )
+
+
 class EnumRegistry:
     resolvers: dict[str, BaseEnumResolver] = {}
 
     @classmethod
-    def initialize(cls):
+    async def initialize(cls):
         module_path = "ayon_server/enum/resolvers"
         module = import_module(module_path, f"{module_path}/__init__.py")
         resolver_classes = classes_from_module(BaseEnumResolver, module)
 
         cls.resolvers = {}
         for resolver_class in resolver_classes:
-            cls.register(resolver_class)
+            await cls.register(resolver_class)
 
     @classmethod
-    def register(cls, resolver: type[BaseEnumResolver]) -> None:
+    async def register(cls, resolver: type[BaseEnumResolver]) -> None:
         if resolver.name in cls.resolvers:
             msg = f"Replaced enum resolver '{resolver.name}'"
         else:
             msg = f"Registered enum resolver '{resolver.name}'"
 
         try:
-            cls.resolvers[resolver.name] = resolver(cls)
+            resolver_instance = resolver(cls)
+            await resolver_sanity_check(resolver_instance)
+            cls.resolvers[resolver.name] = resolver_instance
         except Exception as e:
             logger.warning(f"Failed to register enum resolver '{resolver.name}': {e}")
         else:
@@ -144,10 +166,11 @@ class EnumRegistry:
             result.append(
                 EnumResolverInfo(
                     name=name,
+                    label=resolver.label or name,
                     accepted_params=params,
                     settings_form=list(settings_form)
                     if settings_form is not None
                     else None,
                 )
             )
-        return result
+        return sorted(result, key=lambda r: r.label.lower())
