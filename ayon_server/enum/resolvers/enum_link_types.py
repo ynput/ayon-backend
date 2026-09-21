@@ -44,6 +44,7 @@ async def _resolve_link_types_project(project_name: str) -> list[EnumItem]:
 
 class LinkTypesEnumResolver(BaseEnumResolver):
     name = "linkTypes"
+    label = "Link Types"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
