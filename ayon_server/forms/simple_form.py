@@ -157,9 +157,6 @@ def _condition_field_names(f: QueryFilter) -> set[str]:
     return result
 
 
-_OPTION_KEYS = frozenset(FormOptionItem.__annotations__)
-
-
 def _option_from_enum_item(item: EnumItem) -> FormOptionItem:
     """Coalesce an EnumItem down to only the keys it actually sets."""
     option: FormOptionItem = {"value": item.value}
@@ -202,9 +199,6 @@ def normalize_options(
         elif isinstance(option, dict):
             if "value" not in option:
                 raise ValueError("Option must contain a 'value' key.")
-            unknown_keys = set(option) - _OPTION_KEYS
-            if unknown_keys:
-                raise ValueError(f"Unsupported option key(s): {sorted(unknown_keys)}")
             result.append(dict(option))  # type: ignore[arg-type]
         else:
             raise ValueError("Option must be a string, a dict or an EnumItem.")
