@@ -55,18 +55,6 @@ class EnumResolverInfo(OPModel):
     ] = None
 
 
-reserved_params = {"project_name", "user"}
-
-
-async def resolver_sanity_check(resolver: BaseEnumResolver) -> None:
-    accepted_params = await resolver.get_accepted_params()
-    if any(param in reserved_params for param in accepted_params):
-        logger.warning(
-            f"Resolver '{resolver.name}' uses reserved parameter names: "
-            f"{reserved_params & set(accepted_params)}"
-        )
-
-
 class EnumRegistry:
     resolvers: dict[str, BaseEnumResolver] = {}
 
@@ -89,7 +77,6 @@ class EnumRegistry:
 
         try:
             resolver_instance = resolver(cls)
-            await resolver_sanity_check(resolver_instance)
             cls.resolvers[resolver.name] = resolver_instance
         except Exception as e:
             logger.warning(f"Failed to register enum resolver '{resolver.name}': {e}")

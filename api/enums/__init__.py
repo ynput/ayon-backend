@@ -20,6 +20,9 @@ router = APIRouter(tags=["Enums"])
 #
 
 
+RESERVED_PARAMS = {"user"}
+
+
 @router.get("/enum/{enum_name}", response_model_exclude_none=True)
 async def get_enum(
     request: Request,
@@ -48,6 +51,9 @@ async def get_enum(
 
     query_params = request.query_params
     for param_name, param_type in accepted_params.items():
+        if param_name in RESERVED_PARAMS:
+            continue  # Skip reserved parameters
+
         if param_name in query_params:
             try:
                 raw_value = query_params[param_name]
@@ -67,6 +73,9 @@ async def get_enum(
                 f"got {type(raw_value).__name__}"
             )
 
+    # User requires special handling: we resolve it either from the current user
+    # or from the provided query parameter if the current user is an admin.
+    # The result is stored in the context as UserEnity, not a string.
     user_name = query_params.get("user")
     if user_name is not None:
         if not current_user.is_admin:
