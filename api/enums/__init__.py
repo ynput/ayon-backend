@@ -67,11 +67,11 @@ async def get_enum(
                     raise BadRequestException(
                         f"Invalid value for parameter '{param_name}': {e}"
                     )
-
-            logger.warning(
-                f"Expected string value for parameter '{param_name}' "
-                f"got {type(raw_value).__name__}"
-            )
+            else:
+                logger.warning(
+                    f"Expected string value for parameter '{param_name}' "
+                    f"got {type(raw_value).__name__}"
+                )
 
     # User requires special handling: we resolve it either from the current user
     # or from the provided query parameter if the current user is an admin.
