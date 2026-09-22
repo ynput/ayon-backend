@@ -283,7 +283,8 @@ label = "Statuses"
 
 class TagsEnumResolver(BaseEnumResolver):
     name = "tags"
-
+name = "tags"
+label = "Tags"
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
 
