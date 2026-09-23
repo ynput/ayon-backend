@@ -275,6 +275,7 @@ async def update_bundle(
             addons = {}
         else:
             addons = dict(addons)
+        original_addons = dict(addons)
 
         for addon_name, addon_version in list(addons.items()):
             # Project bundle placeholders (and disabled addons) are not real versions.
@@ -296,6 +297,7 @@ async def update_bundle(
                     f"removing from bundle {bundle_name}"
                 )
                 addons.pop(addon_name, None)
+
         installer_version = data.get("installer_version")
         if installer_version is not None:
             existing_installer_versions = await list_installer_versions()
@@ -479,7 +481,11 @@ async def update_bundle(
             bundle_name,
         )
 
-    if patch.is_production is not None or patch.is_staging is not None or patch.addons:
+    if (
+        patch.is_production is not None
+        or patch.is_staging is not None
+        or bundle.addons != original_addons
+    ):
         await addon_library.clear_addon_list_cache()
 
     await EventStream.dispatch(
