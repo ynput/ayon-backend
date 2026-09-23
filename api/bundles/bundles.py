@@ -277,26 +277,35 @@ async def update_bundle(
             addons = dict(addons)
         original_addons = dict(addons)
 
-        for addon_name, addon_version in list(addons.items()):
-            # Project bundle placeholders (and disabled addons) are not real versions.
-            # Only validate addon existence in that case.
-            if addon_version in (None, "__inherit__", "__disable__"):
-                if AddonLibrary.get(addon_name) is None:
+        # Only clean up non-existent addons when the addon list is being
+        # patched. Otherwise e.g. promoting a bundle to production would
+        # silently drop addons that are just temporarily unavailable.
+        if patch.addons is not None:
+            for addon_name, addon_version in list(addons.items()):
+                # Project bundle placeholders (and disabled addons) are not
+                # real versions. Only validate addon existence in that case.
+                if addon_version in (None, "__inherit__", "__disable__"):
+                    if AddonLibrary.get(addon_name) is None:
+                        logger.warning(
+                            f"Addon {addon_name} does not exist, "
+                            f"removing from bundle {bundle_name}"
+                        )
+                        addons.pop(addon_name, None)
+                    continue
+
+                # Broken addons are unloaded from the library, but they are
+                # still installed. Keep them in the bundle.
+                if AddonLibrary.is_broken(addon_name, addon_version):
+                    continue
+
+                try:
+                    AddonLibrary.addon(addon_name, addon_version)
+                except NotFoundException:
                     logger.warning(
-                        f"Addon {addon_name} does not exist, "
+                        f"Addon {addon_name} version {addon_version} does not exist, "
                         f"removing from bundle {bundle_name}"
                     )
                     addons.pop(addon_name, None)
-                continue
-
-            try:
-                AddonLibrary.addon(addon_name, addon_version)
-            except NotFoundException:
-                logger.warning(
-                    f"Addon {addon_name} version {addon_version} does not exist, "
-                    f"removing from bundle {bundle_name}"
-                )
-                addons.pop(addon_name, None)
 
         installer_version = data.get("installer_version")
         if installer_version is not None:
