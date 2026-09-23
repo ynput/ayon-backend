@@ -170,8 +170,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
-name = "statuses"
-label = "Statuses"
+    label = "Statuses"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {
@@ -283,8 +282,8 @@ label = "Statuses"
 
 class TagsEnumResolver(BaseEnumResolver):
     name = "tags"
-name = "tags"
-label = "Tags"
+    label = "Tags"
+
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
 
