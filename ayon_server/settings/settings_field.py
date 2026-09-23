@@ -1,10 +1,12 @@
 import traceback
+from collections.abc import Callable
 from typing import Any
 
-from pydantic.fields import FieldInfo, Undefined
-from pydantic.typing import AnyCallable, NoArgAnyCallable
+from pydantic import Field
+from pydantic_core import PydanticUndefined
 
 from ayon_server.logging import logger
+from ayon_server.models.field_info import FieldExtra
 
 """
 Unused pydantic fields
@@ -15,9 +17,9 @@ Unused pydantic fields
 
 
 def SettingsField(
-    default: Any = Undefined,
+    default: Any = PydanticUndefined,
     *,
-    default_factory: NoArgAnyCallable | None = None,
+    default_factory: Callable[[], Any] | None = None,
     alias: str | None = None,
     title: str | None = None,
     description: str | None = None,
@@ -36,11 +38,12 @@ def SettingsField(
     max_length: int | None = None,
     allow_mutation: bool = True,
     regex: str | None = None,
+    pattern: str | None = None,
     discriminator: str | None = None,
     repr: bool = True,
     # AYON settings specifics
     example: Any = None,
-    enum_resolver: AnyCallable | str | None = None,
+    enum_resolver: Callable[..., Any] | str | None = None,
     enum_resolver_settings: dict[str, Any] | None = None,
     required_items: list[str] | None = None,
     section: str | None = None,
@@ -58,7 +61,16 @@ def SettingsField(
     # everything else
     **kwargs: Any,
 ) -> Any:
-    # sanity checks
+    """Define a field of a settings model.
+
+    Accepts both the Pydantic 1 (regex, min_items...) and the
+    Pydantic 2 (pattern, min_length...) style arguments.
+
+    AYON specific arguments are stored in the field's `json_schema_extra`
+    (use `ayon_server.models.field_info.get_field_extra` to read them)
+    and (if they are JSON serializable) exposed in the settings JSON schema
+    the same way Pydantic 1 exposed extra field arguments.
+    """
 
     # conditionalEnum (camelCase) is deprecated, but used heavily.
     # We will need to support it for a long time, but it won't hurt.
@@ -76,24 +88,21 @@ def SettingsField(
             f"at {stack.filename}:{stack.lineno}"
         )
 
-    # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
-    # We will support both, but before Pydantic 2 is used, `examples` will
-    # just use the first example. No one provides multiple examples anyway.
+    # The settings schema uses the (Pydantic 1 / OpenAPI 3.0) `example`
+    # keyword with a single value. No one provides multiple examples anyway.
 
-    examples = examples or []
+    examples = list(examples or [])
     if example is not None:
         examples.append(example)
-    if not examples:
-        examples = None
 
     # extras
 
     extra: dict[str, Any] = {}
 
-    if examples and isinstance(examples, list):
+    if examples:
         extra["example"] = examples[0]
-        # in pydantic 2, use:
-        # extra["examples"] = examples
+    if unique_items:
+        extra["uniqueItems"] = True
     if enum_resolver is not None:
         extra["enum_resolver"] = enum_resolver
     if enum_resolver_settings is not None:
@@ -124,31 +133,25 @@ def SettingsField(
 
     # construct FieldInfo
 
-    field_info = FieldInfo(
-        default,
-        default_factory=default_factory,
-        alias=alias,
-        title=title,
-        description=description,
-        gt=gt,
-        ge=ge,
-        lt=lt,
-        le=le,
-        multiple_of=multiple_of,
-        allow_inf_nan=allow_inf_nan,
-        max_digits=max_digits,
-        decimal_places=decimal_places,
-        min_items=min_items,
-        max_items=max_items,
-        unique_items=unique_items,
-        min_length=min_length,
-        max_length=max_length,
-        allow_mutation=allow_mutation,
-        regex=regex,
-        discriminator=discriminator,
-        repr=repr,
-        **extra,
-    )
-
-    field_info._validate()
-    return field_info
+    field_kwargs: dict[str, Any] = {
+        "default_factory": default_factory,
+        "alias": alias,
+        "title": title,
+        "description": description,
+        "gt": gt,
+        "ge": ge,
+        "lt": lt,
+        "le": le,
+        "multiple_of": multiple_of,
+        "allow_inf_nan": allow_inf_nan,
+        "max_digits": max_digits,
+        "decimal_places": decimal_places,
+        "min_length": min_length if min_length is not None else min_items,
+        "max_length": max_length if max_length is not None else max_items,
+        "frozen": None if allow_mutation else True,
+        "pattern": pattern or regex,
+        "discriminator": discriminator,
+        "repr": repr,
+        "json_schema_extra": FieldExtra(extra),
+    }
+    return Field(default, **field_kwargs)

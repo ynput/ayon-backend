@@ -274,7 +274,7 @@ async def post_metrics():
             system = True
 
     metrics = await get_metrics(saturated=saturated, system=system)
-    payload = metrics.dict(exclude_none=True)
+    payload = metrics.model_dump(exclude_none=True)
 
     try:
         async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:

@@ -60,7 +60,7 @@ async def dep_current_user(
 
 
 async def dep_project_name(
-    project_name: str = Path(..., title="Project name", regex=PROJECT_NAME_REGEX),
+    project_name: str = Path(..., title="Project name", pattern=PROJECT_NAME_REGEX),
 ) -> str:
     logger.warning("Using deprecated dep_project_name")
     return project_name

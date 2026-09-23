@@ -13,7 +13,7 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
-# okay. now the rest
+from ayon_server.api import response_compat
 from ayon_server.api.auth import AuthMiddleware
 from ayon_server.api.context import RequestContextMiddleware
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional, NoTraces
@@ -29,6 +29,9 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
+# okay. now the rest
+from ayon_server.models.field_info import format_validation_errors
+
 #
 # We just need the log collector to be initialized.
 #
@@ -39,11 +42,16 @@ _ = log_collector
 # Let's create the app
 #
 
+response_compat.install()
+
 app = FastAPI(
     lifespan=lifespan,
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
+    # Keep a single OpenAPI schema per model (as with Pydantic 1),
+    # so the names of the generated client types do not change.
+    separate_input_output_schemas=False,
     **app_meta,
 )
 
@@ -237,7 +245,7 @@ async def handle_request_validation_error(
             "detail": detail,
             "path": request.url.path,
             "traceback": traceback_msg.strip(),
-            "errors": exc.errors(),
+            "errors": format_validation_errors(exc.errors()),
         },
     )
 

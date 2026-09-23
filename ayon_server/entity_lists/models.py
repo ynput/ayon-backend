@@ -132,13 +132,13 @@ class EntityListItemModel(OPModel):
     id: Annotated[str, FListItemId]
     entity_id: Annotated[str, FListItemEntityId]
     position: Annotated[int, FListItemPosition]
-    label: Annotated[str | None, FListItemLabel]
+    label: Annotated[str | None, FListItemLabel] = None
     attrib: Annotated[dict[str, Any], FListItemAttrib]
     data: Annotated[dict[str, Any], FListItemData]
     tags: Annotated[list[str], FListItemTags]
     folder_path: Annotated[str, FListItemFolderPath]
-    created_by: Annotated[str | None, FCreatedBy]
-    updated_by: Annotated[str | None, FUpdatedBy]
+    created_by: Annotated[str | None, FCreatedBy] = None
+    updated_by: Annotated[str | None, FUpdatedBy] = None
     created_at: Annotated[datetime, FCreatedAt]
     updated_at: Annotated[datetime, FUpdatedAt]
 
@@ -146,8 +146,8 @@ class EntityListItemModel(OPModel):
 class EntityListItemPostModel(OPModel):
     id: Annotated[str, FListItemId]
     entity_id: Annotated[str, FListItemEntityId]
-    position: Annotated[int | None, FListItemPosition]
-    label: Annotated[str | None, FListItemLabel]
+    position: Annotated[int | None, FListItemPosition] = None
+    label: Annotated[str | None, FListItemLabel] = None
     attrib: Annotated[dict[str, Any], FListItemAttrib]
     data: Annotated[dict[str, Any], FListItemData]
     tags: Annotated[list[str], FListItemTags]
@@ -174,9 +174,9 @@ class EntityListModel(OPModel):
     template: Annotated[dict[str, Any], FListTemplate]
     tags: Annotated[list[str], FListTags]
     items: Annotated[list[EntityListItemModel], FListItems]
-    owner: Annotated[str | None, FListOwner]
-    created_by: Annotated[str | None, FCreatedBy]
-    updated_by: Annotated[str | None, FUpdatedBy]
+    owner: Annotated[str | None, FListOwner] = None
+    created_by: Annotated[str | None, FCreatedBy] = None
+    updated_by: Annotated[str | None, FUpdatedBy] = None
     created_at: Annotated[datetime, FCreatedAt]
     updated_at: Annotated[datetime, FUpdatedAt]
     active: Annotated[bool, FListActive]

@@ -240,5 +240,5 @@ def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:
     if isinstance(s, dict):
         return s
     elif isinstance(s, BaseModel):
-        return s.dict()
+        return s.model_dump()
     raise ValueError(f"Can't normalize {s}")

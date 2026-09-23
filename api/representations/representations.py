@@ -44,7 +44,7 @@ async def create_representation(
     """Create a new representation."""
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.create("representation", **post_data.dict(exclude_unset=True))
+    ops.create("representation", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
     return EntityIdResponse(id=entity_id)
@@ -70,7 +70,7 @@ async def update_representation(
     ops.update(
         "representation",
         representation_id,
-        **post_data.dict(exclude_unset=True),
+        **post_data.model_dump(exclude_unset=True),
     )
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

@@ -51,7 +51,7 @@ async def create_workfile(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
-    ops.create("workfile", **post_data.dict(exclude_unset=True))
+    ops.create("workfile", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
     return EntityIdResponse(id=entity_id)
@@ -73,7 +73,7 @@ async def update_workfile(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
-    ops.update("workfile", workfile_id, **post_data.dict(exclude_unset=True))
+    ops.update("workfile", workfile_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 

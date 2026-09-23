@@ -151,7 +151,7 @@ async def user_from_request(request: Request) -> UserEntity:
         raise UnauthorizedException(reason)
 
     await Redis.incr("user-requests", session_data.user.name)
-    user = UserEntity.from_record(session_data.user.dict())
+    user = UserEntity.from_record(session_data.user.model_dump())
     user.add_session(session_data)
 
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:

@@ -73,7 +73,7 @@ async def sanitize_folder_update(
     """
 
     folder_entity = cast(FolderEntity, entity)
-    existing_folder_data = folder_entity.payload.dict(exclude_none=True)
+    existing_folder_data = folder_entity.payload.model_dump(exclude_none=True)
     if not operation.force:
         for key in ("name", "folder_type", "parent_id"):
             if key not in update_payload_dict:
@@ -120,7 +120,7 @@ async def update_project_level_entity(
 
     hooks = OperationHooks.hooks()
     if hooks:
-        temp_entity = entity_class(project_name, entity.payload.dict())
+        temp_entity = entity_class(project_name, entity.payload.model_dump())
         temp_entity.inherited_attrib = entity.inherited_attrib.copy()
         temp_payload = entity_class.model.patch_model(**operation.data)
         temp_entity.patch(temp_payload, user=user)
@@ -138,7 +138,7 @@ async def update_project_level_entity(
     # top-level fields. This is the format, that is going to be used
     # in the database update query.
 
-    update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
+    update_payload_dict = payload.model_dump(exclude_unset=True, by_alias=False)
 
     if user:
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)

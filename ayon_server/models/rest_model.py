@@ -1,30 +1,36 @@
+from collections.abc import Callable
 from typing import Any
 
-from pydantic import BaseModel
-from pydantic.fields import FieldInfo, Undefined
-from pydantic.typing import NoArgAnyCallable
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticUndefined
 
 from ayon_server.logging import logger
-from ayon_server.utils import camelize, json_dumps, json_loads
+from ayon_server.models.metaclass import AyonModelMetaclass, coerce_v1_input
+from ayon_server.utils import camelize
 
 
-class RestModel(BaseModel):
+class RestModel(BaseModel, metaclass=AyonModelMetaclass):
     """Base API model."""
 
-    class Config:
-        """API model config."""
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=camelize,
+        # Pydantic 1 accepted numbers for string fields
+        coerce_numbers_to_str=True,
+    )
 
-        orm_mode = True
-        allow_population_by_field_name = True
-        alias_generator = camelize
-        json_loads = json_loads
-        json_dumps = json_dumps
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_v1_input(cls, data: Any) -> Any:
+        return coerce_v1_input(cls, data)
 
 
 def RestField(
-    default: Any = Undefined,
+    default: Any = PydanticUndefined,
     *,
-    default_factory: NoArgAnyCallable | None = None,
+    default_factory: Callable[[], Any] | None = None,
     alias: str | None = None,
     title: str | None = None,
     description: str | None = None,
@@ -43,67 +49,60 @@ def RestField(
     max_length: int | None = None,
     allow_mutation: bool = True,
     regex: str | None = None,
+    pattern: str | None = None,
     discriminator: str | None = None,
     repr: bool = True,
-    # AYON settings specifics
+    validate_default: bool | None = None,
+    # AYON specifics
     example: Any = None,
     deprecated: bool = False,
     examples: list[Any] | None = None,
     # everything else
     **kwargs: Any,
 ) -> Any:
-    # sanity checks
+    """Define a field of a RestModel.
+
+    Accepts both the Pydantic 1 (regex, min_items...) and the
+    Pydantic 2 (pattern, min_length...) style arguments.
+    """
 
     if kwargs:
         logger.debug(f"RestField: unsupported argument: {kwargs}")
 
-    # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
-    # We will support both, but before Pydantic 2 is used, `examples` will
-    # just use the first example. No one provides multiple examples anyway.
-
-    examples = examples or []
+    examples = list(examples or [])
     if example is not None:
         examples.append(example)
-    if not examples:
-        examples = None
-
-    # extras
 
     extra: dict[str, Any] = {}
+    if unique_items:
+        extra["uniqueItems"] = True
+    if deprecated:
+        # Only mark the field as deprecated in the schema.
+        # Using pydantic's `deprecated` would emit runtime warnings
+        # each time the attribute is accessed.
+        extra["deprecated"] = True
 
-    if examples and isinstance(examples, list):
-        extra["example"] = examples[0]
-        # in pydantic 2, use:
-        # extra["examples"] = examples
-
-    # construct FieldInfo
-
-    field_info = FieldInfo(
-        default,
-        default_factory=default_factory,
-        alias=alias,
-        title=title,
-        description=description,
-        gt=gt,
-        ge=ge,
-        lt=lt,
-        le=le,
-        multiple_of=multiple_of,
-        allow_inf_nan=allow_inf_nan,
-        max_digits=max_digits,
-        decimal_places=decimal_places,
-        min_items=min_items,
-        max_items=max_items,
-        unique_items=unique_items,
-        min_length=min_length,
-        max_length=max_length,
-        allow_mutation=allow_mutation,
-        regex=regex,
-        discriminator=discriminator,
-        deprecated=deprecated,
-        repr=repr,
-        **extra,
-    )
-
-    field_info._validate()
-    return field_info
+    field_kwargs: dict[str, Any] = {
+        "default_factory": default_factory,
+        "alias": alias,
+        "title": title,
+        "description": description,
+        "examples": examples or None,
+        "gt": gt,
+        "ge": ge,
+        "lt": lt,
+        "le": le,
+        "multiple_of": multiple_of,
+        "allow_inf_nan": allow_inf_nan,
+        "max_digits": max_digits,
+        "decimal_places": decimal_places,
+        "min_length": min_length if min_length is not None else min_items,
+        "max_length": max_length if max_length is not None else max_items,
+        "frozen": None if allow_mutation else True,
+        "pattern": pattern or regex,
+        "discriminator": discriminator,
+        "repr": repr,
+        "validate_default": validate_default,
+        "json_schema_extra": extra or None,
+    }
+    return Field(default, **field_kwargs)

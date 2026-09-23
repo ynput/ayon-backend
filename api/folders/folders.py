@@ -45,7 +45,7 @@ async def create_folder(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
-    ops.create("folder", **post_data.dict(exclude_unset=True))
+    ops.create("folder", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     folder_id = res.operations[0].entity_id
     assert folder_id is not None, "Folder ID is None. This should never happen."
@@ -74,7 +74,7 @@ async def update_folder(
         raise BadRequestException("Reserved folder name")
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))
+    ops.update("folder", folder_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 

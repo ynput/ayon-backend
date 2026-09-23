@@ -17,7 +17,7 @@ class TopLevelEntity(BaseEntity):
 
         attrib_dict = payload.get("attrib", {})
         if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.dict()
+            attrib_dict = attrib_dict.model_dump()
         self.own_attrib = list(attrib_dict.keys())
 
         self._payload = self.model.main_model(
@@ -39,7 +39,7 @@ class TopLevelEntity(BaseEntity):
         and reformats ids.
         """
         parsed = {}
-        for key in cls.model.main_model.__fields__:
+        for key in cls.model.main_model.model_fields:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
@@ -47,11 +47,13 @@ class TopLevelEntity(BaseEntity):
 
     def as_user(self, user):
         # TODO
-        return self._payload.copy()
+        return self._payload.model_copy()
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
-        self._payload = self.model.main_model(name=self.name, **replace_data.dict())
+        self._payload = self.model.main_model(
+            name=self.name, **replace_data.model_dump()
+        )
 
     @property
     def created_by(self) -> str | None:

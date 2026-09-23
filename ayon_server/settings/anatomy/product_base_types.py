@@ -79,17 +79,17 @@ def enrich_project_config_with_product_base_types(config: dict[str, Any]) -> Non
     """Enrich project config with product base types settings."""
 
     product_base_types_config = config.get("productBaseTypes", {})
-    default_pt_definitions = [p.dict() for p in default_product_type_definitions]
+    default_pt_definitions = [p.model_dump() for p in default_product_type_definitions]
 
     product_base_types_config["default"] = DefaultProductBaseType(
         **product_base_types_config.get("default", {})
-    ).dict()
+    ).model_dump()
 
     if "definitions" not in product_base_types_config:
         product_base_types_config["definitions"] = default_pt_definitions
     else:
         product_base_types_config["definitions"] = [
-            ProductBaseType(**pt).dict()
+            ProductBaseType(**pt).model_dump()
             for pt in product_base_types_config["definitions"]
         ]
 

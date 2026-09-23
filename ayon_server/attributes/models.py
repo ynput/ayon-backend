@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Literal
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.types import (
@@ -147,7 +147,8 @@ class AttributeData(OPModel):
         ),
     ] = None
 
-    @validator("enum")
+    @field_validator("enum")
+    @classmethod
     def validate_enum(cls, value: list[EnumItem] | None) -> list[EnumItem] | None:
         if value == []:
             return None

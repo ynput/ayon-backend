@@ -76,7 +76,7 @@ async def get_config_value(
     key: str = Path(..., description="The key of the configuration value to retrieve"),
 ) -> Any:
     config = await _get_server_config()
-    config_dict = config.dict()
+    config_dict = config.model_dump()
 
     try:
         value = config_dict[key]

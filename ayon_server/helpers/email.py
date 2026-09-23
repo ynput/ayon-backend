@@ -59,8 +59,8 @@ async def is_mailing_enabled() -> MailingEnabled:
 
 
 class EmailRecipient(BaseModel):
-    email: str = Field(..., example="john.doe@example.com")
-    name: str = Field(..., example="John Doe")
+    email: str = Field(..., examples=["john.doe@example.com"])
+    name: str = Field(..., examples=["John Doe"])
 
 
 def build_body(

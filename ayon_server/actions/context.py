@@ -1,7 +1,7 @@
 import base64
 from typing import Annotated, Any, Literal
 
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
@@ -173,20 +173,22 @@ class ActionContext(OPModel):
     # Sanity checks
     #
 
-    @validator("entity_type", "entity_subtypes", "entity_ids")
-    def global_actions_only(cls, v, values):
+    @field_validator("entity_type", "entity_subtypes", "entity_ids")
+    @classmethod
+    def global_actions_only(cls, v, info: ValidationInfo):
         """
         If project_name is not provided, ignore the rest of the fields.
         """
-        if values.get("project_name") is None:
+        if info.data.get("project_name") is None:
             return None
         return v
 
-    @validator("entity_ids")
-    def validate_entity_ids(cls, v, values):
-        if values.get("project_name") is None:
+    @field_validator("entity_ids")
+    @classmethod
+    def validate_entity_ids(cls, v, info: ValidationInfo):
+        if info.data.get("project_name") is None:
             return None
-        if values.get("entity_type") is None:
+        if info.data.get("entity_type") is None:
             return None
         if v is None:
             return []

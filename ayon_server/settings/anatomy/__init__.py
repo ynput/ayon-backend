@@ -10,7 +10,7 @@ __all__ = [
     "ProductBaseTypes",
 ]
 
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.logging import logger
@@ -67,35 +67,35 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: default_folder_types,
         title="Folder types",
         description="Folder types configuration",
-        example=[default_folder_types[0].dict()],
+        example=[default_folder_types[0].model_dump()],
     )
 
     task_types: list[TaskType] = SettingsField(
         default_factory=lambda: default_task_types,
         title="Task types",
         description="Task types configuration",
-        example=[default_task_types[0].dict()],
+        example=[default_task_types[0].model_dump()],
     )
 
     link_types: list[LinkType] = SettingsField(
         default_factory=lambda: default_link_types,
         title="Link types",
         description="Link types configuration",
-        example=[default_link_types[0].dict()],
+        example=[default_link_types[0].model_dump()],
     )
 
     statuses: list[Status] = SettingsField(
         default_factory=lambda: default_statuses,
         title="Statuses",
         description="Statuses configuration",
-        example=[default_statuses[0].dict()],
+        example=[default_statuses[0].model_dump()],
     )
 
     tags: list[Tag] = SettingsField(
         default_factory=lambda: default_tags,
         title="Tags",
         description="Tags configuration",
-        example=[default_tags[0].dict()],
+        example=[default_tags[0].model_dump()],
     )
 
     product_base_types: ProductBaseTypes = SettingsField(
@@ -103,15 +103,18 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: ProductBaseTypes(),  # type: ignore
     )
 
-    @validator("roots", "folder_types", "task_types", "statuses", "tags")
-    def ensure_unique_names(cls, value, field):
-        ensure_unique_names(value, field_name=field.name)
+    @field_validator("roots", "folder_types", "task_types", "statuses", "tags")
+    @classmethod
+    def ensure_unique_names(cls, value, info: ValidationInfo):
+        ensure_unique_names(value, field_name=info.field_name)
         return value
 
-    @validator("folder_types", "task_types", "statuses")
-    def ensure_unique_short_names(cls, value, field):
+    @field_validator("folder_types", "task_types", "statuses")
+    @classmethod
+    def ensure_unique_short_names(cls, value, info: ValidationInfo):
+        field_name = info.field_name
         try:
-            ensure_unique_property(value, "shortName", context=field.name)
+            ensure_unique_property(value, "shortName", context=field_name or "")
         except Exception:
-            logger.warning(f"Duplicate shortName found in project anatomy {field.name}")
+            logger.warning(f"Duplicate shortName found in project anatomy {field_name}")
         return value

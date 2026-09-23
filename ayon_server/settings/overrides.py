@@ -1,9 +1,27 @@
 import copy
 from typing import Any
 
+from pydantic import BaseModel
+
 from ayon_server.logging import logger
+from ayon_server.models.field_info import get_field_extra
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.utils import dict_remove_path
+
+
+def _comparable(value: Any) -> Any:
+    """Convert models to dicts so they can be compared with plain values.
+
+    A model default may be defined as a dict (it is not validated),
+    so a settings value can be either a model or a dict.
+    """
+    if isinstance(value, BaseModel):
+        return value.model_dump()
+    if isinstance(value, list):
+        return [_comparable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _comparable(v) for k, v in value.items()}
+    return value
 
 
 def apply_overrides(
@@ -23,7 +41,7 @@ def apply_overrides(
         override: dict[str, Any],
         target: dict[str, Any],
     ) -> None:
-        for name, _field in obj.__fields__.items():
+        for name in type(obj).model_fields:
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel):
                 target[name] = {}
@@ -92,15 +110,12 @@ def list_overrides(
     else:
         root = "root_" + "_".join(crumbs)
 
-    for name, field in obj.__fields__.items():
+    for name, field in type(obj).model_fields.items():
         child = getattr(obj, name)
         path = f"{root}_{name}"
         chcrumbs = [*crumbs, name]
 
-        try:
-            field_extra = field.field_info.extra
-        except AttributeError:
-            field_extra = {}
+        field_extra = get_field_extra(field)
         _scope = field_extra.get("scope", copy.copy(scope))
         if _scope is None and root == "root":
             _scope = ["studio", "project"]
@@ -209,16 +224,16 @@ def extract_overrides(
         target: dict[str, Any],
         path: list[str],
     ):
-        for field_name in original_object.__fields__.keys():
+        for field_name in type(original_object).model_fields:
             old_child = getattr(original_object, field_name)
             new_child = getattr(new_object, field_name)
             field_path = [*path, field_name]
 
             if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
                 if field_path in explicit_pins:
-                    target[field_name] = new_child.dict()
+                    target[field_name] = new_child.model_dump()
 
-                elif old_child.dict() != new_child.dict() or (
+                elif old_child.model_dump() != new_child.model_dump() or (
                     field_name in existing_overrides
                 ):
                     target[field_name] = {}
@@ -231,14 +246,14 @@ def extract_overrides(
                     )
             else:
                 if (
-                    old_child != new_child
+                    _comparable(old_child) != _comparable(new_child)
                     or (field_name in existing_overrides)
                     or (field_path in explicit_pins)
                 ):
                     # we need to use the original object to get the default value
                     # because of the array handling
-                    # old_value = original_object.dict()[field_name]
-                    new_value = new_object.dict()[field_name]
+                    # old_value = original_object.model_dump()[field_name]
+                    new_value = new_object.model_dump()[field_name]
                     target[field_name] = new_value
 
     crawl(default, overriden, existing_overrides, result, [])

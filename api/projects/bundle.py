@@ -48,7 +48,7 @@ async def set_project_bundles(
         project = await ProjectEntity.load(project_name, for_update=True)
 
         bundle_data = project.data.get("bundle", {})
-        bundle_data.update(payload.dict(exclude_unset=True))
+        bundle_data.update(payload.model_dump(exclude_unset=True))
         if not bundle_data:
             project.data.pop("bundle", None)
         else:

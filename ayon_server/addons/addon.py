@@ -602,7 +602,7 @@ class BaseServerAddon:
                 return None
             data = row["data"]
 
-        return site_settings_model(**data).dict()
+        return site_settings_model(**data).model_dump()
 
     async def on_settings_changed(
         self,
@@ -682,7 +682,7 @@ class BaseServerAddon:
         return migrate_settings_overrides(
             overrides,
             new_model_class=model_class,
-            defaults=defaults.dict(),
+            defaults=defaults.model_dump(),
         )
 
     async def get_app_host_names(self) -> list[str]:

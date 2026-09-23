@@ -128,8 +128,8 @@ async def update_anatomy_preset(
         """,
         preset_name,
         VERSION,
-        preset.dict(),
-        preset.dict(),
+        preset.model_dump(),
+        preset.model_dump(),
     )
     return EmptyResponse()
 

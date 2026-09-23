@@ -2,7 +2,7 @@ import copy
 from typing import Any
 
 from fastapi import Query
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
@@ -14,6 +14,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.field_info import format_validation_errors
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.settings.set_addon_settings import set_addon_settings
@@ -67,7 +68,7 @@ async def get_addon_studio_settings(
     settings = await addon.get_studio_settings(variant=variant, as_version=as_version)
     if not settings:
         return {}
-    return settings  # type: ignore
+    return settings.model_dump(by_alias=True)
 
 
 @router.post("/{addon_name}/{addon_version}/settings", status_code=204)
@@ -101,7 +102,9 @@ async def set_addon_studio_settings(
             explicit_unpins=explicit_unpins,
         )
     except ValidationError as e:
-        raise BadRequestException("Invalid settings", errors=e.errors()) from e
+        raise BadRequestException(
+            "Invalid settings", errors=format_validation_errors(e.errors())
+        ) from e
 
     await set_addon_settings(
         addon_name,

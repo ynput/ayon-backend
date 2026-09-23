@@ -40,7 +40,7 @@ class HierarchyFolderModel(OPModel):
     )
 
 
-HierarchyFolderModel.update_forward_refs()
+HierarchyFolderModel.model_rebuild()
 
 
 class HierarchyResponseModel(OPModel):
@@ -57,13 +57,13 @@ async def get_folder_hierarchy(
         "",
         title="Search query",
         description="Full-text search query used to limit the result",
-        example="forest",
+        examples=["forest"],
     ),
     types: str = Query(
         "",
         title="Type filter",
         description="Comma separated list of folder_types to show",
-        example="AssetBuild,Shot,Sequence",
+        examples=["AssetBuild,Shot,Sequence"],
     ),
 ) -> HierarchyResponseModel:
     """Return a folder hierarchy of a project."""
@@ -143,7 +143,7 @@ async def get_folder_hierarchy(
         hierarchy.commit()
         hresult = hierarchy()
 
-    res = HierarchyResponseModel.construct(
+    res = HierarchyResponseModel.model_construct(
         detail="Working",
         projectName=project_name,
         hierarchy=hresult,  # type: ignore

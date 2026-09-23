@@ -130,7 +130,7 @@ async def _create_new_bundle(
     if bundle.addon_development:
         addon_development_dict = {}
         for key, value in bundle.addon_development.items():
-            addon_development_dict[key] = value.dict()
+            addon_development_dict[key] = value.model_dump()
         data["addon_development"] = addon_development_dict
 
     query = """
@@ -366,7 +366,7 @@ async def update_bundle(
 
         if bundle.is_dev:
             logger.debug(f"Updating dev bundle {bundle.name}")
-            if "active_user" in patch.dict(exclude_unset=True, by_alias=False):
+            if "active_user" in patch.model_dump(exclude_unset=True, by_alias=False):
                 await Postgres.execute(
                     "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     patch.active_user,
@@ -448,7 +448,8 @@ async def update_bundle(
         }
         if bundle.is_dev:
             data["addon_development"] = {
-                key: value.dict() for key, value in bundle.addon_development.items()
+                key: value.model_dump()
+                for key, value in bundle.addon_development.items()
             }
 
         if patch.is_archived is not None:
