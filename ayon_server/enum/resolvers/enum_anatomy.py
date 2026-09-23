@@ -12,7 +12,14 @@ from ayon_server.types import AttributeType
 
 
 class FolderTypesEnumResolver(BaseEnumResolver):
+    """List of all folder types available in the project.
+
+    If no project_name is provided, it will return the default folder types
+    from the primary anatomy preset.
+    """
+
     name = "folderTypes"
+    label = "Folder Types"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
@@ -86,7 +93,14 @@ class FolderTypesEnumResolver(BaseEnumResolver):
 
 
 class TaskTypesEnumResolver(BaseEnumResolver):
+    """List of all task types available in the project.
+
+    If no project_name is provided, it will return the default task types
+    from the primary anatomy preset.
+    """
+
     name = "taskTypes"
+    label = "Task Types"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
@@ -156,6 +170,8 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
+name = "statuses"
+label = "Statuses"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {
@@ -267,7 +283,8 @@ class StatusesEnumResolver(BaseEnumResolver):
 
 class TagsEnumResolver(BaseEnumResolver):
     name = "tags"
-
+name = "tags"
+label = "Tags"
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}
 

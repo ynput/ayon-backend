@@ -52,21 +52,26 @@ class FrontendFiles(StaticFiles):
             if exc.status_code != 404:
                 # Propagate non-404 errors
                 raise exc
+        except ValueError:
+            # Malformed paths (e.g. containing a null byte) make os.stat()
+            # raise ValueError instead of a 404 HTTPException. Treat them
+            # the same as a 404 below.
+            pass
 
-            # Frontend is mounted to /, so we need to handle 404 errors
-            # for the /api/ and /addons/ paths (in order to trigger the
-            # correct 404 handler instead of falling back to the index.html)
+        # Frontend is mounted to /, so we need to handle 404 errors
+        # for the /api/ and /addons/ paths (in order to trigger the
+        # correct 404 handler instead of falling back to the index.html)
 
-            if path.startswith("api/"):
-                # Propagate 404 errors for the /api/ path
-                raise exc
-            if path.startswith("addons/"):
-                # Propagate 404 errors for the /addons/ path
-                raise exc
+        if path.startswith("api/"):
+            # Propagate 404 errors for the /api/ path
+            raise HTTPException(status_code=404)
+        if path.startswith("addons/"):
+            # Propagate 404 errors for the /addons/ path
+            raise HTTPException(status_code=404)
 
-            # For 404 errors, return the index.html file from the server cache
-            # that handles the routing on the client side
-            return get_index()
+        # For 404 errors, return the index.html file from the server cache
+        # that handles the routing on the client side
+        return get_index()
 
 
 def init_frontend(target_app: fastapi.FastAPI) -> None:

@@ -13,7 +13,7 @@ dependencies = [
   "boto3 >=1.35.22",
   "codenamize >=1.2.3",
   "croniter>=6.2.2",
-  "cryptography >=46.0.5",
+  "cryptography>=50.0.0",
   "email-validator >=2.3.0",
   "fastapi ==0.125.0", # Higher versions require Pydantic v2
   "geoip2 >=5.2.0",

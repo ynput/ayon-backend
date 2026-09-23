@@ -40,7 +40,8 @@ def SettingsField(
     repr: bool = True,
     # AYON settings specifics
     example: Any = None,
-    enum_resolver: AnyCallable | None = None,
+    enum_resolver: AnyCallable | str | None = None,
+    enum_resolver_settings: dict[str, Any] | None = None,
     required_items: list[str] | None = None,
     section: str | None = None,
     widget: str | None = None,
@@ -95,6 +96,8 @@ def SettingsField(
         # extra["examples"] = examples
     if enum_resolver is not None:
         extra["enum_resolver"] = enum_resolver
+    if enum_resolver_settings is not None:
+        extra["enum_resolver_settings"] = enum_resolver_settings
     if required_items is not None:
         extra["required_items"] = required_items
     if section is not None:
