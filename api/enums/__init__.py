@@ -1,21 +1,26 @@
 __all__ = ["router"]
 
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity
-from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.enum import EnumItem, EnumRegistry, EnumResolverInfo
 from ayon_server.exceptions import BadRequestException
+from ayon_server.logging import logger
+
+from .parse_enum_param import parse_enum_param
 
 router = APIRouter(tags=["Enums"])
 
 #
 # GET
 #
+
+
+RESERVED_PARAMS = {"user"}
 
 
 @router.get("/enum/{enum_name}", response_model_exclude_none=True)
@@ -40,35 +45,47 @@ async def get_enum(
     but when requested from a project context, `project_name` should be provided.
     """
 
-    context = {}
-    user = current_user
+    context: dict[str, Any] = {"user": current_user}
+
     accepted_params = await EnumRegistry.get_accepted_params(enum_name)
 
     query_params = request.query_params
     for param_name, param_type in accepted_params.items():
+        if param_name in RESERVED_PARAMS:
+            continue  # Skip reserved parameters
+
         if param_name in query_params:
             try:
                 raw_value = query_params[param_name]
-                param_cast = FIELD_TYPES[param_type]
-                if param_cast is bool:
-                    value = raw_value.lower() in ("1", "true", "yes", "on")
-                else:
-                    value = param_cast(raw_value)
-                context[param_name] = value
-            except (ValueError, TypeError):
-                raise BadRequestException(
-                    f"Invalid value for parameter '{param_name}': {raw_value}"
-                ) from None
+            except KeyError:
+                continue  # Parameter not provided, skip
 
+            if isinstance(raw_value, str):
+                try:
+                    context[param_name] = parse_enum_param(param_type, raw_value)
+                except ValueError as e:
+                    raise BadRequestException(
+                        f"Invalid value for parameter '{param_name}': {e}"
+                    )
+            else:
+                logger.warning(
+                    f"Expected string value for parameter '{param_name}' "
+                    f"got {type(raw_value).__name__}"
+                )
+
+    # User requires special handling: we resolve it either from the current user
+    # or from the provided query parameter if the current user is an admin.
+    # The result is stored in the context as UserEnity, not a string.
     user_name = query_params.get("user")
     if user_name is not None:
         if not current_user.is_admin:
             raise BadRequestException("Only admins can resolve enums for another user")
-        user = await UserEntity.load(user_name)
+        context["user"] = await UserEntity.load(user_name)
+
+    # logger.trace(f"Resolving enum '{enum_name}' with context: {context}")
 
     return await EnumRegistry.resolve(
         enum_name,
-        user=user,
         **context,
     )
 
@@ -76,4 +93,5 @@ async def get_enum(
 @router.get("/enum", response_model=list[EnumResolverInfo], tags=["Enums"])
 async def list_enums(current_user: CurrentUser) -> list[EnumResolverInfo]:
     """List all available enum resolvers."""
+    _ = current_user
     return await EnumRegistry.list_resolvers()

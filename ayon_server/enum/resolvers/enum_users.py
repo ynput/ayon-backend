@@ -91,7 +91,10 @@ def should_hide_user(
 
 
 class UsersEnumResolver(BaseEnumResolver):
+    """List of all users and teams."""
+
     name = "users"
+    label = "Users and teams"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {

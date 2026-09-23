@@ -17,6 +17,7 @@ class BaseEnumResolver:
     """Base class for enum resolvers."""
 
     name: str
+    label: str | None = None
 
     def __init__(self, enum_registry: "type[EnumRegistry]") -> None:
         self.enum_registry = enum_registry
