@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import traceback
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from loguru import logger as loguru_logger
 
@@ -87,7 +87,7 @@ logger.add(_serializer, level=ayonconfig.log_level)
 class ExceptionInfo(TypedDict):
     status: int
     detail: str
-    traceback: str | None
+    traceback: NotRequired[str | None]
 
 
 def _format_exception_only(exc: BaseException) -> str:
