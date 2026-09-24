@@ -1,5 +1,6 @@
 __all__ = ["logger", "log_traceback", "critical_error"]
 
+import importlib.util
 import os
 import sys
 import sysconfig
@@ -127,6 +128,24 @@ _AYON_PLUMBING = {
     )
 }
 
+
+def _module_path(name: str) -> str:
+    """Return the directory of a package or the file of a single-file module"""
+    spec = importlib.util.find_spec(name)
+    assert spec and spec.origin, f"Module {name} not found"
+    if spec.submodule_search_locations:
+        return os.path.join(spec.submodule_search_locations[0], "")
+    return spec.origin
+
+
+# Libraries, which report the misuse of their API by the caller.
+# Warnings raised in them are reported at the first AYON or addon frame.
+# Warnings raised in other libraries are caused by the library itself.
+_CALLER_BLAMING_PATHS = (
+    "<frozen importlib",  # deprecated modules and module attributes
+    *(_module_path(name) for name in ("fastapi", "pydantic", "typing_extensions")),
+)
+
 _reported_warnings: set[tuple[str, int, str, str]] = set()
 
 
@@ -147,6 +166,11 @@ def _warning_location(filename: str, lineno: int) -> tuple[str, int] | None:
     """
     if not _is_library_code(filename):
         return filename, lineno
+
+    if filename not in _AYON_PLUMBING and not filename.startswith(
+        _CALLER_BLAMING_PATHS
+    ):
+        return None
 
     frame: FrameType | None = sys._getframe(1)
     while frame is not None:
@@ -179,7 +203,7 @@ def _log_warning(
         path, lineno = location
         log_method = logger.warning
 
-    if location and is_deprecation(category):
+    if location and is_deprecation(category, text):
         is_new = record_deprecation(category.__name__, text, path, lineno)
         if not is_new or is_addon_path(path):
             # Addon deprecations are only reported by /api/system/deprecations
@@ -201,6 +225,15 @@ def _log_warning(
 
 warnings.showwarning = _log_warning
 
+
+def _controls_deprecations(option: str) -> bool:
+    """Return True if a -W option (action:message:category:module:lineno)
+    applies to deprecation warnings."""
+    parts = option.split(":")
+    category = parts[2].strip() if len(parts) > 2 else ""
+    return category in ("", "Warning") or category.endswith("DeprecationWarning")
+
+
 if not sys.warnoptions:
     # Report each warning (including deprecations, which Python hides
     # by default) once per location, where it originates.
@@ -208,6 +241,12 @@ if not sys.warnoptions:
     warnings.simplefilter("always")
     for category in (PendingDeprecationWarning, ImportWarning, ResourceWarning):
         warnings.filterwarnings("ignore", category=category)
+
+elif not any(_controls_deprecations(option) for option in sys.warnoptions):
+    # Warning options (-W, PYTHONWARNINGS) are set, but not for deprecations.
+    # Python hides them by default, which would leave the deprecation
+    # registry empty.
+    warnings.filterwarnings("always", category=DeprecationWarning)
 
 
 class ExceptionInfo(TypedDict):

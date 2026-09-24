@@ -1,6 +1,7 @@
 import os
 from typing import Annotated
 
+import semver
 from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
@@ -75,18 +76,21 @@ def _get_addon_versions() -> dict[tuple[str, str], tuple[str, str]]:
     return result
 
 
+def _version_key(version: str) -> tuple[int, semver.VersionInfo | str]:
+    """Sort key of addon versions. Non-semver versions go first."""
+    try:
+        return 1, semver.VersionInfo.parse(version)
+    except ValueError:
+        return 0, version
+
+
 def _get_latest_versions() -> set[tuple[str, str]]:
     """Return (addon name, version) of the latest version of each addon"""
-    result: set[tuple[str, str]] = set()
-    for addon_name, definition in AddonLibrary.items():
-        try:
-            latest = definition.latest
-        except ValueError:
-            # Non-semver version name
-            continue
-        if latest is not None:
-            result.add((addon_name, latest.version))
-    return result
+    return {
+        (addon_name, max(definition.versions, key=_version_key))
+        for addon_name, definition in AddonLibrary.items()
+        if definition.versions
+    }
 
 
 @router.get("/system/deprecations")
@@ -143,7 +147,9 @@ async def get_system_deprecations(
             )
         addons[name, version].deprecations.append(item)
 
-    result.addons = [addons[key] for key in sorted(addons)]
+    result.addons = [
+        addons[key] for key in sorted(addons, key=lambda k: (k[0], _version_key(k[1])))
+    ]
     for group in [result.server, *(a.deprecations for a in result.addons)]:
         group.sort(key=lambda item: (item.file, item.line))
     return result

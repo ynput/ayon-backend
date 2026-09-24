@@ -4,7 +4,7 @@ from typing import Any
 
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.definition import ServerAddonDefinition
-from ayon_server.config import ayonconfig
+from ayon_server.config import ayonconfig, get_addons_dir
 from ayon_server.deprecations import get_deprecations, split_addon_path
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -70,17 +70,13 @@ class AddonLibrary:
             return
         addon_count = len({split[:2] for split in addon_deprecations})
         logger.warning(
-            f"{len(addon_deprecations)} deprecated feature usages "
-            f"found in {addon_count} addon versions. "
+            f"{len(addon_deprecations)} deprecations found "
+            f"in {addon_count} addon versions. "
             "See /api/system/deprecations for details"
         )
 
     def get_addons_dir(self) -> str | None:
-        for d in [ayonconfig.addons_dir, "addons"]:
-            if not os.path.isdir(d):
-                continue
-            return d
-        return None
+        return get_addons_dir()
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:
