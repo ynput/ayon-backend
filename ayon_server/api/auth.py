@@ -47,7 +47,7 @@ async def get_logout_reason(token: str) -> str:
             reason = res[0]["description"]
         else:
             reason = "Invalid session"
-        await Redis.set_json("logoutreason", "token", reason, ttl=600)
+        await Redis.set_json("logoutreason", token, reason, ttl=600)
     return reason
 
 

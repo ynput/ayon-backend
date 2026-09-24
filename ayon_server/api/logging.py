@@ -62,6 +62,11 @@ def handle_constraint_violation(
     request: Request,
     exc: IntegrityConstraintViolationError,
 ) -> JSONResponse:
+    details = parse_postgres_exception(exc)
+    if details["code"] >= 500:
+        # Not a known client error, log it as unhandled
+        return handle_undhandled_exception(request, exc)
+
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
 
@@ -73,10 +78,10 @@ def handle_constraint_violation(
         "file": fname,
         "function": func,
         "line": line_no,
-        **parse_postgres_exception(exc),
+        **details,
     }
 
-    return JSONResponse(status_code=500, content=payload)
+    return JSONResponse(status_code=payload["code"], content=payload)
 
 
 def handle_assertion_error(request: Request, exc: AssertionError) -> JSONResponse:
@@ -111,6 +116,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
         extras["user"] = request.state.user.name
 
     res = log_exception(exc, **extras)
+    res.pop("traceback", None)  # don't send the traceback to the client
     return JSONResponse(status_code=res["status"], content=res)
 
 
