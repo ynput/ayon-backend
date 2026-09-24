@@ -11,7 +11,9 @@ from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import AyonException
+from ayon_server.graphql.attrib_types import refresh_attrib_types
 from ayon_server.graphql.connections import (
     ActivitiesConnection,
     EventsConnection,
@@ -234,8 +236,26 @@ class QueryNameExtension(SchemaExtension):
         yield
 
 
+def create_schema() -> AyonSchema:
+    return AyonSchema(query=Query, extensions=[QueryNameExtension])
+
+
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
-    schema=AyonSchema(query=Query, extensions=[QueryNameExtension]),
+    schema=create_schema(),
     graphql_ide=None,
     context_getter=graphql_get_context,
 )
+
+
+def rebuild_schema() -> None:
+    """Rebuild the GraphQL schema after the entity attributes changed.
+
+    Requests being executed keep using the schema they started with.
+    """
+    if not refresh_attrib_types():
+        return
+    router.schema = create_schema()
+    logger.debug("GraphQL schema rebuilt")
+
+
+attribute_library.on_reload(rebuild_schema)

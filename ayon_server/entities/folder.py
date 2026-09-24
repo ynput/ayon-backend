@@ -72,7 +72,7 @@ BASE_GET_QUERY = """
 
 class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
-    model: ModelSet = ModelSet("folder", attribute_library["folder"])
+    model: ModelSet = ModelSet("folder")
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

@@ -1,6 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
+import functools
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +18,7 @@ from ayon_server.entities.models.fields import (
     workfile_fields,
 )
 from ayon_server.entities.models.generator import generate_model
+from ayon_server.models.dynamic_model import DynamicModel
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
     ENTITY_ID_REGEX,
@@ -57,6 +59,12 @@ class ModelSet:
     - EntityPatchModel
     - EntityAttributeModel
 
+    Attributes may change at runtime (see `AttributeLibrary.reload`).
+    The attribute model is then regenerated, while the other models
+    stay the same: their `attrib` field is a `DynamicModel`, which
+    always validates using the current attribute model. That is important,
+    because the other models are used (and subclassed) all over the code
+    and in FastAPI endpoint definitions.
     """
 
     def __init__(
@@ -65,27 +73,59 @@ class ModelSet:
         attributes: list[dict[str, Any]] | None = None,
         has_id: bool = True,
     ):
-        """Initialize the model set."""
+        """Initialize the model set.
+
+        When `attributes` are not provided (recommended), attributes of the
+        entity type are taken from the attribute library and the attribute
+        model follows the changes of the library.
+        """
         self.entity_name = entity_name
         self.fields: list[Any] = FIELD_LISTS[entity_name]
 
-        self.attributes = attributes or []
+        self._static_attributes = attributes
         self.has_id = has_id
 
         self._model: type[BaseModel] | None = None
         self._post_model: type[BaseModel] | None = None
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
+        self._attrib_model_revision: int | None = None
+        self.attrib_type = DynamicModel(lambda: self.attrib_model)
+
+    @property
+    def attributes(self) -> list[dict[str, Any]]:
+        """Return the current attribute definitions of the entity type."""
+        if self._static_attributes is not None:
+            return self._static_attributes
+        return self._attribute_library[self.entity_name]
+
+    @functools.cached_property
+    def _attribute_library(self) -> Any:
+        # Imported here to avoid circular imports
+        from ayon_server.entities.core.attrib import attribute_library
+
+        return attribute_library
 
     @property
     def attrib_model(self) -> type[BaseModel]:
-        """Return the attribute model."""
-        if self._attrib_model is None:
+        """Return the attribute model.
+
+        The model is regenerated when the attribute library is reloaded.
+        This is called on every validation of an entity model,
+        so it should stay cheap.
+        """
+        revision = (
+            None
+            if self._static_attributes is not None
+            else self._attribute_library.revision
+        )
+        if self._attrib_model_revision != revision or self._attrib_model is None:
             self._attrib_model = generate_model(
                 f"{self.entity_name.capitalize()}AttribModel",
                 self.attributes,
                 AttribModelConfig,
             )
+            self._attrib_model_revision = revision
         assert self._attrib_model is not None
         return self._attrib_model
 
@@ -130,7 +170,7 @@ class ModelSet:
         return [
             {
                 "name": "attrib",
-                "submodel": self.attrib_model,
+                "submodel": self.attrib_type,
                 "required": False,
                 "title": f"{self.entity_name.capitalize()} attributes",
             },

@@ -40,7 +40,7 @@ BASE_GET_QUERY = """
 
 class TaskEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "task"
-    model = ModelSet("task", attribute_library["task"])
+    model = ModelSet("task")
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

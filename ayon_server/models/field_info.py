@@ -7,6 +7,8 @@ from typing import Annotated, Any, Union, get_args, get_origin
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticSerializationError, to_jsonable_python
 
+from ayon_server.models.dynamic_model import get_dynamic_model
+
 NoneType = type(None)
 
 
@@ -116,9 +118,12 @@ def strip_optional(annotation: Any) -> Any:
 
     `Optional[list[int]]` becomes `list[int]`. Unions of multiple
     non-None types are returned as they are (without None).
+    Dynamic models are resolved to the current model class.
     """
     origin = get_origin(annotation)
     if origin is Annotated:
+        if dynamic_model := get_dynamic_model(annotation):
+            return dynamic_model.resolve()
         return strip_optional(get_args(annotation)[0])
     if origin is Union or origin is types.UnionType:
         args = [arg for arg in get_args(annotation) if arg is not NoneType]
@@ -154,8 +159,21 @@ def get_inner_type(annotation: Any) -> Any:
     return annotation
 
 
+def get_field_annotation(field: FieldInfo) -> Any:
+    """Return the annotation of a field.
+
+    For dynamic model fields, the current model class is returned.
+    """
+    if dynamic_model := get_dynamic_model(field):
+        return dynamic_model.resolve()
+    return field.annotation
+
+
 def iter_annotation_types(annotation: Any) -> Iterator[Any]:
     """Yield the annotation and all types nested in it (recursively)."""
+    if dynamic_model := get_dynamic_model(annotation):
+        yield dynamic_model.resolve()
+        return
     yield annotation
     for arg in get_args(annotation):
         if arg is Ellipsis or isinstance(arg, str | int | float | bool):

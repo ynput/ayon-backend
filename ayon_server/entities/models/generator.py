@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, PydanticUserError, create_mod
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.logging import log_traceback, logger
+from ayon_server.models.dynamic_model import DynamicModel
 from ayon_server.types import AttributeType
 
 #
@@ -185,7 +186,9 @@ def generate_model(
         # Field type
         #
 
-        if fdef.submodel:
+        if isinstance(fdef.submodel, DynamicModel):
+            ftype = fdef.submodel.annotation
+        elif fdef.submodel:
             ftype = fdef.submodel
         elif fdef.list_of_submodels:
             assert fdef.list_of_submodels
@@ -205,8 +208,13 @@ def generate_model(
             field.pop("default")
 
         # ensure we can construct the model
+        # (using the real field name, as some names are reserved by pydantic)
         try:
-            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))
+            _ = create_model(
+                "test",
+                __config__=config,
+                **{fdef.name: (ftype, Field(**field))},  # type: ignore
+            )
         except (ValueError, TypeError, PydanticUserError):
             log_traceback(f"Unable to construct attribute '{fdef.name}'")
             continue

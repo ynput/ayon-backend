@@ -1,8 +1,8 @@
 import builtins
+import functools
 from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel
-from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
@@ -129,8 +129,13 @@ class BaseEntity:
 
     @classmethod
     def strawberry_attrib(cls):
-        # fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
+        """Decorator creating a GraphQL type of the entity attributes.
+
+        The type is updated when the attributes change at runtime.
+        """
+        from ayon_server.graphql.attrib_types import create_attrib_type
+
+        return functools.partial(create_attrib_type, cls.model)
 
     #
     # DB
