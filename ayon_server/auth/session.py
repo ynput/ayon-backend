@@ -222,7 +222,7 @@ class Session:
             if not session.is_api_key:
                 await EventStream.dispatch(
                     "auth.logout",
-                    summary={},
+                    summary={"token": token},
                     description=message,
                     user=session.user.name,
                 )
