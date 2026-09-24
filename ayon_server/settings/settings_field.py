@@ -1,10 +1,12 @@
 import traceback
+import warnings
 from collections.abc import Callable
 from typing import Any
 
 from pydantic import Field
 from pydantic_core import PydanticUndefined
 
+from ayon_server.deprecations import AyonDeprecationWarning
 from ayon_server.logging import logger
 from ayon_server.models.field_info import FieldExtra
 
@@ -76,9 +78,11 @@ def SettingsField(
     # We will need to support it for a long time, but it won't hurt.
     conditional_enum = conditional_enum or conditionalEnum
     if conditionalEnum:
-        stack = traceback.extract_stack()[-2]
-        logger.debug(
-            f"Deprecated argument: conditionalEnum at {stack.filename}:{stack.lineno}"
+        warnings.warn(
+            "SettingsField: `conditionalEnum` is deprecated, "
+            "use `conditional_enum` instead",
+            AyonDeprecationWarning,
+            stacklevel=2,
         )
 
     if kwargs:
