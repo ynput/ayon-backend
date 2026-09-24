@@ -43,6 +43,7 @@ def RestField(
     max_length: int | None = None,
     allow_mutation: bool = True,
     regex: str | None = None,
+    pattern: str | None = None,  # pydantic 2 name for regex
     discriminator: str | None = None,
     repr: bool = True,
     # AYON settings specifics
@@ -98,7 +99,7 @@ def RestField(
         min_length=min_length,
         max_length=max_length,
         allow_mutation=allow_mutation,
-        regex=regex,
+        regex=pattern or regex,
         discriminator=discriminator,
         deprecated=deprecated,
         repr=repr,
