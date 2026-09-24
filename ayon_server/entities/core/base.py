@@ -2,7 +2,6 @@ import builtins
 from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel
-from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
@@ -126,11 +125,6 @@ class BaseEntity:
     @property
     def payload(self) -> BaseModel:
         return self._payload
-
-    @classmethod
-    def strawberry_attrib(cls):
-        # fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
     #
     # DB

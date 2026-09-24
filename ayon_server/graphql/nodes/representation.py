@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
 from ayon_server.utils import get_base_name, json_dumps
@@ -21,11 +20,6 @@ class FileNode:
     hash: str | None = None
     size: str = "0"
     hash_type: str = "md5"
-
-
-@RepresentationEntity.strawberry_attrib()
-class RepresentationAttribType:
-    pass
 
 
 @strawberry.type
@@ -63,10 +57,6 @@ class RepresentationNode(BaseNode):
         default=None,
         description="JSON serialized context data",
     )
-
-    @strawberry.field
-    def attrib(self) -> RepresentationAttribType:
-        return RepresentationAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:

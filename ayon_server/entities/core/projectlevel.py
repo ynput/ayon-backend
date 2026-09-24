@@ -118,9 +118,9 @@ class ProjectLevelEntity(BaseEntity):
             # Remove attributes the user cannot read from the payload,
             # so they are not included in the serialized output
             attrib = result.attrib  # type: ignore[attr-defined]
-            for key in tuple(attrib.__dict__):
+            for key in tuple(attrib):
                 if key not in attr_perm.attributes:
-                    attrib.__dict__.pop(key)
+                    attrib.pop(key)
         return result
 
     async def ensure_create_access(self, user, **kwargs) -> None:

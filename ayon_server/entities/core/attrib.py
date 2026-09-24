@@ -1,11 +1,16 @@
 import asyncio
 import collections
-import functools
+import hashlib
+import inspect
 import threading
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
+from ayon_server.utils import json_dumps
+
+ReloadCallback = Callable[[], None] | Callable[[], Awaitable[None]]
 
 
 class AttributeLibrary:
@@ -20,6 +25,12 @@ class AttributeLibrary:
 
     Attribute list for each entity type may be then accessed
     using __getitem__ method.
+
+    Attributes may be reloaded at runtime using `reload` method.
+    Each (re)load replaces the data at once and increments `revision`,
+    so consumers may cache derived data (such as pydantic models)
+    and regenerate them when the revision changes. Additionally,
+    callbacks registered using `on_reload` are executed after a reload.
     """
 
     def __init__(self) -> None:
@@ -28,6 +39,16 @@ class AttributeLibrary:
         # Used in info endpoint to get the active list of attributes
         # in the same format as the attributes endpoint
         self.info_data: list[Any] = []
+
+        # Incremented every time the attributes are (re)loaded
+        self.revision: int = 0
+
+        self._fingerprint: str | None = None
+        self._inheritable: list[str] = []
+        self._by_name: dict[str, dict[str, Any]] = {}
+        self._by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
+        self._reload_callbacks: list[ReloadCallback] = []
+        self._reload_lock: asyncio.Lock | None = None
 
         # We need to load attribute data in a separate thread
         # with a separate event loop, because the main event loop
@@ -50,20 +71,21 @@ class AttributeLibrary:
 
     def is_valid(self, entity_type: str, attribute: str) -> bool:
         """Check if attribute is valid for entity type."""
-        return attribute in [k["name"] for k in self.data[entity_type]]
+        return (entity_type, attribute) in self._by_name_scoped
+
+    async def _fetch(self) -> list[dict[str, Any]]:
+        query = "SELECT * FROM public.attributes ORDER BY position"
+        return [dict(row) for row in await Postgres.fetch(query)]
 
     async def load(self, initial: bool = False) -> None:
-        query = "SELECT * FROM public.attributes ORDER BY position"
-
         # Initial load is executed in a separate thread, so we need to
         # connect to the database manually and close the connection
         # after the data is loaded
         if initial:
             await Postgres.connect()
 
-        info_data: list[dict[str, Any]] = []
         try:
-            result = await Postgres.fetch(query)
+            result = await self._fetch()
         except Postgres.UndefinedTableError:
             # A default list of fake attributes is used when the
             # attributes table does not exist. This is used when the
@@ -91,8 +113,25 @@ class AttributeLibrary:
                 }
             ]
 
-        for row in result:
-            info_data.append(row)
+        self._apply(result)
+
+        if initial:
+            await Postgres.shutdown()
+            Postgres.pool = None
+            Postgres.shutting_down = False
+
+    def _apply(self, rows: list[dict[str, Any]]) -> None:
+        """Replace the attribute data with the given database rows.
+
+        All the data is built first and then swapped at once,
+        so readers never see a partially loaded library.
+        """
+        data: collections.defaultdict[str, Any] = collections.defaultdict(list)
+        inheritable: set[str] = set()
+        by_name: dict[str, dict[str, Any]] = {}
+        by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
+
+        for row in rows:
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
                 # Only project attributes should have defaults.
@@ -100,13 +139,68 @@ class AttributeLibrary:
                 # their parent entities
                 if (scope != "project") and ("default" in attrd):
                     del attrd["default"]
-                self.data[scope].append(attrd)
-        self.info_data = info_data
+                data[scope].append(attrd)
 
-        if initial:
-            await Postgres.shutdown()
-            Postgres.pool = None
-            Postgres.shutting_down = False
+        for entity_type, attributes in data.items():
+            for attr in attributes:
+                if attr.get("inherit", True):
+                    inheritable.add(attr["name"])
+                by_name.setdefault(attr["name"], attr)
+                by_name_scoped[(entity_type, attr["name"])] = attr
+
+        self.data = data
+        self.info_data = rows
+        self._inheritable = list(inheritable)
+        self._by_name = by_name
+        self._by_name_scoped = by_name_scoped
+        self._fingerprint = hashlib.sha256(json_dumps(rows).encode()).hexdigest()
+        self.revision += 1
+
+    #
+    # Runtime reload
+    #
+
+    def on_reload(self, callback: ReloadCallback) -> None:
+        """Register a callback executed after the attributes are reloaded.
+
+        Use it to invalidate caches derived from the attribute data.
+        Callbacks may be sync or async and they are executed in the
+        order of registration.
+        """
+        self._reload_callbacks.append(callback)
+
+    async def reload(self, force: bool = False) -> bool:
+        """Reload the attributes from the database.
+
+        Returns True if the attributes changed (and were reloaded).
+        Unless `force` is set, nothing happens when the attributes
+        are the same as the loaded ones - so it is cheap to call this
+        repeatedly (e.g. once locally and once from the event handler).
+        """
+        if self._reload_lock is None:
+            self._reload_lock = asyncio.Lock()
+
+        async with self._reload_lock:
+            rows = await self._fetch()
+            fingerprint = hashlib.sha256(json_dumps(rows).encode()).hexdigest()
+            if fingerprint == self._fingerprint and not force:
+                return False
+
+            self._apply(rows)
+            logger.info(f"Attribute library reloaded (revision {self.revision})")
+
+            for callback in self._reload_callbacks:
+                try:
+                    result = callback()
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception:
+                    log_traceback(f"Attribute reload callback {callback} failed")
+        return True
+
+    #
+    # Accessors
+    #
 
     def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
@@ -120,31 +214,24 @@ class AttributeLibrary:
                 defaults[attr["name"]] = attr["default"]
         return defaults
 
-    @functools.cache
     def inheritable_attributes(self) -> list[str]:
-        result = set()
-        for entity_type in self.data:
-            for attr in self.data[entity_type]:
-                if attr.get("inherit", True):
-                    result.add(attr["name"])
-        return list(result)
+        return self._inheritable
 
-    @functools.cache
     def by_name(self, name: str) -> dict[str, Any]:
         """Return attribute definition by name."""
-        for entity_type in self.data:
-            for attr in self.data[entity_type]:
-                if attr["name"] == name:
-                    return attr
-        raise KeyError(f"Attribute {name} not found")
+        try:
+            return self._by_name[name]
+        except KeyError:
+            raise KeyError(f"Attribute {name} not found") from None
 
-    @functools.cache
     def by_name_scoped(self, entity_type: str, name: str) -> dict[str, Any]:
         """Return attribute definition by name for a specific entity type."""
-        for attr in self.data[entity_type]:
-            if attr["name"] == name:
-                return attr
-        raise KeyError(f"Attribute {name} not found for entity type {entity_type}")
+        try:
+            return self._by_name_scoped[(entity_type, name)]
+        except KeyError:
+            raise KeyError(
+                f"Attribute {name} not found for entity type {entity_type}"
+            ) from None
 
 
 attribute_library = AttributeLibrary()
