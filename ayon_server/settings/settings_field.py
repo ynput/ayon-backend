@@ -88,9 +88,6 @@ def SettingsField(
             f"at {stack.filename}:{stack.lineno}"
         )
 
-    # The settings schema uses the (Pydantic 1 / OpenAPI 3.0) `example`
-    # keyword with a single value. No one provides multiple examples anyway.
-
     examples = list(examples or [])
     if example is not None:
         examples.append(example)
@@ -99,8 +96,6 @@ def SettingsField(
 
     extra: dict[str, Any] = {}
 
-    if examples:
-        extra["example"] = examples[0]
     if unique_items:
         extra["uniqueItems"] = True
     if enum_resolver is not None:
@@ -138,6 +133,7 @@ def SettingsField(
         "alias": alias,
         "title": title,
         "description": description,
+        "examples": examples or None,
         "gt": gt,
         "ge": ge,
         "lt": lt,
