@@ -3,7 +3,8 @@ __all__ = ["OPModel", "Field", "camelize"]
 import re
 from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, GetCoreSchemaHandler
+from pydantic_core import core_schema
 
 from ayon_server.exceptions import BadRequestException
 from ayon_server.models import (
@@ -162,7 +163,19 @@ def sanitize_string_list(strings: list[str]) -> list[str]:
 #
 
 
-class ColorRGB_hex(str):
+class _ColorHex(str):
+    """Base for hex color strings (validated as plain strings)."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls, core_schema.str_schema()
+        )
+
+
+class ColorRGB_hex(_ColorHex):
     """Color in RGB hex format.
 
     Example: #ff0000
@@ -171,7 +184,7 @@ class ColorRGB_hex(str):
     pass
 
 
-class ColorRGBA_hex(str):
+class ColorRGBA_hex(_ColorHex):
     """Color in RGBA hex format.
 
     Example: #ff0000ff
