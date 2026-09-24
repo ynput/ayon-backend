@@ -151,6 +151,7 @@ class Session:
         token: str | None = None,
         message: str = "User logged in",
         event_payload: dict[str, Any] | None = None,
+        is_api_key: bool = False,
     ) -> SessionModel:
         """Create a new session for a given user."""
         is_service = bool(token)
@@ -167,6 +168,7 @@ class Session:
             created=time.time(),
             last_used=time.time(),
             is_service=is_service,
+            is_api_key=is_api_key,
             client_info=client_info,
         )
         event_summary = client_info.dict() if client_info else {}
