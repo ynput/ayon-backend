@@ -116,6 +116,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
         extras["user"] = request.state.user.name
 
     res = log_exception(exc, **extras)
+    res.pop("traceback", None)  # don't send the traceback to the client
     return JSONResponse(status_code=res["status"], content=res)
 
 
