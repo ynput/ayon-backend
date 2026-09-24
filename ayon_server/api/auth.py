@@ -140,7 +140,9 @@ async def user_from_request(request: Request) -> UserEntity:
                 is_api_key=True,
             )
         # Sessions stored before is_api_key was persisted lack the flag
-        session_data.is_api_key = True
+        if not session_data.is_api_key:
+            session_data.is_api_key = True
+            await Redis.set(Session.ns, api_key, session_data.json())
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)
