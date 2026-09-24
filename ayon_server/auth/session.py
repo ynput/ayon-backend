@@ -101,7 +101,7 @@ class Session:
                 # Site ID change refreshes client metadata,
                 # but must never rebind the session to a new IP
                 site_id = request.headers.get("x-ayon-site-id")
-                if site_id and session.client_info.site_id != site_id:
+                if session.client_info.site_id != site_id:
                     client_info = get_client_info(request)
                     client_info.ip = session.client_info.ip
                     client_info.location = session.client_info.location
