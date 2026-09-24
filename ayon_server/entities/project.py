@@ -225,8 +225,11 @@ class ProjectEntity(TopLevelEntity):
             async with Postgres.transaction():
                 result = await self._save()
         except Exception:
-            await Redis.delete("project-anatomy", self.name)
-            await Redis.delete("project-data", self.name)
+            for namespace in ("project-anatomy", "project-data"):
+                try:
+                    await Redis.delete(namespace, self.name)
+                except Exception:
+                    pass
             raise
         await self.commit()
         return result
