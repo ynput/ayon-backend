@@ -35,7 +35,8 @@ if TYPE_CHECKING:
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
-    original_attributes: dict[str, Any] = {}
+    # Set per instance by _load(), used by _save() to detect attrib changes
+    original_attributes: dict[str, Any] | None = None
 
     #
     # Load
@@ -97,7 +98,9 @@ class ProjectEntity(TopLevelEntity):
 
                 if payload["data"].get("isSkeleton", False):
                     return cls.return_project_skeleton(payload=payload)
-                return cls.from_record(payload=payload)
+                project = cls.from_record(payload=payload)
+                project.original_attributes = payload["attrib"]
+                return project
 
         try:
             project_data = await Postgres.fetchrow(
@@ -195,9 +198,10 @@ class ProjectEntity(TopLevelEntity):
                 f"Project '{project_name}' is currently being modified"
             )
 
-        cls.original_attributes = project_data["attrib"]
         await Redis.set_json("project-data", project_name, payload, ttl=3600)
-        return cls.from_record(payload=payload)
+        project = cls.from_record(payload=payload)
+        project.original_attributes = project_data["attrib"]
+        return project
 
     #
     # Save
@@ -215,11 +219,17 @@ class ProjectEntity(TopLevelEntity):
 
     async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
-        async with Postgres.transaction():
-            try:
-                return await self._save()
-            finally:
-                await self.commit()
+        # commit() must not run inside a failed transaction: it would hit
+        # InFailedSQLTransactionError and mask the original exception.
+        try:
+            async with Postgres.transaction():
+                result = await self._save()
+        except Exception:
+            await Redis.delete("project-anatomy", self.name)
+            await Redis.delete("project-data", self.name)
+            raise
+        await self.commit()
+        return result
 
     async def _save(self) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
