@@ -417,7 +417,13 @@ async def update_bundle(
                             (addon_name, addons[addon_name], addon_version)
                         )
 
-                if not bundle.is_dev and not is_server:
+                # Clients (the web UI) may send the complete addon list back,
+                # so only reject actual version changes of non-server addons.
+                if (
+                    not bundle.is_dev
+                    and not is_server
+                    and addons.get(addon_name) != addon_version
+                ):
                     raise BadRequestException(
                         f"Addon {addon_name} is not a server addon and cannot be "
                         "patched on a non-dev bundle"
@@ -432,8 +438,18 @@ async def update_bundle(
             bundle.addons = addons
 
         # Validate the bundle
+        # Only when its addons change or it is being promoted to production
+        # or staging, so that an already broken bundle (e.g. with an addon
+        # that has been removed from the server) can still be archived
+        # or have its dependency packages changed.
 
-        if not force:
+        needs_validation = (
+            bundle.addons != original_addons
+            or (patch.is_production and not bundle.is_production)
+            or (patch.is_staging and not bundle.is_staging)
+        )
+
+        if needs_validation and not force:
             bstat = await check_bundle(bundle)
             if not bstat.success:
                 raise BadRequestException(bstat.message())
