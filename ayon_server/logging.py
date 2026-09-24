@@ -90,19 +90,15 @@ class ExceptionInfo(TypedDict):
     traceback: str | None
 
 
-def log_exception(
-    exc: BaseException,
-    message: str | None = None,
-    **kwargs,
-) -> ExceptionInfo:
-    """Log an exception with its traceback."""
-
-    path_prefix = f"{os.getcwd()}/"
+def _format_exception_only(exc: BaseException) -> str:
     formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
-    formatted = formatted.replace("{", "{{").replace("}", "}}")
-    tb = traceback.extract_tb(exc.__traceback__)
-    traceback_msg = f"{formatted}\n\n"
-    for frame in tb[-20:]:
+    return formatted.replace("{", "{{").replace("}", "}}")
+
+
+def _format_traceback(exc: BaseException) -> str:
+    path_prefix = f"{os.getcwd()}/"
+    traceback_msg = f"{_format_exception_only(exc)}\n\n"
+    for frame in traceback.extract_tb(exc.__traceback__)[-20:]:
         fpath = frame.filename.split("/")
         for p in ("starlette", "fastapi", "python3.11", "pydantic"):
             # Too noisy. ignore
@@ -112,6 +108,34 @@ def log_exception(
             filepath = frame.filename.removeprefix(path_prefix)
             traceback_msg += f"{filepath}:{frame.lineno}\n"
             traceback_msg += f"{frame.line}\n\n"
+    return traceback_msg.strip()
+
+
+def log_exception(
+    exc: BaseException,
+    message: str | None = None,
+    **kwargs,
+) -> ExceptionInfo:
+    """Log an exception with its traceback."""
+
+    formatted = _format_exception_only(exc)
+    traceback_msg = _format_traceback(exc)
+
+    # Include chained exceptions, so the root cause is not lost when
+    # an exception is raised while handling another one
+    seen = {id(exc)}
+    chained: BaseException | None = exc
+    while chained is not None:
+        if chained.__cause__ is not None:
+            chained, label = chained.__cause__, "Caused by"
+        elif chained.__context__ is not None and not chained.__suppress_context__:
+            chained, label = chained.__context__, "During handling of"
+        else:
+            break
+        if id(chained) in seen:
+            break
+        seen.add(id(chained))
+        traceback_msg += f"\n\n{label}:\n\n{_format_traceback(chained)}"
 
     if message is None:
         message = f"Unhandled exception: {formatted}"

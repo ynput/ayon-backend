@@ -476,8 +476,10 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
             elif isinstance(c.value, list) and not c.value:
                 if c.operator in ("in", "any"):
                     result.append("FALSE")
+                    continue
                 elif c.operator == "notin":
                     result.append("TRUE")
+                    continue
                 elif c.operator not in ["eq", "ne"]:
                     # Empty list with other operators is invalid, just skip it
                     continue
