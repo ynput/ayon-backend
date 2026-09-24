@@ -1,13 +1,9 @@
 from typing import Any
 
-from fastapi.responses import ORJSONResponse, Response
+from fastapi.responses import Response
 
 from ayon_server.types import OPModel
 from ayon_server.utils import EntityID
-
-
-class JSONResponse(ORJSONResponse):
-    pass
 
 
 class ErrorResponse(OPModel):
