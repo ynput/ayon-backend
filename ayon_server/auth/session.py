@@ -210,10 +210,10 @@ class Session:
         data = await Redis.get(cls.ns, token)
         if data:
             session = SessionModel(**json_loads(data))
-            if not session.user.data.get("isService"):
+            if not session.is_api_key:
                 await EventStream.dispatch(
                     "auth.logout",
-                    summary={"token": token},
+                    summary={},
                     description=message,
                     user=session.user.name,
                 )
