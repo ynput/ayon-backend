@@ -1,8 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import Field
-
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 
 
 class RepresentationFileModel(OPModel):

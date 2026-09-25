@@ -212,7 +212,7 @@ async def create_installer(
         background_tasks.add_task(background_installer.enqueue, event_id)
 
     async with aiofiles.open(payload.path, "w") as f:
-        await f.write(payload.json(exclude_none=True))
+        await f.write(payload.model_dump_json(exclude_none=True))
 
     return InstallResponseModel(event_id=event_id)
 
@@ -261,5 +261,5 @@ async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatc
     manifest.sources = payload.sources
 
     async with aiofiles.open(manifest.path, "w") as f:
-        await f.write(manifest.json(exclude_none=True))
+        await f.write(manifest.model_dump_json(exclude_none=True))
     return EmptyResponse(status_code=204)

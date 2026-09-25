@@ -16,4 +16,5 @@ BUILD_DATE
 venv/
 cspell*
 mise.toml
-test_*
+# local scratch scripts in the backend root (tests live in tests/)
+/test_*

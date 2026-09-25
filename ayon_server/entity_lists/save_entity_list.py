@@ -166,7 +166,7 @@ async def save_entity_list(
         await EventStream.dispatch(
             f"entity_list.{mode}",
             description=description,
-            summary=summary.dict(),
+            summary=summary.model_dump(),
             project=project_name,
             user=user.name if user else None,
             sender=sender,

@@ -193,7 +193,7 @@ async def get_user_sites(
         # or has been changed, upsert it
         if current_needs_update or not current_site_exists:
             logger.debug(f"Registering to site {current_site.id}")
-            mdata = current_site.dict()
+            mdata = current_site.model_dump()
             mid = mdata.pop("id")
             await Postgres.execute(
                 """

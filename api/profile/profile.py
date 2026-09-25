@@ -58,7 +58,7 @@ async def update_current_user_profile(
     user: CurrentUser,
 ) -> None:
 
-    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    attrib_dict = payload.attrib.model_dump(exclude_unset=True)
 
     session = user.session
     assert session is not None, "Session should be available for authenticated users"

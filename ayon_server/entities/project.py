@@ -331,7 +331,7 @@ class ProjectEntity(TopLevelEntity):
         return True
 
     def as_user(self, user):
-        payload = self._payload.copy()
+        payload = self._payload.model_copy()
         if user.is_guest:
             payload.data = {}  # type: ignore
             payload.config = {}  # type: ignore

@@ -33,7 +33,7 @@ async def set_projects_access(
     current_user: CurrentUser,
     payload: Annotated[
         dict[str, ProjectAccess],
-        Body(example=example),
+        Body(examples=[example]),
     ],
 ) -> EmptyResponse:
     """Set access for multiple projects

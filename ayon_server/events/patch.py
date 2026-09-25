@@ -90,7 +90,7 @@ def build_pl_entity_change_events(
 
     """
 
-    patch_data = patch.dict(exclude_unset=True)
+    patch_data = patch.model_dump(exclude_unset=True)
     entity_type = original_entity.entity_type
     parent_id = original_entity.parent_id
 
@@ -169,7 +169,7 @@ def build_pl_entity_change_events(
 
         old_attributes = {
             k: v
-            for k, v in original_entity.attrib.dict().items()
+            for k, v in original_entity.attrib.model_dump().items()
             if k in original_entity.own_attrib
         }
 
@@ -258,7 +258,7 @@ def build_project_change_events(
     original_entity: ProjectEntity,
     patch: BaseModel,
 ) -> list[EventData]:
-    patch_data = patch.dict(exclude_unset=True)
+    patch_data = patch.model_dump(exclude_unset=True)
     result: list[EventData] = []
     common_data = {"project": original_entity.name}
     oval: Any
@@ -277,7 +277,7 @@ def build_project_change_events(
         # all the attributes
         oval = {}
         nval = {}
-        old_attributes = original_entity.attrib.dict()
+        old_attributes = original_entity.attrib.model_dump()
         for key, new_value in new_attributes.items():
             if old_attributes.get(key) == new_value:
                 continue

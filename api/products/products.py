@@ -41,7 +41,7 @@ async def create_product(
     """Create a new product."""
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.create("product", **post_data.dict())
+    ops.create("product", **post_data.model_dump())
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
     assert entity_id
@@ -66,7 +66,7 @@ async def update_product(
         project_name,
         user=user,
     )
-    ops.update("product", product_id, **post_data.dict(exclude_unset=True))
+    ops.update("product", product_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse(status_code=204)
 

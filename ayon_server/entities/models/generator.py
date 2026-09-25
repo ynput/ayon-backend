@@ -8,15 +8,14 @@ import sys
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, PydanticUserError, create_model
+from pydantic_core import SchemaError
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import AttributeType
-
-C = TypeVar("C", bound=type)
 
 #
 # Field types
@@ -80,37 +79,64 @@ class FieldDefinition(BaseModel):
     required: bool = Field(title="Required field", default=False)
 
     type: AttributeType = Field(default="string", title="Field data type")
-    submodel: Any | None
-    list_of_submodels: Any | None
+    submodel: Any | None = None
+    list_of_submodels: Any | None = None
     # Descriptive
-    title: str | None = Field(title="Nice field title")
-    description: str | None = Field(title="Field description")
-    example: Any | None = Field(title="Field example")
+    title: str | None = Field(None, title="Nice field title")
+    description: str | None = Field(None, title="Field description")
+    example: Any | None = Field(None, title="Field example")
 
     # Default value
-    default: Any | None = Field(title="Field default value")
+    default: Any | None = Field(None, title="Field default value")
     factory: Literal["list", "dict", "now", "uuid", "time"] | None = Field(
+        None,
         title="Default factory",
         description="Name of the function to be used to create default values",
     )
 
     # Validation
-    gt: int | float | None = Field(title="Greater than")
-    ge: int | float | None = Field(title="Geater or equal")
-    lt: int | float | None = Field(title="Less")
-    le: int | float | None = Field(title="Less or equal")
-    min_length: int | None = Field(title="Minimum length")
-    max_length: int | None = Field(title="Maximum length")
-    min_items: int | None = Field(title="Minimum items")
-    max_items: int | None = Field(title="Maximum items")
-    regex: str | None = Field(title="Field regex")
+    gt: int | float | None = Field(None, title="Greater than")
+    ge: int | float | None = Field(None, title="Geater or equal")
+    lt: int | float | None = Field(None, title="Less")
+    le: int | float | None = Field(None, title="Less or equal")
+    min_length: int | None = Field(None, title="Minimum length")
+    max_length: int | None = Field(None, title="Maximum length")
+    min_items: int | None = Field(None, title="Minimum items")
+    max_items: int | None = Field(None, title="Maximum items")
+    regex: str | None = Field(None, title="Field regex")
     enum: list[EnumItem] | None = Field(None, title="Enum values")
 
 
-def generate_model(  # noqa: UP047
+def _test_field(
+    fdef: FieldDefinition,
+    ftype: Any,
+    field: dict[str, Any],
+    config: ConfigDict | None,
+) -> None:
+    """Ensure a model with the given field can be constructed.
+
+    Pydantic 2 uses the Rust regex engine, which does not support
+    look-around and backreferences, but attributes created before
+    Pydantic 2 may use them. Such regex is removed from the field
+    (the attribute is kept, but its values are not validated by the regex).
+    """
+    try:
+        create_model("test", __config__=config, test=(ftype, Field(**field)))
+    except SchemaError:
+        if "pattern" not in field:
+            raise
+        logger.warning(
+            f"Regex of attribute '{fdef.name}' is not supported "
+            f"and it won't be validated: {fdef.regex}"
+        )
+        field.pop("pattern")
+        create_model("test", __config__=config, test=(ftype, Field(**field)))
+
+
+def generate_model(
     model_name: str,
     field_data: list[dict[str, Any]],
-    config: C | None = None,
+    config: ConfigDict | None = None,
 ) -> type[BaseModel]:
     """Create a new model from a given field set."""
     fields = {}
@@ -125,7 +151,8 @@ def generate_model(  # noqa: UP047
 
             continue
 
-        field = {}
+        field: dict[str, Any] = {}
+        extra: dict[str, Any] = {}
 
         #
         # Documentation and validation
@@ -135,7 +162,6 @@ def generate_model(  # noqa: UP047
             # Descriptive tags
             "title",
             "description",
-            "example",
             # Numeric validators
             "gt",
             "ge",
@@ -144,20 +170,27 @@ def generate_model(  # noqa: UP047
             # String validators
             "min_length",
             "max_length",
-            "regex",
-            # Array validators
-            "min_items",
-            "max_items",
-            # Enum
-            "enum",
         ):
             if getattr(fdef, k):
                 field[k] = getattr(fdef, k)
 
-        if field.get("enum"):
-            field["_attrib_enum"] = True
-            if isinstance(field["enum"][0], EnumItem):
-                field["enum"] = [e.value for e in field["enum"]]
+        if fdef.example:
+            extra["example"] = fdef.example
+        if fdef.regex:
+            field["pattern"] = fdef.regex
+        # Array validators
+        if fdef.min_items:
+            field["min_length"] = fdef.min_items
+        if fdef.max_items:
+            field["max_length"] = fdef.max_items
+
+        # Enum
+        if fdef.enum:
+            extra["_attrib_enum"] = True
+            extra["enum"] = [e.value for e in fdef.enum]
+        if extra:
+            field["json_schema_extra"] = extra
+
         #
         # Default value
         #
@@ -200,12 +233,12 @@ def generate_model(  # noqa: UP047
 
         # ensure we can construct the model
         try:
-            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))  # type: ignore
-        except ValueError:
+            _test_field(fdef, ftype, field, config)
+        except (ValueError, TypeError, PydanticUserError, SchemaError):
             log_traceback(f"Unable to construct attribute '{fdef.name}'")
             continue
 
-        fields[fdef.name] = (ftype, Field(**field))  # type: ignore
+        fields[fdef.name] = (ftype, Field(**field))
 
     try:
         return create_model(model_name, __config__=config, **fields)  # type: ignore

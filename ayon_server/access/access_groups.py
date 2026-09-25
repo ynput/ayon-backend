@@ -93,7 +93,7 @@ class AccessGroups:
                 continue
 
             if result is None:
-                result = access_group.dict()
+                result = access_group.model_dump()
                 continue
 
             for perm_name, value in access_group:

@@ -11,8 +11,8 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
     """Patch (partial update) an entity using its patch model."""
     update_data: dict[str, Any] = {}
 
-    for key, value in patch.dict(exclude_unset=True).items():
-        if key not in original.__fields__:
+    for key, value in patch.model_dump(exclude_unset=True).items():
+        if key not in type(original).model_fields:
             continue
 
         if isinstance(getattr(original, key), BaseModel):
@@ -41,8 +41,8 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
             # Patch scalar types such as ints, strings and booleans
             update_data[key] = getattr(patch, key)
 
-    if "updated_at" in original.__fields__:
+    if "updated_at" in type(original).model_fields:
         update_data["updated_at"] = datetime.now()
 
-    updated_model = original.copy(update=update_data, deep=True)
+    updated_model = original.model_copy(update=update_data, deep=True)
     return updated_model

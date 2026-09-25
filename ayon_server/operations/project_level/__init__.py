@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from asyncpg.exceptions import DeadlockDetectedError, IntegrityConstraintViolationError
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream

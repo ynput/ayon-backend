@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Literal
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.types import Field, OPModel, Platform
 
@@ -31,7 +31,8 @@ class SourceModel(OPModel):
         ),
     ] = None
 
-    @validator("type", pre=True)
+    @field_validator("type", mode="before")
+    @classmethod
     def validate_type(cls, value: Any):
         # if type is "url", change it to "http" (legacy)
         if value == "url":

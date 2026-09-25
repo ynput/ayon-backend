@@ -50,7 +50,7 @@ class ProjectLevelEntity(BaseEntity):
 
         attrib_dict = payload.get("attrib", {})
         if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.dict()
+            attrib_dict = attrib_dict.model_dump()
         if own_attrib is None:
             self.own_attrib = list(attrib_dict.keys())
         else:
@@ -84,7 +84,7 @@ class ProjectLevelEntity(BaseEntity):
             own_attrib = list(payload["attrib"].keys())
         payload = cls.preprocess_record(payload)
         parsed = {}
-        for key in cls.model.main_model.__fields__:
+        for key in cls.model.main_model.model_fields:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
@@ -99,7 +99,7 @@ class ProjectLevelEntity(BaseEntity):
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""
-        self._payload = self.model.main_model(id=self.id, **replace_data.dict())
+        self._payload = self.model.main_model(id=self.id, **replace_data.model_dump())
 
     #
     # Access control
@@ -109,23 +109,18 @@ class ProjectLevelEntity(BaseEntity):
         """Return a payload of the entity limited to the attributes that
         are accessible to the given user.
         """
-        kw: dict[str, Any] = {"deep": True, "exclude": {}}
+        result = self._payload.model_copy(deep=True)
+        if user.is_manager:  # managers have access to all attributes
+            return result
 
-        # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
-        attrib = self._payload.attrib.dict()  # type: ignore
-        if not user.is_manager:  # managers have access to all attributes
-            # kw["exclude"]["data"] = True
-
-            attr_perm = user.permissions(self.project_name).attrib_read
-            if attr_perm.enabled:
-                exattr = set()
-                for key in tuple(attrib.keys()):
-                    if key not in attr_perm.attributes:
-                        exattr.add(key)
-                if exattr:
-                    kw["exclude"]["attrib"] = exattr
-
-        result = self._payload.copy(**kw)
+        attr_perm = user.permissions(self.project_name).attrib_read
+        if attr_perm.enabled:
+            # Remove attributes the user cannot read from the payload,
+            # so they are not included in the serialized output
+            attrib = result.attrib  # type: ignore[attr-defined]
+            for key in tuple(attrib.__dict__):
+                if key not in attr_perm.attributes:
+                    attrib.__dict__.pop(key)
         return result
 
     async def ensure_create_access(self, user, **kwargs) -> None:

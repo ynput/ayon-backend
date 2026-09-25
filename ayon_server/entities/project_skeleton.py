@@ -30,7 +30,7 @@ class ProjectSkeletonEntity(ProjectEntity):
         from ayon_server.helpers.extract_anatomy import extract_project_anatomy
 
         anatomy = extract_project_anatomy(self)
-        self.data["skeletonAnatomy"] = anatomy.dict()
+        self.data["skeletonAnatomy"] = anatomy.model_dump()
         self.data["isSkeleton"] = True
 
     async def save(self, *args, **kwargs) -> bool:

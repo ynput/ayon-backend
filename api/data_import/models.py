@@ -1,7 +1,7 @@
 """Data models for data import/export functionality."""
 
-import copy
 from collections.abc import Iterable
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import (
     Annotated,
@@ -13,8 +13,8 @@ from typing import (
     get_origin,
 )
 
-from pydantic import BaseModel
-from pydantic.fields import FieldInfo, ModelField
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 
 from api.data_import.common import SENDER_TYPE, get_entity_id_by_path
 from ayon_server.entities import FolderEntity, TaskEntity, UserEntity, VersionEntity
@@ -24,6 +24,7 @@ from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.field_info import get_field_extra
 from ayon_server.types import AttributeType, Field, OPModel
 from ayon_server.utils import create_uuid
 
@@ -90,12 +91,12 @@ class ImportableColumn(OPModel):
 
     default_value: Annotated[
         str | None, Field(description="If value in field is required")
-    ]
+    ] = None
 
     enum_items: Annotated[
         list[EnumItem] | None,
         Field(description=("A list of possible enum items for this column (if set)")),
-    ]
+    ] = None
 
     enum_name: Annotated[
         str | None,
@@ -131,11 +132,11 @@ class ColumnValueMapping(OPModel):
     source: Annotated[
         str | None,  # allow replacement of empty value with some default
         Field(description=("The source value from csv")),
-    ]
+    ] = None
     target: Annotated[
         str | None,
         Field(description=("The target value from csv")),
-    ]
+    ] = None
     action: Annotated[
         Literal["map", "skip", "create"],
         Field(description="Map, skip or create missing"),
@@ -228,6 +229,14 @@ class ImportUpload(OPModel):
     id: str
 
 
+@dataclass
+class EntityModelField:
+    """Named field of an entity model"""
+
+    name: str
+    field_info: FieldInfo
+
+
 class EntityExportImport:
     """Base model for exporting and importing entities.
 
@@ -286,36 +295,32 @@ class EntityExportImport:
         return None
 
     @classmethod
-    def main(cls) -> list[ModelField]:
+    def main(cls) -> list[EntityModelField]:
         """Return main fields from entity model"""
         if cls._entity_model is None:
             return []
 
         return [
-            value
-            for value in _get_model_fields(cls._entity_model.model.main_model).values()
-            if value.name not in ["attrib", "data", "own_attrib"]
-            and value.name not in cls._entity_model.model.dynamic_fields
+            EntityModelField(name, field_info)
+            for name, field_info in (
+                cls._entity_model.model.main_model.model_fields.items()
+            )
+            if name not in ["attrib", "data", "own_attrib"]
+            and name not in cls._entity_model.model.dynamic_fields
         ]
 
     @classmethod
-    def attrib(cls) -> list[ModelField]:
+    def attrib(cls) -> list[EntityModelField]:
         """Return attribute fields from entity model with 'attrib.' prefix."""
         if cls._entity_model is None:
             return []
 
-        result: list[ModelField] = []
-        for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
-            new_field = copy.copy(f)
-            if f.field_info:
-                new_field.field_info = copy.deepcopy(f.field_info)
-
-            new_field.alias = f"attrib.{f.name}"
-            if new_field.field_info:
-                new_field.field_info.alias = f"attrib.{f.name}"
-
-            result.append(new_field)
-        return result
+        return [
+            EntityModelField(f"attrib.{name}", field_info)
+            for name, field_info in (
+                cls._entity_model.model.attrib_model.model_fields.items()
+            )
+        ]
 
     @classmethod
     def data(cls) -> list[ImportableColumn]:
@@ -342,24 +347,18 @@ class EntityExportImport:
         all_fields = [field for source in sources for field in source]
         for field in all_fields:
             name: str | None = None  # because of MyPy
-            if isinstance(field, ModelField):
-                name = (
-                    field.alias
-                    if (field.alias and field.alias.startswith("attrib."))
-                    else field.name
-                )
+            if isinstance(field, EntityModelField):
+                name = field.name
                 field_info = field.field_info
-                annotation = field.annotation
-                required = field.required
-                default = field.default if not required else None
+                annotation = field_info.annotation
+                required = field_info.is_required()
+                default = None
+                if not required and field_info.default is not PydanticUndefined:
+                    default = field_info.default
             elif isinstance(field, FieldInfo):
                 # Handle FieldInfo directly (e.g., from _calculated_fields)
-                # Note: 'name' may be stored in extra dict in pydantic v2
-                name = getattr(field, "name", None)
-                if name is None:
-                    extra = getattr(field, "extra", {})
-                    if isinstance(extra, dict):
-                        name = extra.get("name")
+                # Note: 'name' may be stored in json_schema_extra
+                name = get_field_extra(field).get("name")
                 if name is None:
                     name = getattr(field, "title", None)
                 if not name:
@@ -368,8 +367,8 @@ class EntityExportImport:
                 name = str(name).lower()
                 field_info = field
                 annotation = getattr(field, "annotation", Any)
-                required = getattr(field, "required", False)
-                default = getattr(field, "default", None)
+                required = field.is_required()
+                default = None if required else field.default
             elif isinstance(field, tuple) and len(field) == 2:
                 name, field_info = field
                 annotation = getattr(field_info, "annotation", Any)
@@ -1075,17 +1074,6 @@ def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
         )
     else:
         return row.get(field_name)
-
-
-def _get_model_fields(model: type[BaseModel]) -> dict[str, Any]:
-    """Get fields from a Pydantic model, compatible with both v1 and v2.
-
-    Pydantic v2 uses 'model_fields' while v1 uses '__fields__'.
-    This helper provides compatibility with both versions.
-    """
-    if hasattr(model, "model_fields"):
-        return model.model_fields
-    return model.__fields__
 
 
 def _get_attr_type_from_annotation(annotation: Any) -> str:
