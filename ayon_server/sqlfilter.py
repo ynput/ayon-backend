@@ -422,7 +422,8 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     elif operator == "gte":
         return f"{column} >= {safe_value}"
     elif operator == "ne":
-        return f"{column} != {safe_value}"
+        # NULL (unset) fields are not equal to the value either
+        return f"{column} IS DISTINCT FROM {safe_value}"
 
     # Field is a list
 

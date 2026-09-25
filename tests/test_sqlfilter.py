@@ -32,6 +32,16 @@ class TestNegativeOperatorsIncludeNull:
         sql = _cond("status", "notin", ["Done"])
         assert sql == "NOT COALESCE((folders.status)::text = ANY(array['Done']), FALSE)"
 
+    def test_ne_json_attribute(self):
+        sql = _cond("attrib.myAttribute", "ne", "myValue")
+        assert sql == (
+            "folders.attrib->'myAttribute' IS DISTINCT FROM '\"myValue\"'::jsonb"
+        )
+
+    def test_ne_column(self):
+        sql = _cond("status", "ne", "Done")
+        assert sql == "folders.status IS DISTINCT FROM 'Done'"
+
     def test_excludes_array_column(self):
         sql = _cond("tags", "excludes", "foo")
         assert sql == "NOT COALESCE('foo' = ANY(folders.tags), FALSE)"
