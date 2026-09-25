@@ -71,6 +71,10 @@ def create_pagination(
 
         is_jsonb = ("->" in ob) and ("->>" not in ob) and ("::" not in ob)
         ctype = COLUMN_TYPES.get(col_name)
+        if ob.endswith("::text"):
+            # Expression explicitly cast to text: never guess its type
+            # from the cursor value
+            ctype = "text"
 
         if ctype and not is_jsonb:
             # Known non-nullable top-level field

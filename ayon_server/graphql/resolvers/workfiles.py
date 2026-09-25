@@ -20,6 +20,7 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.sorting import get_attrib_sort_case
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.types import validate_name_list, validate_status_list
@@ -27,12 +28,39 @@ from ayon_server.utils import SQLTool
 
 from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
+# Workfile name is not stored - it is the last segment of the path
+# (see workfile_from_record). Both / and \ are treated as separators.
+# The explicit ::text cast makes create_pagination compare cursor values
+# as text (file names such as "2024-01-01T10.ma" would otherwise be
+# mistaken for timestamps).
+WORKFILE_NAME_EXPRESSION = r"substring(workfiles.path from '[^/\\]*$')::text"
+
 SORT_OPTIONS = {
-    "name": "workfiles.name",
+    "name": WORKFILE_NAME_EXPRESSION,
+    "path": "workfiles.path",
     "status": "workfiles.status",
     "createdAt": "workfiles.created_at",
     "updatedAt": "workfiles.updated_at",
 }
+
+
+async def get_workfiles_order_by(sort_by: str | None) -> list[str]:
+    """Return the list of ORDER BY expressions for the given sort_by value.
+
+    `workfiles.creation_order` is always appended as the last key,
+    so the ordering is total and cursor pagination is stable.
+    """
+    order_by = ["workfiles.creation_order"]
+    if sort_by is None:
+        return order_by
+    if sort_by in SORT_OPTIONS:
+        order_by.insert(0, SORT_OPTIONS[sort_by])
+    elif sort_by.startswith("attrib."):
+        attr_case = await get_attrib_sort_case(sort_by[7:], "workfiles.attrib")
+        order_by.insert(0, attr_case)
+    else:
+        raise BadRequestException(f"Invalid sort_by value: {sort_by}")
+    return order_by
 
 
 async def get_workfiles(
@@ -179,15 +207,7 @@ async def get_workfiles(
     # Pagination
     #
 
-    order_by = ["workfiles.creation_order"]
-
-    if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"workfiles.attrib->>'{sort_by[7:]}'")
-        else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+    order_by = await get_workfiles_order_by(sort_by)
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
