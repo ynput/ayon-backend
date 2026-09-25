@@ -1,9 +1,4 @@
 import asyncio
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 
 from ayon_server.models.file_info import FileInfo
 from ayon_server.utils import RequestCoalescer, dict_remove_path

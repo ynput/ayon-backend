@@ -15,6 +15,7 @@ from ayon_server.attributes.validate_attribute_data import validate_attribute_da
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.field_info import get_field_extra
 from ayon_server.types import OPModel
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
@@ -57,27 +58,27 @@ async def save_attribute(attribute: AttributeModel) -> None:
         attribute.name,
         attribute.position,
         attribute.scope,
-        attribute.data.dict(exclude_none=True),
+        attribute.data.model_dump(exclude_none=True),
     )
 
     # TODO: The following code does not support horizontal scaling!!
     # Notify other instances instead and reload the attribute library
 
     if (enum := attribute.data.enum) is not None:
-        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+        for name, field in ProjectEntity.model.attrib_model.model_fields.items():
             if name != attribute.name:
                 continue
 
-            field_enum = field.field_info.extra.get("enum")
+            field_enum = get_field_extra(field).get("enum")
             if field_enum is None:
                 continue
             field_enum.clear()
             field_enum.extend(enum)
 
-        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+        for name, field in ProjectEntity.model.attrib_model.model_fields.items():
             if name != attribute.name:
                 continue
-            field_enum = field.field_info.extra.get("enum")
+            field_enum = get_field_extra(field).get("enum")
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
@@ -178,7 +179,7 @@ async def set_attribute_config(
     """Update attribute configuration"""
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
-    attribute = AttributeModel(name=attribute_name, **payload.dict())
+    attribute = AttributeModel(name=attribute_name, **payload.model_dump())
     await save_attribute(attribute)
     await require_server_restart(
         None, "Restart the server to apply the attribute changes."
@@ -194,7 +195,7 @@ async def patch_attribute_config(
 
     attribute = await get_attribute_config(user, attribute_name)
 
-    patch_payload = payload.dict(exclude_unset=True)
+    patch_payload = payload.model_dump(exclude_unset=True)
     patch_data = patch_payload.pop("data", {})
 
     requires_restart = False

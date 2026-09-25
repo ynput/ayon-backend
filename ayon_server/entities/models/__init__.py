@@ -3,7 +3,7 @@
 import copy
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
@@ -36,23 +36,15 @@ FIELD_LISTS: dict[str, list[Any]] = {
 }
 
 
-class AttribModelConfig:
-    """Configuration of the attribute model.
-
-    Attributes are immutable - that enforces you to
-    use patch method of the entity to change attributes.
-
-    This is used to keep track which attributes are
-    own entity attributes and which are inherited).
-    """
-
-    _is_attrib_model = True
-
-    # On the other hand, in demogen, we need to be able to
-    # set attributes on the fly, so we need to allow it.
-    # TODO: How to handle this situation?
-
-    # allow_mutation = False
+# Configuration of the attribute model.
+#
+# Attributes could be immutable - that would enforce
+# using patch method of the entity to change attributes
+# (to keep track which attributes are own entity attributes
+# and which are inherited). But in demogen, we need to be able to
+# set attributes on the fly, so we need to allow it.
+# TODO: How to handle this situation?
+AttribModelConfig = ConfigDict(coerce_numbers_to_str=True)
 
 
 class ModelSet:

@@ -2,7 +2,7 @@ import copy
 from typing import Any
 
 from fastapi import Query
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName, SiteID
@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.models.field_info import format_validation_errors
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
@@ -60,7 +61,7 @@ async def get_addon_project_settings_schema(
         "user_name": user.name,
     }
 
-    schema = copy.deepcopy(model.schema())
+    schema = copy.deepcopy(model.model_json_schema())
     await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
@@ -78,7 +79,7 @@ async def get_addon_project_settings(
     site_id: SiteID,
     variant: str = Query("production"),
     as_version: str | None = Query(None, alias="as"),
-) -> BaseSettingsModel:
+) -> dict[str, Any]:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
@@ -93,7 +94,7 @@ async def get_addon_project_settings(
 
     if not settings:
         raise NotFoundException(f"Settings for {addon_name} {version} not found")
-    return settings
+    return settings.model_dump(by_alias=True)
 
 
 @router.get("/{addon_name}/{version}/overrides/{project_name}")
@@ -218,7 +219,9 @@ async def set_addon_project_settings(
                     explicit_unpins=explicit_unpins,
                 )
             except ValidationError as e:
-                raise BadRequestException("Invalid settings", errors=e.errors()) from e
+                raise BadRequestException(
+                    "Invalid settings", errors=format_validation_errors(e.errors())
+                ) from e
 
         await set_addon_settings(
             addon_name=addon_name,

@@ -170,8 +170,8 @@ async def delete_reaction_to_activity(
         str,
         Path(
             description="The reaction to be deleted",
-            example="like",
-            regex=NAME_REGEX,
+            examples=["like"],
+            pattern=NAME_REGEX,
         ),
     ],
 ):

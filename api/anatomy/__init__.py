@@ -44,7 +44,7 @@ async def get_anatomy_schema(user: CurrentUser) -> dict[str, Any]:
     The schema is used to display the anatomy preset editor form.
     """
 
-    schema = Anatomy.schema()
+    schema = Anatomy.model_json_schema()
     await postprocess_settings_schema(schema, Anatomy)
     return schema
 
@@ -128,8 +128,8 @@ async def update_anatomy_preset(
         """,
         preset_name,
         VERSION,
-        preset.dict(),
-        preset.dict(),
+        preset.model_dump(),
+        preset.model_dump(),
     )
     return EmptyResponse()
 

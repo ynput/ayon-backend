@@ -57,7 +57,7 @@ async def update_entity_list_item(
         await entity_list.ensure_can_update()
         item = entity_list.item_by_id(entity_list_item_id)
 
-        payload_dict = payload.dict(exclude_unset=True)
+        payload_dict = payload.model_dump(exclude_unset=True)
         await entity_list.update(
             item.id,
             **payload_dict,
@@ -124,7 +124,7 @@ async def _multi_merge(
 
     for i, item in enumerate(payload):
         if item.id in existing_ids:
-            patched_fields = item.dict(exclude_unset=True).keys()
+            patched_fields = item.model_dump(exclude_unset=True).keys()
             if "entity_id" in patched_fields and item.entity_id is None:
                 await entity_list.remove(item.id, normalize_positions=False)
                 existing_ids.remove(item.id)

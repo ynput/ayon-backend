@@ -15,10 +15,10 @@ from ayon_server.settings.anatomy import Anatomy
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     """Convert anatomy to project data."""
-    task_types = [t.dict() for t in anatomy.task_types]
-    folder_types = [t.dict() for t in anatomy.folder_types]
-    statuses = [t.dict() for t in anatomy.statuses]
-    tags = [t.dict() for t in anatomy.tags]
+    task_types = [t.model_dump() for t in anatomy.task_types]
+    folder_types = [t.model_dump() for t in anatomy.folder_types]
+    statuses = [t.model_dump() for t in anatomy.statuses]
+    tags = [t.model_dump() for t in anatomy.tags]
 
     config: dict[str, Any] = {}
     config["roots"] = {}
@@ -38,19 +38,19 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         }
     }
 
-    config["entityNaming"] = anatomy.entity_naming.dict(
+    config["entityNaming"] = anatomy.entity_naming.model_dump(
         exclude_defaults=True,
         exclude_unset=True,
         exclude_none=True,
     )
 
-    config["productBaseTypes"] = anatomy.product_base_types.dict(
+    config["productBaseTypes"] = anatomy.product_base_types.model_dump(
         exclude_defaults=True,
         exclude_unset=True,
         exclude_none=True,
     )
 
-    templates = anatomy.templates.dict()
+    templates = anatomy.templates.model_dump()
     for template_type in (
         "work",
         "publish",
@@ -88,7 +88,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "link_types": link_types,
         "statuses": statuses,
         "tags": tags,
-        "attrib": anatomy.attributes.dict(),
+        "attrib": anatomy.attributes.model_dump(),
         "config": config,
     }
 

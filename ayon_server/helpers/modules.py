@@ -10,6 +10,25 @@ from typing import Any
 _ADDON_REGISTRY: dict[str, str] = {}
 _original_import = builtins.__import__
 
+# Addons importing `pydantic` get a Pydantic 1 compatible layer
+PYDANTIC_COMPAT_MODULE = "ayon_server.settings.pydantic_compat"
+
+
+def _find_addon_namespace(mod_name: str) -> str | None:
+    """Return the registered addon namespace the module belongs to"""
+    # This is called for every import statement executed at runtime,
+    # so use dict lookups of the module name prefixes instead of
+    # iterating over all registered addons.
+    if mod_name in _ADDON_REGISTRY:
+        return mod_name
+    end = mod_name.find(".")
+    while end != -1:
+        prefix = mod_name[:end]
+        if prefix in _ADDON_REGISTRY:
+            return prefix
+        end = mod_name.find(".", end + 1)
+    return None
+
 
 def _isolated_import(
     name: str,
@@ -39,16 +58,13 @@ def _isolated_import(
         except ValueError:
             pass
 
-    if mod_name:
-        addon_name = None
-        for name_key in _ADDON_REGISTRY:
-            if mod_name == name_key or mod_name.startswith(name_key + "."):
-                addon_name = name_key
-                break
-
+    if mod_name and _ADDON_REGISTRY:
+        addon_name = _find_addon_namespace(mod_name)
         if addon_name:
             target_name = None
-            if name == "server" or name.startswith("server."):
+            if name == "pydantic":
+                target_name = PYDANTIC_COMPAT_MODULE
+            elif name == "server" or name.startswith("server."):
                 target_name = f"{addon_name}.{name}"
             else:
                 base_dir = _ADDON_REGISTRY[addon_name]

@@ -137,7 +137,7 @@ async def create_user(
     try:
         nuser = await UserEntity.load(user_name)
     except NotFoundException:
-        nuser = UserEntity(put_data.dict() | {"name": user_name})
+        nuser = UserEntity(put_data.model_dump() | {"name": user_name})
         nuser.created_by = user.name
     else:
         raise ConflictException("User already exists")
@@ -232,7 +232,7 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
-    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    attrib_dict = payload.attrib.model_dump(exclude_unset=True)
     avatar_changed = False
     if (
         "avatarUrl" in attrib_dict
@@ -280,7 +280,7 @@ async def change_password(
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
-    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_dict = patch_data.model_dump(exclude_unset=True)
 
     if "password" in patch_data_dict:
         if (user_name != user.name) and not (user.is_manager):

@@ -137,7 +137,7 @@ class Query:
             active=user.active,
             updated_at=user.updated_at,
             created_at=user.created_at,
-            _attrib=user.attrib.dict(),
+            _attrib=user.attrib.model_dump(),
             access_groups=json_dumps(user.data.get("accessGroups", {})),
             is_admin=user.is_admin,
             is_manager=user.is_manager,

@@ -180,7 +180,7 @@ async def create_dependency_package(
         if addons_to_delete:
             for addon in addons_to_delete:
                 del payload.source_addons[addon]
-        await f.write(payload.json(exclude_none=True))
+        await f.write(payload.model_dump_json(exclude_none=True))
 
     if url:
         hash = hashlib.sha256(f"dep_pkg_install_{url}".encode()).hexdigest()
@@ -296,7 +296,7 @@ async def update_dependency_package(
 
     manifest.sources = payload.sources
     async with aiofiles.open(manifest.path, "w") as f:
-        await f.write(manifest.json(exclude_none=True))
+        await f.write(manifest.model_dump_json(exclude_none=True))
 
     await Redis.delete("desktop", "dependency-packages")
     return EmptyResponse(status_code=204)

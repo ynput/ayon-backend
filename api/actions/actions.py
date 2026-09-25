@@ -103,11 +103,11 @@ async def configure_action(
     config: ActionConfig,
     addon_name: Annotated[
         str,
-        Query(title="Addon Name", alias="addonName", regex=ADDON_NAME_REGEX),
+        Query(title="Addon Name", alias="addonName", pattern=ADDON_NAME_REGEX),
     ],
     addon_version: Annotated[
         str,
-        Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
+        Query(title="Addon Version", alias="addonVersion", pattern=SEMVER_REGEX),
     ],
     identifier: Annotated[
         str,
@@ -119,7 +119,7 @@ async def configure_action(
     ] = "production",
 ) -> dict[str, Any]:
     addon = AddonLibrary.addon(addon_name, addon_version)
-    config_dict = config.dict()
+    config_dict = config.model_dump()
     config_value = config_dict.pop("value", None)
     context = ActionContext(**config_dict)
     if config.value is not None:
@@ -149,11 +149,11 @@ async def execute_action(
     sender_type: SenderType,
     addon_name: Annotated[
         str,
-        Query(title="Addon Name", alias="addonName", regex=ADDON_NAME_REGEX),
+        Query(title="Addon Name", alias="addonName", pattern=ADDON_NAME_REGEX),
     ],
     addon_version: Annotated[
         str,
-        Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
+        Query(title="Addon Version", alias="addonVersion", pattern=SEMVER_REGEX),
     ],
     identifier: Annotated[
         str,
@@ -283,7 +283,7 @@ async def take_action(
         str,
         Path(
             title="Action Token",
-            regex=r"[a-f0-9]{64}",
+            pattern=r"[a-f0-9]{64}",
         ),
     ],
 ) -> TakeResponseModel:
@@ -353,7 +353,7 @@ async def abort_action(
         str,
         Path(
             title="Action Token",
-            regex=r"[a-f0-9]{64}",
+            pattern=r"[a-f0-9]{64}",
         ),
     ],
 ) -> None:
