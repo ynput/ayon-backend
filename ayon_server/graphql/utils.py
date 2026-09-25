@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
 
 ATTRIB_WHITELIST = [
@@ -11,15 +10,18 @@ ATTRIB_WHITELIST = [
 
 
 def process_attrib_data(
-    entity_type: str,
-    own_attrib: dict[str, Any],
+    data: dict[str, Any],
     *,
     user: UserEntity,
     project_name: str | None = None,
-    inherited_attrib: dict[str, Any] | None = None,
-    project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Return the attribute values the user can read.
+
+    `data` are the resolved attribute values (see resolve_attrib), and
+    for entity list items also the list item attributes
+    (`list_attribute_config`), whose datetime values are converted.
+    """
     attr_limit: list[str] | Literal["all"] = []
 
     if user.is_guest:
@@ -47,28 +49,6 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    data = own_attrib or {}
-    if entity_type in {"folder", "task"}:
-        # Apply inherited and project attributes for folders and tasks
-        # (other entities do not inherit attributes)
-        if inherited_attrib is not None:
-            for key in attribute_library.inheritable_attributes():
-                if data.get(key) is not None:
-                    continue
-                if key in inherited_attrib:
-                    data[key] = inherited_attrib[key]
-
-        project_attrib = {
-            **attribute_library.project_defaults,
-            **(project_attrib or {}),
-        }
-        if project_attrib:
-            for key in attribute_library.inheritable_attributes():
-                if data.get(key) is not None:
-                    continue
-                if key in project_attrib:
-                    data[key] = project_attrib[key]
-
     if not data:
         return {}
 
@@ -76,49 +56,58 @@ def process_attrib_data(
     for key, value in data.items():
         if not (attr_limit == "all" or key in attr_limit):
             continue
-
-        if list_attribute_config and key in own_attrib and key in list_attribute_config:
-            attr_type = list_attribute_config[key]
-        else:
+        # Datetime list item attributes are converted
+        # (entity attributes are returned as they are stored)
+        if (
+            list_attribute_config
+            and list_attribute_config.get(key) == "datetime"
+            and isinstance(value, str)
+        ):
             try:
-                attr = attribute_library.by_name_scoped(entity_type, key)
-            except KeyError:
-                # Attribute not defined for this entity type
+                value = datetime.fromisoformat(value)
+            except ValueError:
                 continue
-            attr_type = attr["type"]
-
-        if attr_type == "datetime":
-            if isinstance(value, str):
-                try:
-                    value = datetime.fromisoformat(value)
-                except ValueError:
-                    # If the value is not a valid ISO format, skip it
-                    continue
-
         result[key] = value
 
     return result
 
 
-def parse_attrib_data[T](
+def attrib_to_json(
     entity_type: str,
-    target_type: type[T],
-    own_attrib: dict[str, Any],
-    *,
-    user: UserEntity,
-    project_name: str | None = None,
-    inherited_attrib: dict[str, Any] | None = None,
-    project_attrib: dict[str, Any] | None = None,
-) -> T:
-    """ACL agnostic attribute list parser"""
+    data: dict[str, Any],
+    names: list[str] | None = None,
+    legacy_selection: str | None = None,
+) -> dict[str, Any]:
+    """Return attribute values for the `attrib` GraphQL field.
 
-    result = process_attrib_data(
-        entity_type,
-        own_attrib,
-        user=user,
-        project_name=project_name,
-        inherited_attrib=inherited_attrib,
-        project_attrib=project_attrib,
-    )
+    - `names`: return only the given attributes (all by default)
+    - `legacy_selection`: selection of the former typed `attrib` field
+      (`attrib { fps rate: frameRate }`), rewritten by `LegacyAttribSelection`
+      to `"fps rate:frameRate"`. Every selected attribute is returned
+      (None when missing) under its alias.
 
-    return target_type(**result)
+    `data` are the resolved values (see resolve_attrib), which already
+    include the inherited and default values.
+
+    Values are validated when they are written, so they are returned
+    as they are stored. Only datetimes (list item attributes)
+    are converted to ISO strings (JSON).
+    """
+
+    def serialize(value: Any) -> Any:
+        return value.isoformat() if isinstance(value, datetime) else value
+
+    if legacy_selection is not None:
+        result: dict[str, Any] = {}
+        for item in legacy_selection.split():
+            alias, _, name = item.partition(":")
+            name = name or alias
+            if name == "__typename":
+                result[alias] = f"{entity_type.capitalize()}AttribType"
+            else:
+                result[alias] = serialize(data.get(name))
+        return result
+
+    if names is not None:
+        return {name: serialize(data.get(name)) for name in names}
+    return {name: serialize(value) for name, value in data.items()}

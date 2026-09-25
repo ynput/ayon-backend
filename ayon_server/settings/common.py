@@ -15,7 +15,11 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from ayon_server.logging import logger
 from ayon_server.models.base_model import AyonBaseModel
-from ayon_server.models.field_info import get_inner_type, strip_optional
+from ayon_server.models.field_info import (
+    get_field_annotation,
+    get_inner_type,
+    strip_optional,
+)
 from ayon_server.models.metaclass import coerce_v1_input
 from ayon_server.settings.json_schema import REF_TEMPLATE, SettingsJsonSchemaGenerator
 
@@ -201,8 +205,10 @@ def migrate_settings_overrides(
 
         field = new_model_class.model_fields[key]
 
-        outer_type = strip_optional(field.annotation)
-        inner_type = get_inner_type(field.annotation)
+        # For attribute value fields, this is the current attribute model
+        annotation = get_field_annotation(field)
+        outer_type = strip_optional(annotation)
+        inner_type = get_inner_type(annotation)
 
         if inspect.isclass(inner_type) and issubclass(inner_type, BaseSettingsModel):
             if get_origin(outer_type) is list and isinstance(value, list):

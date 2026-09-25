@@ -9,6 +9,7 @@ from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.models.field_info import (
+    get_field_annotation,
     get_field_extra,
     get_inner_type,
     iter_annotation_types,
@@ -258,7 +259,7 @@ async def postprocess_settings_schema(  # noqa
         submodels[parent.__name__] = parent
 
         for field in parent.model_fields.values():
-            submodels_deque.extend(iter_annotation_types(field.annotation))
+            submodels_deque.extend(iter_annotation_types(get_field_annotation(field)))
 
     for definition_name, definition in schema.get("definitions", {}).items():
         if definition_name not in submodels:

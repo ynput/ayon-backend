@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.logging import logger
+from ayon_server.models.attrib_values import AttribDict
 
 
 def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
@@ -15,7 +16,14 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
         if key not in type(original).model_fields:
             continue
 
-        if isinstance(getattr(original, key), BaseModel):
+        if isinstance(getattr(original, key), AttribDict):
+            # Patch attribute values. Unlike other dicts, None values are kept
+            # (the entity reverts them to the inherited values)
+            new_attrib = copy.deepcopy(getattr(original, key))
+            new_attrib.update(value)
+            update_data[key] = new_attrib
+
+        elif isinstance(getattr(original, key), BaseModel):
             # Patch a submodel (attrib)
             ndata = apply_patch(
                 getattr(original, key),

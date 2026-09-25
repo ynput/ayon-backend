@@ -4,11 +4,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import ProjectEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
 from ayon_server.graphql.nodes.common import (
+    AttribFields,
     ProductBaseType,
     ProductType,
     ProjectLinksConnection,
@@ -26,7 +25,6 @@ from ayon_server.graphql.resolvers.representations import (
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.product_base_types import (
@@ -130,13 +128,9 @@ class ProjectBundleType:
     staging: str | None = None
 
 
-@ProjectEntity.strawberry_attrib()
-class ProjectAttribType:
-    pass
-
-
 @strawberry.type
-class ProjectNode:
+class ProjectNode(AttribFields):
+    entity_type: strawberry.Private[str] = "project"
     name: str = strawberry.field()
     label: str | None
     project_name: str = strawberry.field()
@@ -152,30 +146,6 @@ class ProjectNode:
     bundle: ProjectBundleType
     created_at: datetime
     updated_at: datetime
-
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
-
-    @strawberry.field
-    def attrib(self) -> ProjectAttribType:
-        return parse_attrib_data(
-            "project",
-            ProjectAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                "project",
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-            )
-        )
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,

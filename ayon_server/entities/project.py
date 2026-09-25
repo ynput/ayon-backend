@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 
-from ayon_server.entities.core import TopLevelEntity, attribute_library
+from ayon_server.entities.core import TopLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.entities.project_aux_tables import (
@@ -26,15 +26,27 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
+from ayon_server.utils import RequestCoalescer, SQLTool, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
 
 
+# Fields not stored in the projects table
+# (folder types, task types... are stored in the project schema)
+NOT_STORED_FIELDS = [
+    "folder_types",
+    "task_types",
+    "link_types",
+    "statuses",
+    "tags",
+    "skeleton",
+]
+
+
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
-    model: ModelSet = ModelSet("project", attribute_library["project"], False)
+    model: ModelSet = ModelSet("project", has_id=False)
     # Set per instance by _load(), used by _save() to detect attrib changes
     original_attributes: dict[str, Any] | None = None
 
@@ -243,21 +255,7 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                [
-                    "folder_types",
-                    "task_types",
-                    "link_types",
-                    "statuses",
-                    "tags",
-                    "created_at",
-                    "name",
-                    "own_attrib",
-                    "skeleton",
-                ],
-            )
-
+            fields = self.fields_to_save([*NOT_STORED_FIELDS, "created_at", "name"])
             fields["updated_at"] = datetime.now()
 
             await Postgres.execute(
@@ -271,23 +269,8 @@ class ProjectEntity(TopLevelEntity):
 
         else:
             # Create a project record
-            await Postgres.execute(
-                *SQLTool.insert(
-                    "projects",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        [
-                            "folder_types",
-                            "task_types",
-                            "link_types",
-                            "statuses",
-                            "tags",
-                            "own_attrib",
-                            "skeleton",
-                        ],
-                    ),
-                )
-            )
+            fields = self.fields_to_save(NOT_STORED_FIELDS)
+            await Postgres.execute(*SQLTool.insert("projects", **fields))
             # Create a new schema for the project tablespace
             await Postgres.execute(f"CREATE SCHEMA project_{project_name}")
 

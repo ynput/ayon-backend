@@ -1,12 +1,14 @@
 import builtins
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import BaseModel
-from strawberry.experimental.pydantic import type as pydantic_type
+from pydantic import BaseModel, ValidationError
 
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
+from ayon_server.utils import dict_exclude
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -29,6 +31,92 @@ class BaseEntity:
 
     def __bool__(self) -> bool:
         return bool(self._payload)
+
+    def validated_attrib(
+        self, values: builtins.dict[str, Any]
+    ) -> builtins.dict[str, Any]:
+        """Validate attribute values before they are saved.
+
+        Values set by code (such as `entity.attrib.fps = 25`) are not
+        validated when they are assigned, so they are validated here.
+        Returns the validated values. Attributes without a definition
+        are dropped.
+        """
+        try:
+            return builtins.dict(self.model.attrib_patch_type.validate(values))
+        except ValidationError as e:
+            details = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                for error in e.errors()
+            )
+            raise BadRequestException(
+                f"Invalid attribute values of {self.entity_type}: {details}"
+            ) from e
+
+    def _init_payload(
+        self,
+        payload: builtins.dict[str, Any],
+        *,
+        exists: bool,
+        own_attrib: list[str] | None = None,
+        inherited_attrib: builtins.dict[str, Any] | None = None,
+        project_attrib: builtins.dict[str, Any] | None = None,
+    ) -> None:
+        """Construct the entity model from the given data.
+
+        Entities loaded from the database (`exists`) resolve their attribute
+        values from the stored ones (see `resolve_attrib`), folders and tasks
+        inherit values from `inherited_attrib` and `project_attrib`. Stored
+        values are not validated again. `own_attrib` lists the attributes set on the
+        entity itself (all given attributes by default).
+        """
+        attrib = payload.get("attrib") or {}
+        if isinstance(attrib, BaseModel):
+            attrib = attrib.model_dump()
+        if own_attrib is None:
+            own_attrib = list(attrib)
+        payload = dict_exclude(payload, ["own_attrib"])
+
+        if exists:
+            resolved = resolve_attrib(
+                self.entity_type,
+                {key: attrib[key] for key in own_attrib if key in attrib},
+                inherited=inherited_attrib,
+                project=project_attrib,
+            )
+            payload["attrib"] = resolved.values
+            self.own_attrib = resolved.own
+            self.inherited_attrib = resolved.inherited
+            self._payload = self.model.main_model.model_validate(
+                {**payload, "own_attrib": self.own_attrib},
+                context=STORED_VALUES_CONTEXT,
+            )
+        else:
+            self.own_attrib = own_attrib
+            self._payload = self.model.main_model(**payload, own_attrib=own_attrib)
+        self.exists = exists
+
+    def fields_to_save(self, exclude: list[str]) -> builtins.dict[str, Any]:
+        """Return the entity data to be saved (without None values).
+
+        Attribute values are validated (see `validated_attrib`).
+        """
+        fields = dict_exclude(self.dict(exclude_none=True), ["own_attrib", *exclude])
+        fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
+        return fields
+
+    def own_attrib_to_save(self) -> builtins.dict[str, Any]:
+        """Return the validated own attribute values to be saved.
+
+        Attributes without a value (None) are not saved
+        (the entity inherits them).
+        """
+        values = {
+            key: value
+            for key in self.own_attrib
+            if (value := self.attrib.get(key)) is not None
+        }
+        return self.validated_attrib(values)
 
     def dict(
         self,
@@ -126,11 +214,6 @@ class BaseEntity:
     @property
     def payload(self) -> BaseModel:
         return self._payload
-
-    @classmethod
-    def strawberry_attrib(cls):
-        # fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
     #
     # DB

@@ -205,7 +205,8 @@ class ActionContext(OPModel):
             self.project_name is None
             or self.entity_type is None
             or self.entity_ids is None
-            or self.entity_type == "list"
+            # Not project-level entities (see get_project_entity)
+            or self.entity_type in ("list", "project")
         ):
             return []
 
