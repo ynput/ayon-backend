@@ -1,6 +1,6 @@
 from typing import Any
 
-from .common import attrib_errors, get_model_set
+from .common import get_model_set, validate_values
 
 
 def invalid_attrib(entity_type: str, values: dict[str, Any]) -> dict[str, str]:
@@ -14,4 +14,4 @@ def invalid_attrib(entity_type: str, values: dict[str, Any]) -> dict[str, str]:
     model_set = get_model_set(entity_type)
     if model_set is None or not values:
         return {}
-    return attrib_errors(model_set.attrib_model, values)
+    return validate_values(model_set.attrib_model, values)[1]

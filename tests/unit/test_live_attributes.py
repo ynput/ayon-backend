@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
-from ayon_server.attributes.values import resolve_attrib
+from ayon_server.attributes.values import resolve_attrib, valid_attrib
 from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.core.patch import apply_patch
@@ -302,7 +302,9 @@ def test_graphql_schema_does_not_depend_on_attributes():
 
 
 def test_attrib_to_json():
-    data = {"fps": 24, "resolutionWidth": 1920.0, "startDate": "2024-01-01T00:00:00Z"}
+    stored = {"fps": 24, "resolutionWidth": 1920.0, "startDate": "2024-01-01T00:00:00Z"}
+    # The server passes resolved values (converted to the attribute types)
+    data = valid_attrib("folder", stored, label="test")
     assert attrib_to_json("folder", data) == {
         "fps": 24.0,
         "resolutionWidth": 1920,
@@ -398,7 +400,9 @@ class JsonFolder:
         names: AttribNamesArgument = None,
         legacy_selection: LegacyAttribSelectionArgument = None,
     ) -> JSON:
-        return JSON(attrib_to_json("folder", self._attrib, names, legacy_selection))
+        # The server passes resolved values (converted to the attribute types)
+        values = valid_attrib("folder", self._attrib, label="test")
+        return JSON(attrib_to_json("folder", values, names, legacy_selection))
 
 
 @strawberry.type

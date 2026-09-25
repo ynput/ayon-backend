@@ -54,19 +54,33 @@ def get_attribute_library() -> "AttributeLibrary":
     return attribute_library
 
 
-def attrib_errors(model: type[BaseModel], values: dict[str, Any]) -> dict[str, str]:
-    """Validate values using an attribute model.
+def validate_values(
+    model: type[BaseModel],
+    values: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Validate attribute values using an attribute model.
 
-    Return {attribute name: error message} of the invalid values.
-    Attribute models are flat, so all invalid values are reported at once.
-    Missing values of required attributes are not reported.
+    Return the validated values (converted to the attribute types,
+    without the invalid ones) and {attribute name: error message}
+    of the invalid values. Attribute models are flat, so all invalid
+    values are reported at once. Missing values of required attributes
+    are not reported. Valid data is validated only once.
     """
     try:
-        model.__pydantic_validator__.validate_python(values)
+        instance = model.__pydantic_validator__.validate_python(values)
     except ValidationError as e:
-        return {
+        errors = {
             str(error["loc"][0]): error["msg"]
             for error in e.errors()
             if error["loc"] and str(error["loc"][0]) in values
         }
-    return {}
+        if not errors:
+            # Only required attributes are missing: nothing to convert
+            return dict(values), {}
+        valid, _ = validate_values(
+            model, {k: v for k, v in values.items() if k not in errors}
+        )
+        return valid, errors
+    # Attributes without a definition are ignored by the model
+    validated = instance.__dict__
+    return {key: validated[key] for key in values if key in validated}, {}

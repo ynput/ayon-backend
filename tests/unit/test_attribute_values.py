@@ -17,9 +17,15 @@ def test_invalid_attrib():
     assert set(invalid) == {"fps", "resolutionWidth"}
 
 
-def test_valid_attrib_keeps_values_unchanged():
+def test_valid_attrib():
     values = {"fps": "25", "frameStart": 1001, "resolutionWidth": 0, "gone": 1}
+    # converted to the attribute types
     assert valid_attrib("folder", values, label="test") == {
+        "fps": 25.0,
+        "frameStart": 1001,
+    }
+    # as they are stored
+    assert valid_attrib("folder", values, label="test", raw=True) == {
         "fps": "25",
         "frameStart": 1001,
     }

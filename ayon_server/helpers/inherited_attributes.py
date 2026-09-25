@@ -67,6 +67,7 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
                 "folder",
                 record["own"],
                 label=f"folder {record['path']} in {project_name}",
+                raw=True,
             )
         )
 
@@ -127,7 +128,7 @@ async def rebuild_inherited_attributes(
             project_attrib = pattr.copy()
 
         project_attrib = valid_attrib(
-            "project", project_attrib, label=f"project {project_name}"
+            "project", project_attrib, label=f"project {project_name}", raw=True
         )
 
         # Filter out non-inheritable and non-folder attributes

@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticUndefined
 
-from ayon_server.attributes.values.common import attrib_errors
+from ayon_server.attributes.values.common import validate_values
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
@@ -166,7 +166,7 @@ class ModelSet:
             for name, field in self._attrib_model.model_fields.items()
             if field.default is not None and field.default is not PydanticUndefined
         }
-        for name in attrib_errors(self._attrib_model, defaults):
+        for name in validate_values(self._attrib_model, defaults)[1]:
             logger.warning(f"Invalid default value of attribute {name}")
             del defaults[name]
         return defaults
@@ -179,7 +179,7 @@ class ModelSet:
             if name in library.inheritable
         }
         assert self._attrib_model is not None
-        for name in attrib_errors(self._attrib_model, defaults):
+        for name in validate_values(self._attrib_model, defaults)[1]:
             logger.warning(f"Invalid default value of attribute {name}")
             del defaults[name]
         return defaults
