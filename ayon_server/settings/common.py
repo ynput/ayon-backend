@@ -1,4 +1,5 @@
 import copy
+import functools
 import inspect
 import re
 from collections.abc import Callable
@@ -7,6 +8,7 @@ from typing import Annotated, Any, Literal, get_args, get_origin
 from pydantic import (
     BaseModel,
     ConfigDict,
+    PydanticUserError,
     TypeAdapter,
     ValidationError,
     model_validator,
@@ -107,14 +109,116 @@ def unwrap_annotated(tp) -> tuple[Any, list[Any] | None]:
     return tp, None
 
 
+@functools.cache
+def _field_adapter(model: type[BaseModel], key: str) -> TypeAdapter[Any]:
+    """Return a validator of a single model field.
+
+    The validator uses the field type, its constraints (ge, pattern...)
+    and the model config (lax coercions), so it accepts the same values
+    as the model does for the field (except field and model validators).
+    """
+    field = model.model_fields[key]
+    annotation: Any = field.annotation
+    if field.metadata:
+        annotation = Annotated[(annotation, *field.metadata)]
+    try:
+        return TypeAdapter(annotation, config=model.model_config)
+    except PydanticUserError:
+        # Config cannot be set for model types
+        return TypeAdapter(annotation)
+
+
+def _validate_field_value(model: type[BaseModel], key: str, value: Any) -> Any:
+    value = coerce_v1_input(model, {key: value})[key]
+    return _field_adapter(model, key).validate_python(value)
+
+
+def _log_dropped(log_context: str, key_path: str, value: Any, reason: str) -> None:
+    context = f" {log_context}" if log_context else ""
+    logger.warning(
+        f"Settings migration{context}: dropping '{key_path}' "
+        f"= {str(value)[:70]}: {reason}"
+    )
+
+
+def _merge_overrides(defaults: dict[str, Any], overrides: dict[str, Any]) -> Any:
+    result = dict(defaults)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge_overrides(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def _drop_invalid_overrides(
+    model: type[BaseSettingsModel],
+    overrides: dict[str, Any],
+    defaults: dict[str, Any],
+    log_context: str,
+) -> None:
+    """Remove overrides, which make the settings invalid.
+
+    Values are validated one by one during the migration, but field
+    and model validators may still reject the result. Such overrides
+    would break loading the settings.
+    """
+    for _ in range(100):
+        try:
+            model.model_validate(_merge_overrides(defaults, overrides))
+            return
+        except ValidationError as e:
+            errors = e.errors()
+
+        dropped = False
+        for error in errors:
+            if error["type"] == "missing":
+                continue
+            # Find the deepest override causing the error
+            node: Any = overrides
+            path: list[str] = []
+            for part in error["loc"]:
+                if not (isinstance(node, dict) and part in node):
+                    break
+                path.append(str(part))
+                if not isinstance(node[part], dict):
+                    break
+                node = node[part]
+            if not path:
+                continue
+            parent = overrides
+            for part in path[:-1]:
+                parent = parent[part]
+            if path[-1] not in parent:
+                # Already dropped by a previous error
+                continue
+            value = parent.pop(path[-1])
+            _log_dropped(log_context, ".".join(path), value, error["msg"])
+            dropped = True
+
+        if not dropped:
+            logger.error(
+                f"Settings migration {log_context}: migrated settings are invalid "
+                f"and the cause cannot be removed: {errors}"
+            )
+            return
+
+
 def migrate_settings_overrides(
     old_data: dict[str, Any],
     new_model_class: type[BaseSettingsModel],
     defaults: dict[str, Any],
     custom_conversions: dict[str, Callable[[Any], Any]] = {},
     parent_key: str = "",
+    *,
+    log_context: str = "",
 ) -> dict[str, Any]:
-    """Migrate settings overrides from old data to new model class."""
+    """Migrate settings overrides from old data to new model class.
+
+    Values, which are not compatible with the new model, are dropped
+    (and logged). `log_context` (such as the addon name and versions)
+    is included in these log messages.
+    """
 
     new_data: dict[str, Any] = {}
 
@@ -123,55 +227,53 @@ def migrate_settings_overrides(
         new_model_class = args[0] if args else new_model_class
 
     for key, value in old_data.items():
-        if key in new_model_class.model_fields:
-            # Construct the key path for nested fields
-            key_path = f"{parent_key}.{key}" if parent_key else key
-            field = new_model_class.model_fields[key]
+        # Construct the key path for nested fields
+        key_path = f"{parent_key}.{key}" if parent_key else key
 
-            outer_type = strip_optional(field.annotation)
-            inner_type = get_inner_type(field.annotation)
+        if key not in new_model_class.model_fields:
+            _log_dropped(log_context, key_path, value, "field no longer exists")
+            continue
 
-            if inspect.isclass(inner_type) and issubclass(
-                inner_type, BaseSettingsModel
-            ):
-                if get_origin(outer_type) is list and isinstance(value, list):
-                    new_data[key] = [
-                        migrate_settings_overrides(
-                            v,
-                            get_args(outer_type)[0],
-                            {},
-                            custom_conversions,
-                            key_path,
-                        )
-                        for v in value
-                    ]
+        field = new_model_class.model_fields[key]
 
-                elif isinstance(value, dict):
-                    # TODO: ensure that the field is indeed a submodel
-                    # it should, but we should check
+        outer_type = strip_optional(field.annotation)
+        inner_type = get_inner_type(field.annotation)
 
-                    new_data[key] = migrate_settings_overrides(
-                        value,
-                        outer_type,
-                        defaults.get(key, {}),
+        if inspect.isclass(inner_type) and issubclass(inner_type, BaseSettingsModel):
+            if get_origin(outer_type) is list and isinstance(value, list):
+                new_data[key] = [
+                    migrate_settings_overrides(
+                        v,
+                        get_args(outer_type)[0],
+                        {},
                         custom_conversions,
                         key_path,
+                        log_context=log_context,
                     )
-                else:
-                    sval = str(value)[:70]
-                    logger.warning(f"Unsupported type for {key_path} model: {sval}")
-            else:
-                try:
-                    validated_value = TypeAdapter(outer_type).validate_python(value)
-                    new_data[key] = validated_value
-                except ValidationError:
-                    logger.warning(f"Failed to validate {key} with value {value}")
-                    # Skip incompatible fields
-                    continue
-        else:
-            logger.warning(f"Skipping unknown key: {key}")
+                    for v in value
+                ]
 
-    # if not parent_key:
-    #     json_print(new_data, "New data")
+            elif isinstance(value, dict):
+                # TODO: ensure that the field is indeed a submodel
+                # it should, but we should check
+
+                new_data[key] = migrate_settings_overrides(
+                    value,
+                    outer_type,
+                    defaults.get(key, {}),
+                    custom_conversions,
+                    key_path,
+                    log_context=log_context,
+                )
+            else:
+                _log_dropped(log_context, key_path, value, "submodel expected")
+        else:
+            try:
+                new_data[key] = _validate_field_value(new_model_class, key, value)
+            except ValidationError as e:
+                _log_dropped(log_context, key_path, value, e.errors()[0]["msg"])
+
+    if not parent_key and defaults:
+        _drop_invalid_overrides(new_model_class, new_data, defaults, log_context)
 
     return new_data

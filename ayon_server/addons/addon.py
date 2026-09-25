@@ -683,6 +683,7 @@ class BaseServerAddon:
             overrides,
             new_model_class=model_class,
             defaults=defaults.model_dump(),
+            log_context=f"{self.name} {source_version} -> {self.version}",
         )
 
     async def get_app_host_names(self) -> list[str]:
