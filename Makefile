@@ -17,5 +17,9 @@ test:
 test-integration:
 	uv run pytest tests/integration
 
+# Requires a running server (AYON_API_URL and AYON_API_KEY)
+test-api:
+	uv run pytest tests/api
+
 reload:
 	@echo "You are in a wrong directory :)"
