@@ -29,6 +29,7 @@ from ayon_server.graphql.dataloaders import (
     version_loader,
     workfile_loader,
 )
+from ayon_server.graphql.legacy_sort_by import LegacySortByVariables
 from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.nodes.entity_list import entity_list_from_record
 from ayon_server.graphql.nodes.folder import folder_from_record
@@ -235,7 +236,10 @@ class QueryNameExtension(SchemaExtension):
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
-    schema=AyonSchema(query=Query, extensions=[QueryNameExtension]),
+    schema=AyonSchema(
+        query=Query,
+        extensions=[LegacySortByVariables, QueryNameExtension],
+    ),
     graphql_ide=None,
     context_getter=graphql_get_context,
 )

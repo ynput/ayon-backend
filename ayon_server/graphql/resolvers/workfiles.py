@@ -19,13 +19,18 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import create_pagination, with_tiebreakers
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
-from .common import ARGVisibility, EntityVisibility, build_search_conditions
+from .common import (
+    ARGVisibility,
+    EntityVisibility,
+    build_search_conditions,
+    get_sort_keys,
+)
 
 SORT_OPTIONS = {
     "name": "workfiles.name",
@@ -55,7 +60,7 @@ async def get_workfiles(
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     include_internal_folder: ARGIncludeInternalFolder = False,
     visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> WorkfilesConnection:
@@ -179,15 +184,17 @@ async def get_workfiles(
     # Pagination
     #
 
-    order_by = ["workfiles.creation_order"]
+    order_by = []
 
-    if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"workfiles.attrib->>'{sort_by[7:]}'")
+    for sort_key in get_sort_keys(sort_by):
+        if sort_key in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_key])
+        elif sort_key.startswith("attrib."):
+            order_by.append(f"workfiles.attrib->>'{sort_key[7:]}'")
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+    order_by = with_tiebreakers(order_by, "workfiles.creation_order")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,

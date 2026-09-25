@@ -34,6 +34,15 @@ def encode_cursor(decoded_cursor: list[Any]) -> str:
     return b64encode(json_dumps(decoded_cursor).encode()).decode()
 
 
+def with_tiebreakers(order_by: list[str], *columns: str) -> list[str]:
+    """Append the columns which are not already sorted by.
+
+    Keyset pagination needs a unique ordering, otherwise rows sharing
+    the same sort values may be skipped or repeated between pages.
+    """
+    return order_by + [c for c in columns if c not in order_by]
+
+
 def create_pagination(
     order_by: list[str],
     first: int | None = None,
