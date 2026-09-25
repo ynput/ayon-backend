@@ -102,3 +102,31 @@ class TestDefaults:
             {"name": "test", "code": "tst", "attrib": {"fps": 30.0}}, exists=True
         ).attrib
         assert graphql == {k: v for k, v in rest.items() if v is not None}
+
+
+class TestEntityTypes:
+    def test_get_entity_class(self):
+        from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
+        from ayon_server.helpers.get_entity_class import get_entity_class
+
+        assert get_entity_class("folder") is FolderEntity
+        assert get_entity_class("project") is ProjectEntity
+        assert get_entity_class("user") is UserEntity
+        with pytest.raises(ValueError):
+            get_entity_class("unknown")
+
+    def test_unknown_entity_types(self):
+        values = {"fps": "abc"}
+        assert invalid_attrib("unknown", values) == {}
+        assert valid_attrib("unknown", values, label="test") == values
+
+
+def test_project_actions_have_no_entities():
+    import asyncio
+
+    from ayon_server.actions.context import ActionContext
+
+    context = ActionContext(
+        project_name="project", entity_type="project", entity_ids=["project"]
+    )
+    assert asyncio.run(context.get_entities()) == []

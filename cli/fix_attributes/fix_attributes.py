@@ -9,20 +9,10 @@ Values, which cannot be converted (for example values violating
 a changed attribute constraint), are only reported.
 """
 
-from typing import Any
+from typing import Any, get_args
 
 from ayon_server.attributes.values import invalid_attrib
 from ayon_server.cli import app
-from ayon_server.entities import (
-    FolderEntity,
-    ProductEntity,
-    ProjectEntity,
-    RepresentationEntity,
-    TaskEntity,
-    UserEntity,
-    VersionEntity,
-    WorkfileEntity,
-)
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
@@ -30,15 +20,7 @@ from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-
-PROJECT_TABLES: dict[str, type[Any]] = {
-    "folders": FolderEntity,
-    "tasks": TaskEntity,
-    "products": ProductEntity,
-    "versions": VersionEntity,
-    "representations": RepresentationEntity,
-    "workfiles": WorkfileEntity,
-}
+from ayon_server.types import ProjectLevelEntityType
 
 
 def convert_value(value: Any, attr_type: str | None) -> Any:
@@ -57,7 +39,7 @@ def convert_value(value: Any, attr_type: str | None) -> Any:
 async def fix_table(
     table: str,
     key_column: str,
-    entity_class: type[Any],
+    entity_type: str,
     *,
     dry_run: bool,
     key: str | None = None,
@@ -67,10 +49,7 @@ async def fix_table(
     When `key` is set, only the row with the given key is checked.
     """
 
-    types = {
-        attr["name"]: attr["type"]
-        for attr in attribute_library[entity_class.entity_type]
-    }
+    types = {attr["name"]: attr["type"] for attr in attribute_library[entity_type]}
 
     updates: list[tuple[str, dict[str, Any]]] = []
     fixed_count = 0
@@ -84,7 +63,7 @@ async def fix_table(
 
     async for row in Postgres.iterate(query, *args):
         attrib = row["attrib"] or {}
-        invalid = invalid_attrib(entity_class.entity_type, attrib)
+        invalid = invalid_attrib(entity_type, attrib)
         if not invalid:
             continue
 
@@ -97,7 +76,7 @@ async def fix_table(
         fixes = {name: v for name, v in fixes.items() if v != attrib[name]}
 
         # Keep only the fixes, which make the attribute valid
-        still_invalid = invalid_attrib(entity_class.entity_type, {**attrib, **fixes})
+        still_invalid = invalid_attrib(entity_type, {**attrib, **fixes})
         for name, message in still_invalid.items():
             fixes.pop(name, None)
             value = str(attrib.get(name))[:70]
@@ -145,26 +124,26 @@ async def fix_attributes(
     async def fix(
         table: str,
         key_column: str,
-        entity_class: type[Any],
+        entity_type: str,
         key: str | None = None,
     ) -> int:
         nonlocal total_fixed, total_unfixable
         fixed, unfixable = await fix_table(
-            table, key_column, entity_class, dry_run=dry_run, key=key
+            table, key_column, entity_type, dry_run=dry_run, key=key
         )
         total_fixed += fixed
         total_unfixable += unfixable
         return fixed
 
     if project_name is None:
-        await fix("public.users", "name", UserEntity)
+        await fix("public.users", "name", "user")
 
     for name in project_names:
         # Project attributes are inherited by the project entities,
         # so they are checked (and rebuilt) together
-        fixed = await fix("public.projects", "name", ProjectEntity, key=name)
-        for table, entity_class in PROJECT_TABLES.items():
-            fixed += await fix(f"project_{name}.{table}", "id", entity_class)
+        fixed = await fix("public.projects", "name", "project", key=name)
+        for entity_type in get_args(ProjectLevelEntityType):
+            fixed += await fix(f"project_{name}.{entity_type}s", "id", entity_type)
 
         if fixed and not dry_run:
             await rebuild_inherited_attributes(name)

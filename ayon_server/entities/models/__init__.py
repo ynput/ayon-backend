@@ -1,13 +1,15 @@
 """Dynamic entity models generation."""
 
 import copy
-import functools
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticUndefined
 
-from ayon_server.attributes.values.common import validate_values
+from ayon_server.attributes.values.common import (
+    get_attribute_library,
+    validate_values,
+)
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
@@ -28,6 +30,9 @@ from ayon_server.types import (
     NAME_REGEX,
     USER_NAME_REGEX,
 )
+
+if TYPE_CHECKING:
+    from ayon_server.entities.core.attrib import AttributeLibrary
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
@@ -105,12 +110,9 @@ class ModelSet:
             return self._static_attributes
         return self._attribute_library[self.entity_name]
 
-    @functools.cached_property
-    def _attribute_library(self) -> Any:
-        # Imported here to avoid circular imports
-        from ayon_server.entities.core.attrib import attribute_library
-
-        return attribute_library
+    @property
+    def _attribute_library(self) -> "AttributeLibrary":
+        return get_attribute_library()
 
     @property
     def attrib_model(self) -> type[BaseModel]:

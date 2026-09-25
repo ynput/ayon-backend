@@ -12,37 +12,15 @@ INHERITING_ENTITY_TYPES = frozenset({"folder", "task"})
 
 
 @functools.cache
-def _model_sets() -> dict[str, "ModelSet"]:
-    # Imported here: the entities use the attribute value helpers
-    from ayon_server.entities import (
-        FolderEntity,
-        ProductEntity,
-        ProjectEntity,
-        RepresentationEntity,
-        TaskEntity,
-        UserEntity,
-        VersionEntity,
-        WorkfileEntity,
-    )
-
-    return {
-        entity_class.entity_type: entity_class.model
-        for entity_class in (
-            FolderEntity,
-            ProductEntity,
-            ProjectEntity,
-            RepresentationEntity,
-            TaskEntity,
-            UserEntity,
-            VersionEntity,
-            WorkfileEntity,
-        )
-    }
-
-
 def get_model_set(entity_type: str) -> "ModelSet | None":
     """Return the model set of the entity type (None for unknown types)."""
-    return _model_sets().get(entity_type)
+    # Imported here: the entities use the attribute value helpers
+    from ayon_server.helpers.get_entity_class import get_entity_class
+
+    try:
+        return get_entity_class(entity_type).model
+    except ValueError:
+        return None
 
 
 @functools.cache
