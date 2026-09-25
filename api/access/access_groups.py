@@ -74,7 +74,7 @@ async def get_access_group_schema(
     if project_name:
         context["project_name"] = project_name
 
-    schema = copy.deepcopy(Permissions.schema())
+    schema = copy.deepcopy(Permissions.model_json_schema())
     await postprocess_settings_schema(schema, Permissions, context=context)
     return schema
 

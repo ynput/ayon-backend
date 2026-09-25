@@ -15,7 +15,7 @@ dependencies = [
   "croniter>=6.2.2",
   "cryptography>=50.0.0",
   "email-validator >=2.3.0",
-  "fastapi ==0.141.1", # ayon_server.api.response_compat wraps FastAPI internals
+  "fastapi >=0.141.1",
   "geoip2 >=5.2.0",
   "granian >=2.3.2",
   "gunicorn >=25.1.0",

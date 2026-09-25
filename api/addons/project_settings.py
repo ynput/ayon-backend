@@ -61,7 +61,7 @@ async def get_addon_project_settings_schema(
         "user_name": user.name,
     }
 
-    schema = copy.deepcopy(model.schema())
+    schema = copy.deepcopy(model.model_json_schema())
     await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
