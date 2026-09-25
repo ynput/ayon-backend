@@ -69,6 +69,10 @@ dev = [
   "types-pytz>=2026.1.1.20260304",
 ]
 
+[tool.pytest.ini_options]
+# Integration tests need a database: make test-integration
+testpaths = ["tests/unit"]
+
 [tool.ruff]
 fix = true
 line-length = 88
