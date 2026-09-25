@@ -71,8 +71,11 @@ def create_pagination(
     decoded_cursor = decode_cursor(before or after)
     operator = "<" if before else ">"
 
-    keys = []
-    cursor_values = []
+    # One (key, value, nullable) item per sorted column the cursor covers.
+    # `key` is the expression compared with `value` (a SQL literal,
+    # or None when the cursor value is NULL) and `nullable` tells
+    # whether the expression may evaluate to NULL.
+    cursor_keys: list[tuple[str, str | None, bool]] = []
     for i in range(min(len(order_by), len(decoded_cursor))):
         ob = order_by[i]
         val = decoded_cursor[i]
@@ -83,7 +86,6 @@ def create_pagination(
 
         if ctype and not is_jsonb:
             # Known non-nullable top-level field
-            keys.append(f"{ob}")
             if ctype == "text":
                 val_str = str(val).replace("'", "''") if val is not None else ""
                 sql_val = f"'{val_str}'::text"
@@ -99,54 +101,94 @@ def create_pagination(
                 if not isinstance(val, (int, float)):
                     raise BadRequestException(f"Invalid value for numeric field: {val}")
                 sql_val = f"{val or 0}"
-            cursor_values.append(sql_val)
+            cursor_keys.append((f"{ob}", sql_val, False))
             continue
 
-        # Fallback for nullable fields or JSONB
+        # Nullable fields or JSONB
+        if val is None:
+            # The type does not matter, NULL is only tested with IS [NOT] NULL
+            cursor_keys.append((f"({ob})", None, True))
+            continue
+
         if isinstance(val, (int, float)):
             cast = "numeric"
-            # default = "'0'"
             sql_val = f"{val}::numeric"
         elif isinstance(val, str) and re.match(
             r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
         ):
             cast = "timestamptz"
-            # default = "'1970-01-01T00:00:00Z'"
             sql_val = f"'{val}'::timestamptz"
         else:
             cast = "text"
-            # default = "'\"\"'"
-            v_str = str(val).replace("'", "''") if val is not None else ""
+            v_str = str(val).replace("'", "''")
             sql_val = f"'{v_str}'::text"
 
-        # if is_jsonb:
-        #     keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
-        # else:
-        #     keys.append(f"COALESCE({ob}, {default})::{cast}")
+        cursor_keys.append((f"({ob})::{cast}", sql_val, True))
 
-        keys.append(f"({ob})::{cast}")
-        cursor_values.append(sql_val)
-
+    # Postgres puts NULLs last in ascending and first in descending order,
+    # which means NULL sorts as greater than any value. This is stated
+    # explicitly here and the cursor conditions follow the same rule.
     for i, c in enumerate(order_by):
-        ordering_arr.append(f"{c} {'DESC' if last else 'ASC'}")
+        if last:
+            ordering_arr.append(f"{c} DESC NULLS FIRST")
+        else:
+            ordering_arr.append(f"{c} ASC NULLS LAST")
         cursor_arr.append(f"{c} AS cursor_{i}")
 
-    #
-    # Create cursor conditions
-    #
-
-    if not keys:
-        conditions = ""
-    else:
-        if len(keys) > 1:
-            keys_str = ", ".join(keys)
-            vals_str = ", ".join(cursor_values)
-            conditions = f"({keys_str}) {operator} ({vals_str})"
-        else:
-            conditions = f"{keys[0]} {operator} {cursor_values[0]}"
+    conditions = _cursor_conditions(cursor_keys, operator)
 
     limit = (first or last or 500) * 2
 
     ordering = "ORDER BY " + ", ".join(ordering_arr) + f" LIMIT {limit}"
     cursor = ", ".join(cursor_arr)
     return ordering, conditions, cursor
+
+
+def _cursor_conditions(
+    cursor_keys: list[tuple[str, str | None, bool]],
+    operator: str,
+) -> str:
+    """Build the condition selecting the rows after (or before) the cursor.
+
+    Comparisons with NULL are never true, so when any of the sorted columns
+    is nullable, the row comparison `(a, b) > (x, y)` is expanded to
+    `(a > x) OR (a = x AND b > y)`, where each comparison treats NULL
+    as greater than any value (matching the ordering).
+    """
+    if not cursor_keys:
+        return ""
+
+    if not any(nullable for _, _, nullable in cursor_keys):
+        # Row comparison is simpler and can use indices
+        keys_str = ", ".join(key for key, _, _ in cursor_keys)
+        vals_str = ", ".join(str(val) for _, val, _ in cursor_keys)
+        if len(cursor_keys) > 1:
+            return f"({keys_str}) {operator} ({vals_str})"
+        return f"{keys_str} {operator} {vals_str}"
+
+    alternatives: list[str] = []
+    equal: list[str] = []  # the preceding columns equal to the cursor
+    for key, val, nullable in cursor_keys:
+        # The column is past the cursor value
+        if val is None:
+            # Nothing is greater than NULL, everything else is lower
+            past = None if operator == ">" else f"{key} IS NOT NULL"
+        elif nullable and operator == ">":
+            past = f"({key} {operator} {val} OR {key} IS NULL)"
+        else:
+            past = f"{key} {operator} {val}"
+
+        if past is not None:
+            alternatives.append(" AND ".join([*equal, past]))
+
+        # The column equals the cursor value
+        if val is None:
+            equal.append(f"{key} IS NULL")
+        else:
+            equal.append(f"{key} = {val}")
+
+    if not alternatives:
+        return "FALSE"
+    if len(alternatives) == 1:
+        return f"({alternatives[0]})"
+    return "(" + " OR ".join(f"({a})" for a in alternatives) + ")"
