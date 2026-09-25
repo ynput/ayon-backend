@@ -69,3 +69,30 @@ class TestResolveAttrib:
         )
         assert resolved.values == {"fps": 24.0}
         assert resolved.inherited == {}
+
+
+class TestDefaults:
+    """Defaults are applied once (resolve_attrib), for REST and GraphQL"""
+
+    def test_project_defaults(self):
+        resolved = resolve_attrib("project", {"fps": 30.0}, label="test")
+        assert resolved.values["fps"] == 30.0
+        assert resolved.values["priority"] == "normal"  # default
+        assert resolved.own == ["fps"]
+
+    def test_no_defaults_for_other_entity_types(self):
+        # Only project attributes have defaults, folders and tasks inherit them
+        assert resolve_attrib("version", {}, label="test").values == {}
+
+    def test_graphql_matches_rest(self):
+        from types import SimpleNamespace
+
+        from ayon_server.entities import ProjectEntity
+        from ayon_server.graphql.utils import process_attrib_data
+
+        user = SimpleNamespace(is_guest=False, is_manager=True)
+        graphql = process_attrib_data("project", {"fps": 30.0}, user=user)  # type: ignore
+        rest = ProjectEntity(
+            {"name": "test", "code": "tst", "attrib": {"fps": 30.0}}, exists=True
+        ).attrib
+        assert graphql == {k: v for k, v in rest.items() if v is not None}

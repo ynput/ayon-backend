@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
+from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.core.patch import apply_patch
@@ -311,9 +312,11 @@ def test_attrib_to_json():
         "fps": 24.0,
         "description": None,
     }
+    # Default values are part of the resolved values (see resolve_attrib)
+    project_values = resolve_attrib("project", {}, label="test").values
     assert attrib_to_json(
         "project",
-        {},
+        project_values,
         legacy_selection=["__typename", "rate:fps", "unknown"],
     ) == {"__typename": "ProjectAttribType", "rate": 25.0, "unknown": None}
 

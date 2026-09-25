@@ -115,13 +115,13 @@ _NATIVE_TYPES: dict[str, type | tuple[type, ...]] = {
     "dict": dict,
 }
 
-# (library revision, entity type) -> {name: (type, native type, default)}
+# {entity type: {name: (type, native type)}}
 # Specs per entity type, valid for one revision of the attribute library
-_attrib_specs: dict[str, dict[str, tuple[str | None, Any, Any]]] = {}
+_attrib_specs: dict[str, dict[str, tuple[str | None, Any]]] = {}
 _attrib_specs_revision: int | None = None
 
 
-def _get_attrib_specs(entity_type: str) -> dict[str, tuple[str | None, Any, Any]]:
+def _get_attrib_specs(entity_type: str) -> dict[str, tuple[str | None, Any]]:
     global _attrib_specs_revision
     if _attrib_specs_revision != attribute_library.revision:
         _attrib_specs.clear()
@@ -130,11 +130,7 @@ def _get_attrib_specs(entity_type: str) -> dict[str, tuple[str | None, Any, Any]
         specs = {}
         for attr in attribute_library[entity_type]:
             attr_type = attr.get("type")
-            specs[attr["name"]] = (
-                attr_type,
-                _NATIVE_TYPES.get(attr_type or "", ()),
-                attr.get("default"),
-            )
+            specs[attr["name"]] = (attr_type, _NATIVE_TYPES.get(attr_type or "", ()))
         _attrib_specs[entity_type] = specs
     return specs
 
@@ -180,7 +176,10 @@ def attrib_to_json(
     - `legacy_selection`: selection of the former typed `attrib` field
       (`attrib { fps rate: frameRate }`), rewritten by `LegacyAttribSelection`
       to `["fps", "rate:frameRate"]`. Every selected attribute is returned
-      (None or the default value when missing) under its alias.
+      (None when missing) under its alias.
+
+    `data` are the resolved values (see resolve_attrib), which already
+    include the inherited and default values.
 
     Values are converted the same way the typed field did
     (e.g. datetimes to ISO strings, integral floats of integer attributes
@@ -189,13 +188,9 @@ def attrib_to_json(
     specs = _get_attrib_specs(entity_type)
 
     def serialize(name: str, value: Any) -> Any:
-        if (spec := specs.get(name)) is None:
+        if value is None or (spec := specs.get(name)) is None:
             return value
-        attr_type, native_type, default = spec
-        if value is None:
-            value = default
-            if value is None:
-                return None
+        attr_type, native_type = spec
         if native_type and isinstance(value, native_type):
             if not (isinstance(value, bool) and attr_type != "boolean"):
                 return value

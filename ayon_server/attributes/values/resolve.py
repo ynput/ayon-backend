@@ -37,7 +37,9 @@ def resolve_attrib(
     3. project value (`project`)
     4. default value of the attribute definition
 
-    Other entity types only have their own values. Invalid values, None
+    Other entity types have their own values and the defaults of the
+    attribute definitions (only project attributes have defaults).
+    Invalid values, None
     values and attributes without a definition are ignored
     (see `valid_attrib`).
     """
@@ -48,12 +50,19 @@ def resolve_attrib(
         if value is not None
     }
 
-    if entity_type not in INHERITING_ENTITY_TYPES:
+    model_set = get_model_set(entity_type)
+    if model_set is None:
         return ResolvedAttrib(values=own_values, own=list(own_values), inherited={})
 
+    if entity_type not in INHERITING_ENTITY_TYPES:
+        # Missing values are the defaults (only projects have defaults)
+        return ResolvedAttrib(
+            values={**model_set.defaults, **own_values},
+            own=list(own_values),
+            inherited={},
+        )
+
     inheritable = get_attribute_library().inheritable
-    model_set = get_model_set(entity_type)
-    assert model_set is not None
     inherited_values = dict(model_set.inherited_defaults)
     for layer_label, layer_values in (
         ("project attributes", project),

@@ -5,6 +5,7 @@ import functools
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
+from pydantic_core import PydanticUndefined
 
 from ayon_server.attributes.values.common import attrib_errors
 from ayon_server.entities.models.config import EntityModelConfig
@@ -91,6 +92,7 @@ class ModelSet:
         self._attrib_model: type[BaseModel] | None = None
         self._attrib_model_revision: int | None = None
         self._inherited_defaults: dict[str, Any] = {}
+        self._defaults: dict[str, Any] = {}
 
         # Types of the `attrib` field of the entity models
         self.attrib_type = AttribValues(lambda: self.attrib_model)
@@ -131,9 +133,21 @@ class ModelSet:
                 AttribModelConfig,
             )
             self._attrib_model_revision = revision
+            self._defaults = self._get_defaults()
             self._inherited_defaults = self._get_inherited_defaults()
         assert self._attrib_model is not None
         return self._attrib_model
+
+    @property
+    def defaults(self) -> dict[str, Any]:
+        """Default values of the attributes of the entity type (do not modify).
+
+        Only project attributes have defaults. Other entity types inherit
+        them (see `inherited_defaults`). Only valid defaults are included.
+        They change together with the attribute model.
+        """
+        _ = self.attrib_model  # regenerated when the attributes change
+        return self._defaults
 
     @property
     def inherited_defaults(self) -> dict[str, Any]:
@@ -144,6 +158,18 @@ class ModelSet:
         """
         _ = self.attrib_model  # regenerated when the attributes change
         return self._inherited_defaults
+
+    def _get_defaults(self) -> dict[str, Any]:
+        assert self._attrib_model is not None
+        defaults = {
+            name: field.default
+            for name, field in self._attrib_model.model_fields.items()
+            if field.default is not None and field.default is not PydanticUndefined
+        }
+        for name in attrib_errors(self._attrib_model, defaults):
+            logger.warning(f"Invalid default value of attribute {name}")
+            del defaults[name]
+        return defaults
 
     def _get_inherited_defaults(self) -> dict[str, Any]:
         library = self._attribute_library
