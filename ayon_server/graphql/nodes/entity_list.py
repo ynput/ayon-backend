@@ -51,33 +51,18 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self, info: Info) -> str:
         """All attributes field is a JSON string."""
-        if self._entity is None:
+        if (entity := self._entity) is None:
             return "{}"
-
-        own_attrib: dict[str, Any] = {}
-        inherited_attrib: dict[str, Any] = {}
-        project_attrib: dict[str, Any] = {}
-
-        if self._entity:
-            if hasattr(self._entity, "_project_attrib"):
-                project_attrib = self._entity._project_attrib or {}
-            if hasattr(self._entity, "_inherited_attrib"):
-                inherited_attrib = self._entity._inherited_attrib or {}
-            if hasattr(self._entity, "_attrib"):
-                # A copy: the entity's own attributes must not get
-                # the attributes of the list item
-                own_attrib = dict(self._entity._attrib or {})
-
-        own_attrib.update(self._attrib or {})
 
         return json_dumps(
             process_attrib_data(
                 self.entity_type,
-                own_attrib,
+                # Attributes of the list item override the entity's own ones
+                {**(getattr(entity, "_attrib", None) or {}), **(self._attrib or {})},
                 user=self._user,
                 project_name=self.project_name,
-                inherited_attrib=inherited_attrib,
-                project_attrib=project_attrib,
+                inherited_attrib=getattr(entity, "_inherited_attrib", None),
+                project_attrib=getattr(entity, "_project_attrib", None),
                 list_attribute_config=info.context.get("list_attributes"),
             )
         )

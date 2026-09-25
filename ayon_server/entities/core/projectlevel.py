@@ -4,7 +4,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.exceptions import (
@@ -55,29 +54,14 @@ class ProjectLevelEntity(BaseEntity):
         Invalid stored values are ignored (see `resolve_attrib`).
         """
 
-        attrib_dict = payload.get("attrib", {})
-        if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.model_dump()
-        if own_attrib is None:
-            own_attrib = list(attrib_dict.keys())
-        payload = dict_exclude(payload, ["own_attrib"])
-
-        if exists:
-            resolved = resolve_attrib(
-                self.entity_type,
-                {k: attrib_dict[k] for k in own_attrib if k in attrib_dict},
-                inherited=inherited_attrib,
-                project=project_attrib,
-                label=f"{self.entity_type} {payload.get('id')} in {project_name}",
-            )
-            payload["attrib"] = resolved.values
-            self.own_attrib = resolved.own
-            self.inherited_attrib = resolved.inherited
-        else:
-            self.own_attrib = own_attrib
-
-        self._payload = self.model.main_model(**payload, own_attrib=self.own_attrib)
-        self.exists = exists
+        self._init_payload(
+            payload,
+            exists=exists,
+            own_attrib=own_attrib,
+            inherited_attrib=inherited_attrib,
+            project_attrib=project_attrib,
+            label=f"{self.entity_type} {payload.get('id')} in {project_name}",
+        )
         self.project_name = project_name
 
     @classmethod

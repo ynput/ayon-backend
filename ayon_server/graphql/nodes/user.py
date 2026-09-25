@@ -2,17 +2,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry.scalars import JSON
 
-from ayon_server.entities import UserEntity
 from ayon_server.graphql.nodes.common import (
-    ATTRIB_DESCRIPTION,
-    AttribNamesArgument,
-    LegacyAttribSelectionArgument,
+    AttribFields,
 )
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -29,7 +24,7 @@ class FakeRoot:
 
 
 @strawberry.type
-class UserNode:
+class UserNode(AttribFields):
     name: str
     active: bool
     created_at: datetime
@@ -50,38 +45,11 @@ class UserNode:
     apiKeyPreview: str | None = None
     deleted: bool = False
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]  # The user making the request
+    def attrib_entity_type(self) -> str:
+        return "user"
 
-    @strawberry.field(description=ATTRIB_DESCRIPTION)
-    def attrib(
-        self,
-        names: AttribNamesArgument = None,
-        legacy_selection: LegacyAttribSelectionArgument = None,
-    ) -> JSON:
-        data = process_attrib_data(
-            "user",
-            self._attrib,
-            user=self._user,
-        )
-        return JSON(
-            attrib_to_json(
-                "user",
-                data,
-                names=names,
-                legacy_selection=legacy_selection,
-            )
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                "user",
-                self._attrib,
-                user=self._user,
-            )
-        )
+    def attrib_label(self) -> str:
+        return f"user {self.name}"
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> TasksConnection:

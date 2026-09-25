@@ -26,10 +26,22 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
+from ayon_server.utils import RequestCoalescer, SQLTool, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
+
+
+# Fields not stored in the projects table
+# (folder types, task types... are stored in the project schema)
+NOT_STORED_FIELDS = [
+    "folder_types",
+    "task_types",
+    "link_types",
+    "statuses",
+    "tags",
+    "skeleton",
+]
 
 
 class ProjectEntity(TopLevelEntity):
@@ -243,23 +255,8 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                [
-                    "folder_types",
-                    "task_types",
-                    "link_types",
-                    "statuses",
-                    "tags",
-                    "created_at",
-                    "name",
-                    "own_attrib",
-                    "skeleton",
-                ],
-            )
-
+            fields = self.fields_to_save([*NOT_STORED_FIELDS, "created_at", "name"])
             fields["updated_at"] = datetime.now()
-            fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
 
             await Postgres.execute(
                 *SQLTool.update(
@@ -272,19 +269,7 @@ class ProjectEntity(TopLevelEntity):
 
         else:
             # Create a project record
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                [
-                    "folder_types",
-                    "task_types",
-                    "link_types",
-                    "statuses",
-                    "tags",
-                    "own_attrib",
-                    "skeleton",
-                ],
-            )
-            fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
+            fields = self.fields_to_save(NOT_STORED_FIELDS)
             await Postgres.execute(*SQLTool.insert("projects", **fields))
             # Create a new schema for the project tablespace
             await Postgres.execute(f"CREATE SCHEMA project_{project_name}")

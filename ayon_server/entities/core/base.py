@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel, ValidationError
 
-from ayon_server.attributes.values import validate_attrib
+from ayon_server.attributes.values import resolve_attrib, validate_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.utils import dict_exclude
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -52,6 +53,57 @@ class BaseEntity:
             raise BadRequestException(
                 f"Invalid attribute values of {self.entity_type}: {details}"
             ) from e
+
+    def _init_payload(
+        self,
+        payload: builtins.dict[str, Any],
+        *,
+        exists: bool,
+        label: str,
+        own_attrib: list[str] | None = None,
+        inherited_attrib: builtins.dict[str, Any] | None = None,
+        project_attrib: builtins.dict[str, Any] | None = None,
+    ) -> None:
+        """Construct the entity model from the given data.
+
+        Entities loaded from the database (`exists`) resolve their attribute
+        values from the stored ones (see `resolve_attrib`): invalid values
+        are ignored, folders and tasks inherit values from `inherited_attrib`
+        and `project_attrib`. `own_attrib` lists the attributes set on the
+        entity itself (all given attributes by default).
+        """
+        attrib = payload.get("attrib") or {}
+        if isinstance(attrib, BaseModel):
+            attrib = attrib.model_dump()
+        if own_attrib is None:
+            own_attrib = list(attrib)
+        payload = dict_exclude(payload, ["own_attrib"])
+
+        if exists:
+            resolved = resolve_attrib(
+                self.entity_type,
+                {key: attrib[key] for key in own_attrib if key in attrib},
+                inherited=inherited_attrib,
+                project=project_attrib,
+                label=label,
+            )
+            payload["attrib"] = resolved.values
+            self.own_attrib = resolved.own
+            self.inherited_attrib = resolved.inherited
+        else:
+            self.own_attrib = own_attrib
+
+        self._payload = self.model.main_model(**payload, own_attrib=self.own_attrib)
+        self.exists = exists
+
+    def fields_to_save(self, exclude: list[str]) -> builtins.dict[str, Any]:
+        """Return the entity data to be saved (without None values).
+
+        Attribute values are validated (see `validated_attrib`).
+        """
+        fields = dict_exclude(self.dict(exclude_none=True), ["own_attrib", *exclude])
+        fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
+        return fields
 
     def own_attrib_to_save(self) -> builtins.dict[str, Any]:
         """Return the validated own attribute values to be saved.

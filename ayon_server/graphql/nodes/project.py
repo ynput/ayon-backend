@@ -3,15 +3,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry.scalars import JSON
 
-from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
 from ayon_server.graphql.nodes.common import (
-    ATTRIB_DESCRIPTION,
-    AttribNamesArgument,
-    LegacyAttribSelectionArgument,
+    AttribFields,
     ProductBaseType,
     ProductType,
     ProjectLinksConnection,
@@ -29,7 +25,6 @@ from ayon_server.graphql.resolvers.representations import (
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
-from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.product_base_types import (
@@ -134,7 +129,7 @@ class ProjectBundleType:
 
 
 @strawberry.type
-class ProjectNode:
+class ProjectNode(AttribFields):
     name: str = strawberry.field()
     label: str | None
     project_name: str = strawberry.field()
@@ -151,40 +146,14 @@ class ProjectNode:
     created_at: datetime
     updated_at: datetime
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
+    def attrib_entity_type(self) -> str:
+        return "project"
 
-    @strawberry.field(description=ATTRIB_DESCRIPTION)
-    def attrib(
-        self,
-        names: AttribNamesArgument = None,
-        legacy_selection: LegacyAttribSelectionArgument = None,
-    ) -> JSON:
-        data = process_attrib_data(
-            "project",
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-        return JSON(
-            attrib_to_json(
-                "project",
-                data,
-                names=names,
-                legacy_selection=legacy_selection,
-            )
-        )
+    def attrib_project_name(self) -> str | None:
+        return self.project_name
 
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                "project",
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-            )
-        )
+    def attrib_label(self) -> str:
+        return f"project {self.project_name}"
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,

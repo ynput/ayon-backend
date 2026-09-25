@@ -27,7 +27,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import AccessType
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import SQLTool
 from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
@@ -245,10 +245,7 @@ class UserEntity(TopLevelEntity):
                         )
 
             if self.exists:
-                data = dict_exclude(
-                    self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
-                )
-                data["attrib"] = self.validated_attrib(data.get("attrib", {}))
+                data = self.fields_to_save(["ctime", "name"])
                 await Postgres.execute(
                     *SQLTool.update(
                         "public.users",
@@ -257,8 +254,7 @@ class UserEntity(TopLevelEntity):
                     )
                 )
             else:
-                data = dict_exclude(self.dict(exclude_none=True), ["own_attrib"])
-                data["attrib"] = self.validated_attrib(data.get("attrib", {}))
+                data = self.fields_to_save([])
                 await Postgres.execute(*SQLTool.insert("users", **data))
                 self.exists = True
 
