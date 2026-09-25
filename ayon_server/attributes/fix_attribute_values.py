@@ -9,33 +9,35 @@ Runs in the background when attributes are saved, and as `fix-attributes`
 CLI command.
 """
 
-from dataclasses import dataclass
 from typing import Any, get_args
 
-from ayon_server.attributes.values import invalid_attrib
+from pydantic import BaseModel, ValidationError
+
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logger
+from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 
 
-@dataclass
-class FixResult:
-    #: Number of converted values
-    fixed: int = 0
-    #: Number of removed values (they could not be converted)
-    removed: int = 0
+def invalid_values(model: type[BaseModel], values: dict[str, Any]) -> dict[str, str]:
+    """Return {attribute name: error message} of invalid attribute values.
 
-    def __iadd__(self, other: "FixResult") -> "FixResult":
-        self.fixed += other.fixed
-        self.removed += other.removed
-        return self
-
-    def __bool__(self) -> bool:
-        return bool(self.fixed or self.removed)
+    Attributes without a definition and missing values of required
+    attributes are not reported.
+    """
+    try:
+        model.__pydantic_validator__.validate_python(values)
+    except ValidationError as e:
+        return {
+            str(error["loc"][0]): error["msg"]
+            for error in e.errors()
+            if error["loc"] and str(error["loc"][0]) in values
+        }
+    return {}
 
 
 def convert_value(value: Any, attr_type: str | None) -> Any:
@@ -59,17 +61,18 @@ async def fix_table(
     dry_run: bool = False,
     key: str | None = None,
     attribute_names: list[str] | None = None,
-) -> FixResult:
-    """Fix the attribute values in a table.
+) -> int:
+    """Fix the attribute values in a table. Return the number of changed values.
 
     When `key` is set, only the row with the given key is checked.
     When `attribute_names` are set, only these attributes are checked.
     """
+    model = get_entity_class(entity_type).model.attrib_model
     types = {attr["name"]: attr["type"] for attr in attribute_library[entity_type]}
     if attribute_names is not None:
         attribute_names = [name for name in attribute_names if name in types]
         if not attribute_names:
-            return FixResult()
+            return 0
 
     conditions: list[str] = []
     args: list[Any] = []
@@ -84,14 +87,14 @@ async def fix_table(
         query += " WHERE " + " AND ".join(conditions)
 
     updates: list[tuple[str, dict[str, Any], list[str]]] = []
-    result = FixResult()
+    changed = 0
     remove, convert = "Removed", "Converted"
     if dry_run:
         remove, convert = "Would remove", "Would convert"
 
     async for row in Postgres.iterate(query, *args):
         attrib = row["attrib"] or {}
-        invalid = invalid_attrib(entity_type, attrib)
+        invalid = invalid_values(model, attrib)
         if attribute_names is not None:
             invalid = {k: v for k, v in invalid.items() if k in attribute_names}
         if not invalid:
@@ -99,7 +102,7 @@ async def fix_table(
 
         row_key = row[key_column]
         fixes = {name: convert_value(attrib[name], types.get(name)) for name in invalid}
-        still_invalid = invalid_attrib(entity_type, {**attrib, **fixes})
+        still_invalid = invalid_values(model, {**attrib, **fixes})
         removed = [name for name in invalid if name in still_invalid]
         for name in removed:
             del fixes[name]
@@ -115,8 +118,7 @@ async def fix_table(
             )
 
         updates.append((row_key, fixes, removed))
-        result.fixed += len(fixes)
-        result.removed += len(removed)
+        changed += len(invalid)
 
     if updates and not dry_run:
         async with Postgres.transaction():
@@ -131,7 +133,7 @@ async def fix_table(
                     row_key,
                 )
 
-    return result
+    return changed
 
 
 async def fix_attribute_values(
@@ -139,8 +141,8 @@ async def fix_attribute_values(
     *,
     attribute_names: list[str] | None = None,
     dry_run: bool = False,
-) -> FixResult:
-    """Fix the stored attribute values.
+) -> int:
+    """Fix the stored attribute values. Return the number of changed values.
 
     Without `project_name`, all projects and users are checked.
     Without `attribute_names`, all attributes are checked.
@@ -152,7 +154,7 @@ async def fix_attribute_values(
         project_names = [project_name]
 
     kwargs: dict[str, Any] = {"dry_run": dry_run, "attribute_names": attribute_names}
-    total = FixResult()
+    total = 0
 
     if project_name is None:
         total += await fix_table("public.users", "name", "user", **kwargs)
@@ -160,35 +162,18 @@ async def fix_attribute_values(
     for name in project_names:
         # Project attributes are inherited by the project entities,
         # so they are checked (and rebuilt) together
-        result = await fix_table(
+        changed = await fix_table(
             "public.projects", "name", "project", key=name, **kwargs
         )
         for entity_type in get_args(ProjectLevelEntityType):
             table = f"project_{name}.{entity_type}s"
-            result += await fix_table(table, "id", entity_type, **kwargs)
+            changed += await fix_table(table, "id", entity_type, **kwargs)
 
-        if result and not dry_run:
+        if changed and not dry_run:
             await rebuild_inherited_attributes(name)
             await rebuild_hierarchy_cache(name)
-        total += result
+        total += changed
 
     if total:
-        action = "Would fix" if dry_run else "Fixed"
-        logger.info(
-            f"{action} attribute values: {total.fixed} converted, "
-            f"{total.removed} removed"
-        )
+        logger.info(f"{'Would fix' if dry_run else 'Fixed'} {total} attribute values")
     return total
-
-
-async def fix_changed_attribute_values(attribute_names: list[str]) -> None:
-    """Fix values of the attributes, whose definitions changed.
-
-    Executed in the background after the attributes are saved.
-    """
-    if not attribute_names:
-        return
-    try:
-        await fix_attribute_values(attribute_names=attribute_names)
-    except Exception:
-        log_traceback(f"Unable to fix values of attributes {attribute_names}")

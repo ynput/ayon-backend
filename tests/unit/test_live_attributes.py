@@ -20,12 +20,9 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
-from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
-from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.entities.core.attrib import attribute_library, resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
-from ayon_server.entities.models import ModelSet
-from ayon_server.entities.models.generator import generate_model
 from ayon_server.events.default_hooks import DEFAULT_HOOKS, reload_attributes
 from ayon_server.graphql import router as graphql_router
 from ayon_server.graphql.legacy_attrib import (
@@ -71,8 +68,11 @@ LIVE_ATTRIBUTE = attribute(
 )
 
 
-def load_attributes(rows: list[dict[str, Any]]) -> bool:
-    """Simulate attribute rows in the database and reload them"""
+def load_attributes(rows: list[dict[str, Any]]) -> set[str]:
+    """Simulate attribute rows in the database and reload them.
+
+    Returns the names of the changed attributes (see AttributeLibrary.reload)
+    """
 
     async def fetch() -> list[dict[str, Any]]:
         return copy.deepcopy(rows)
@@ -109,7 +109,8 @@ def test_reload_is_noop_when_unchanged():
     assert not load_attributes(BASE_ATTRIBUTES)
     assert attribute_library.revision == revision
 
-    assert load_attributes(with_live_attribute())
+    # changed title and a new attribute (removed resolutionWidth is not reported)
+    assert load_attributes(with_live_attribute()) == {"fps", "liveTest"}
     assert attribute_library.revision == revision + 1
 
 
@@ -246,22 +247,6 @@ def test_entity_model_subclass_and_route_follow_reload():
     attrib_schema = app.openapi()["components"]["schemas"]["FolderAttribModel"]
     assert "liveTest" in attrib_schema["properties"]
     assert attrib_schema["properties"]["fps"]["title"] == "Frames per second"
-
-
-def test_static_model_set_attributes():
-    model_set = ModelSet("folder", [{"name": "static", "type": "integer"}])
-    attrib_model = model_set.attrib_model
-    load_attributes(with_live_attribute())
-    assert model_set.attrib_model is attrib_model
-
-
-@pytest.mark.parametrize("name", ["model_dump", "model_config"])
-def test_attribute_with_reserved_name_is_skipped(name):
-    model = generate_model(
-        "TestAttribModel",
-        [{"name": name, "type": "integer"}, {"name": "valid", "type": "integer"}],
-    )
-    assert set(model.model_fields) == {"valid"}
 
 
 #

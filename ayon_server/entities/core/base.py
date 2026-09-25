@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel, ValidationError
 
-from ayon_server.attributes.values import resolve_attrib, validate_attrib
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import BadRequestException, ForbiddenException
@@ -43,9 +43,7 @@ class BaseEntity:
         are dropped.
         """
         try:
-            return builtins.dict(
-                validate_attrib(self.entity_type, values, partial=True)
-            )
+            return builtins.dict(self.model.attrib_patch_type.validate(values))
         except ValidationError as e:
             details = "; ".join(
                 f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"

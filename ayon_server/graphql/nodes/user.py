@@ -25,6 +25,7 @@ class FakeRoot:
 
 @strawberry.type
 class UserNode(AttribFields):
+    entity_type: strawberry.Private[str] = "user"
     name: str
     active: bool
     created_at: datetime
@@ -44,9 +45,6 @@ class UserNode(AttribFields):
     user_pool: str | None = None
     apiKeyPreview: str | None = None
     deleted: bool = False
-
-    def attrib_entity_type(self) -> str:
-        return "user"
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> TasksConnection:

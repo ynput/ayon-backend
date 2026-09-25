@@ -5,9 +5,7 @@ from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.attributes.fix_attribute_values import (
-    fix_changed_attribute_values,
-)
+from ayon_server.attributes.fix_attribute_values import fix_attribute_values
 from ayon_server.attributes.models import (
     AttributeModel,
     AttributePatchModel,
@@ -64,14 +62,6 @@ async def save_attribute(attribute: AttributeModel) -> None:
     )
 
 
-def _attribute_definitions() -> dict[tuple[str, str], dict[str, Any]]:
-    return {
-        (entity_type, attr["name"]): attr
-        for entity_type, attributes in attribute_library.data.items()
-        for attr in attributes
-    }
-
-
 async def apply_attribute_changes(
     user_name: str,
     background_tasks: BackgroundTasks | None = None,
@@ -84,16 +74,11 @@ async def apply_attribute_changes(
     on all other instances (the reload is a no-op on this one).
 
     Stored values of the attributes, whose definitions changed, are fixed
-    in the background (see `fix_changed_attribute_values`).
+    in the background (see `fix_attribute_values`).
     """
-    before = _attribute_definitions()
-    await attribute_library.reload()
-    if background_tasks is not None:
-        after = _attribute_definitions()
-        # {(entity type, name): definition}
-        changed = {key[1] for key, attr in after.items() if before.get(key) != attr}
-        if changed:
-            background_tasks.add_task(fix_changed_attribute_values, sorted(changed))
+    changed = await attribute_library.reload()
+    if changed and background_tasks is not None:
+        background_tasks.add_task(fix_attribute_values, attribute_names=sorted(changed))
     await EventStream.dispatch(
         "server.attributes_updated",
         description="Attribute configuration changed",

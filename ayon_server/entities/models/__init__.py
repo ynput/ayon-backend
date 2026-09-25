@@ -1,14 +1,11 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
-from pydantic_core import PydanticUndefined
 
-from ayon_server.attributes.values.common import (
-    get_attribute_library,
-)
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
@@ -28,9 +25,6 @@ from ayon_server.types import (
     NAME_REGEX,
     USER_NAME_REGEX,
 )
-
-if TYPE_CHECKING:
-    from ayon_server.entities.core.attrib import AttributeLibrary
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
@@ -71,22 +65,14 @@ class ModelSet:
     regenerated, while the entity models stay the same.
     """
 
-    def __init__(
-        self,
-        entity_name: str,
-        attributes: list[dict[str, Any]] | None = None,
-        has_id: bool = True,
-    ):
+    def __init__(self, entity_name: str, has_id: bool = True):
         """Initialize the model set.
 
-        When `attributes` are not provided (recommended), attributes of the
-        entity type are taken from the attribute library and the attribute
-        model follows the changes of the library.
+        Attributes of the entity type are taken from the attribute library
+        and the attribute model follows the changes of the library.
         """
         self.entity_name = entity_name
         self.fields: list[Any] = FIELD_LISTS[entity_name]
-
-        self._static_attributes = attributes
         self.has_id = has_id
 
         self._model: type[BaseModel] | None = None
@@ -94,23 +80,10 @@ class ModelSet:
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
         self._attrib_model_revision: int | None = None
-        self._inherited_defaults: dict[str, Any] = {}
-        self._defaults: dict[str, Any] = {}
 
         # Types of the `attrib` field of the entity models
         self.attrib_type = AttribValues(lambda: self.attrib_model)
         self.attrib_patch_type = AttribValues(lambda: self.attrib_model, partial=True)
-
-    @property
-    def attributes(self) -> list[dict[str, Any]]:
-        """Return the current attribute definitions of the entity type."""
-        if self._static_attributes is not None:
-            return self._static_attributes
-        return self._attribute_library[self.entity_name]
-
-    @property
-    def _attribute_library(self) -> "AttributeLibrary":
-        return get_attribute_library()
 
     @property
     def attrib_model(self) -> type[BaseModel]:
@@ -121,67 +94,15 @@ class ModelSet:
         is reloaded. This is called on every validation of an entity model,
         so it should stay cheap.
         """
-        revision = (
-            None
-            if self._static_attributes is not None
-            else self._attribute_library.revision
-        )
+        revision = attribute_library.revision
         if self._attrib_model_revision != revision or self._attrib_model is None:
             self._attrib_model = generate_model(
                 f"{self.entity_name.capitalize()}AttribModel",
-                self.attributes,
+                attribute_library[self.entity_name],
                 AttribModelConfig,
             )
             self._attrib_model_revision = revision
-            self._defaults = self._get_defaults()
-            self._inherited_defaults = self._get_inherited_defaults()
-        assert self._attrib_model is not None
         return self._attrib_model
-
-    @property
-    def defaults(self) -> dict[str, Any]:
-        """Default values of the attributes of the entity type (do not modify).
-
-        Only project attributes have defaults. Other entity types inherit
-        them (see `inherited_defaults`). They change together with the attribute model.
-        """
-        _ = self.attrib_model  # regenerated when the attributes change
-        return self._defaults
-
-    @property
-    def inherited_defaults(self) -> dict[str, Any]:
-        """Default values of the inheritable attributes (do not modify).
-
-        They change together with the attribute model.
-        """
-        _ = self.attrib_model  # regenerated when the attributes change
-        return self._inherited_defaults
-
-    def _get_defaults(self) -> dict[str, Any]:
-        # Defaults are validated when the attributes are saved
-        assert self._attrib_model is not None
-        return {
-            name: field.default
-            for name, field in self._attrib_model.model_fields.items()
-            if field.default is not None and field.default is not PydanticUndefined
-        }
-
-    def _get_inherited_defaults(self) -> dict[str, Any]:
-        library = self._attribute_library
-        assert self._attrib_model is not None
-        return {
-            name: value
-            for name, value in library.project_defaults.items()
-            if name in library.inheritable and name in self._attrib_model.model_fields
-        }
-
-    def validate_attrib(self, data: Any, partial: bool = False) -> Any:
-        """Validate attribute values. Return AttribDict.
-
-        Raises pydantic ValidationError when the data is not valid.
-        """
-        attrib_type = self.attrib_patch_type if partial else self.attrib_type
-        return attrib_type.validate(data)
 
     @property
     def main_model(self) -> type[BaseModel]:

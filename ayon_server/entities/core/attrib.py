@@ -4,6 +4,7 @@ import hashlib
 import inspect
 import threading
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from ayon_server.lib.postgres import Postgres
@@ -11,6 +12,9 @@ from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import json_dumps
 
 ReloadCallback = Callable[[], None] | Callable[[], Awaitable[None]]
+
+# Entity types, which inherit attributes (from the parent folders and the project)
+INHERITING_ENTITY_TYPES = frozenset({"folder", "task"})
 
 
 def _fingerprint(rows: list[dict[str, Any]]) -> str:
@@ -53,8 +57,11 @@ class AttributeLibrary:
 
         self._fingerprint: str | None = None
         self._inheritable: frozenset[str] = frozenset()
+        self._project_defaults: dict[str, Any] = {}
+        self._inherited_defaults: dict[str, Any] = {}
         self._by_name: dict[str, dict[str, Any]] = {}
-        self._by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
+        # {entity type: {attribute name: definition}}
+        self._scoped: dict[str, dict[str, dict[str, Any]]] = {}
         self._reload_callbacks: list[ReloadCallback] = []
         self._reload_lock: asyncio.Lock | None = None
 
@@ -79,7 +86,7 @@ class AttributeLibrary:
 
     def is_valid(self, entity_type: str, attribute: str) -> bool:
         """Check if attribute is valid for entity type."""
-        return (entity_type, attribute) in self._by_name_scoped
+        return attribute in self._scoped.get(entity_type, {})
 
     async def _fetch(self) -> list[dict[str, Any]]:
         query = "SELECT * FROM public.attributes ORDER BY position"
@@ -141,7 +148,7 @@ class AttributeLibrary:
         data: collections.defaultdict[str, Any] = collections.defaultdict(list)
         inheritable: set[str] = set()
         by_name: dict[str, dict[str, Any]] = {}
-        by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
+        scoped: dict[str, dict[str, dict[str, Any]]] = {}
 
         for row in rows:
             for scope in row["scope"]:
@@ -154,17 +161,30 @@ class AttributeLibrary:
                 data[scope].append(attrd)
 
         for entity_type, attributes in data.items():
+            scoped[entity_type] = {}
             for attr in attributes:
                 if attr.get("inherit", True):
                     inheritable.add(attr["name"])
                 by_name.setdefault(attr["name"], attr)
-                by_name_scoped[(entity_type, attr["name"])] = attr
+                scoped[entity_type][attr["name"]] = attr
+
+        project_defaults = {
+            attr["name"]: attr["default"]
+            for attr in data.get("project", [])
+            if attr.get("default") is not None
+        }
 
         self.data = data
         self.info_data = rows
         self._inheritable = frozenset(inheritable)
+        self._project_defaults = project_defaults
+        self._inherited_defaults = {
+            name: value
+            for name, value in project_defaults.items()
+            if name in inheritable
+        }
         self._by_name = by_name
-        self._by_name_scoped = by_name_scoped
+        self._scoped = scoped
         self._fingerprint = fingerprint or _fingerprint(rows)
         self.revision += 1
 
@@ -181,13 +201,13 @@ class AttributeLibrary:
         """
         self._reload_callbacks.append(callback)
 
-    async def reload(self, force: bool = False) -> bool:
+    async def reload(self) -> set[str]:
         """Reload the attributes from the database.
 
-        Returns True if the attributes changed (and were reloaded).
-        Unless `force` is set, nothing happens when the attributes
-        are the same as the loaded ones - so it is cheap to call this
-        repeatedly (e.g. once locally and once from the event handler).
+        Returns names of the attributes, whose definitions changed
+        (in any scope). Nothing happens when the attributes are the same
+        as the loaded ones - so it is cheap to call this repeatedly
+        (e.g. once locally and once from the event handler).
         """
         if self._reload_lock is None:
             self._reload_lock = asyncio.Lock()
@@ -195,10 +215,17 @@ class AttributeLibrary:
         async with self._reload_lock:
             rows = await self._fetch()
             fingerprint = _fingerprint(rows)
-            if fingerprint == self._fingerprint and not force:
-                return False
+            if fingerprint == self._fingerprint:
+                return set()
 
+            before = self._scoped
             self._apply(rows, fingerprint)
+            changed = {
+                name
+                for entity_type in before.keys() | self._scoped.keys()
+                for name, attr in self._scoped.get(entity_type, {}).items()
+                if before.get(entity_type, {}).get(name) != attr
+            }
             logger.info(f"Attribute library reloaded (revision {self.revision})")
 
             for callback in self._reload_callbacks:
@@ -208,7 +235,7 @@ class AttributeLibrary:
                         await result
                 except Exception:
                     log_traceback(f"Attribute reload callback {callback} failed")
-        return True
+        return changed
 
     #
     # Accessors
@@ -219,16 +246,8 @@ class AttributeLibrary:
 
     @property
     def project_defaults(self) -> dict[str, Any]:
-        project_attribs = self.data.get("project", [])
-        defaults = {}
-        for attr in project_attribs:
-            if "default" in attr:
-                defaults[attr["name"]] = attr["default"]
-        return defaults
-
-    def inheritable_attributes(self) -> list[str]:
-        """Names of the inheritable attributes (see `inheritable`)."""
-        return list(self._inheritable)
+        """Default values of the project attributes (a copy)."""
+        return dict(self._project_defaults)
 
     @property
     def inheritable(self) -> frozenset[str]:
@@ -245,7 +264,7 @@ class AttributeLibrary:
     def by_name_scoped(self, entity_type: str, name: str) -> dict[str, Any]:
         """Return attribute definition by name for a specific entity type."""
         try:
-            return self._by_name_scoped[(entity_type, name)]
+            return self._scoped[entity_type][name]
         except KeyError:
             raise KeyError(
                 f"Attribute {name} not found for entity type {entity_type}"
@@ -253,3 +272,80 @@ class AttributeLibrary:
 
 
 attribute_library = AttributeLibrary()
+
+
+@dataclass
+class ResolvedAttrib:
+    #: Attribute values of the entity (own values over the inherited ones)
+    values: dict[str, Any]
+    #: Names of the attributes set on the entity itself
+    own: list[str]
+    #: Values inherited from the parents, the project and the defaults
+    #: (also for the attributes set on the entity itself)
+    inherited: dict[str, Any]
+
+
+def resolve_attrib(
+    entity_type: str,
+    own: dict[str, Any] | None,
+    *,
+    inherited: dict[str, Any] | None = None,
+    project: dict[str, Any] | None = None,
+) -> ResolvedAttrib:
+    """Resolve the attribute values of an entity from the stored values.
+
+    Used by both REST (entities) and GraphQL, so they return the same values.
+
+    Folders and tasks inherit attributes. Each inheritable attribute
+    has the first value set in the following order:
+
+    1. own value of the entity
+    2. value inherited from the parent folders (`inherited`,
+       the exported attributes of the parent)
+    3. project value (`project`)
+    4. default value of the project attribute
+
+    Projects have their own values and the defaults. Other entity types
+    have only their own values (only project attributes have defaults).
+
+    Stored values are not validated (they were, when they were written).
+    None values and attributes without a definition are ignored.
+    """
+    lib = attribute_library
+    defined = lib._scoped.get(entity_type)
+    if defined is None:  # unknown entity type
+        own_values = {k: v for k, v in (own or {}).items() if v is not None}
+        return ResolvedAttrib(values=own_values, own=list(own_values), inherited={})
+
+    own_values = {
+        name: value
+        for name, value in (own or {}).items()
+        if value is not None and name in defined
+    }
+
+    if entity_type not in INHERITING_ENTITY_TYPES:
+        defaults = lib._project_defaults if entity_type == "project" else {}
+        return ResolvedAttrib(
+            values={**defaults, **own_values},
+            own=list(own_values),
+            inherited={},
+        )
+
+    inherited_values: dict[str, Any] = {}
+    for layer in (lib._inherited_defaults, project, inherited):
+        if layer:
+            inherited_values.update(
+                {
+                    name: value
+                    for name, value in layer.items()
+                    if value is not None
+                    and name in lib._inheritable
+                    and name in defined
+                }
+            )
+
+    return ResolvedAttrib(
+        values={**inherited_values, **own_values},
+        own=list(own_values),
+        inherited=inherited_values,
+    )

@@ -4,8 +4,8 @@ from typing import Annotated, Any, Optional
 import strawberry
 from strawberry.scalars import JSON
 
-from ayon_server.attributes.values import ResolvedAttrib, resolve_attrib
 from ayon_server.entities import UserEntity
+from ayon_server.entities.core.attrib import ResolvedAttrib, resolve_attrib
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
@@ -177,26 +177,22 @@ class AttribFields:
 
     The values are resolved the same way as in REST (see resolve_attrib)
     and filtered by the permissions of the user. Subclasses provide
-    `_attrib` (stored own values), `_user` and `attrib_entity_type()`.
-    Folders and tasks also provide `_inherited_attrib` / `_project_attrib`.
+    `entity_type`, `_attrib` (stored own values) and `_user`, project
+    nodes also `project_name`. Folders and tasks also provide
+    `_inherited_attrib` / `_project_attrib`.
     """
 
+    entity_type: strawberry.Private[str] = "unknown"
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
     _resolved_attrib: strawberry.Private[ResolvedAttrib | None] = None
     _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
 
-    def attrib_entity_type(self) -> str:
-        raise NotImplementedError
-
-    def attrib_project_name(self) -> str | None:
-        return None
-
     def resolved_attrib(self) -> ResolvedAttrib:
         """Attribute values resolved the same way as in REST (resolve_attrib)"""
         if self._resolved_attrib is None:
             self._resolved_attrib = resolve_attrib(
-                self.attrib_entity_type(),
+                self.entity_type,
                 self._attrib,
                 inherited=getattr(self, "_inherited_attrib", None),
                 project=getattr(self, "_project_attrib", None),
@@ -207,11 +203,9 @@ class AttribFields:
         """Resolved attribute values the user can read."""
         if self._processed_attrib is None:
             self._processed_attrib = process_attrib_data(
-                self.attrib_entity_type(),
-                self._attrib,
+                self.resolved_attrib().values,
                 user=self._user,
-                project_name=self.attrib_project_name(),
-                resolved=self.resolved_attrib(),
+                project_name=getattr(self, "project_name", None),
             )
         return self._processed_attrib
 
@@ -223,7 +217,7 @@ class AttribFields:
     ) -> JSON:
         return JSON(
             attrib_to_json(
-                self.attrib_entity_type(),
+                self.entity_type,
                 self.processed_attrib(),
                 names=names,
                 legacy_selection=legacy_selection,
@@ -237,7 +231,6 @@ class AttribFields:
 
 @strawberry.interface
 class BaseNode(AttribFields):
-    entity_type: strawberry.Private[str] = "unknown"
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
@@ -249,12 +242,6 @@ class BaseNode(AttribFields):
     updated_by: str | None = strawberry.field(default=None)
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
-
-    def attrib_entity_type(self) -> str:
-        return self.entity_type
-
-    def attrib_project_name(self) -> str | None:
-        return self.project_name
 
     @strawberry.field
     async def links(

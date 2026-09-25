@@ -193,3 +193,11 @@ def test_marker_helpers(registry, models):
     assert copy.deepcopy(marker) is marker
     assert get_field_annotation(field) is registry.model
     assert strip_optional(marker.annotation) is registry.model
+
+
+def test_validate_does_not_modify_the_source_model(models):
+    ThingModel, _ = models
+    source_model = make_attrib_model(fps=float, removed=str)
+    source = source_model(fps=25, removed="x")
+    ThingModel(name="a", attrib=source)
+    assert source.model_fields_set == {"fps", "removed"}

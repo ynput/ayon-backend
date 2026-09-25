@@ -4,6 +4,7 @@ from typing import Annotated, Any
 import strawberry
 
 from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
@@ -54,16 +55,26 @@ class EntityListItemEdge(BaseEdge):
         if (entity := self._entity) is None:
             return "{}"
 
+        list_attributes = info.context.get("list_attributes") or {}
+        # Attributes of the list item override the entity's own ones.
+        # List attributes (list_attributes) are not entity attributes.
+        own = {**(getattr(entity, "_attrib", None) or {}), **(self._attrib or {})}
+        resolved = resolve_attrib(
+            self.entity_type,
+            {k: v for k, v in own.items() if k not in list_attributes},
+            inherited=getattr(entity, "_inherited_attrib", None),
+            project=getattr(entity, "_project_attrib", None),
+        )
+        values = {
+            **resolved.values,
+            **{k: v for k, v in own.items() if k in list_attributes},
+        }
         return json_dumps(
             process_attrib_data(
-                self.entity_type,
-                # Attributes of the list item override the entity's own ones
-                {**(getattr(entity, "_attrib", None) or {}), **(self._attrib or {})},
+                values,
                 user=self._user,
                 project_name=self.project_name,
-                inherited_attrib=getattr(entity, "_inherited_attrib", None),
-                project_attrib=getattr(entity, "_project_attrib", None),
-                list_attribute_config=info.context.get("list_attributes"),
+                list_attribute_config=list_attributes,
             )
         )
 

@@ -130,6 +130,7 @@ class ProjectBundleType:
 
 @strawberry.type
 class ProjectNode(AttribFields):
+    entity_type: strawberry.Private[str] = "project"
     name: str = strawberry.field()
     label: str | None
     project_name: str = strawberry.field()
@@ -145,12 +146,6 @@ class ProjectNode(AttribFields):
     bundle: ProjectBundleType
     created_at: datetime
     updated_at: datetime
-
-    def attrib_entity_type(self) -> str:
-        return "project"
-
-    def attrib_project_name(self) -> str | None:
-        return self.project_name
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,

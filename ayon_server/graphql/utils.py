@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from ayon_server.attributes.values import ResolvedAttrib, resolve_attrib
 from ayon_server.entities.user import UserEntity
 
 ATTRIB_WHITELIST = [
@@ -11,22 +10,17 @@ ATTRIB_WHITELIST = [
 
 
 def process_attrib_data(
-    entity_type: str,
-    own_attrib: dict[str, Any],
+    data: dict[str, Any],
     *,
     user: UserEntity,
     project_name: str | None = None,
-    inherited_attrib: dict[str, Any] | None = None,
-    project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
-    resolved: ResolvedAttrib | None = None,
 ) -> dict[str, Any]:
-    """Return the attribute values of an entity the user can read.
+    """Return the attribute values the user can read.
 
-    The values are resolved from the own, inherited and project values
-    by `resolve_attrib` (the same way as in REST), unless `resolved`
-    values are provided. List item attributes (`list_attribute_config`)
-    are not entity attributes and are used as they are.
+    `data` are the resolved attribute values (see resolve_attrib), and
+    for entity list items also the list item attributes
+    (`list_attribute_config`), whose datetime values are converted.
     """
     attr_limit: list[str] | Literal["all"] = []
 
@@ -55,19 +49,6 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    list_keys = set(list_attribute_config or {})
-    if resolved is None:
-        resolved = resolve_attrib(
-            entity_type,
-            {k: v for k, v in (own_attrib or {}).items() if k not in list_keys},
-            inherited=inherited_attrib,
-            project=project_attrib,
-        )
-    data = {
-        **resolved.values,
-        **{k: v for k, v in (own_attrib or {}).items() if k in list_keys},
-    }
-
     if not data:
         return {}
 
@@ -78,9 +59,8 @@ def process_attrib_data(
         # Datetime list item attributes are converted
         # (entity attributes are returned as they are stored)
         if (
-            key in list_keys
-            and list_attribute_config
-            and list_attribute_config[key] == "datetime"
+            list_attribute_config
+            and list_attribute_config.get(key) == "datetime"
             and isinstance(value, str)
         ):
             try:
