@@ -10,7 +10,13 @@ from pydantic import (
     model_validator,
 )
 
+from ayon_server.models.field_info import V1ModelField, v1_model_fields
 from ayon_server.models.metaclass import AyonModelMetaclass, coerce_v1_input
+
+
+class _V1FieldsDescriptor:
+    def __get__(self, obj: Any, owner: type[BaseModel]) -> dict[str, V1ModelField]:
+        return v1_model_fields(owner)
 
 
 class AyonBaseModel(BaseModel, metaclass=AyonModelMetaclass):
@@ -20,6 +26,10 @@ class AyonBaseModel(BaseModel, metaclass=AyonModelMetaclass):
     defined by addons written for Pydantic 1
     (see AyonModelMetaclass and coerce_v1_input).
     """
+
+    # Pydantic 1 style fields of model instances (deprecated, used by addons).
+    # Class access (`Model.__fields__`) is handled by the metaclass.
+    __fields__ = _V1FieldsDescriptor()  # type: ignore[assignment]
 
     model_config = ConfigDict(
         validate_by_name=True,

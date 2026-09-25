@@ -15,21 +15,11 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from ayon_server.logging import logger
 from ayon_server.models.base_model import AyonBaseModel
-from ayon_server.models.field_info import V1ModelField, get_inner_type, strip_optional
+from ayon_server.models.field_info import get_inner_type, strip_optional
 from ayon_server.models.metaclass import coerce_v1_input
 from ayon_server.settings.json_schema import REF_TEMPLATE, SettingsJsonSchemaGenerator
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
-
-
-class _V1FieldsDescriptor:
-    """Pydantic 1 style `__fields__` (used by addons)"""
-
-    def __get__(self, obj: Any, owner: type[BaseModel]) -> dict[str, V1ModelField]:
-        return {
-            name: V1ModelField(name, field_info)
-            for name, field_info in owner.model_fields.items()
-        }
 
 
 class BaseSettingsModel(AyonBaseModel):
@@ -40,9 +30,6 @@ class BaseSettingsModel(AyonBaseModel):
     _has_studio_overrides: bool | None = None
     _has_project_overrides: bool | None = None
     _has_site_overrides: bool | None = None
-
-    # Deprecated. Use model_fields
-    __fields__ = _V1FieldsDescriptor()  # type: ignore[assignment]
 
     @classmethod
     def model_json_schema(
@@ -85,13 +72,6 @@ class BaseSettingsModel(AyonBaseModel):
     ) -> dict[str, Any]:
         """Backwards compatible alias for model_json_schema."""
         return cls.model_json_schema(by_alias=by_alias, ref_template=ref_template)
-
-
-def unwrap_annotated(tp) -> tuple[Any, list[Any] | None]:
-    if get_origin(tp) is Annotated:
-        actual_type, *metadata = get_args(tp)
-        return actual_type, metadata
-    return tp, None
 
 
 @functools.cache

@@ -1,50 +1,24 @@
-import traceback
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Unpack
 
 from pydantic import Field
 from pydantic_core import PydanticUndefined
 
 from ayon_server.deprecations import AyonDeprecationWarning
 from ayon_server.logging import logger
-from ayon_server.models.field_info import FieldExtra, translate_field_kwargs
-
-"""
-Unused pydantic fields
-    exclude: Optional[Union['AbstractSetIntStr', 'MappingIntStrAny', Any]] = None,
-    include: Optional[Union['AbstractSetIntStr', 'MappingIntStrAny', Any]] = None,
-    const: Optional[bool] = None,
-"""
+from ayon_server.models.field_info import (
+    FieldExtra,
+    FieldKwargs,
+    known_field_kwargs,
+    translate_field_kwargs,
+)
 
 
 def SettingsField(
     default: Any = PydanticUndefined,
     *,
-    default_factory: Callable[[], Any] | None = None,
-    alias: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    gt: float | None = None,
-    ge: float | None = None,
-    lt: float | None = None,
-    le: float | None = None,
-    multiple_of: float | None = None,
-    allow_inf_nan: bool | None = None,
-    max_digits: int | None = None,
-    decimal_places: int | None = None,
-    min_items: int | None = None,
-    max_items: int | None = None,
-    unique_items: bool | None = None,
-    min_length: int | None = None,
-    max_length: int | None = None,
-    allow_mutation: bool = True,
-    regex: str | None = None,
-    pattern: str | None = None,
-    discriminator: str | None = None,
-    repr: bool = True,
     # AYON settings specifics
-    example: Any = None,
     enum_resolver: Callable[..., Any] | str | None = None,
     enum_resolver_settings: dict[str, Any] | None = None,
     required_items: list[str] | None = None,
@@ -59,9 +33,8 @@ def SettingsField(
     disabled: bool = False,
     # compatibility
     conditionalEnum: bool = False,  # backward compatibility
-    examples: list[Any] | None = None,
-    # everything else
-    **kwargs: Any,
+    # standard field arguments
+    **kwargs: Unpack[FieldKwargs],
 ) -> Any:
     """Define a field of a settings model.
 
@@ -85,41 +58,8 @@ def SettingsField(
             stacklevel=2,
         )
 
-    if kwargs:
-        stack = traceback.extract_stack()[-2]
-        logger.debug(
-            f"Unsupported argument: {', '.join(kwargs.keys())} "
-            f"at {stack.filename}:{stack.lineno}"
-        )
-
     field_kwargs, extra = translate_field_kwargs(
-        default,
-        {
-            "default_factory": default_factory,
-            "alias": alias,
-            "title": title,
-            "description": description,
-            "gt": gt,
-            "ge": ge,
-            "lt": lt,
-            "le": le,
-            "multiple_of": multiple_of,
-            "allow_inf_nan": allow_inf_nan,
-            "max_digits": max_digits,
-            "decimal_places": decimal_places,
-            "min_items": min_items,
-            "max_items": max_items,
-            "unique_items": unique_items,
-            "min_length": min_length,
-            "max_length": max_length,
-            "allow_mutation": allow_mutation,
-            "regex": regex,
-            "pattern": pattern,
-            "discriminator": discriminator,
-            "repr": repr,
-            "example": example,
-            "examples": examples,
-        },
+        default, known_field_kwargs("SettingsField", dict(kwargs))
     )
 
     # AYON specific extras
