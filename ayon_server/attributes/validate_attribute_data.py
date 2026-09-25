@@ -1,4 +1,5 @@
 from pydantic import Field, create_model
+from pydantic_core import SchemaError
 
 from ayon_server.attributes.models import AttributeData
 from ayon_server.entities.models.generator import FIELD_TYPES
@@ -27,29 +28,33 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
         raise BadRequestException(f"Attribute name '{name}' is not a valid identifier.")
 
     field = {}
-    for k in (
-        "gt",
-        "ge",
-        "lt",
-        "le",
-        "min_length",
-        "max_length",
-        "regex",
-        "pattern",
-        "min_items",
-        "max_items",
-    ):
+    for k in ("gt", "ge", "lt", "le", "min_length", "max_length"):
         if getattr(fdef, k):
-            if k == "regex":
-                field["pattern"] = getattr(fdef, k)
-                continue
-
             field[k] = getattr(fdef, k)
+
+    # Pydantic 2 names of the Pydantic 1 validators
+    if fdef.regex:
+        field["pattern"] = fdef.regex
+    if fdef.min_items:
+        field["min_length"] = fdef.min_items
+    if fdef.max_items:
+        field["max_length"] = fdef.max_items
 
     ftype = FIELD_TYPES[fdef.type]
 
     try:
         _ = create_model("test", test=(ftype, Field(**field)))
+    except SchemaError as e:
+        if "pattern" not in field:
+            log_traceback(f"Unable to construct attribute '{name}'")
+            raise BadRequestException(
+                f"Unable to construct attribute '{name}'. "
+                "Check the logs for more details."
+            ) from e
+        raise BadRequestException(
+            f"Regex of attribute '{name}' is not supported. "
+            "Look-around and backreferences cannot be used."
+        ) from e
     except ValueError as e:
         log_traceback(f"Unable to construct attribute '{name}'")
         raise BadRequestException(
