@@ -21,7 +21,7 @@ from .router import router
 
 @router.get("/config/schema")
 async def get_server_config_schema(_: CurrentUserOptional) -> dict[str, Any]:
-    schema = ServerConfigModel.schema()
+    schema = ServerConfigModel.model_json_schema()
     await postprocess_settings_schema(schema, ServerConfigModel)
     schema["title"] = "Server Configuration"
     return schema

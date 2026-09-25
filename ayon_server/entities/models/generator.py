@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PydanticUserError, create_model
+from pydantic_core import SchemaError
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.logging import log_traceback, logger
@@ -105,6 +106,42 @@ class FieldDefinition(BaseModel):
     max_items: int | None = Field(None, title="Maximum items")
     regex: str | None = Field(None, title="Field regex")
     enum: list[EnumItem] | None = Field(None, title="Enum values")
+
+
+def _test_field(
+    fdef: FieldDefinition,
+    ftype: Any,
+    field: dict[str, Any],
+    config: ConfigDict | None,
+) -> None:
+    """Ensure a model with the given field can be constructed.
+
+    The real field name is used, as some names are reserved by pydantic.
+
+    Pydantic 2 uses the Rust regex engine, which does not support
+    look-around and backreferences, but attributes created before
+    Pydantic 2 may use them. Such regex is removed from the field
+    (the attribute is kept, but its values are not validated by the regex).
+    """
+
+    def build() -> None:
+        create_model(
+            "test",
+            __config__=config,
+            **{fdef.name: (ftype, Field(**field))},  # type: ignore
+        )
+
+    try:
+        build()
+    except SchemaError:
+        if "pattern" not in field:
+            raise
+        logger.warning(
+            f"Regex of attribute '{fdef.name}' is not supported "
+            f"and it won't be validated: {fdef.regex}"
+        )
+        field.pop("pattern")
+        build()
 
 
 def generate_model(
@@ -210,12 +247,8 @@ def generate_model(
         # ensure we can construct the model
         # (using the real field name, as some names are reserved by pydantic)
         try:
-            _ = create_model(
-                "test",
-                __config__=config,
-                **{fdef.name: (ftype, Field(**field))},  # type: ignore
-            )
-        except (ValueError, TypeError, PydanticUserError):
+            _test_field(fdef, ftype, field, config)
+        except (ValueError, TypeError, PydanticUserError, SchemaError):
             log_traceback(f"Unable to construct attribute '{fdef.name}'")
             continue
 

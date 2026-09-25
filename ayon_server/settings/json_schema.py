@@ -23,6 +23,8 @@ from pydantic import BaseModel
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 from pydantic_core import core_schema
 
+from ayon_server.models.base_model import AyonBaseModel
+
 REF_TEMPLATE = "#/definitions/{model}"
 
 
@@ -120,8 +122,9 @@ class SettingsJsonSchemaGenerator(GenerateJsonSchema):
         json_schema = super().model_schema(schema)
         if "description" not in json_schema:
             # Pydantic 1 inherited docstrings from parent models
+            # (but not from the AYON base models)
             for cls in schema["cls"].__mro__[1:]:
-                if cls is BaseModel:
+                if cls is BaseModel or cls is AyonBaseModel:
                     break
                 if doc := cls.__dict__.get("__doc__"):
                     json_schema["description"] = inspect.cleandoc(doc)

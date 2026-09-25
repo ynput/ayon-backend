@@ -62,6 +62,7 @@ class Status(BaseAuxModel):
         None,
         scope=[],
         example=None,
+        validate_default=True,  # see BaseAuxModel
     )  # Used for renaming, we don't show it in the UI
 
     @field_validator("scope")

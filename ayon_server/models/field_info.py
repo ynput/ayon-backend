@@ -1,12 +1,19 @@
 """Helpers for working with pydantic field definitions."""
 
+import traceback
 import types
-from collections.abc import Iterator, Mapping, Sequence
-from typing import Annotated, Any, Union, get_args, get_origin
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import Annotated, Any, TypedDict, Union, get_args, get_origin
 
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticSerializationError, to_jsonable_python
+from pydantic_core import (
+    PydanticSerializationError,
+    PydanticUndefined,
+    to_jsonable_python,
+)
 
+from ayon_server.logging import logger
 from ayon_server.models.attrib_values import get_attrib_values
 
 NoneType = type(None)
@@ -55,6 +62,98 @@ def get_field_extra(field: FieldInfo | None) -> dict[str, Any]:
     return {}
 
 
+class FieldKwargs(TypedDict, total=False):
+    """Field arguments shared by RestField and SettingsField.
+
+    Both the Pydantic 1 and the Pydantic 2 names are accepted
+    (see translate_field_kwargs).
+    """
+
+    default_factory: Callable[[], Any] | None
+    alias: str | None
+    title: str | None
+    description: str | None
+    gt: float | None
+    ge: float | None
+    lt: float | None
+    le: float | None
+    multiple_of: float | None
+    allow_inf_nan: bool | None
+    max_digits: int | None
+    decimal_places: int | None
+    min_items: int | None
+    max_items: int | None
+    unique_items: bool | None
+    min_length: int | None
+    max_length: int | None
+    allow_mutation: bool
+    regex: str | None
+    pattern: str | None
+    discriminator: str | None
+    repr: bool
+    validate_default: bool | None
+    example: Any
+    examples: list[Any] | None
+
+
+FIELD_KWARGS = frozenset(FieldKwargs.__annotations__)
+
+
+def known_field_kwargs(caller: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Return the known Field arguments. Unknown ones are logged and dropped.
+
+    (RestField and SettingsField ignored unknown arguments in Pydantic 1 too)
+    """
+    if unknown := [key for key in kwargs if key not in FIELD_KWARGS]:
+        stack = traceback.extract_stack()[-3]
+        logger.debug(
+            f"{caller}: unsupported argument: {', '.join(unknown)} "
+            f"at {stack.filename}:{stack.lineno}"
+        )
+    return {key: value for key, value in kwargs.items() if key in FIELD_KWARGS}
+
+
+def translate_field_kwargs(
+    default: Any,
+    kwargs: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Translate Pydantic 1 style Field arguments to Pydantic 2.
+
+    Shared by RestField, SettingsField and the Field of the addon
+    compatibility layer. Accepts both the Pydantic 1 (regex, min_items,
+    max_items, allow_mutation, unique_items, const, example) and the
+    Pydantic 2 (pattern, min_length...) arguments. Pydantic 2 arguments
+    take precedence. Arguments set to None are omitted.
+
+    Returns a tuple of the Field arguments and the extra attributes,
+    which are only exposed in the JSON schema (use as FieldExtra).
+    """
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    extra: dict[str, Any] = {}
+
+    if (regex := kwargs.pop("regex", None)) is not None:
+        kwargs.setdefault("pattern", regex)
+    if (min_items := kwargs.pop("min_items", None)) is not None:
+        kwargs.setdefault("min_length", min_items)
+    if (max_items := kwargs.pop("max_items", None)) is not None:
+        kwargs.setdefault("max_length", max_items)
+    if kwargs.pop("allow_mutation", True) is False:
+        kwargs.setdefault("frozen", True)
+
+    examples = list(kwargs.pop("examples", None) or [])
+    if (example := kwargs.pop("example", None)) is not None:
+        examples.append(example)
+    if examples:
+        kwargs["examples"] = examples
+
+    if kwargs.pop("unique_items", None):
+        extra["uniqueItems"] = True
+    if kwargs.pop("const", None) and default is not PydanticUndefined:
+        extra["const"] = default
+
+    return kwargs, extra
+
+
 class V1FieldInfo:
     """Pydantic 1 style view of a field definition.
 
@@ -77,7 +176,7 @@ class V1ModelField:
     """Pydantic 1 style view of a model field (ModelField).
 
     Used for backwards compatibility with addons accessing
-    `SettingsModel.__fields__`.
+    `Model.__fields__`.
     """
 
     def __init__(self, name: str, field_info: FieldInfo) -> None:
@@ -99,6 +198,13 @@ class V1ModelField:
 
     def __repr__(self) -> str:
         return f"ModelField(name={self.name!r}, type={self.outer_type_!r})"
+
+
+def v1_model_fields(model: type[BaseModel]) -> dict[str, V1ModelField]:
+    """Pydantic 1 style `__fields__` of a model"""
+    return {
+        name: V1ModelField(name, field) for name, field in model.model_fields.items()
+    }
 
 
 def is_optional_annotation(annotation: Any) -> bool:

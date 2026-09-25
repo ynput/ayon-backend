@@ -10,7 +10,12 @@ from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from ayon_server.models.field_info import is_optional_annotation, strip_optional
+from ayon_server.models.field_info import (
+    V1ModelField,
+    is_optional_annotation,
+    strip_optional,
+    v1_model_fields,
+)
 
 
 def _resolve_annotation(annotation: Any, namespace: dict[str, Any]) -> Any:
@@ -115,6 +120,11 @@ class AyonModelMetaclass(ModelMetaclass):
                 namespace[field_name] = _with_default(value, None)
         return super().__new__(mcs, name, bases, namespace, **kwargs)
 
+    @property
+    def __fields__(cls) -> dict[str, V1ModelField]:  # type: ignore[override]
+        """Pydantic 1 style fields (deprecated, used by addons)"""
+        return v1_model_fields(cls)  # type: ignore[arg-type]
+
 
 def _with_default(field_info: FieldInfo, default: Any) -> FieldInfo:
     result = copy.copy(field_info)
@@ -169,7 +179,7 @@ def coerce_v1_input(model: type[BaseModel], data: Any) -> Any:
     - floats are accepted by integer fields (truncated)
     - models are accepted by dict fields (converted to dicts)
 
-    Used as a `mode="before"` model validator.
+    Used by AyonBaseModel when the validation of the original data fails.
     """
     if not isinstance(data, dict):
         return data

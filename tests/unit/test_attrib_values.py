@@ -81,7 +81,12 @@ def test_attrib_dict_fields_set():
 
 @pytest.mark.parametrize(
     "func",
-    [copy.copy, copy.deepcopy, lambda a: a.copy(), lambda a: pickle.loads(pickle.dumps(a))],
+    [
+        copy.copy,
+        copy.deepcopy,
+        lambda a: a.copy(),
+        lambda a: pickle.loads(pickle.dumps(a)),
+    ],
 )
 def test_attrib_dict_copy_keeps_fields_set(func):
     attrib = AttribDict({"fps": 25, "resolutionWidth": None}, fields_set={"fps"})

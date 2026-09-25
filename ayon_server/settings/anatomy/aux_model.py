@@ -19,7 +19,14 @@ from ayon_server.settings.settings_field import SettingsField
 class BaseAuxModel(BaseSettingsModel):
     _layout = "compact"
     name: str = SettingsField(..., title="Name", min_length=1, max_length=100)
-    original_name: str | None = SettingsField(None, title="Original name", scope=[])
+    # Used for renaming. Defaults to the name (validate_default), so clients
+    # sending the anatomy back keep the original name of each item.
+    original_name: str | None = SettingsField(
+        None,
+        title="Original name",
+        scope=[],
+        validate_default=True,
+    )
 
     def __hash__(self):
         return hash(self.name)
@@ -28,5 +35,6 @@ class BaseAuxModel(BaseSettingsModel):
     @classmethod
     def validate_original_name(cls, v, info: ValidationInfo):
         if v is None:
-            return info.data["name"]
+            # name is missing when it failed validation
+            return info.data.get("name")
         return v

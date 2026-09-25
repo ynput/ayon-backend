@@ -32,7 +32,7 @@ async def get_addon_site_settings_schema(
         logger.error(f"No site settings schema for addon {addon_name}")
         return {}
 
-    schema = copy.deepcopy(model.schema())
+    schema = copy.deepcopy(model.model_json_schema())
     context = {
         "addon": addon,
         "user_name": user.name,

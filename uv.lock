@@ -185,7 +185,7 @@ wheels = [
 
 [[package]]
 name = "ayon-server"
-version = "1.16.7"
+version = "1.17.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "aiocache" },
@@ -252,7 +252,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=6.2.2" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
-    { name = "fastapi", specifier = "==0.141.1" },
+    { name = "fastapi", specifier = ">=0.141.1" },
     { name = "geoip2", specifier = ">=5.2.0" },
     { name = "granian", specifier = ">=2.3.2" },
     { name = "gunicorn", specifier = ">=25.1.0" },

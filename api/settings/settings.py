@@ -107,7 +107,7 @@ async def _get_all_settings(
                         title=addon_name,
                         version=addon_version,
                         settings={},
-                        site_settings=None,
+                        site_settings={},
                         is_broken=bool(broken_reason),
                         reason=broken_reason,
                     )
@@ -197,7 +197,7 @@ async def _get_all_settings(
                         title=addon_name,
                         version=addon_version,
                         settings={},
-                        site_settings=None,
+                        site_settings={},
                         is_broken=True,
                         reason={
                             "error": "Unable to load settings",
@@ -234,7 +234,8 @@ async def _get_all_settings(
                     settings=settings.model_dump()
                     if (settings and not summary)
                     else {},
-                    site_settings=site_settings,
+                    # Clients expect a dict, even without site settings
+                    site_settings=site_settings or {},
                     is_project_bundle=addon_list["is_project_bundle"]
                     and (addon_name not in addon_list.get("inherited_addons", [])),
                 )

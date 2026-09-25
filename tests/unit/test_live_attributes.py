@@ -39,7 +39,7 @@ from ayon_server.graphql.utils import attrib_to_json
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.settings.anatomy import Anatomy, get_project_attrib_model
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "api"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "api"))
 
 
 def attribute(name: str, scope: list[str], position: int, **data: Any):
@@ -84,7 +84,9 @@ def load_attributes(rows: list[dict[str, Any]]) -> bool:
 def base_attributes():
     load_attributes(BASE_ATTRIBUTES)
     yield
-    load_attributes(BASE_ATTRIBUTES)
+    # Restore the attributes the other tests use (see conftest.py)
+    del attribute_library._fetch
+    asyncio.run(attribute_library.reload())
 
 
 def with_live_attribute() -> list[dict[str, Any]]:
@@ -267,9 +269,10 @@ def test_attribute_with_reserved_name_is_skipped(name):
 
 
 def test_anatomy_follows_reload():
-    assert "liveTest" not in Anatomy.schema()["definitions"]["ProjectAttribModel"][
-        "properties"
-    ]
+    assert (
+        "liveTest"
+        not in Anatomy.schema()["definitions"]["ProjectAttribModel"]["properties"]
+    )
     settings_model = get_project_attrib_model()
 
     load_attributes(with_live_attribute())
