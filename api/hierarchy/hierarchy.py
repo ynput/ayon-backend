@@ -10,8 +10,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
 
-from .solver import HierarchyResolver
-
 router = APIRouter(tags=["Folders"])
 
 
@@ -72,8 +70,6 @@ async def get_folder_hierarchy(
 
     type_list = [t.strip() for t in types.split(",") if t.strip()]
 
-    hierarchy = HierarchyResolver()
-
     conds = [
         f"NOT starts_with(path, '{AYON_INTERNAL_FOLDER_NAME}')",
     ]
@@ -89,7 +85,6 @@ async def get_folder_hierarchy(
     # TODO: eventually solve products too. ATM it clashes with the
     # task names list (group by hell), which is more important.
 
-    plain_result = []
     query = f"""
         SELECT
             folders.id,
@@ -120,35 +115,41 @@ async def get_folder_hierarchy(
         GROUP BY folders.id, hierarchy.path
         ORDER BY folders.name ASC
     """
+
+    # Values from the database are already valid,
+    # so the models are constructed without validation
+    folders: dict[str, HierarchyFolderModel] = {}
     async for row in Postgres.iterate(query):
-        d = {
-            "id": row["id"],
-            "parentId": row["parent_id"],
-            "name": row["name"],
-            "label": row["label"] or row["name"],
-            "status": row["status"],
-            "folderType": row["folder_type"],
-            "parents": row["path"].split("/")[:-1],
-            "hasTasks": bool(row["task_count"]),
-            "taskNames": row["task_names"] if row["task_count"] else [],
-        }
-        if types:
-            plain_result.append(d)
-        else:
-            hierarchy.append(d)
+        folders[row["id"]] = HierarchyFolderModel.model_construct(
+            id=row["id"],
+            parentId=row["parent_id"],
+            name=row["name"],
+            label=row["label"] or row["name"],
+            status=row["status"],
+            folderType=row["folder_type"],
+            parents=row["path"].split("/")[:-1],
+            hasTasks=bool(row["task_count"]),
+            taskNames=row["task_names"] if row["task_count"] else [],
+            children=[],
+        )
 
     if type_list:
-        hresult = plain_result
+        # Flat list of the matching folders
+        result = list(folders.values())
     else:
-        hierarchy.commit()
-        hresult = hierarchy()
+        # Folders are sorted by name, so the children are sorted too.
+        # Folders with a parent excluded by access control are omitted
+        # (they would not be reachable in the tree).
+        result = []
+        for folder in folders.values():
+            if folder.parentId is None:
+                result.append(folder)
+            elif parent := folders.get(folder.parentId):
+                parent.children.append(folder)
 
-    res = HierarchyResponseModel.model_construct(
-        detail="Working",
-        projectName=project_name,
-        hierarchy=hresult,  # type: ignore
-    )
     elapsed = round(time.time() - start_time, 4)
-    detail = f"Hierarchy loaded in {elapsed}s"
-    res.detail = detail
-    return res
+    return HierarchyResponseModel(
+        detail=f"Hierarchy loaded in {elapsed}s",
+        projectName=project_name,
+        hierarchy=result,
+    )
