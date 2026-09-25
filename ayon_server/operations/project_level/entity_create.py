@@ -3,6 +3,10 @@ from typing import Any
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
+    invalidate_version_parents_thumbnails,
+    thumbnail_updated_event,
+)
 
 from .hooks import OperationHooks
 from .models import OperationModel
@@ -73,4 +77,12 @@ async def create_project_level_entity(
         }
     ]
     await entity.save(auto_commit=False, user_name=user.name if user else None)
+
+    if entity.entity_type == "version" and entity.thumbnail_id:
+        # Folders and tasks may inherit the version thumbnail
+        for affected in await invalidate_version_parents_thumbnails(
+            project_name, [entity.id]
+        ):
+            events.append(thumbnail_updated_event(project_name, affected))
+
     return entity.id, events, 201

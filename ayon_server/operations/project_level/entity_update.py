@@ -6,6 +6,10 @@ from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
+    invalidate_version_parents_thumbnails,
+    thumbnail_updated_event,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -164,6 +168,12 @@ async def update_project_level_entity(
     # pre_save method of the entity, that expects the payload to be
     # updated (that covers various entity-specific logic, validtion, etc.).
 
+    version_thumbnail_changed = (
+        entity.entity_type == "version"
+        and "thumbnail_id" in update_payload_dict
+        and update_payload_dict["thumbnail_id"] != entity.thumbnail_id
+    )
+
     entity.patch(payload, user=user)
 
     if "thumbnail_id" in update_payload_dict:
@@ -202,5 +212,14 @@ async def update_project_level_entity(
 
     await entity.pre_save(False)
     await Postgres.execute(query, *params)
+
+    if version_thumbnail_changed:
+        # Folders and tasks may inherit the version thumbnail,
+        # so their thumbnails need to be invalidated as well.
+        # Events are returned, so they are dispatched after the commit.
+        for affected in await invalidate_version_parents_thumbnails(
+            project_name, [entity.id]
+        ):
+            events.append(thumbnail_updated_event(project_name, affected))
 
     return entity.id, events, 204
