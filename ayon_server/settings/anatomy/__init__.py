@@ -12,7 +12,7 @@ __all__ = [
 
 from typing import Any, cast
 
-from pydantic import BaseModel, ValidationInfo, create_model, field_validator
+from pydantic import ValidationInfo, create_model, field_validator
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core.attrib import attribute_library
@@ -31,7 +31,9 @@ from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, ensure_unique_property
 
-_project_attrib_model: tuple[type[BaseModel], type[BaseSettingsModel]] | None = None
+# The settings model of the project attributes and the attribute library
+# revision it was created for (see AttributeLibrary)
+_project_attrib_model: tuple[int, type[BaseSettingsModel]] | None = None
 
 
 def get_project_attrib_model() -> type[BaseSettingsModel]:
@@ -41,17 +43,17 @@ def get_project_attrib_model() -> type[BaseSettingsModel]:
     when the attributes are modified, so it is created on demand.
     """
     global _project_attrib_model
-    attrib_model = ProjectEntity.model.attrib_model
-    if _project_attrib_model is None or _project_attrib_model[0] is not attrib_model:
+    revision = attribute_library.revision
+    if _project_attrib_model is None or _project_attrib_model[0] != revision:
         settings_model = cast(
             type[BaseSettingsModel],
             create_model(
                 "ProjectAttribModel",
-                __base__=(attrib_model, BaseSettingsModel),
+                __base__=(ProjectEntity.model.attrib_model, BaseSettingsModel),
                 __module__=__name__,
             ),
         )
-        _project_attrib_model = (attrib_model, settings_model)
+        _project_attrib_model = (revision, settings_model)
     return _project_attrib_model[1]
 
 

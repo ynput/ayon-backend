@@ -13,6 +13,10 @@ from ayon_server.utils import json_dumps
 ReloadCallback = Callable[[], None] | Callable[[], Awaitable[None]]
 
 
+def _fingerprint(rows: list[dict[str, Any]]) -> str:
+    return hashlib.sha256(json_dumps(rows).encode()).hexdigest()
+
+
 class AttributeLibrary:
     """Dynamic attributes loader class.
 
@@ -27,10 +31,14 @@ class AttributeLibrary:
     using __getitem__ method.
 
     Attributes may be reloaded at runtime using `reload` method.
-    Each (re)load replaces the data at once and increments `revision`,
-    so consumers may cache derived data (such as pydantic models)
-    and regenerate them when the revision changes. Additionally,
-    callbacks registered using `on_reload` are executed after a reload.
+    Each (re)load replaces the data at once and increments `revision`.
+    Data derived from the attributes is kept up to date in one of two ways:
+
+    - Objects derived on demand (such as the attribute models) store
+      the `revision` they were built for and are rebuilt when it changes.
+    - Caches the library cannot see into (such as aiocache caches or
+      schema caches of other models) register a callback using `on_reload`,
+      which is executed after a reload.
     """
 
     def __init__(self) -> None:
@@ -44,8 +52,7 @@ class AttributeLibrary:
         self.revision: int = 0
 
         self._fingerprint: str | None = None
-        self._inheritable: list[str] = []
-        self._inheritable_set: frozenset[str] = frozenset()
+        self._inheritable: frozenset[str] = frozenset()
         self._by_name: dict[str, dict[str, Any]] = {}
         self._by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
         self._reload_callbacks: list[ReloadCallback] = []
@@ -121,7 +128,11 @@ class AttributeLibrary:
             Postgres.pool = None
             Postgres.shutting_down = False
 
-    def _apply(self, rows: list[dict[str, Any]]) -> None:
+    def _apply(
+        self,
+        rows: list[dict[str, Any]],
+        fingerprint: str | None = None,
+    ) -> None:
         """Replace the attribute data with the given database rows.
 
         All the data is built first and then swapped at once,
@@ -151,11 +162,10 @@ class AttributeLibrary:
 
         self.data = data
         self.info_data = rows
-        self._inheritable = list(inheritable)
-        self._inheritable_set = frozenset(inheritable)
+        self._inheritable = frozenset(inheritable)
         self._by_name = by_name
         self._by_name_scoped = by_name_scoped
-        self._fingerprint = hashlib.sha256(json_dumps(rows).encode()).hexdigest()
+        self._fingerprint = fingerprint or _fingerprint(rows)
         self.revision += 1
 
     #
@@ -184,11 +194,11 @@ class AttributeLibrary:
 
         async with self._reload_lock:
             rows = await self._fetch()
-            fingerprint = hashlib.sha256(json_dumps(rows).encode()).hexdigest()
+            fingerprint = _fingerprint(rows)
             if fingerprint == self._fingerprint and not force:
                 return False
 
-            self._apply(rows)
+            self._apply(rows, fingerprint)
             logger.info(f"Attribute library reloaded (revision {self.revision})")
 
             for callback in self._reload_callbacks:
@@ -217,12 +227,13 @@ class AttributeLibrary:
         return defaults
 
     def inheritable_attributes(self) -> list[str]:
-        return self._inheritable
+        """Names of the inheritable attributes (see `inheritable`)."""
+        return list(self._inheritable)
 
     @property
     def inheritable(self) -> frozenset[str]:
         """Names of the inheritable attributes."""
-        return self._inheritable_set
+        return self._inheritable
 
     def by_name(self, name: str) -> dict[str, Any]:
         """Return attribute definition by name."""
