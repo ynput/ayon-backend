@@ -47,7 +47,7 @@ async def create_version(
     Use a POST request to create a new version (with a new id).
     """
 
-    payload = post_data.dict(exclude_unset=True)
+    payload = post_data.model_dump(exclude_unset=True)
     ops = ProjectLevelOperations(project_name, user=user)
 
     ops.create("version", **payload)
@@ -72,7 +72,7 @@ async def update_version(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
-    ops.update("version", version_id, **post_data.dict(exclude_unset=True))
+    ops.update("version", version_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 

@@ -54,7 +54,7 @@ async def send_invite_email(
         subject=subject,
     )
 
-    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
+    enc_data = await encrypt_json_urlsafe(payload.model_dump(exclude_none=True))
     token = enc_data.token
     await enc_data.set_nonce(ttl=3600 * 24)
 
@@ -89,7 +89,7 @@ async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
     if not await is_mailing_enabled():
         raise InvalidSettingsException("Mailing is not enabled.")
 
-    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
+    enc_data = await encrypt_json_urlsafe(payload.model_dump(exclude_none=True))
     token = enc_data.token
     await enc_data.set_nonce(ttl=3600 * 24)
 

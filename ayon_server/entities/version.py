@@ -1,7 +1,7 @@
 from typing import Any, NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.core import ProjectLevelEntity, attribute_library
+from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     ConstraintViolationException,
@@ -44,7 +44,7 @@ def version_name(version: int) -> str:
 
 class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
-    model = ModelSet("version", attribute_library["version"])
+    model = ModelSet("version")
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

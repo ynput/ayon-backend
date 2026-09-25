@@ -222,7 +222,7 @@ class ActionExecutor:
         """
         payload = {
             "args": args,
-            "context": self.context.dict(),
+            "context": self.context.model_dump(),
         }
 
         summary = {

@@ -1,0 +1,309 @@
+"""Helpers for working with pydantic field definitions."""
+
+import traceback
+import types
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import Annotated, Any, TypedDict, Union, get_args, get_origin
+
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
+from pydantic_core import (
+    PydanticSerializationError,
+    PydanticUndefined,
+    to_jsonable_python,
+)
+
+from ayon_server.logging import logger
+from ayon_server.models.attrib_values import get_attrib_values
+
+NoneType = type(None)
+
+
+class FieldExtra:
+    """Custom (AYON specific) extra attributes of a field.
+
+    Used as `json_schema_extra` of a field. Unlike a plain dict,
+    it may contain values that cannot be serialized to JSON
+    (such as enum resolver functions). Such values are available
+    using `get_field_extra`, but they are not included in the JSON schema.
+    """
+
+    def __init__(self, extra: dict[str, Any]) -> None:
+        self.extra = extra
+
+    def __call__(self, json_schema: dict[str, Any]) -> None:
+        for key, value in self.extra.items():
+            try:
+                json_schema[key] = to_jsonable_python(value)
+            except PydanticSerializationError:
+                continue
+
+    def __repr__(self) -> str:
+        return f"FieldExtra({self.extra!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, FieldExtra) and other.extra == self.extra
+
+
+def get_field_extra(field: FieldInfo | None) -> dict[str, Any]:
+    """Return custom (AYON specific) extra attributes of a field.
+
+    Pydantic 1 stored unknown Field kwargs in `field_info.extra`.
+    In Pydantic 2 they live in `json_schema_extra`, which is what
+    SettingsField and RestField use.
+    """
+    if field is None:
+        return {}
+    extra = field.json_schema_extra
+    if isinstance(extra, FieldExtra):
+        return extra.extra
+    if isinstance(extra, dict):
+        return extra
+    return {}
+
+
+class FieldKwargs(TypedDict, total=False):
+    """Field arguments shared by RestField and SettingsField.
+
+    Both the Pydantic 1 and the Pydantic 2 names are accepted
+    (see translate_field_kwargs).
+    """
+
+    default_factory: Callable[[], Any] | None
+    alias: str | None
+    title: str | None
+    description: str | None
+    gt: float | None
+    ge: float | None
+    lt: float | None
+    le: float | None
+    multiple_of: float | None
+    allow_inf_nan: bool | None
+    max_digits: int | None
+    decimal_places: int | None
+    min_items: int | None
+    max_items: int | None
+    unique_items: bool | None
+    min_length: int | None
+    max_length: int | None
+    allow_mutation: bool
+    regex: str | None
+    pattern: str | None
+    discriminator: str | None
+    repr: bool
+    validate_default: bool | None
+    example: Any
+    examples: list[Any] | None
+
+
+FIELD_KWARGS = frozenset(FieldKwargs.__annotations__)
+
+
+def known_field_kwargs(caller: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Return the known Field arguments. Unknown ones are logged and dropped.
+
+    (RestField and SettingsField ignored unknown arguments in Pydantic 1 too)
+    """
+    if unknown := [key for key in kwargs if key not in FIELD_KWARGS]:
+        stack = traceback.extract_stack()[-3]
+        logger.debug(
+            f"{caller}: unsupported argument: {', '.join(unknown)} "
+            f"at {stack.filename}:{stack.lineno}"
+        )
+    return {key: value for key, value in kwargs.items() if key in FIELD_KWARGS}
+
+
+def translate_field_kwargs(
+    default: Any,
+    kwargs: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Translate Pydantic 1 style Field arguments to Pydantic 2.
+
+    Shared by RestField, SettingsField and the Field of the addon
+    compatibility layer. Accepts both the Pydantic 1 (regex, min_items,
+    max_items, allow_mutation, unique_items, const, example) and the
+    Pydantic 2 (pattern, min_length...) arguments. Pydantic 2 arguments
+    take precedence. Arguments set to None are omitted.
+
+    Returns a tuple of the Field arguments and the extra attributes,
+    which are only exposed in the JSON schema (use as FieldExtra).
+    """
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    extra: dict[str, Any] = {}
+
+    if (regex := kwargs.pop("regex", None)) is not None:
+        kwargs.setdefault("pattern", regex)
+    if (min_items := kwargs.pop("min_items", None)) is not None:
+        kwargs.setdefault("min_length", min_items)
+    if (max_items := kwargs.pop("max_items", None)) is not None:
+        kwargs.setdefault("max_length", max_items)
+    if kwargs.pop("allow_mutation", True) is False:
+        kwargs.setdefault("frozen", True)
+
+    examples = list(kwargs.pop("examples", None) or [])
+    if (example := kwargs.pop("example", None)) is not None:
+        examples.append(example)
+    if examples:
+        kwargs["examples"] = examples
+
+    if kwargs.pop("unique_items", None):
+        extra["uniqueItems"] = True
+    if kwargs.pop("const", None) and default is not PydanticUndefined:
+        extra["const"] = default
+
+    return kwargs, extra
+
+
+class V1FieldInfo:
+    """Pydantic 1 style view of a field definition.
+
+    Provides the `extra` attribute (custom field arguments),
+    everything else is taken from the Pydantic 2 FieldInfo.
+    """
+
+    def __init__(self, field_info: FieldInfo) -> None:
+        self._field_info = field_info
+
+    @property
+    def extra(self) -> dict[str, Any]:
+        return get_field_extra(self._field_info)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._field_info, name)
+
+
+class V1ModelField:
+    """Pydantic 1 style view of a model field (ModelField).
+
+    Used for backwards compatibility with addons accessing
+    `Model.__fields__`.
+    """
+
+    def __init__(self, name: str, field_info: FieldInfo) -> None:
+        self.name = name
+        self.field_info = V1FieldInfo(field_info)
+        self.alias = field_info.alias or name
+        self.annotation = field_info.annotation
+        self.outer_type_ = strip_optional(field_info.annotation)
+        self.type_ = get_inner_type(field_info.annotation)
+        self.required = field_info.is_required()
+        self.default_factory = field_info.default_factory
+        self.default = None
+        if not self.required and field_info.default_factory is None:
+            self.default = field_info.default
+        self.allow_none = is_optional_annotation(field_info.annotation)
+
+    def get_default(self) -> Any:
+        return self.field_info.get_default(call_default_factory=True)
+
+    def __repr__(self) -> str:
+        return f"ModelField(name={self.name!r}, type={self.outer_type_!r})"
+
+
+def v1_model_fields(model: type[BaseModel]) -> dict[str, V1ModelField]:
+    """Pydantic 1 style `__fields__` of a model"""
+    return {
+        name: V1ModelField(name, field) for name, field in model.model_fields.items()
+    }
+
+
+def is_optional_annotation(annotation: Any) -> bool:
+    """Return True if the annotation accepts None (or is Any)."""
+    if annotation is Any or annotation is None or annotation is NoneType:
+        return True
+    origin = get_origin(annotation)
+    if origin is Annotated:
+        return is_optional_annotation(get_args(annotation)[0])
+    if origin is Union or origin is types.UnionType:
+        return any(is_optional_annotation(arg) for arg in get_args(annotation))
+    return False
+
+
+def strip_optional(annotation: Any) -> Any:
+    """Remove Annotated and None from the annotation.
+
+    `Optional[list[int]]` becomes `list[int]`. Unions of multiple
+    non-None types are returned as they are (without None).
+    Attribute values are resolved to the current attribute model.
+    """
+    origin = get_origin(annotation)
+    if origin is Annotated:
+        if marker := get_attrib_values(annotation):
+            return marker.resolve()
+        return strip_optional(get_args(annotation)[0])
+    if origin is Union or origin is types.UnionType:
+        args = [arg for arg in get_args(annotation) if arg is not NoneType]
+        if len(args) == 1:
+            return strip_optional(args[0])
+        return Union[tuple(args)]  # noqa: UP007
+    return annotation
+
+
+def get_inner_type(annotation: Any) -> Any:
+    """Return the innermost type of a field annotation.
+
+    This is the equivalent of Pydantic 1 `ModelField.type_`:
+    Optional, Annotated and containers (list, set, dict values...)
+    are unwrapped, so `list[SomeModel] | None` returns `SomeModel`.
+    """
+    annotation = strip_optional(annotation)
+    origin = get_origin(annotation)
+    if origin is None:
+        return annotation
+    args = get_args(annotation)
+    if not args:
+        return annotation
+    if isinstance(origin, type):
+        if issubclass(origin, Mapping):
+            return get_inner_type(args[-1])
+        if issubclass(origin, tuple):
+            if len(args) == 2 and args[1] is Ellipsis:
+                return get_inner_type(args[0])
+            return annotation
+        if issubclass(origin, Sequence | set | frozenset):
+            return get_inner_type(args[0])
+    return annotation
+
+
+def get_field_annotation(field: FieldInfo) -> Any:
+    """Return the annotation of a field.
+
+    For attribute value fields, the current attribute model is returned.
+    """
+    if marker := get_attrib_values(field):
+        return marker.resolve()
+    return field.annotation
+
+
+def iter_annotation_types(annotation: Any) -> Iterator[Any]:
+    """Yield the annotation and all types nested in it (recursively)."""
+    if marker := get_attrib_values(annotation):
+        yield marker.resolve()
+        return
+    yield annotation
+    for arg in get_args(annotation):
+        if arg is Ellipsis or isinstance(arg, str | int | float | bool):
+            continue  # Literal values, tuple ellipsis
+        yield from iter_annotation_types(arg)
+
+
+def format_validation_errors(errors: Sequence[Any]) -> list[dict[str, Any]]:
+    """Make validation error details safe to send to the client.
+
+    Removes the submitted values (`input`, which may contain secrets)
+    and documentation links (`url`) and converts the context to JSON
+    serializable values (it may contain exception objects).
+    """
+    result = []
+    for error in errors:
+        item = {k: v for k, v in dict(error).items() if k not in ("input", "url")}
+        if "ctx" in item and isinstance(item["ctx"], dict):
+            ctx = {}
+            for key, value in item["ctx"].items():
+                try:
+                    ctx[key] = to_jsonable_python(value)
+                except PydanticSerializationError:
+                    ctx[key] = str(value)
+            item["ctx"] = ctx
+        result.append(item)
+    return result

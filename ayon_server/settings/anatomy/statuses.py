@@ -1,6 +1,6 @@
 from typing import get_args
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.entities.project_aux_tables import State
 from ayon_server.settings.settings_field import SettingsField
@@ -62,10 +62,12 @@ class Status(BaseAuxModel):
         None,
         scope=[],
         example=None,
+        validate_default=True,  # see BaseAuxModel
     )  # Used for renaming, we don't show it in the UI
 
-    @validator("scope")
-    def validate_scope(cls, v, values):
+    @field_validator("scope")
+    @classmethod
+    def validate_scope(cls, v):
         if v is None:
             return get_default_scopes()
         return v

@@ -10,5 +10,12 @@ check:
 	uv run ruff check . --fix
 	uv run mypy .
 
+test:
+	uv run pytest tests/unit
+
+# Requires Postgres (configured using AYON_POSTGRES_URL)
+test-integration:
+	uv run pytest tests/integration
+
 reload:
 	@echo "You are in a wrong directory :)"

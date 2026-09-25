@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 import strawberry
 from strawberry.scalars import JSON
@@ -8,9 +8,30 @@ from ayon_server.entities import UserEntity
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
-from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
+
+ATTRIB_DESCRIPTION = (
+    "Attribute values (JSON object). "
+    "Use the attributes endpoint to get the attribute definitions."
+)
+
+AttribNamesArgument = Annotated[
+    list[str] | None,
+    strawberry.argument(description="Return only the given attributes"),
+]
+
+LegacyAttribSelectionArgument = Annotated[
+    list[str] | None,
+    strawberry.argument(
+        description=(
+            "Used internally for backwards compatibility: `attrib { a b: c }` "
+            'queries are rewritten to `attrib(legacySelection: ["a", "b:c"])`'
+        ),
+        deprecation_reason="Use `names` or select all attributes",
+    ),
+]
 
 
 @strawberry.type
@@ -176,7 +197,7 @@ class BaseNode:
             project_attrib = (
                 self._project_attrib if hasattr(self, "_project_attrib") else None
             )
-            return process_attrib_data(
+            self._processed_attrib = process_attrib_data(
                 self.entity_type,
                 self._attrib,
                 user=self._user,
@@ -185,6 +206,21 @@ class BaseNode:
                 inherited_attrib=inherited_attrib,
             )
         return self._processed_attrib
+
+    @strawberry.field(description=ATTRIB_DESCRIPTION)
+    def attrib(
+        self,
+        names: AttribNamesArgument = None,
+        legacy_selection: LegacyAttribSelectionArgument = None,
+    ) -> JSON:
+        return JSON(
+            attrib_to_json(
+                self.entity_type,
+                self.processed_attrib(),
+                names=names,
+                legacy_selection=legacy_selection,
+            )
+        )
 
     @strawberry.field
     def all_attrib(self) -> str:

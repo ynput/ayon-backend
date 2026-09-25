@@ -125,7 +125,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
 
     result.sort(key=lambda x: x.name)
     await Redis.delete_ns("addon-list")
-    await Redis.set_json("addon-list", key, [addon.dict() for addon in result])
+    await Redis.set_json("addon-list", key, [addon.model_dump() for addon in result])
     return result
 
 

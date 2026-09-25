@@ -193,7 +193,7 @@ async def get_user_sites(
         # or has been changed, upsert it
         if current_needs_update or not current_site_exists:
             logger.debug(f"Registering to site {current_site.id}")
-            mdata = current_site.dict()
+            mdata = current_site.model_dump()
             mid = mdata.pop("id")
             await Postgres.execute(
                 """
@@ -235,6 +235,13 @@ async def get_attributes() -> list[AttributeModel]:
             log_traceback(f"Invalid attribute data: {row}")
             continue
     return attr_list
+
+
+async def _clear_attributes_cache() -> None:
+    await get_attributes.cache.clear()
+
+
+attribute_library.on_reload(_clear_attributes_cache)
 
 
 async def get_additional_info(

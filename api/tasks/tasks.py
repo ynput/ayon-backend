@@ -52,7 +52,7 @@ async def create_task(
     """
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.create("task", **post_data.dict(exclude_unset=True))
+    ops.create("task", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
     return EntityIdResponse(id=entity_id)
@@ -73,7 +73,7 @@ async def update_task(
     """Patch (partially update) a task."""
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.update("task", task_id, **post_data.dict(exclude_unset=True))
+    ops.update("task", task_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 

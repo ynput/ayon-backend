@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
 from ayon_server.utils import json_dumps
@@ -11,11 +10,6 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
 else:
     TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
-
-
-@WorkfileEntity.strawberry_attrib()
-class WorkfileAttribType:
-    pass
 
 
 @strawberry.type
@@ -41,10 +35,6 @@ class WorkfileNode(BaseNode):
         return await info.context["task_from_record"](
             self.project_name, record, info.context
         )
-
-    @strawberry.field
-    def attrib(self) -> WorkfileAttribType:
-        return WorkfileAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:

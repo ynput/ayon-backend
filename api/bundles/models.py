@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.logging import logger
 from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
@@ -59,7 +59,8 @@ class BundleModel(BaseBundleModel):
         example={"ftrack": "1.2.3"},
     )
 
-    @validator("addons")
+    @field_validator("addons")
+    @classmethod
     def validate_addons(
         cls, value: dict[str, str | None]
     ) -> dict[str, str | None] | None:
@@ -104,7 +105,8 @@ class BundlePatchModel(BaseBundleModel):
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
 
-    @validator("addons")
+    @field_validator("addons")
+    @classmethod
     def validate_addons(
         cls, value: dict[str, str | None] | None
     ) -> dict[str, str | None] | None:
@@ -138,7 +140,7 @@ class BundlePatchModel(BaseBundleModel):
     addon_development: dict[str, AddonDevelopmentItem] | None = Field(None)
 
     def get_changed_fields(self) -> list[str]:
-        dict_data = self.dict(exclude_none=True)
+        dict_data = self.model_dump(exclude_none=True)
         return [camelize(field) for field in dict_data.keys()]
 
     def get_changes_description(self, bundle_name: str) -> str:

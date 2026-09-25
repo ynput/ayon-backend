@@ -2,7 +2,6 @@ import builtins
 from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel
-from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
@@ -37,7 +36,7 @@ class BaseEntity:
         exclude_none: bool = False,
     ) -> dict[str, Any]:
         """Return the entity data as a dict."""
-        return self._payload.dict(
+        return self._payload.model_dump(
             exclude_defaults=exclude_defaults,
             exclude_unset=exclude_unset,
             exclude_none=exclude_none,
@@ -48,7 +47,7 @@ class BaseEntity:
         Use aliases instead of the original field names
         and drop inherited attributes.
         """
-        result = self._payload.dict(exclude_none=True, by_alias=True)
+        result = self._payload.model_dump(exclude_none=True, by_alias=True)
         attrib = result.pop("attrib", {})
         for key in list(attrib.keys()):
             if key not in self.own_attrib:
@@ -64,7 +63,7 @@ class BaseEntity:
     def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
-        pdata = patch_data.dict(exclude_unset=True)
+        pdata = patch_data.model_dump(exclude_unset=True)
         pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
@@ -72,7 +71,7 @@ class BaseEntity:
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
-                patch_data = patch_data.copy(deep=True)
+                patch_data = patch_data.model_copy(deep=True)
                 perms = user.permissions(self.project_name)
 
                 if not user.is_developer and "developerMode" in pattr:
@@ -126,11 +125,6 @@ class BaseEntity:
     @property
     def payload(self) -> BaseModel:
         return self._payload
-
-    @classmethod
-    def strawberry_attrib(cls):
-        # fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
     #
     # DB

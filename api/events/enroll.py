@@ -154,7 +154,7 @@ async def enroll(
     if payload.ignore_sender_types is not None and not payload.ignore_sender_types:
         payload.ignore_sender_types = None
 
-    request_hash = hash_data(payload.dict())
+    request_hash = hash_data(payload.model_dump())
     sloth()
     sloth(f"Received enroll request from {payload.sender}! Hash {request_hash}")
 
@@ -224,7 +224,7 @@ async def enroll(
             if res is None:
                 r = None
             else:
-                r = res.dict()
+                r = res.model_dump()
 
             await Redis.set_json(
                 "enroll",

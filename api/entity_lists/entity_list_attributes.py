@@ -65,7 +65,9 @@ async def set_entity_list_attributes_definition(
                 "an existing studio attribute"
             )
         validate_attribute_data(attr_definition.name, attr_definition.data)
-        payload_list.append(attr_definition.dict(exclude_unset=True, exclude_none=True))
+        payload_list.append(
+            attr_definition.model_dump(exclude_unset=True, exclude_none=True)
+        )
 
     logger.debug(f"Setting attributes for entity list {entity_list_id}: {payload_list}")
 

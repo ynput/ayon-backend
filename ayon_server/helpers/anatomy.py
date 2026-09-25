@@ -10,5 +10,7 @@ async def get_project_anatomy(project_name: str) -> Anatomy:
 
     project = await ProjectEntity.load(project_name)
     anatomy = extract_project_anatomy(project)
-    await Redis.set_json("project-anatomy", project_name, anatomy.dict(), ttl=3600)
+    await Redis.set_json(
+        "project-anatomy", project_name, anatomy.model_dump(), ttl=3600
+    )
     return anatomy

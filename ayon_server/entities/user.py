@@ -12,7 +12,7 @@ from ayon_server.auth.utils import (
     validate_password,
 )
 from ayon_server.constraints import Constraints
-from ayon_server.entities.core import TopLevelEntity, attribute_library
+from ayon_server.entities.core import TopLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
@@ -106,7 +106,7 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
-    model = ModelSet("user", attribute_library["user"], has_id=False)
+    model = ModelSet("user", has_id=False)
     was_active: bool = False
     was_admin: bool = False
     was_manager: bool = False

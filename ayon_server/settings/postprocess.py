@@ -1,14 +1,19 @@
 import collections
 import functools
 import inspect
+from collections.abc import Callable
 from typing import Any
-
-from pydantic.typing import AnyCallable
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.models.field_info import (
+    get_field_annotation,
+    get_field_extra,
+    get_inner_type,
+    iter_annotation_types,
+)
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import SimpleValue, camelize
 
@@ -29,7 +34,7 @@ async def get_attrib_enum(
 
 
 async def process_functional_enum(
-    enum_resolver: AnyCallable,
+    enum_resolver: Callable[..., Any],
     context: dict[str, Any] | None = None,
 ) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     if context is None:
@@ -114,14 +119,15 @@ async def postprocess_settings_schema(  # noqa
             if key in ("enum_resolver", "required_items"):
                 del prop[key]
 
-        if field := model.__fields__.get(name):
+        if field := model.model_fields.get(name):
+            field_extra = get_field_extra(field)
             enum_values: list[SimpleValue] = []
             enum_labels: dict[SimpleValue, str] = {}
             is_enum = False
-            if enum := field.field_info.extra.get("enum"):
+            if enum := field_extra.get("enum"):
                 is_enum = True
 
-                if field.field_info.extra.get("_attrib_enum"):
+                if field_extra.get("_attrib_enum"):
                     enum_values, enum_labels = await get_attrib_enum(name)
                 else:
                     for item in enum:
@@ -137,12 +143,12 @@ async def postprocess_settings_schema(  # noqa
                             enum_values.append(item["value"])
                             enum_labels[item["value"]] = item["label"]
 
-            elif enum_resolver := field.field_info.extra.get("enum_resolver"):
+            elif enum_resolver := field_extra.get("enum_resolver"):
                 is_enum = True
 
                 if isinstance(enum_resolver, str):
                     prop["x-enum-resolver"] = enum_resolver
-                    prop["x-enum-resolver-settings"] = field.field_info.extra.get(
+                    prop["x-enum-resolver-settings"] = field_extra.get(
                         "enum_resolver_settings"
                     )
 
@@ -171,7 +177,7 @@ async def postprocess_settings_schema(  # noqa
                 if enum_labels:
                     prop["enumLabels"] = enum_labels
 
-            scope = field.field_info.extra.get("scope")
+            scope = field_extra.get("scope")
             if scope is None or (not isinstance(scope, list)):
                 prop["scope"] = ["project", "studio"]
             else:
@@ -187,14 +193,15 @@ async def postprocess_settings_schema(  # noqa
                 "required_items",
                 "conditional_enum",
             ):
-                if extra_field := field.field_info.extra.get(extra_field_name):
+                if extra_field := field_extra.get(extra_field_name):
                     if camelize(extra_field_name) not in prop:
                         prop[camelize(extra_field_name)] = extra_field
 
             # Support for VERY CUSTOM widgets, which would be otherwise
             # redered as arrays or objects.
-            if inspect.isclass(field.type_):
-                match field.type_.__name__:
+            field_type = get_inner_type(field.annotation)
+            if inspect.isclass(field_type):
+                match field_type.__name__:
                     case "ColorRGB_hex":
                         prop["type"] = "string"
                         prop["widget"] = "color"
@@ -251,10 +258,8 @@ async def postprocess_settings_schema(  # noqa
 
         submodels[parent.__name__] = parent
 
-        for _field_name, field in parent.__fields__.items():
-            submodels_deque.append(field.type_)
-            for sub_field in field.sub_fields or []:
-                submodels_deque.append(sub_field.type_)
+        for field in parent.model_fields.values():
+            submodels_deque.extend(iter_annotation_types(get_field_annotation(field)))
 
     for definition_name, definition in schema.get("definitions", {}).items():
         if definition_name not in submodels:

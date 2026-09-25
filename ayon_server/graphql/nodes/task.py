@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.versions import get_versions
@@ -23,11 +22,6 @@ else:
     WorkfilesConnection = Annotated[
         "WorkfilesConnection", strawberry.lazy("..connections")
     ]
-
-
-@TaskEntity.strawberry_attrib()
-class TaskAttribType:
-    pass
 
 
 @strawberry.type
@@ -99,10 +93,6 @@ class TaskNode(BaseNode):
         return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
-
-    @strawberry.field
-    def attrib(self) -> TaskAttribType:
-        return TaskAttribType(**self.processed_attrib())
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
