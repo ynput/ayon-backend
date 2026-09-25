@@ -64,7 +64,9 @@ class EntityListItemEdge(BaseEdge):
             if hasattr(self._entity, "_inherited_attrib"):
                 inherited_attrib = self._entity._inherited_attrib or {}
             if hasattr(self._entity, "_attrib"):
-                own_attrib = self._entity._attrib or {}
+                # A copy: the entity's own attributes must not get
+                # the attributes of the list item
+                own_attrib = dict(self._entity._attrib or {})
 
         own_attrib.update(self._attrib or {})
 
