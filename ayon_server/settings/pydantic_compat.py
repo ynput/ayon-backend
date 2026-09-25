@@ -25,34 +25,34 @@ from typing import Any
 import pydantic as _pydantic
 from pydantic_core import PydanticUndefined, core_schema
 
-from ayon_server.models.field_info import FieldExtra, V1ModelField
+from ayon_server.models.field_info import (
+    FieldExtra,
+    V1ModelField,
+    translate_field_kwargs,
+)
 
 __all__ = list(_pydantic.__all__)
 
-_FIELD_PARAMS = set(inspect.signature(_pydantic.Field).parameters)
+# Arguments of Pydantic 2 Field and the Pydantic 1 arguments translated
+# by translate_field_kwargs. Everything else is stored in the extra.
+_FIELD_PARAMS = set(inspect.signature(_pydantic.Field).parameters) | {
+    "regex",
+    "min_items",
+    "max_items",
+    "allow_mutation",
+    "unique_items",
+    "const",
+    "example",
+}
 
 
 def Field(default: Any = PydanticUndefined, **kwargs: Any) -> Any:
     """Pydantic 1 compatible Field"""
 
-    if (regex := kwargs.pop("regex", None)) is not None:
-        kwargs.setdefault("pattern", regex)
-    if (min_items := kwargs.pop("min_items", None)) is not None:
-        kwargs.setdefault("min_length", min_items)
-    if (max_items := kwargs.pop("max_items", None)) is not None:
-        kwargs.setdefault("max_length", max_items)
-    if kwargs.pop("allow_mutation", True) is False:
-        kwargs.setdefault("frozen", True)
-
-    extra: dict[str, Any] = {}
-    if kwargs.pop("unique_items", None):
-        extra["uniqueItems"] = True
-    if kwargs.pop("const", None) and default is not PydanticUndefined:
-        extra["const"] = default
-
-    for key in list(kwargs):
-        if key not in _FIELD_PARAMS:
-            extra[key] = kwargs.pop(key)
+    # Pydantic 1 stored unknown arguments in the field extra
+    unknown = {k: kwargs.pop(k) for k in list(kwargs) if k not in _FIELD_PARAMS}
+    kwargs, extra = translate_field_kwargs(default, kwargs)
+    extra.update(unknown)
 
     if extra:
         json_schema_extra = kwargs.get("json_schema_extra")

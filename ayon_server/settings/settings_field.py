@@ -8,7 +8,7 @@ from pydantic_core import PydanticUndefined
 
 from ayon_server.deprecations import AyonDeprecationWarning
 from ayon_server.logging import logger
-from ayon_server.models.field_info import FieldExtra
+from ayon_server.models.field_info import FieldExtra, translate_field_kwargs
 
 """
 Unused pydantic fields
@@ -92,16 +92,38 @@ def SettingsField(
             f"at {stack.filename}:{stack.lineno}"
         )
 
-    examples = list(examples or [])
-    if example is not None:
-        examples.append(example)
+    field_kwargs, extra = translate_field_kwargs(
+        default,
+        {
+            "default_factory": default_factory,
+            "alias": alias,
+            "title": title,
+            "description": description,
+            "gt": gt,
+            "ge": ge,
+            "lt": lt,
+            "le": le,
+            "multiple_of": multiple_of,
+            "allow_inf_nan": allow_inf_nan,
+            "max_digits": max_digits,
+            "decimal_places": decimal_places,
+            "min_items": min_items,
+            "max_items": max_items,
+            "unique_items": unique_items,
+            "min_length": min_length,
+            "max_length": max_length,
+            "allow_mutation": allow_mutation,
+            "regex": regex,
+            "pattern": pattern,
+            "discriminator": discriminator,
+            "repr": repr,
+            "example": example,
+            "examples": examples,
+        },
+    )
 
-    # extras
+    # AYON specific extras
 
-    extra: dict[str, Any] = {}
-
-    if unique_items:
-        extra["uniqueItems"] = True
     if enum_resolver is not None:
         extra["enum_resolver"] = enum_resolver
     if enum_resolver_settings is not None:
@@ -130,28 +152,5 @@ def SettingsField(
             logger.debug(m)
         extra["syntax"] = syntax.lower()
 
-    # construct FieldInfo
-
-    field_kwargs: dict[str, Any] = {
-        "default_factory": default_factory,
-        "alias": alias,
-        "title": title,
-        "description": description,
-        "examples": examples or None,
-        "gt": gt,
-        "ge": ge,
-        "lt": lt,
-        "le": le,
-        "multiple_of": multiple_of,
-        "allow_inf_nan": allow_inf_nan,
-        "max_digits": max_digits,
-        "decimal_places": decimal_places,
-        "min_length": min_length if min_length is not None else min_items,
-        "max_length": max_length if max_length is not None else max_items,
-        "frozen": None if allow_mutation else True,
-        "pattern": pattern or regex,
-        "discriminator": discriminator,
-        "repr": repr,
-        "json_schema_extra": FieldExtra(extra),
-    }
+    field_kwargs["json_schema_extra"] = FieldExtra(extra)
     return Field(default, **field_kwargs)

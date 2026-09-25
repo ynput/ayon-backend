@@ -7,17 +7,16 @@ from typing import Annotated, Any, Literal, get_args, get_origin
 
 from pydantic import (
     BaseModel,
-    ConfigDict,
     PydanticUserError,
     TypeAdapter,
     ValidationError,
-    model_validator,
 )
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from ayon_server.logging import logger
+from ayon_server.models.base_model import AyonBaseModel
 from ayon_server.models.field_info import V1ModelField, get_inner_type, strip_optional
-from ayon_server.models.metaclass import AyonModelMetaclass, coerce_v1_input
+from ayon_server.models.metaclass import coerce_v1_input
 from ayon_server.settings.json_schema import REF_TEMPLATE, SettingsJsonSchemaGenerator
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
@@ -33,7 +32,7 @@ class _V1FieldsDescriptor:
         }
 
 
-class BaseSettingsModel(BaseModel, metaclass=AyonModelMetaclass):
+class BaseSettingsModel(AyonBaseModel):
     _isGroup: bool = False
     _title: str | None = None
     _layout: str | None = None
@@ -44,20 +43,6 @@ class BaseSettingsModel(BaseModel, metaclass=AyonModelMetaclass):
 
     # Deprecated. Use model_fields
     __fields__ = _V1FieldsDescriptor()  # type: ignore[assignment]
-
-    model_config = ConfigDict(
-        validate_by_name=True,
-        validate_by_alias=True,
-        # Pydantic 1 accepted numbers for string fields
-        coerce_numbers_to_str=True,
-        # Pydantic 1 accepted instances of other models for model fields
-        from_attributes=True,
-    )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_v1_input(cls, data: Any) -> Any:
-        return coerce_v1_input(cls, data)
 
     @classmethod
     def model_json_schema(

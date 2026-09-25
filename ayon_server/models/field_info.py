@@ -5,7 +5,11 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Annotated, Any, Union, get_args, get_origin
 
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticSerializationError, to_jsonable_python
+from pydantic_core import (
+    PydanticSerializationError,
+    PydanticUndefined,
+    to_jsonable_python,
+)
 
 NoneType = type(None)
 
@@ -51,6 +55,47 @@ def get_field_extra(field: FieldInfo | None) -> dict[str, Any]:
     if isinstance(extra, dict):
         return extra
     return {}
+
+
+def translate_field_kwargs(
+    default: Any,
+    kwargs: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Translate Pydantic 1 style Field arguments to Pydantic 2.
+
+    Shared by RestField, SettingsField and the Field of the addon
+    compatibility layer. Accepts both the Pydantic 1 (regex, min_items,
+    max_items, allow_mutation, unique_items, const, example) and the
+    Pydantic 2 (pattern, min_length...) arguments. Pydantic 2 arguments
+    take precedence. Arguments set to None are omitted.
+
+    Returns a tuple of the Field arguments and the extra attributes,
+    which are only exposed in the JSON schema (use as FieldExtra).
+    """
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    extra: dict[str, Any] = {}
+
+    if (regex := kwargs.pop("regex", None)) is not None:
+        kwargs.setdefault("pattern", regex)
+    if (min_items := kwargs.pop("min_items", None)) is not None:
+        kwargs.setdefault("min_length", min_items)
+    if (max_items := kwargs.pop("max_items", None)) is not None:
+        kwargs.setdefault("max_length", max_items)
+    if kwargs.pop("allow_mutation", True) is False:
+        kwargs.setdefault("frozen", True)
+
+    examples = list(kwargs.pop("examples", None) or [])
+    if (example := kwargs.pop("example", None)) is not None:
+        examples.append(example)
+    if examples:
+        kwargs["examples"] = examples
+
+    if kwargs.pop("unique_items", None):
+        extra["uniqueItems"] = True
+    if kwargs.pop("const", None) and default is not PydanticUndefined:
+        extra["const"] = default
+
+    return kwargs, extra
 
 
 class V1FieldInfo:

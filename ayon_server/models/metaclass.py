@@ -169,7 +169,7 @@ def coerce_v1_input(model: type[BaseModel], data: Any) -> Any:
     - floats are accepted by integer fields (truncated)
     - models are accepted by dict fields (converted to dicts)
 
-    Used as a `mode="before"` model validator.
+    Used by AyonBaseModel when the validation of the original data fails.
     """
     if not isinstance(data, dict):
         return data
