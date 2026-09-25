@@ -1,141 +1,71 @@
-from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import Header, Query
+from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import AllowGuests, CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
-    ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.installer.common import (
+    list_dependency_packages,
+    list_installer_versions,
+)
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, Field, OPModel, Platform
+from ayon_server.logging import logger
+from ayon_server.types import Field, OPModel, Platform
+from ayon_server.utils import RequestCoalescer
 
+from .actions import promote_bundle
+from .check_bundle import CheckBundleResponseModel, check_bundle
+from .migration import migrate_server_addon_settings, migrate_settings
+from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
-dependency_packages_meta = {
-    "title": "Dependency packages",
-    "description": "mapping of platform:dependency_package_filename",
-    "example": {
-        "windows": "a_windows_package123.zip",
-        "linux": "a_linux_package123.zip",
-        "darwin": "a_mac_package123.zip",
-    },
-}
+#
+# List all bundles
+#
 
 
-class BaseBundleModel(OPModel):
-    pass
-
-
-class AddonDevelopmentItem(OPModel):
-    enabled: bool = Field(
-        True, example=False, description="Enable/disable addon development"
-    )
-    path: str = Field(
-        "", example="/path/to/addon", description="Path to addon directory"
-    )
-
-
-class BundleModel(BaseBundleModel):
-    """
-    Model for GET and POST requests
-    """
-
-    name: str = Field(
-        ...,
-        title="Name",
-        description="Name of the bundle",
-        example="my_superior_bundle",
-        regex=NAME_REGEX,
-    )
-
-    created_at: datetime = Field(
-        default_factory=datetime.now,
-        example=datetime.now(),
-    )
-    installer_version: str | None = Field(None, example="1.2.3")
-    addons: dict[str, str | None] = Field(
-        default_factory=dict,
-        title="Addons",
-        example={"ftrack": "1.2.3"},
-    )
-    dependency_packages: dict[Platform, str | None] = Field(
-        default_factory=dict, **dependency_packages_meta
-    )
-    is_production: bool = Field(False, example=False)
-    is_staging: bool = Field(False, example=False)
-    is_archived: bool = Field(False, example=False)
-    is_dev: bool = Field(False, example=False)
-    active_user: str | None = Field(None, example="admin")
-    addon_development: dict[str, AddonDevelopmentItem] = Field(
-        default_factory=dict,
-        example={"ftrack": {"enabled": True, "path": "~/devel/ftrack"}},
-    )
-
-
-class BundlePatchModel(BaseBundleModel):
-    addons: dict[str, str | None] = Field(
-        default_factory=dict,
-        title="Addons",
-        description="Changing addons is available only for dev bundles",
-        example={"ftrack": None, "kitsu": "1.2.3"},
-    )
-    dependency_packages: dict[Platform, str | None] = Field(
-        default_factory=dict,
-        **dependency_packages_meta,
-    )
-    is_production: bool | None = Field(None, example=False)
-    is_staging: bool | None = Field(None, example=False)
-    is_archived: bool | None = Field(None, example=False)
-    is_dev: bool | None = Field(None, example=False)
-    active_user: str | None = Field(None, example="admin")
-    addon_development: dict[str, AddonDevelopmentItem] = Field(default_factory=dict)
-
-
-class ListBundleModel(OPModel):
-    bundles: list[BundleModel] = Field(default_factory=list)
-    production_bundle: str | None = Field(None, example="my_superior_bundle")
-    staging_bundle: str | None = Field(None, example="my_superior_bundle")
-    dev_bundles: list[str] = Field(default_factory=list)
-
-
-@router.get("/bundles", response_model_exclude_none=True)
-async def list_bundles(
-    archived: bool = Query(False, description="Include archived bundles"),
-) -> ListBundleModel:
+async def _list_bundles(archived: bool = False):
     result: list[BundleModel] = []
     production_bundle: str | None = None
     staging_bundle: str | None = None
     dev_bundles: list[str] = []
 
-    async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
-        # postgres row is immutable, so let's make a copy
-        data = {**row["data"]}
+    cond = ""
+    if not archived:
+        cond = "WHERE is_archived IS FALSE"
 
-        # Clean-up in case there's a mess from previous versions
-        data.pop("is_production", None)
-        data.pop("is_staging", None)
-        data.pop("is_archived", None)
-        data.pop("active_user", None)
-        data.pop("is_dev", None)
+    query = f"""
+        SELECT
+            name, is_production, is_staging, is_dev,
+            is_archived, active_user, created_at, data
+        FROM bundles
+        {cond}
+        ORDER BY created_at DESC
+    """
 
-        # Construct the bundle model
+    async for row in Postgres.iterate(query):
+        data = row["data"]
         bundle = BundleModel(
-            **data,
             name=row["name"],
             created_at=row["created_at"],
+            addons=data.get("addons", {}),
+            installer_version=data.get("installer_version"),
+            dependency_packages=data.get("dependency_packages", {}),
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
             active_user=row["active_user"],
+            addon_development=data.get("addon_development", {}),
         )
 
         # helper top-level attributes (for convenience not crawling the list)
@@ -145,10 +75,6 @@ async def list_bundles(
             staging_bundle = row["name"]
         if row["is_dev"]:
             dev_bundles.append(row["name"])
-
-        # do not show archived bundles unless requested
-        if not archived and bundle.is_archived:
-            continue
 
         result.append(bundle)
 
@@ -160,62 +86,85 @@ async def list_bundles(
     )
 
 
-async def create_bundle(
+@router.get("/bundles", dependencies=[AllowGuests])
+async def list_bundles(
+    user: CurrentUser,
+    archived: bool = Query(False, description="Include archived bundles"),
+) -> ListBundleModel:
+    coalesce = RequestCoalescer()
+    return await coalesce(_list_bundles, archived)
+
+
+#
+# Create a new bundle
+#
+
+
+async def _create_new_bundle(
     bundle: BundleModel,
+    *,
     user: UserEntity | None = None,
-    sender: str | None = None,
 ):
-    try:
-        async with Postgres.acquire() as conn:
-            async with conn.transaction():
-                # Clear constrained values if they are being updated
-                if bundle.is_production:
-                    await conn.execute("UPDATE bundles SET is_production = FALSE")
-                if bundle.is_staging:
-                    await conn.execute("UPDATE bundles SET is_staging = FALSE")
-                if bundle.active_user:
-                    await conn.execute(
-                        "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
-                        bundle.active_user,
-                    )
+    assert await Postgres.is_in_transaction(), (
+        "_create_new_bundle must be called in a transaction"
+    )
 
-                query = """
-                    INSERT INTO bundles
-                    (name, data, is_production, is_staging, is_dev, active_user, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """
+    # Clear constrained values if they are being updated
+    if bundle.is_production:
+        await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+    if bundle.is_staging:
+        await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+    if bundle.active_user:
+        await Postgres.execute(
+            "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+            bundle.active_user,
+        )
 
-                # Get original bundle data
-                data = {**bundle.dict(exclude_none=True)}
-                data.pop("name", None)
-                data.pop("created_at", None)
-                data.pop("is_production", None)
-                data.pop("is_staging", None)
-                data.pop("is_archived", None)
-                data.pop("is_dev", None)
-                data.pop("active_user", None)
+    data: dict[str, Any] = {
+        "addons": bundle.addons,
+        "installer_version": bundle.installer_version,
+        "dependency_packages": bundle.dependency_packages,
+    }
+    if bundle.is_project:
+        data["is_project"] = True
+    if bundle.addon_development:
+        addon_development_dict = {}
+        for key, value in bundle.addon_development.items():
+            addon_development_dict[key] = value.dict()
+        data["addon_development"] = addon_development_dict
 
-                # we ignore is_archived. it does not make sense to create
-                # an archived bundle
+    query = """
+        INSERT INTO bundles
+        (name, data, is_production, is_staging, is_dev, active_user, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    """
 
-                await conn.execute(
-                    query,
-                    bundle.name,
-                    data,
-                    bundle.is_production,
-                    bundle.is_staging,
-                    bundle.is_dev,
-                    bundle.active_user,
-                    bundle.created_at,
-                )
-    except Postgres.UniqueViolationError:
-        raise ConflictException("Bundle with this name already exists")
+    # we ignore is_archived. it does not make sense to create
+    # an archived bundle
 
-    await dispatch_event(
+    await Postgres.execute(
+        query,
+        bundle.name,
+        data,
+        bundle.is_production,
+        bundle.is_staging,
+        bundle.is_dev,
+        bundle.active_user,
+        bundle.created_at,
+    )
+
+    stat = ""
+    if bundle.is_production:
+        stat = " production"
+    elif bundle.is_staging:
+        stat = " staging"
+    elif bundle.is_dev:
+        stat = " development"
+
+    await EventStream.dispatch(
         "bundle.created",
-        sender=sender,
         user=user.name if user else None,
-        description=f"Bundle {bundle.name} created",
+        description=f"New{stat} bundle '{bundle.name}' created",
         summary={
             "name": bundle.name,
             "isProduction": bundle.is_production,
@@ -226,172 +175,355 @@ async def create_bundle(
     )
 
 
+@router.post("/bundles/check")
+async def check_bundle_compatibility(
+    user: CurrentUser,
+    bundle: BundleModel,
+) -> CheckBundleResponseModel:
+    return await check_bundle(bundle)
+
+
 @router.post("/bundles", status_code=201)
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
-    validate: bool = Query(False, description="Ensure specified addons exist"),
-    x_sender: str | None = Header(default=None),
+    force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
-    if validate:
-        for addon_name, addon_version in bundle.addons.items():
-            # Raise exception if addon if you are trying to add
-            # a bundle with an addon that does not exist
-            if not addon_version:
-                continue
-            _ = AddonLibrary.addon(addon_name, addon_version)
+    if not force:
+        res = await check_bundle(bundle)
+        if not res.success:
+            raise BadRequestException(res.message())
 
     for system_addon_name, addon_definition in AddonLibrary.items():
         if addon_definition.is_system:
             if system_addon_name not in bundle.addons:
-                raise BadRequestException(
-                    f"System addon {system_addon_name} is missing from bundle"
+                logger.debug(
+                    f"Adding system addon {system_addon_name} to bundle {bundle.name}"
                 )
+                if addon_definition.latest:
+                    bundle.addons[system_addon_name] = addon_definition.latest.version
 
-    await create_bundle(bundle, user, x_sender)
+    if bundle.is_project:
+        if bundle.is_production or bundle.is_staging:
+            raise BadRequestException(
+                "Project bundles cannot be set as production or staging"
+            )
+
+        if bundle.is_dev:
+            raise BadRequestException("Project bundles cannot be set as development")
+
+        for addon_name in list(bundle.addons.keys()):
+            adef = AddonLibrary.get(addon_name)
+            if adef is None:
+                raise BadRequestException(f"Addon {addon_name} does not exist")
+            if not adef.project_can_override_addon_version:
+                bundle.addons.pop(addon_name)
+
+    async with Postgres.transaction():
+        await _create_new_bundle(bundle, user=user)
+    if bundle.is_production or bundle.is_staging:
+        await AddonLibrary.clear_addon_list_cache()
 
     return EmptyResponse(status_code=201)
 
 
+#
+# Update a bundle
+#
+
+
 @router.patch("/bundles/{bundle_name}", status_code=204)
-async def patch_bundle(
+async def update_bundle(
     bundle_name: str,
-    bundle: BundlePatchModel,
+    patch: BundlePatchModel,
     user: CurrentUser,
-    build: list[Platform]
-    | None = Query(
+    build: list[Platform] | None = Query(
         None,
         title="Request build",
         description="Build dependency packages for selected platforms",
     ),
-    x_sender: str | None = Header(default=None),
+    force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            res = await conn.fetch(
-                "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+    addon_library = AddonLibrary.getinstance()
+
+    async with Postgres.transaction():
+        res = await Postgres.fetch(
+            "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+        )
+        if not res:
+            raise NotFoundException("Bundle not found")
+
+        row = res[0]
+        data = row["data"]
+
+        addon_development = data.get("addon_development") or {}
+        if not isinstance(addon_development, dict):
+            addon_development = {}
+
+        addon_development_dict: dict[str, AddonDevelopmentItem] = {}
+        for key, value in addon_development.items():
+            addon_development_dict[key] = AddonDevelopmentItem(**value)
+
+        addons = data.get("addons") or {}
+        if not isinstance(addons, dict):
+            addons = {}
+        else:
+            addons = dict(addons)
+        original_addons = dict(addons)
+
+        # Only clean up non-existent addons when the addon list is being
+        # patched. Otherwise e.g. promoting a bundle to production would
+        # silently drop addons that are just temporarily unavailable.
+        if patch.addons is not None:
+            for addon_name, addon_version in list(addons.items()):
+                # Project bundle placeholders (and disabled addons) are not
+                # real versions. Only validate addon existence in that case.
+                if addon_version in (None, "__inherit__", "__disable__"):
+                    if AddonLibrary.get(addon_name) is None:
+                        logger.warning(
+                            f"Addon {addon_name} does not exist, "
+                            f"removing from bundle {bundle_name}"
+                        )
+                        addons.pop(addon_name, None)
+                    continue
+
+                # Broken addons are unloaded from the library, but they are
+                # still installed. Keep them in the bundle.
+                if AddonLibrary.is_broken(addon_name, addon_version):
+                    continue
+
+                try:
+                    AddonLibrary.addon(addon_name, addon_version)
+                except NotFoundException:
+                    logger.warning(
+                        f"Addon {addon_name} version {addon_version} does not exist, "
+                        f"removing from bundle {bundle_name}"
+                    )
+                    addons.pop(addon_name, None)
+
+        installer_version = data.get("installer_version")
+        if installer_version is not None:
+            existing_installer_versions = await list_installer_versions()
+            if installer_version not in existing_installer_versions:
+                logger.warning(
+                    f"Installer version {installer_version} does not exist, "
+                    f"removing from bundle {bundle_name}"
+                )
+                installer_version = None
+
+        dependency_packages = data.get("dependency_packages", {})
+        if not isinstance(dependency_packages, dict):
+            dependency_packages = {}
+        else:
+            existing_dependency_packages = await list_dependency_packages()
+            for platform, filename in list(dependency_packages.items()):
+                if filename is None:
+                    continue
+                if filename not in existing_dependency_packages.get(platform, []):
+                    logger.warning(
+                        f"Dependency package {filename} does not exist, "
+                        f"removing from bundle {bundle_name}"
+                    )
+                    dependency_packages.pop(platform)
+
+        bundle = BundleModel(
+            name=row["name"],
+            created_at=row["created_at"],
+            addons=addons,
+            installer_version=installer_version,
+            dependency_packages=dependency_packages,
+            addon_development=addon_development_dict,
+            is_production=row["is_production"],
+            is_staging=row["is_staging"],
+            is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
+            active_user=row["active_user"],
+            is_archived=row["is_archived"],
+        )
+
+        if patch.is_archived and (bundle.is_production or bundle.is_staging):
+            raise BadRequestException(
+                "Cannot archive bundle that is production or staging"
             )
-            if not res:
-                raise NotFoundException("Bundle not found")
-            row = res[0]
 
-            data = {**row["data"]}
-            data.pop("is_production", None)
-            data.pop("is_staging", None)
-            data.pop("is_archived", None)
-            data.pop("is_dev", None)
-            data.pop("active_user", None)
+        # Sanity checks
 
-            orig_bundle = BundleModel(
-                **data,
-                name=row["name"],
-                created_at=row["created_at"],
-                is_production=row["is_production"],
-                is_staging=row["is_staging"],
-                is_dev=row["is_dev"],
-                active_user=row["active_user"],
-                is_archived=row["is_archived"],
-            )
-            dep_packages = orig_bundle.dependency_packages.copy()
-            for key, value in bundle.dependency_packages.items():
-                if value is None:
-                    dep_packages.pop(key, None)
-                elif type(value) is str:
-                    dep_packages[key] = value
+        if bundle.is_project:
+            if patch.is_production or patch.is_staging:
+                raise BadRequestException("Cannot update production or staging bundle")
+            if patch.is_dev:
+                raise BadRequestException("Cannot update dev bundle")
 
-            orig_bundle.dependency_packages = dep_packages
-            orig_bundle.addon_development = bundle.addon_development
+        #
+        # Dev specific fields
+        #
 
-            if bundle.is_archived:
+        if bundle.is_dev:
+            logger.debug(f"Updating dev bundle {bundle.name}")
+            if "active_user" in patch.dict(exclude_unset=True, by_alias=False):
+                await Postgres.execute(
+                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+                    patch.active_user,
+                )
+                bundle.active_user = patch.active_user
+
+            if patch.addon_development is not None:
+                bundle.addon_development = patch.addon_development
+
+            if patch.installer_version is not None:
+                bundle.installer_version = patch.installer_version
+        else:
+            logger.debug(f"Updating bundle {bundle.name}")
+            bundle.active_user = None
+
+        # Dependency packages
+        # Can be patched for both dev and non-dev bundles
+
+        if patch.dependency_packages is not None:
+            bundle.dependency_packages = patch.dependency_packages
+
+        # Addons
+        # Can be patched for both dev and non-dev bundles
+        # But when patching a non-dev bundle, only server addons can be patched
+
+        # Tuple of addon_name, previous_version, new_version
+        server_bundle_migrations = []
+
+        if patch.addons is not None:
+            addons = {**bundle.addons}
+            for addon_name, addon_version in patch.addons.items():
+                addon_definition = addon_library.get(addon_name)
+                if addon_definition is None:
+                    logger.warning(f"Addon {addon_name} does not exist, ignoring")
+                    continue
+                is_server = addon_definition.addon_type == "server"
+
+                # Automatically migrate server addon settings
+                if is_server and addon_name in addons:
+                    original_version = addons[addon_name]
+                    new_version = addon_version
+                    if (
+                        original_version
+                        and new_version
+                        and original_version != new_version
+                    ):
+                        server_bundle_migrations.append(
+                            (addon_name, addons[addon_name], addon_version)
+                        )
+
+                # Clients (the web UI) may send the complete addon list back,
+                # so only reject actual version changes of non-server addons.
                 if (
-                    orig_bundle.is_production
-                    or orig_bundle.is_staging
-                    or bundle.is_production
-                    or bundle.is_staging
+                    not bundle.is_dev
+                    and not is_server
+                    and addons.get(addon_name) != addon_version
                 ):
                     raise BadRequestException(
-                        "Cannot archive bundle that is production or staging"
+                        f"Addon {addon_name} is not a server addon and cannot be "
+                        "patched on a non-dev bundle"
                     )
 
-                bundle.is_production = False
-                bundle.is_staging = False
-                orig_bundle.is_archived = True
-            elif bundle.is_archived is False:
-                orig_bundle.is_archived = False
+                if addon_version is None:
+                    addons.pop(addon_name, None)
+                    continue
 
-            if bundle.is_dev is not None:
-                orig_bundle.is_dev = bundle.is_dev
+                # TODO: check if addon version exists
+                addons[addon_name] = addon_version
+            bundle.addons = addons
 
-            if bundle.is_production is not None:
-                orig_bundle.is_production = bundle.is_production
-                if orig_bundle.is_production:
-                    await conn.execute("UPDATE bundles SET is_production = FALSE")
-            if bundle.is_staging is not None:
-                orig_bundle.is_staging = bundle.is_staging
-                if orig_bundle.is_staging:
-                    await conn.execute("UPDATE bundles SET is_staging = FALSE")
-            if bundle.active_user:
-                # remove user from previously assigned bundles to avoid constraint violation
-                await conn.execute(
-                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
-                    bundle.active_user,
-                )
-                orig_bundle.active_user = bundle.active_user
+        # Validate the bundle
+        # Only when its addons change or it is being promoted to production
+        # or staging, so that an already broken bundle (e.g. with an addon
+        # that has been removed from the server) can still be archived
+        # or have its dependency packages changed.
 
-            # patch addons when we already know if bundle is dev
-            if bundle.addons and orig_bundle.is_dev:
-                addon_dict = bundle.addons.copy()
-            else:
-                addon_dict = orig_bundle.addons.copy()
-            orig_bundle.addons = addon_dict
+        needs_validation = (
+            bundle.addons != original_addons
+            or (patch.is_production and not bundle.is_production)
+            or (patch.is_staging and not bundle.is_staging)
+        )
 
-            data = {**orig_bundle.dict(exclude_none=True)}
-            data.pop("name", None)
-            data.pop("created_at", None)
-            data.pop("is_production", None)
-            data.pop("is_staging", None)
-            data.pop("is_archived", None)
-            data.pop("is_dev", None)
-            data.pop("active_user", None)
+        if needs_validation and not force:
+            bstat = await check_bundle(bundle)
+            if not bstat.success:
+                raise BadRequestException(bstat.message())
 
-            await conn.execute(
-                """
-                UPDATE bundles
-                SET
-                    data = $1,
-                    is_production = $2,
-                    is_staging = $3,
-                    is_dev = $4,
-                    active_user = $5,
-                    is_archived = $6
-                WHERE name = $7
-                """,
-                data,
-                orig_bundle.is_production,
-                orig_bundle.is_staging,
-                orig_bundle.is_dev,
-                orig_bundle.active_user,
-                orig_bundle.is_archived,
-                bundle_name,
-            )
+        # Construct the new data
 
-    await dispatch_event(
+        data = {
+            "addons": bundle.addons,
+            "dependency_packages": bundle.dependency_packages,
+            "installer_version": bundle.installer_version,
+            "is_project": bundle.is_project,
+        }
+        if bundle.is_dev:
+            data["addon_development"] = {
+                key: value.dict() for key, value in bundle.addon_development.items()
+            }
+
+        if patch.is_archived is not None:
+            bundle.is_archived = patch.is_archived
+
+        if patch.is_dev is not None:
+            bundle.is_dev = patch.is_dev
+
+        if patch.is_production is not None:
+            if patch.is_production:
+                await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+            bundle.is_production = patch.is_production
+
+        if patch.is_staging is not None:
+            if patch.is_staging:
+                await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+            bundle.is_staging = patch.is_staging
+
+        # Update the bundle
+
+        await Postgres.execute(
+            """
+            UPDATE bundles
+            SET
+                data = $1,
+                is_production = $2,
+                is_staging = $3,
+                is_dev = $4,
+                active_user = $5,
+                is_archived = $6
+            WHERE name = $7
+            """,
+            data,
+            bundle.is_production,
+            bundle.is_staging,
+            bundle.is_dev,
+            bundle.active_user,
+            bundle.is_archived,
+            bundle_name,
+        )
+
+    if (
+        patch.is_production is not None
+        or patch.is_staging is not None
+        or bundle.addons != original_addons
+    ):
+        await addon_library.clear_addon_list_cache()
+
+    await EventStream.dispatch(
         "bundle.updated",
-        sender=x_sender,
-        user=user.name,
-        description=f"Bundle {bundle_name} updated",
+        description=patch.get_changes_description(bundle_name),
         summary={
             "name": bundle_name,
+            "changedFields": patch.get_changed_fields(),
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
             "isArchived": bundle.is_archived,
             "isDev": bundle.is_dev,
+            "isProject": bundle.is_project,
         },
         payload=data,
     )
@@ -400,7 +532,23 @@ async def patch_bundle(
         # TODO
         pass
 
+    if bundle.is_production and server_bundle_migrations:
+        for addon_name, previous_version, new_version in server_bundle_migrations:
+            if not (previous_version and new_version):
+                continue
+            await migrate_server_addon_settings(
+                addon_name,
+                previous_version,
+                new_version,
+                user=user if user else None,
+            )
+
     return EmptyResponse(status_code=204)
+
+
+#
+# Delete bundle
+#
 
 
 async def delete_bundle(bundle_name: str):
@@ -418,71 +566,13 @@ async def delete_existing_bundle(
     return EmptyResponse(status_code=204)
 
 
+#
+# Bundle actions
+#
+
+
 class BundleActionModel(OPModel):
     action: Literal["promote"] = Field(..., example="promote")
-
-
-async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
-    """Promote a bundle to production.
-
-    That includes copying staging settings to production.
-    """
-
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can promote bundles")
-
-    if not bundle.is_staging:
-        raise BadRequestException("Only staging bundles can be promoted")
-
-    if bundle.is_dev:
-        raise BadRequestException("Dev bundles cannot be promoted")
-
-    await conn.execute("UPDATE bundles SET is_production = FALSE")
-    await conn.execute(
-        """
-        UPDATE bundles
-        SET is_production = TRUE
-        WHERE name = $1
-        """,
-        bundle.name,
-    )
-
-    # Get project list
-    # statement = await conn.prepare("SELECT name FROM projects")
-    # project_names = [row["name"] async for row in statement.cursor()]
-
-    # Copy staging settings to production
-
-    for addon_name, addon_version in bundle.addons.items():
-        sres = await conn.fetch(
-            """
-                SELECT data FROM settings
-                WHERE addon_name = $1 AND addon_version = $2
-                AND variant = 'staging'
-                """,
-            addon_name,
-            addon_version,
-        )
-        if not sres:
-            data = {}
-        else:
-            data = sres[0]["data"]
-        await conn.execute(
-            """
-            INSERT INTO settings (addon_name, addon_version, variant, data)
-            VALUES ($1, $2, 'production', $3)
-            ON CONFLICT (addon_name, addon_version, variant)
-            DO UPDATE SET data = $3
-            """,
-            addon_name,
-            addon_version,
-            data,
-        )
-
-        # Do the same for every active project settings
-        # TODO: Do we want this?
-        #
-        # for project_name in project_names:
 
 
 @router.post("/bundles/{bundle_name}", status_code=201)
@@ -493,28 +583,67 @@ async def bundle_actions(
 ) -> EmptyResponse:
     """Perform actions on bundles."""
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            res = await conn.fetch(
-                "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
-            )
-            if not res:
-                raise NotFoundException("Bundle not found")
-            row = res[0]
-            bundle = BundleModel(
-                **row["data"],
-                name=row["name"],
-                created_at=row["created_at"],
-                is_production=row["is_production"],
-                is_staging=row["is_staging"],
-                is_archived=row["is_archived"],
-                is_dev=row["is_dev"],
-            )
+    async with Postgres.transaction():
+        res = await Postgres.fetch(
+            "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+        )
+        if not res:
+            raise NotFoundException("Bundle not found")
+        row = res[0]
+        bundle = BundleModel(
+            **row["data"],
+            name=row["name"],
+            created_at=row["created_at"],
+            is_production=row["is_production"],
+            is_staging=row["is_staging"],
+            is_archived=row["is_archived"],
+            is_dev=row["is_dev"],
+        )
 
-            if bundle.is_archived:
-                raise BadRequestException("Archived bundles cannot be modified")
+        if bundle.is_archived:
+            raise BadRequestException("Archived bundles cannot be modified")
 
-            if action.action == "promote":
-                return await promote_bundle(bundle, user, conn)
+        if action.action == "promote":
+            await promote_bundle(bundle, user)
+            await AddonLibrary.clear_addon_list_cache()
 
     return EmptyResponse(status_code=204)
+
+
+class MigrateBundleSettingsRequest(OPModel):
+    source_bundle: str = Field(..., example="old-bundle", description="Source bundle")
+    target_bundle: str = Field(..., example="new-bundle", description="Target bundle")
+    source_variant: str = Field(..., example="production", description="Source variant")
+    target_variant: str = Field(..., example="staging", description="Target variant")
+    with_projects: bool = Field(
+        True,
+        example=True,
+        description="Migrate project settings",
+    )
+
+
+@router.post("/migrateSettingsByBundle")
+async def migrate_settings_by_bundle(
+    user: CurrentUser,
+    request: MigrateBundleSettingsRequest,
+) -> None:
+    """Migrate settings of the addons based on the bundles.
+
+    When called, it collects a list of addons that are present in
+    both source and target bundles and migrates the settings of the
+    addons from the source to the target bundle.
+
+    Target bundle should be a production or staging bundle (or a dev bundle),
+    but source bundle can be any bundle.
+    """
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can migrate bundle settings")
+
+    await migrate_settings(
+        request.source_bundle,
+        request.target_bundle,
+        request.source_variant,
+        request.target_variant,
+        request.with_projects,
+        user_name=user.name,
+    )

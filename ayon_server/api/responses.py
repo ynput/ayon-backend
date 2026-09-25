@@ -1,4 +1,3 @@
-from http import HTTPStatus
 from typing import Any
 
 from fastapi.responses import ORJSONResponse, Response
@@ -23,19 +22,3 @@ class EntityIdResponse(OPModel):
 class EmptyResponse(Response):
     def __init__(self, status_code: int = 204, **kwargs: Any) -> None:
         super().__init__(status_code=status_code, **kwargs)
-
-
-class ResponseFactory:
-    @classmethod
-    def error(cls, code: int = 500, detail: str | None = None) -> dict[str, Any]:
-        detail = detail or {401: "Not logged in", 403: "Access denied"}.get(
-            code, HTTPStatus(code).name.capitalize()
-        )
-
-        return {
-            "model": ErrorResponse,
-            "description": detail,
-            "content": {
-                "application/json": {"example": {"code": code, "detail": detail}}
-            },
-        }

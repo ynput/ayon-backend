@@ -1,15 +1,37 @@
-from fastapi import Query
+from typing import Annotated
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from fastapi import Path, Query
+
+from ayon_server.api.dependencies import AllowProjectSkeleton, CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.types import USER_NAME_REGEX
 
 from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
 from .router import router
 
+TeamName = Annotated[
+    str,
+    Path(
+        alias="team_name",
+        min_length=2,
+        max_length=64,
+        title="Team Name",
+    ),
+]
 
-@router.get("", response_model_exclude_none=True)
+MemberName = Annotated[
+    str,
+    Path(
+        alias="member_name",
+        title="User Name",
+        regex=USER_NAME_REGEX,
+    ),
+]
+
+
+@router.get("", response_model_exclude_none=True, dependencies=[AllowProjectSkeleton])
 async def get_teams(
     project_name: ProjectName,
     current_user: CurrentUser,
@@ -54,9 +76,9 @@ async def get_teams(
     return teams
 
 
-@router.put("/{team_name}", status_code=204)
+@router.put("/{team_name}", status_code=204, dependencies=[AllowProjectSkeleton])
 async def save_team(
-    team_name: str,
+    team_name: TeamName,
     team: TeamPutModel,
     project_name: ProjectName,
     current_user: CurrentUser,
@@ -86,10 +108,14 @@ async def save_team(
     return EmptyResponse()
 
 
-@router.put("/{team_name}/members/{member_name}", status_code=204)
+@router.put(
+    "/{team_name}/members/{member_name}",
+    status_code=204,
+    dependencies=[AllowProjectSkeleton],
+)
 async def save_team_member(
-    team_name: str,
-    member_name: str,
+    team_name: TeamName,
+    member_name: MemberName,
     member: TeamMemberModel,
     project_name: ProjectName,
     current_user: CurrentUser,
@@ -131,9 +157,11 @@ async def save_team_member(
     return EmptyResponse()
 
 
-@router.delete("/{team_name}", status_code=204)
+@router.delete("/{team_name}", status_code=204, dependencies=[AllowProjectSkeleton])
 async def delete_team(
-    team_name: str, project_name: ProjectName, current_user: CurrentUser
+    team_name: TeamName,
+    project_name: ProjectName,
+    current_user: CurrentUser,
 ) -> EmptyResponse:
     """Delete a team."""
 
@@ -158,10 +186,14 @@ async def delete_team(
     return EmptyResponse()
 
 
-@router.delete("/{team_name}/members/{member_name}", status_code=204)
+@router.delete(
+    "/{team_name}/members/{member_name}",
+    status_code=204,
+    dependencies=[AllowProjectSkeleton],
+)
 async def delete_team_member(
-    team_name: str,
-    member_name: str,
+    team_name: TeamName,
+    member_name: MemberName,
     project_name: ProjectName,
     current_user: CurrentUser,
 ) -> EmptyResponse:
@@ -200,7 +232,7 @@ async def delete_team_member(
     return EmptyResponse()
 
 
-@router.patch("", status_code=204)
+@router.patch("", status_code=204, dependencies=[AllowProjectSkeleton])
 async def update_teams(
     project_name: ProjectName,
     current_user: CurrentUser,

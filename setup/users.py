@@ -1,9 +1,8 @@
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.auth.utils import create_password, hash_password
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 
 async def deploy_users(
@@ -11,6 +10,9 @@ async def deploy_users(
     projects: list[str],
 ) -> None:
     """Create users in the database."""
+    if not users:
+        return
+
     for user in users:
         name = user["name"]
         attrib = {}
@@ -25,42 +27,43 @@ async def deploy_users(
                 data[key] = user[key]
 
         if "password" in user:
-            logging.debug(f"Creating password for user {name}")
+            logger.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
 
         if "hashedPassword" in user:
-            logging.debug(f"Adding password for user {name}")
+            logger.debug(f"Adding password for user {name}")
             data["password"] = user["hashedPassword"]
 
         if "apiKey" in user:
             api_key = user["apiKey"]
-            logging.debug(f"Creating api key for user {name}")
+            logger.debug(f"Creating api key for user {name}")
             api_key_preview = api_key[:4] + "***" + api_key[-4:]
             data["apiKey"] = hash_password(api_key)
             data["apiKeyPreview"] = api_key_preview
 
         data["defaultAccessGroups"] = user.get("defaultAccessGroups", [])
-        assert type(data["defaultAccessGroups"]) == list
-        assert all(type(role) == str for role in data["defaultAccessGroups"])
+        assert isinstance(data["defaultAccessGroups"], list)
+        assert all(isinstance(role, str) for role in data["defaultAccessGroups"])
 
         data["accessGroups"] = {
             project_name: data["defaultAccessGroups"]
             for project_name in projects
             if data["defaultAccessGroups"]
+            and isinstance(data["defaultAccessGroups"], list)
         }
 
         for project_name, access_groups in user.get("accessGroups", {}).items():
-            if access_groups:
+            if access_groups and isinstance(access_groups, list):
                 data["accessGroups"][project_name] = access_groups
             elif data["accessGroups"].get(project_name):
                 del data["accessGroups"][project_name]
 
         res = await Postgres.fetch("SELECT * FROM users WHERE name = $1", name)
         if res and not user.get("forceUpdate"):
-            logging.info(f"{user['name']} already exists. skipping")
+            logger.info(f"{user['name']} already exists. skipping")
             continue
 
-        logging.info(f"Saving user {user['name']}")
+        logger.info(f"Saving user {user['name']}")
         await Postgres.execute(
             """
             INSERT INTO public.users (name, active, attrib, data)

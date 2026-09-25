@@ -4,11 +4,11 @@ from typing import Literal
 
 import aiofiles
 from fastapi import BackgroundTasks, Query, Request
-from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     AyonException,
     ConflictException,
@@ -22,14 +22,13 @@ from ayon_server.installer.models import (
     SourcesPatchModel,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
     InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
-    handle_download,
-    handle_upload,
     iter_names,
     load_json_file,
 )
@@ -74,6 +73,13 @@ def get_manifest(filename: str) -> Installer:
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
             manifest.sources.insert(0, SourceModel(type="server"))
+
+    manifest.sources = [
+        m
+        for m in manifest.sources
+        if not (m.url and m.url.startswith("https://download.ynput.cloud"))
+    ]
+
     return manifest
 
 
@@ -93,7 +99,10 @@ async def list_installers(
 
     if variant in ["production", "staging"]:
         r = await Postgres.fetch(
-            f"SELECT data->>'installer_version' as v FROM bundles WHERE is_{variant} IS TRUE"
+            f"""
+            SELECT data->>'installer_version' as v
+            FROM bundles WHERE is_{variant} IS TRUE
+            """
         )
         if r:
             version = r[0]["v"]
@@ -104,12 +113,12 @@ async def list_installers(
         try:
             manifest = get_manifest(filename)
         except Exception as e:
-            logging.warning(f"Failed to load manifest file {filename}: {e}")
+            logger.warning(f"Failed to load manifest file {filename}: {e}")
             continue
 
         if filename != manifest.filename:
-            logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+            logger.warning(
+                f"Filenames in manifest don't match: {filename} != {manifest.filename}"
             )
             continue
 
@@ -130,25 +139,30 @@ async def create_installer(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     payload: Installer,
-    url: str | None = Query(None, title="URL to the addon zip file"),
-    overwrite: bool = Query(False, title="Overwrite existing package"),
+    url: str | None = Query(None, description="URL to the addon zip file"),
+    overwrite: bool = Query(
+        False, description="Deprecated. Use the force", deprecated=True
+    ),
+    force: bool = Query(False, description="Overwrite existing installer"),
 ) -> InstallResponseModel:
     event_id: str | None = None
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
+    force = force or overwrite
+
     try:
         _ = get_manifest(payload.filename)
     except Exception:
         pass
     else:
-        if not overwrite:
+        if not force:
             raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
-    if not overwrite:
+    if not force:
         # double-check - filename check might not be enough,
         # we must check whether there is a manifest with the same version and Platform
         existing_installers = await list_installers(
@@ -163,7 +177,7 @@ async def create_installer(
             )
 
     if url:
-        hash = hashlib.sha256(f"installer_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"installer_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events
@@ -177,7 +191,7 @@ async def create_installer(
 
             assert event_id
 
-            await update_event(
+            await EventStream.update(
                 event_id,
                 description="Reinstalling installer from URL",
                 summary={"url": url},
@@ -185,7 +199,7 @@ async def create_installer(
                 retries=0,
             )
         else:
-            event_id = await dispatch_event(
+            event_id = await EventStream.dispatch(
                 "installer.install_from_url",
                 hash=hash,
                 description="Installing installer from URL",
@@ -206,8 +220,7 @@ async def create_installer(
 @router.get("/installers/{filename}")
 async def download_installer_file(user: CurrentUser, filename: str):
     installers_dir = get_desktop_dir("installers", for_writing=False)
-    file_path = os.path.join(installers_dir, filename)
-    return await handle_download(file_path)
+    return await handle_download(filename, root_dir=installers_dir)
 
 
 @router.put("/installers/{filename}", status_code=204)

@@ -1,5 +1,6 @@
 import re
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 import unidecode
 
@@ -8,8 +9,8 @@ from ayon_server.exceptions import BadRequestException
 
 def normalize_name(
     name: str,
-    allowed_chars: Optional[str] = None,
-    replacement: Optional[str] = None,
+    allowed_chars: str | None = None,
+    replacement: str | None = None,
     escape_unicode: bool = True,
     strip: bool = True,
 ) -> str:
@@ -73,3 +74,34 @@ def ensure_unique_names(objects: Iterable[Any], field_name: str | None = None) -
             names.append(obj.name)
         else:
             raise BadRequestException(f"Duplicate name '{obj.name}'{suf}")
+
+
+def ensure_unique_property(
+    items: Iterable[Any], key: str = "name", context: str = ""
+) -> None:
+    """
+    Checks if a specific property is unique across a collection of objects.
+
+    Args:
+        items: The list of objects to validate.
+        key: The attribute name to check (e.g., 'name', 'shortName', or 'slug').
+        context: Optional string for the error message to provide more detail.
+
+    Raises:
+        BadRequestException: If a duplicate value is detected.
+    """
+    seen = set()
+    context_msg = f" in {context}" if context else ""
+
+    for item in items:
+        val = getattr(item, key, None)
+
+        if val is None or not val:
+            continue
+
+        if val in seen:
+            raise BadRequestException(
+                f"Duplicate {key} '{val}' found{context_msg}. Values must be unique."
+            )
+
+        seen.add(val)

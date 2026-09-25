@@ -1,13 +1,15 @@
 import copy
 from datetime import datetime
+from typing import Any
 
-from nxtools import logging
 from pydantic import BaseModel
+
+from ayon_server.logging import logger
 
 
 def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
     """Patch (partial update) an entity using its patch model."""
-    update_data = {}
+    update_data: dict[str, Any] = {}
 
     for key, value in patch.dict(exclude_unset=True).items():
         if key not in original.__fields__:
@@ -21,9 +23,9 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
             )
             update_data[key] = ndata
 
-        elif type(getattr(original, key)) == dict:
+        elif isinstance(getattr(original, key), dict):
             # Patch arbitrary dict (one level only!)
-            if type(value) == dict:
+            if isinstance(value, dict):
                 new_dict = copy.deepcopy(getattr(original, key))
                 for dkey, dval in value.items():
                     if dval is None:
@@ -33,7 +35,7 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
                         new_dict[dkey] = dval
                 update_data[key] = new_dict
             else:
-                logging.error(f"Unable to patch. {key} only accepts dict")
+                logger.error(f"Unable to patch. {key} only accepts dict")
 
         else:
             # Patch scalar types such as ints, strings and booleans

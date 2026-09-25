@@ -1,65 +1,36 @@
 import asyncio
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
-import asyncpg
-from nxtools import critical_error, log_traceback, logging
-
-from ayon_server.config import ayonconfig
+from ayon_server.helpers.project_list import get_project_list
+from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import json_loads
+from ayon_server.logging import critical_error, log_traceback, logger
+from ayon_server.version import __version__ as server_version
 from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
+from setup.database import db_migration
+from setup.initial_bundle import create_initial_bundle
+from setup.template import get_setup_template
 from setup.users import deploy_users
-
-# Defaults which should allow Ayon server to run out of the box
-
-DATA: dict[str, Any] = {
-    "addons": {},
-    "settings": {},
-    "users": [],
-    "roles": [],
-    "config": {},
-}
-
-if ayonconfig.force_create_admin:
-    DATA["users"] = [
-        {
-            "name": "admin",
-            "password": "admin",
-            "fullName": "Ayon admin",
-            "isAdmin": True,
-        },
-    ]
-
-
-async def wait_for_postgres() -> None:
-    while 1:
-        try:
-            await Postgres.connect()
-        except ConnectionRefusedError:
-            logging.info("Waiting for PostgreSQL")
-        except asyncpg.exceptions.CannotConnectNowError:
-            logging.info("PostgreSQL is starting")
-        except Exception:
-            log_traceback()
-        else:
-            break
-        await asyncio.sleep(1)
 
 
 async def main(force: bool | None = None) -> None:
     """Main entry point for setup."""
 
-    logging.info("Starting setup")
+    logger.info("Starting setup")
 
-    await wait_for_postgres()
+    await ayon_init(
+        extensions=False,
+        enum_registry=False,
+        load_projects=False,
+    )
 
     try:
-        await Postgres.fetch("SELECT * FROM projects")
+        await Postgres.fetch("SELECT name FROM projects LIMIT 1")
     except Exception:
+        logger.warning("Database is empty")
         has_schema = False
         force_install = True
     else:
@@ -72,57 +43,51 @@ async def main(force: bool | None = None) -> None:
             force_install = force
 
     if ("--with-schema" in sys.argv) or (not has_schema):
-        logging.info("(re)creating database schema")
+        logger.info("(re)creating database schema")
 
         schema = Path("schemas/schema.drop.sql").read_text()
-        await Postgres.execute(schema)
+        await Postgres.execute(schema, timeout=120)
 
-    # inter-version updates
-    schema = Path("schemas/schema.public.update.sql").read_text()
-    await Postgres.execute(schema)
+    db_version = await db_migration(has_schema)
 
     schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
+    await Postgres.execute(schema, timeout=120)
+
+    # Save the current database version (latest migration applied)
+
+    await Postgres.execute(
+        """
+        INSERT INTO config (key, value) VALUES ('dbVersion', $1)
+        ON CONFLICT (key) DO UPDATE SET value = $1
+        """,
+        db_version,
+    )
 
     # This is something we can do every time.
+    # Similar to database migrations, built-in attributes
+    # may change between versions, so we need to ensure
+    # they are up-to-date, when the container is started.
+
     await deploy_attributes()
 
-    if force_install:
-        logging.info("Force install requested")
-        template_data: dict[str, Any] = {}
-        if "-" in sys.argv:
-            logging.info("Reading setup file from stdin")
-            raw_data = sys.stdin.read()
-            try:
-                template_data = json_loads(raw_data)
-            except Exception:
-                log_traceback()
-                critical_error("Invalid setup file provided")
+    # When the setup is started for the first time, or
+    # is invoked using `make setup`, we  apply the
+    # setup template.
 
-        elif os.path.exists("/template.json"):
-            logging.info("Reading setup file from /template.json")
-            try:
-                raw_data = Path("/template.json").read_text()
-                template_data = json_loads(raw_data)
-            except Exception:
-                logging.warning("Invalid setup file provided. Using defaults")
-            else:
-                logging.debug("Setting up from /template.json")
-        else:
-            logging.warning("No setup file provided. Using defaults")
-        DATA.update(template_data)
+    if force_install:
+        template = await get_setup_template()
 
         projects: list[str] = []
         async for row in Postgres.iterate("SELECT name FROM projects"):
             projects.append(row["name"])
 
-        users: list[dict[str, Any]] = DATA["users"]
-        access_groups: list[dict[str, Any]] = DATA.get("accessGroups", [])
+        users: list[dict[str, Any]] = template["users"]
+        access_groups: list[dict[str, Any]] = template.get("accessGroups", [])
 
         await deploy_users(users, projects)
         await deploy_access_groups(access_groups)
 
-        for name, value in DATA.get("secrets", {}).items():
+        for name, value in template.get("secrets", {}).items():
             await Postgres.execute(
                 """
                 INSERT INTO secrets (name, value)
@@ -133,7 +98,7 @@ async def main(force: bool | None = None) -> None:
                 value,
             )
 
-        for key, value in DATA.get("config", {}).items():
+        for key, value in template.get("config", {}).items():
             await Postgres.execute(
                 """
                 INSERT INTO config (key, value)
@@ -144,8 +109,48 @@ async def main(force: bool | None = None) -> None:
                 value,
             )
 
-    logging.goodnews("Setup is finished")
+        if bundle_data := template.get("initialBundle"):
+            if not isinstance(bundle_data, dict):
+                logger.warning("Invalid initial bundle data")
+            else:
+                await create_initial_bundle(bundle_data)
+
+    # If the server was updated to a new version,
+    # save the current version in the database.
+
+    await Postgres.execute(
+        """
+        INSERT INTO server_updates (version)
+        VALUES ($1) ON CONFLICT (version) DO NOTHING
+        """,
+        server_version,
+    )
+
+    # Attributes may have changed, so we need to rebuild
+    # existing hierarchies.
+
+    from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+
+    project_list = await get_project_list(force_load=True)
+    for project in project_list:
+        if project.skeleton:
+            # this should not happen, but just in case.
+            continue
+        try:
+            await rebuild_inherited_attributes(project.name)
+        except Exception:
+            log_traceback(
+                f"Unable to rebuild attributes for {project.name}. "
+                "Project may be corrupted."
+            )
+
+    logger.success("Setup is finished")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception:
+        log_traceback()
+        critical_error("Setup failed")
+    sys.exit(0)

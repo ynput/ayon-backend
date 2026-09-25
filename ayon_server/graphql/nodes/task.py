@@ -1,23 +1,28 @@
-from typing import TYPE_CHECKING, Optional
+import datetime
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import TaskEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
+from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.graphql.types import Info
+from ayon_server.logging import logger
+from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
-    from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
-    from ayon_server.graphql.nodes.folder import FolderNode
+    from ..connections import VersionsConnection, WorkfilesConnection
+    from .folder import FolderNode
 else:
-    FolderNode = LazyType["FolderNode", ".folder"]
-    VersionsConnection = LazyType["VersionsConnection", "..connections"]
-    WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
+    FolderNode = Annotated["FolderNode", strawberry.lazy(".folder")]
+    VersionsConnection = Annotated[
+        "VersionsConnection", strawberry.lazy("..connections")
+    ]
+    WorkfilesConnection = Annotated[
+        "WorkfilesConnection", strawberry.lazy("..connections")
+    ]
 
 
 @TaskEntity.strawberry_attrib()
@@ -26,31 +31,58 @@ class TaskAttribType:
 
 
 @strawberry.type
+class SubTaskNode:
+    """GraphQL node representing a subtask of a task.
+
+    Exposes basic subtask metadata including its identifier, human-readable
+    name and label, optional description, scheduling dates, assigned users,
+    and completion status.
+    """
+
+    id: str
+    name: str
+    label: str
+    description: str | None = None
+    start_date: datetime.datetime | None = None
+    end_date: datetime.datetime | None = None
+    assignees: list[str] = strawberry.field(default_factory=list)
+    is_done: bool = False
+
+
+@strawberry.type
 class TaskNode(BaseNode):
+    entity_type: strawberry.Private[str] = "task"
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
+    thumbnail_hash: str = strawberry.field()
+    thumbnail: ThumbnailInfo | None = None
     assignees: list[str]
     folder_id: str
     status: str
+    has_reviewables: bool
     tags: list[str]
-    attrib: TaskAttribType
     data: str | None
-    own_attrib: list[str]
+    path: str | None = None
+    subtasks: list[SubTaskNode] = strawberry.field(default_factory=list)
+    latest_comments: list[EntityComment] | None = strawberry.field(default=None)
+
+    _inherited_attrib: strawberry.Private[dict[str, Any]]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
-    versions: "VersionsConnection" = strawberry.field(
+    versions: VersionsConnection = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,
     )
 
-    workfiles: "WorkfilesConnection" = strawberry.field(
+    workfiles: WorkfilesConnection = strawberry.field(
         resolver=get_workfiles,
         description=get_workfiles.__doc__,
     )
 
-    _folder: Optional[FolderNode] = None
+    _folder: strawberry.Private[FolderNode | None] = None
 
     @strawberry.field
     def type(self) -> str:
@@ -64,13 +96,33 @@ class TaskNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
+    @strawberry.field
+    def attrib(self) -> TaskAttribType:
+        return TaskAttribType(**self.processed_attrib())
 
-def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
+    @strawberry.field
+    def own_attrib(self) -> list[str]:
+        """Return a list of attributes that are defined on the task."""
+        return list(self._attrib.keys())
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
+
+async def task_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> TaskNode:
     """Construct a task node from a DB row."""
+
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -78,27 +130,88 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
-    else:
-        folder = None
+        if folder_data.get("id"):
+            cfun = context["folder_from_record"]
+            try:
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
+            except KeyError:
+                pass
 
     current_user = context["user"]
-    assignees: list[str] = []
-    if current_user.is_guest:
-        for assignee in record["assignees"]:
-            if assignee == current_user.name:
-                assignees.append(assignee)
-            else:
-                assignees.append(get_nickname(assignee))
-    else:
-        assignees = record["assignees"]
 
-    own_attrib = list(record["attrib"].keys())
-    data = record.get("data", {})
+    assignees: list[str] = record["assignees"]
+    data: dict[str, Any] = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
+
+    if current_user.is_guest:
+        data = {}
+        assignees = []
+
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
+    #
+    # Handle subtasks
+    #
+
+    subtasks: list[SubTaskNode] = []
+    _sdata = data.get("subtasks") or []
+    for subtask_record in _sdata:
+        start_date_iso = subtask_record.get("start_date")
+        end_date_iso = subtask_record.get("end_date")
+
+        try:
+            subtasks.append(
+                SubTaskNode(
+                    id=subtask_record["id"],
+                    name=subtask_record["name"],
+                    label=subtask_record["label"],
+                    description=subtask_record.get("description"),
+                    start_date=datetime.datetime.fromisoformat(start_date_iso)
+                    if start_date_iso
+                    else None,
+                    end_date=datetime.datetime.fromisoformat(end_date_iso)
+                    if end_date_iso
+                    else None,
+                    assignees=subtask_record.get("assignees") or [],
+                    is_done=subtask_record.get("is_done") or False,
+                )
+            )
+        except Exception:
+            logger.warning(
+                f"Failed to parse subtask {subtask_record.get('id')} "
+                f"of task {record['id']}"
+            )
+
+    #
+    # Handle thumbnail
+    #
+
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
+
+    path = None
+    folder_path = None
+    if record.get("_folder_path"):
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
+
+    try:
+        latest_comments = json_loads(record.get("latest_comments") or "[]")
+    except Exception:
+        latest_comments = []
 
     return TaskNode(
         project_name=project_name,
@@ -107,23 +220,27 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         label=record["label"],
         task_type=record["task_type"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],
+        has_reviewables=has_reviewables,
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            TaskAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-            inherited_attrib=record["parent_folder_attrib"],
-        ),
         data=json_dumps(data) if data else None,
+        subtasks=subtasks,
         active=record["active"],
+        path=path,
+        latest_comments=[EntityComment(**comment) for comment in latest_comments],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        own_attrib=own_attrib,
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         _folder=folder,
+        _attrib=record["attrib"],
+        _inherited_attrib=record["inherited_attributes"],
+        _user=current_user,
+        _folder_path=folder_path,
     )
 
 

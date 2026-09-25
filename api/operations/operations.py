@@ -1,274 +1,39 @@
-from contextlib import suppress
-from typing import Any, Literal, Type
+from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Header
-from nxtools import log_traceback
+from fastapi import BackgroundTasks
 
+from ayon_server.api.context import get_request_context
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.config import ayonconfig
-from ayon_server.entities import (
-    FolderEntity,
-    ProductEntity,
-    RepresentationEntity,
-    TaskEntity,
-    UserEntity,
-    VersionEntity,
-    WorkfileEntity,
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
+from ayon_server.operations.project_level import (
+    OperationModel,
+    OperationsProgress,
+    OperationsResponseModel,
+    ProjectLevelOperations,
 )
-from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.events import dispatch_event
-from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import AyonException
-from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.types import Field, OPModel
+from ayon_server.utils.hashing import create_uuid
 
-router = APIRouter(tags=["Projects"])
+from .router import router
 
-
-class RollbackException(Exception):
-    pass
-
-
-#
-# Models
-#
-
-OperationType = Literal["create", "update", "delete"]
-
-
-class OperationModel(OPModel):
-    id: str = Field(
-        default_factory=create_uuid,
-        title="Operation ID",
-        description="identifier manually or automatically assigned to each operation",
-    )
-    type: OperationType = Field(
-        ...,
-        title="Operation type",
-    )
-    entity_type: ProjectLevelEntityType = Field(
-        ...,
-        title="Entity type",
-    )
-    entity_id: str | None = Field(
-        None,
-        title="Entity ID",
-        description="ID of the entity. None for create",
-    )
-    data: dict[str, Any] | None = Field(
-        None,
-        title="Data",
-        description="Data to be used for create or update. Ignored for delete.",
-    )
+BACKGROUND_OPS_TTL = 1800  # 30 minutes
 
 
 class OperationsRequestModel(OPModel):
     operations: list[OperationModel] = Field(default_factory=list)
     can_fail: bool = False
+    wait_for_events: bool = False
+    raise_on_error: bool = False
 
 
-class OperationResponseModel(OPModel):
-    id: str = Field(..., title="Operation ID")
-    type: OperationType = Field(..., title="Operation type")
-    success: bool = Field(..., title="Operation success")
-    detail: str | None = Field(None, title="Error message")
-    entity_type: ProjectLevelEntityType = Field(..., title="Entity type")
-    entity_id: str | None = Field(
-        None,
-        title="Entity ID",
-        description="`None` if type is `create` and the operation fails.",
-    )
-
-
-class OperationsResponseModel(OPModel):
-    operations: list[OperationResponseModel] = Field(default_factory=list)
-    success: bool = Field(..., title="Overall success")
-
-
-#
-# Processing
-#
-
-
-def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEntity]:
-    return {
-        "folder": FolderEntity,
-        "task": TaskEntity,
-        "product": ProductEntity,
-        "version": VersionEntity,
-        "representation": RepresentationEntity,
-        "workfile": WorkfileEntity,
-    }[entity_type]
-
-
-async def process_operation(
-    project_name: str,
-    user: UserEntity,
-    operation: OperationModel,
-    transaction=None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]] | None, OperationResponseModel]:
-    """Process a single operation. Raise an exception on error."""
-
-    entity_class = get_entity_class(operation.entity_type)
-
-    # Data for the event triggered after successful operation
-    events: list[dict[str, Any]] | None = None
-
-    if operation.type == "create":
-        payload = entity_class.model.post_model(**operation.data)
-        payload_dict = payload.dict()
-        if operation.entity_id is not None:
-            payload_dict["id"] = operation.entity_id
-        entity = entity_class(project_name, payload_dict)
-        await entity.ensure_create_access(user)
-        description = f"{operation.entity_type.capitalize()} {entity.name} created"
-        events = [
-            {
-                "topic": f"entity.{operation.entity_type}.created",
-                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": description,
-                "project": project_name,
-            }
-        ]
-        await entity.save(transaction=transaction)
-        # print(f"created {entity_class.__name__} {entity.id} {entity.name}")
-
-    elif operation.type == "update":
-        payload = entity_class.model.patch_model(**operation.data)
-        assert operation.entity_id is not None, "entity_id is required for update"
-        entity = await entity_class.load(
-            project_name,
-            operation.entity_id,
-            for_update=True,
-            transaction=transaction,
-        )
-        await entity.ensure_update_access(user)
-        events = build_pl_entity_change_events(entity, payload)
-        entity.patch(payload)
-        await entity.save(transaction=transaction)
-        # print(f"updated {entity_class.__name__} {entity.id}")
-
-    elif operation.type == "delete":
-        assert operation.entity_id is not None, "entity_id is required for delete"
-        entity = await entity_class.load(project_name, operation.entity_id)
-        await entity.ensure_delete_access(user)
-        description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
-        events = [
-            {
-                "topic": f"entity.{operation.entity_type}.deleted",
-                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": description,
-                "project": project_name,
-            }
-        ]
-        if ayonconfig.audit_trail:
-            events[0]["payload"] = {"entityData": entity.dict_simple()}
-        await entity.delete(transaction=transaction)
-
-    return (
-        entity,
-        events,
-        OperationResponseModel(
-            success=True,
-            id=operation.id,
-            type=operation.type,
-            entity_id=entity.id,
-            entity_type=operation.entity_type,
-        ),
-    )
-
-
-async def process_operations(
-    project_name: str,
-    user: UserEntity,
-    operations: list[OperationModel],
-    can_fail: bool = False,
-    transaction=None,
-) -> tuple[list[dict[str, Any]], OperationsResponseModel]:
-    """Process a list of operations.
-
-    This is separated from the endpoint so the endpoint can
-    run this operation within or without a transaction context.
-
-    This function should not raise an exception. If an operation
-    fails, success=False is returned.
-    """
-
-    result: list[OperationResponseModel] = []
-    to_commit: list[ProjectLevelEntity] = []
-
-    events: list[dict[str, Any]] = []
-
-    for _i, operation in enumerate(operations):
-        try:
-            entity, evt, response = await process_operation(
-                project_name,
-                user,
-                operation,
-                transaction=transaction,
-            )
-            if evt is not None:
-                events.extend(evt)
-            result.append(response)
-            if entity.entity_type not in [e.entity_type for e in to_commit]:
-                to_commit.append(entity)
-        except AyonException as e:
-            print(e)
-            result.append(
-                OperationResponseModel(
-                    success=False,
-                    id=operation.id,
-                    type=operation.type,
-                    detail=e.detail,
-                    entity_id=operation.entity_id,
-                    entity_type=operation.entity_type,
-                )
-            )
-            if not can_fail:
-                break
-        except Exception as exc:
-            log_traceback()
-            result.append(
-                OperationResponseModel(
-                    success=False,
-                    id=operation.id,
-                    type=operation.type,
-                    detail=str(exc),
-                    entity_id=operation.entity_id,
-                    entity_type=operation.entity_type,
-                )
-            )
-
-            if not can_fail:
-                # No need to continue
-                break
-
-    # Create overall success value
-    success = all(op.success for op in result)
-    if success or can_fail:
-        for entity in to_commit:
-            await entity.commit(transaction=transaction)
-
-    return events, OperationsResponseModel(operations=result, success=success)
-
-
-#
-# Operations request
-#
-
-
-@router.post(
-    "/projects/{project_name}/operations",
-    response_model=OperationsResponseModel,
-)
+@router.post("/projects/{project_name}/operations")
 async def operations(
     payload: OperationsRequestModel,
-    background_tasks: BackgroundTasks,
     project_name: ProjectName,
     user: CurrentUser,
-    x_sender: str | None = Header(None),
-):
+) -> OperationsResponseModel:
     """
     Process multiple operations (create / update / delete) in a single request.
 
@@ -287,38 +52,190 @@ async def operations(
     Always check the `success` field of the response.
     """
 
-    if payload.can_fail:
-        events, response = await process_operations(
-            project_name,
-            user,
-            payload.operations,
-            can_fail=True,
+    ops = ProjectLevelOperations(project_name, user=user)
+
+    for operation in payload.operations:
+        if operation.as_user:
+            is_different_user = operation.as_user != user.name
+            if is_different_user and not user.is_service:
+                msg = "You are not allowed to perform operations as another user"
+                raise ForbiddenException(msg)
+        ops.append(operation)
+
+    # Return an error response ONLY if:
+    #  - can_fail is set to False
+    #  - raise_on_error is set to True
+    #
+    #  Otherwise, the endpoint will return a success response
+    #  regardless of the operations' success and the errors
+    #  are included in the response (default behavior).
+
+    raise_on_error = False
+    if not payload.can_fail:
+        raise_on_error = payload.raise_on_error
+
+    return await ops.process(
+        can_fail=payload.can_fail,
+        raise_on_error=raise_on_error,
+        wait_for_events=payload.wait_for_events,
+    )
+
+
+#
+# Background tasks variant
+#
+
+
+class BackgroundOperationsResponseModel(OPModel):
+    id: str
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+    progress: float | None = None
+    result: OperationsResponseModel | None = None
+
+
+async def _execute_background_operations(
+    task_id: str,
+    ops: ProjectLevelOperations,
+    *,
+    can_fail: bool,
+) -> None:
+    try:
+        req_count = await Redis.incr(
+            "global",
+            "concurrent-background-operations",
+            ttl=BACKGROUND_OPS_TTL,
         )
-        return response
 
-    # If can_fail is false, process all items in a transaction
-    # and roll back on error
+        msg = "Starting background operations"
+        if req_count > 2:
+            msg += f" ({req_count - 1} already running)"
+            logger.debug(msg)
+        else:
+            logger.trace(msg)
 
-    with suppress(RollbackException):
-        async with Postgres.acquire() as conn:
-            async with conn.transaction():
-                events, response = await process_operations(
-                    project_name,
-                    user,
-                    payload.operations,
-                    transaction=conn,
+        await Redis.set_json(
+            "background-operations",
+            task_id,
+            {
+                "status": "in_progress",
+                "progress": 0.0,
+            },
+            ttl=BACKGROUND_OPS_TTL,
+        )
+
+        async def handle_progress(progress: OperationsProgress) -> None:
+            percent = (
+                (progress.index / progress.total) if progress.total else 0.0
+            ) * 100.0
+            try:
+                await Redis.set_json(
+                    "background-operations",
+                    task_id,
+                    {
+                        "status": "in_progress",
+                        "progress": percent,
+                    },
+                    ttl=BACKGROUND_OPS_TTL,
                 )
+                await Redis.expire(
+                    "global",
+                    "concurrent-background-operations",
+                    ttl=BACKGROUND_OPS_TTL,
+                )
+            except Exception:
+                pass  # not super important
 
-                if not response.success:
-                    events = []
-                    raise RollbackException()
-
-    for event in events:
-        background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
-            user=user.name,
-            **event,
+        response = await ops.process(
+            can_fail=can_fail,
+            raise_on_error=False,
+            wait_for_events=True,
+            progress_handler=handle_progress,
         )
 
-    return response
+        # TODO: To be discussed.
+        # should we use failed? probably not, because the task itself completed
+        # and the result is available. depending on can_fail,
+        # the result may contain errors, but the task itself is completed.
+        # status = "completed" if response.success else "failed"
+
+        await Redis.set_json(
+            "background-operations",
+            task_id,
+            {
+                "status": "completed",
+                "result": response.dict(),
+                "progress": 100.0,
+            },
+            ttl=BACKGROUND_OPS_TTL,
+        )
+
+    finally:
+        await Redis.decr("global", "concurrent-background-operations")
+
+
+@router.post("/projects/{project_name}/operations/background")
+async def background_operations(
+    payload: OperationsRequestModel,
+    project_name: ProjectName,
+    user: CurrentUser,
+    background_tasks: BackgroundTasks,
+) -> BackgroundOperationsResponseModel:
+    """
+    The same as `POST /projects/{project_name}/operations` but runs in the background.
+    The response is returned immediately and contains a task ID that can be used to
+    query the status of the task.
+    """
+
+    request_context = get_request_context()
+
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=request_context.sender,
+        sender_type=request_context.sender_type,
+    )
+
+    for operation in payload.operations:
+        if operation.as_user:
+            is_different_user = operation.as_user != user.name
+            if is_different_user and not user.is_service:
+                msg = "You are not allowed to perform operations as another user"
+                raise ForbiddenException(msg)
+        ops.append(operation)
+
+    task_id = create_uuid()
+
+    background_tasks.add_task(
+        _execute_background_operations,
+        task_id,
+        ops,
+        can_fail=payload.can_fail,
+    )
+
+    await Redis.set_json(
+        "background-operations",
+        task_id,
+        {"status": "pending"},
+        ttl=BACKGROUND_OPS_TTL,
+    )
+    return BackgroundOperationsResponseModel(id=task_id)
+
+
+@router.get("/projects/{project_name}/operations/background/{task_id}")
+async def get_background_operations_status(
+    project_name: ProjectName,
+    task_id: str,
+    user: CurrentUser,
+) -> BackgroundOperationsResponseModel:
+    """Get the status of a background operations task."""
+
+    # Note: project_name is not used here but kept for consistency
+    # and future use (if needed).
+    _ = project_name, user
+
+    data = await Redis.get_json("background-operations", task_id)
+    if not data:
+        msg = f"Background operations task '{task_id}' not found"
+        raise NotFoundException(msg)
+
+    return BackgroundOperationsResponseModel(id=task_id, **data)

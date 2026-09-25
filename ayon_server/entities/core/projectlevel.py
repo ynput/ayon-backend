@@ -5,24 +5,39 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
-from ayon_server.exceptions import ConstraintViolationException, NotFoundException
+from ayon_server.exceptions import (
+    AyonException,
+    ConstraintViolationException,
+    NotFoundException,
+)
+from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import EntityID, SQLTool, dict_exclude
+
+BASE_GET_QUERY = """
+    SELECT *
+    FROM project_{project_name}.{entity_type}s entity
+"""
 
 
 class ProjectLevelEntity(BaseEntity):
     entity_type: ProjectLevelEntityType
     project_name: str
+    base_get_query: str = BASE_GET_QUERY
+
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
+        return record
 
     def __init__(
         self,
         project_name: str,
         payload: dict[str, Any],
         exists: bool = False,
-        validate: bool = True,  # deprecated
         own_attrib: list[str] | None = None,
     ) -> None:
         """Return a new entity instance from given data.
@@ -54,7 +69,6 @@ class ProjectLevelEntity(BaseEntity):
         cls,
         project_name: str,
         payload: dict[str, Any],
-        validate: bool = False,  # deprecated
         own_attrib: list[str] | None = None,
     ):
         """Return an entity instance based on a DB record.
@@ -64,17 +78,24 @@ class ProjectLevelEntity(BaseEntity):
         and reformats ids.
 
         """
+        # ensure payload is a dict (it might be a asyncpg.Record)
+        payload = dict(payload)
+        if own_attrib is None:
+            own_attrib = list(payload["attrib"].keys())
+        payload = cls.preprocess_record(payload)
         parsed = {}
         for key in cls.model.main_model.__fields__:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(
+        result = cls(
             project_name,
             parsed,
             exists=True,
             own_attrib=own_attrib,
         )
+        result.inherited_attrib = payload.get("inherited_attrib", {})
+        return result
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""
@@ -91,8 +112,8 @@ class ProjectLevelEntity(BaseEntity):
         kw: dict[str, Any] = {"deep": True, "exclude": {}}
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
-        attrib = self._payload.attrib.dict()
-        if not user.is_manager:
+        attrib = self._payload.attrib.dict()  # type: ignore
+        if not user.is_manager:  # managers have access to all attributes
             # kw["exclude"]["data"] = True
 
             attr_perm = user.permissions(self.project_name).attrib_read
@@ -107,23 +128,24 @@ class ProjectLevelEntity(BaseEntity):
         result = self._payload.copy(**kw)
         return result
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
         """
-        await ensure_entity_access(
-            user, self.project_name, self.entity_type, self.id, "create"
+
+        raise AyonException(
+            "Ensure created access called on base class. This is a bug."
         )
 
-    async def ensure_read_access(self, user) -> None:
+    async def ensure_read_access(self, user, **kwargs) -> None:
         """Check if the user has access to read the entity.
 
         Raises FobiddenException if the user does not have access.
         """
         await ensure_entity_access(user, self.project_name, self.entity_type, self.id)
 
-    async def ensure_update_access(self, user) -> None:
+    async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -132,7 +154,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "update"
         )
 
-    async def ensure_delete_access(self, user) -> None:
+    async def ensure_delete_access(self, user, **kwargs) -> None:
         """Check if the user has access to delete the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -150,45 +172,50 @@ class ProjectLevelEntity(BaseEntity):
         cls,
         project_name: str,
         entity_id: str,
-        transaction=None,
-        for_update=False,
+        for_update: bool = False,
+        **kwargs,
     ):
-        """Return an entity instance based on its ID and a project name.
+        """Load a folder from the database by its project name and IDself.
 
-        Raise ValueError if project_name or base_id is not valid.
-        Raise KeyError if the folder does not exists.
-
-        Set for_update=True and pass a transaction to lock the row
-        for update.
+        This is reimplemented, because we need to select dynamic
+        attribute hierarchy.path along with the base data and
+        the attributes inherited from parent entities.
         """
 
-        query = f"""
-            SELECT  *
-            FROM project_{project_name}.{cls.entity_type}s
-            WHERE id=$1
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """
+        if EntityID.parse(entity_id) is None:
+            raise ValueError(f"Invalid {cls.entity_type} ID specified")
 
-        async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(project_name, record)
-        raise NotFoundException("Entity not found")
+        query = cls.base_get_query.format(
+            project_name=project_name,
+            entity_type=cls.entity_type,
+        )
+
+        query += f"""
+            WHERE entity.id=$1
+            {"FOR UPDATE OF entity NOWAIT" if for_update else ""}
+        """
+
+        record = await query_entity_data(query, entity_id)
+
+        return cls.from_record(
+            project_name=project_name,
+            payload=record,
+        )
 
     #
     # Save
     #
 
-    async def pre_save(self, insert: bool, transaction) -> None:
+    async def pre_save(self, insert: bool) -> None:
         """Hook called before saving the entity to the database."""
         pass
 
-    async def save(self, transaction=None) -> bool:
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         """Save the entity to the database.
 
         Supports both creating and updating. Entity must be loaded from the
         database in order to update. If the entity is not loaded, it will be
         created.
-
-        Returns True if the folder was successfully saved.
 
         Optional `transaction` argument may be specified to pass a connection object,
         to run the query in (to run multiple transactions). When used,
@@ -196,111 +223,109 @@ class ProjectLevelEntity(BaseEntity):
         it is called at the end of the transaction block.
         """
 
-        commit = not transaction
-        transaction = transaction or Postgres
-
         if self.status is None:
             self.status = await self.get_default_status()
 
-        attrib = {}
-        for key in self.own_attrib:
-            with suppress(AttributeError):
-                if (value := getattr(self.attrib, key)) is not None:
-                    attrib[key] = value
+        async with Postgres.transaction():
+            attrib = {}
+            for key in self.own_attrib:
+                with suppress(AttributeError):
+                    if (value := getattr(self.attrib, key)) is not None:
+                        attrib[key] = value
 
-        if self.exists:
-            # Update existing entity
+            if self.exists:
+                await self.pre_save(False)
+                # Update existing entity
+                fields = dict_exclude(
+                    self.dict(),
+                    ["id", "created_at", "updated_at"] + self.model.dynamic_fields,
+                )
+                fields["attrib"] = attrib
+                fields["updated_at"] = datetime.now()
+                fields["updated_by"] = kwargs.get("user_name", None)
 
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                ["id", "created_at", "updated_at"] + self.model.dynamic_fields,
-            )
-            fields["attrib"] = attrib
-            fields["updated_at"] = datetime.now()
-
-            try:
-                await self.pre_save(False, transaction)
-                await transaction.execute(
+                await Postgres.execute(
                     *SQLTool.update(
                         f"project_{self.project_name}.{self.entity_type}s",
                         f"WHERE id = '{self.id}'",
                         **fields,
                     )
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
 
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            if commit:
-                await self.commit(transaction)
-            return True
-
-        # Create a new entity
-        try:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                self.model.dynamic_fields,
-            )
-            fields["attrib"] = attrib
-
-            await self.pre_save(True, transaction)
-            await transaction.execute(
-                *SQLTool.insert(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    **fields,
+            else:
+                await self.pre_save(True)
+                # Create a new entity
+                fields = dict_exclude(
+                    self.dict(exclude_none=True),
+                    self.model.dynamic_fields,
                 )
-            )
-        except Postgres.ForeignKeyViolationError as e:
-            raise ConstraintViolationException(e.detail)
+                fields["attrib"] = attrib
+                fields["created_by"] = kwargs.get("user_name", None)
+                fields["updated_by"] = kwargs.get("user_name", None)
 
-        except Postgres.UniqueViolationError as e:
-            raise ConstraintViolationException(e.detail)
+                await Postgres.execute(
+                    *SQLTool.insert(
+                        f"project_{self.project_name}.{self.entity_type}s",
+                        **fields,
+                    )
+                )
 
-        if commit:
-            await self.commit(transaction)
-        return True
+            if auto_commit:
+                await self.commit()
+
+    async def commit(self, **kwargs: Any) -> None:
+        await self.refresh_views(self.project_name, **kwargs)
+
+    @classmethod
+    async def refresh_views(cls, project_name: str, **kwargs) -> None:
+        """Refresh the views for the entity type in the given project.
+
+        This method should be overridden in subclasses to refresh.
+        and should be called from commit() method after the entity is saved.
+        """
+        pass
 
     #
     # Delete
     #
 
-    async def delete(self, transaction=None) -> bool:
+    async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         """Delete an existing entity."""
         if not self.id:
             raise NotFoundException(f"Unable to delete unloaded {self.entity_type}.")
 
-        commit = not transaction
-        transaction = transaction or Postgres
-        try:
-            res = await transaction.fetch(
-                f"""
-                WITH deleted AS (
-                    DELETE FROM project_{self.project_name}.{self.entity_type}s
-                    WHERE id=$1
-                    RETURNING *
-                ) SELECT count(*) FROM deleted;
-                """,
-                self.id,
-            )
-            count = res[0]["count"]
-        except Postgres.ForeignKeyViolationError as e:
-            detail = f"Unable to delete {self.entity_type} {self.id}"
-            if self.entity_type == "folder":
-                _ = e  # TODO: use this
-                detail = "Unable to delete a folder with products or tasks."
-            raise ConstraintViolationException(detail)
+        async with Postgres.transaction():
+            try:
+                query = f"""
+                    WITH deleted AS (
+                        DELETE FROM project_{self.project_name}.{self.entity_type}s
+                        WHERE id=$1
+                        RETURNING *
+                    ) SELECT count(*) FROM deleted;
+                """
+                res = await Postgres.fetch(query, self.id)
+                await remove_entity_links(
+                    self.project_name,
+                    self.entity_type,
+                    self.id,
+                )
+                if auto_commit:
+                    await self.commit()
+                return bool(res[0]["count"])
 
-        if commit:
-            await self.commit(transaction)
-        return bool(count)
+            except Postgres.ForeignKeyViolationError as e:
+                detail = f"Unable to delete {self.entity_type} {self.id}"
+                code: str | None = None
+                if self.entity_type == "folder":
+                    _ = e  # TODO: use this
+                    detail = "Unable to delete a folder with products or tasks."
+                    code = "delete-folder-with-children"
+                raise ConstraintViolationException(detail, code=code)
 
     async def get_default_status(self) -> str:
         return await get_default_status_for_entity(
             self.project_name,
             self.entity_type,
-            self.entity_subtype,
         )
 
     #
@@ -310,12 +335,12 @@ class ProjectLevelEntity(BaseEntity):
     @property
     def id(self) -> str:
         """Return the entity id."""
-        return self._payload.id
+        return self._payload.id  # type: ignore
 
     @id.setter
     def id(self, value: str):
         """Set the entity id."""
-        self._payload.id = value
+        self._payload.id = value  # type: ignore
 
     @property
     def parent_id(self) -> str | None:
@@ -331,20 +356,24 @@ class ProjectLevelEntity(BaseEntity):
     @property
     def status(self) -> str:
         """Return the entity status."""
-        return self._payload.status
+        return self._payload.status  # type: ignore
 
     @status.setter
     def status(self, value: str):
         """Set the entity status."""
-        self._payload.status = value
+        self._payload.status = value  # type: ignore
 
     @property
     def tags(self) -> list[str]:
-        return self._payload.tags
+        return self._payload.tags  # type: ignore
 
     @tags.setter
     def tags(self, value: list[str]):
-        self._payload.tags = value
+        self._payload.tags = value  # type: ignore
+
+    #
+    # Read only properties
+    #
 
     @property
     def entity_subtype(self) -> str | None:
@@ -354,3 +383,15 @@ class ProjectLevelEntity(BaseEntity):
         For other entities this is None.
         """
         return None
+
+    @property
+    def path(self) -> str:
+        return ""
+
+    @property
+    def created_by(self) -> str | None:
+        return self._payload.created_by  # type: ignore
+
+    @property
+    def updated_by(self) -> str | None:
+        return self._payload.updated_by  # type: ignore

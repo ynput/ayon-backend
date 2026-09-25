@@ -1,8 +1,9 @@
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel
 
-from ayon_server.config import ayonconfig
+from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 
 EventData = dict[str, Any]
@@ -19,6 +20,16 @@ ADDITIONAL_COLUMNS = {
     "product_type": "product_type_changed",
     "author": "author_changed",
     "files": "files_changed",
+    "config": "config_changed",  # for projects
+    "statuses": "statuses_changed",  # for projects
+    "tags": "tags_changed",  # for projects
+    "folder_types": "folder_types_changed",  # for projects
+    "task_types": "task_types_changed",  # for projects
+    "parent_id": "parent_changed",  # for folders
+    "folder_id": "folder_changed",  # for tasks and products
+    "task_id": "task_changed",  # for workfiles and versions
+    "product_id": "product_changed",  # for versions
+    "version_id": "version_changed",  # for representations
 }
 
 
@@ -41,13 +52,13 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
     description = ""
     if added:
         what = entity_desc + (" tag " if len(added) == 1 else " tags ")
-        description += f"Added {what}" + ", ".join(added) + ". "
+        description += f"Added {what}" + ", ".join(added)
     if removed:
         if added:
             what = ""
         else:
             what = entity_desc + (" tag " if len(removed) == 1 else " tags ")
-        description += f"Removed {what} " + ", ".join(removed) + ". "
+        description += f"Removed {what} " + ", ".join(removed)
 
     return description.strip()
 
@@ -55,8 +66,10 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
 def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
+    *,
+    calculated_attributes: Iterable[str] | None = None,
 ) -> list[EventData]:
-    """Return a list of events triggered by a patch on a project level entity.
+    """Return a listof events triggered by a patch on a project level entity.
 
     This should be called in every operation that updates a project level entity,
     after source entity is loaded and validated against the ACL, but BEFORE the
@@ -84,13 +97,17 @@ def build_pl_entity_change_events(
     result: list[EventData] = []
     common_data = {
         "project": original_entity.project_name,
-        "summary": {"entityId": original_entity.id, "parentId": parent_id},
+        "summary": {
+            "entityId": original_entity.id,
+            "parentId": parent_id,
+            "entityPath": original_entity.path,
+        },
     }
 
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
             description = (
-                f"Renamed {entity_type} {original_entity.name} to {patch.name}"
+                f"Renamed {entity_type} {original_entity.path} to {patch.name}"  # type: ignore
             )
             result.append(
                 {
@@ -99,17 +116,16 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": original_entity.name,
-                    "newValue": new_name,
-                }
-                result[-1]["payload"] = payload
+            result[-1]["summary"]["value"] = new_name
+            result[-1]["payload"] = {
+                "oldValue": original_entity.name,
+                "newValue": new_name,
+            }
 
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
             description = (
-                f"Changed {entity_type} {original_entity.name} status to {patch.status}"
+                f"Changed {entity_type} {original_entity.path} status to {patch.status}"  # type: ignore
             )
             result.append(
                 {
@@ -118,19 +134,18 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": original_entity.status,
-                    "newValue": new_status,
-                }
-                result[-1]["payload"] = payload
+            result[-1]["summary"]["value"] = new_status
+            result[-1]["payload"] = {
+                "oldValue": original_entity.status,
+                "newValue": new_status,
+            }
 
     if (new_tags := patch_data.get("tags")) is not None:
         if new_tags != original_entity.tags:
             description = get_tags_description(
-                f"{entity_type} {original_entity.name}",
+                f"{entity_type} {original_entity.path}",
                 original_entity.tags,
-                patch.tags,
+                patch.tags,  # type: ignore
             )
             if description:
                 result.append(
@@ -140,52 +155,189 @@ def build_pl_entity_change_events(
                         **common_data,
                     }
                 )
-                if ayonconfig.audit_trail:
-                    payload = {
-                        "oldValue": original_entity.tags,
-                        "newValue": new_tags,
-                    }
-                    result[-1]["payload"] = payload
+                result[-1]["summary"]["value"] = new_tags
+                result[-1]["payload"] = {
+                    "oldValue": original_entity.tags,
+                    "newValue": new_tags,
+                }
 
     if new_attributes := patch_data.get("attrib", {}):
-        attr_list = ", ".join(new_attributes.keys())
-        description = (
-            f"Changed {entity_type} {original_entity.name} attributes: {attr_list}"
-        )
+        evt = {
+            "topic": f"entity.{entity_type}.attrib_changed",
+            **common_data,
+        }
+
+        old_attributes = {
+            k: v
+            for k, v in original_entity.attrib.dict().items()
+            if k in original_entity.own_attrib
+        }
+
+        for key in list(old_attributes.keys()):
+            if key not in new_attributes:
+                old_attributes.pop(key)
+                continue
+            if new_attributes.get(key) == old_attributes[key]:
+                old_attributes.pop(key, None)
+                new_attributes.pop(key, None)
+
+        evt["payload"] = {
+            "oldValue": old_attributes,
+            "newValue": new_attributes,
+        }
+
+        if calculated_attributes:
+            evt["payload"]["calculatedAttributes"] = list(calculated_attributes)  # type: ignore[index]
+
+        if new_attributes:
+            attr_list = ", ".join(new_attributes.keys())
+            evt["description"] = (
+                f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
+            )
+            # Do not include new attributes in the summary, until we have entity-level
+            # ACL on WS events
+            # evt["summary"]["value"] = new_attributes
+            result.append(evt)
+
+    for column_name, topic_name in ADDITIONAL_COLUMNS.items():
+        if column_name == "tags":
+            continue  # tags_changed is already emitted by the explicit block above
+
+        if not hasattr(original_entity, column_name):
+            continue
+
+        if column_name not in patch_data:
+            continue
+
+        if getattr(original_entity, column_name) == patch_data.get(column_name):
+            continue
+
+        description = f"Changed {entity_type} {original_entity.path} {column_name}"
+        desc_nval = str(patch_data[column_name])
+        if len(desc_nval) < 30:
+            description += f" to {desc_nval}"
+        if column_name == "active":
+            if patch_data.get("active"):
+                description = (
+                    f"{entity_type.capitalize()} {original_entity.path} activated"
+                )
+            else:
+                description = (
+                    f"{entity_type.capitalize()} {original_entity.path} deactivated"
+                )
+
         result.append(
             {
-                "topic": f"entity.{entity_type}.attrib_changed",
+                "topic": f"entity.{entity_type}.{topic_name}",
                 "description": description,
                 **common_data,
             }
         )
-        if ayonconfig.audit_trail:
-            payload = {
-                "oldValue": {
-                    k: original_entity.attrib.dict().get(k)
-                    for k in new_attributes.keys()
-                },
-                "newValue": new_attributes,
+
+        if topic_name not in (
+            "data",
+            "config",
+            "files",
+            "statuses",
+            "tags",
+            "folder_types",
+            "task_types",
+        ):
+            # for simple columns, we include new value in summary as well
+            result[-1]["summary"]["value"] = patch_data[column_name]
+
+        result[-1]["payload"] = {
+            "oldValue": getattr(original_entity, column_name),
+            "newValue": patch_data[column_name],
+        }
+
+    return result
+
+
+def build_project_change_events(
+    original_entity: ProjectEntity,
+    patch: BaseModel,
+) -> list[EventData]:
+    patch_data = patch.dict(exclude_unset=True)
+    result: list[EventData] = []
+    common_data = {"project": original_entity.name}
+    oval: Any
+    nval: Any
+
+    etype = "project_skeleton" if original_entity.skeleton else "project"
+
+    if new_attributes := patch_data.get("attrib", {}):
+        evt: dict[str, Any] = {
+            "topic": f"entity.{etype}.attrib_changed",
+            "description": "Changed project attributes",
+            **common_data,
+        }
+        # we need to compare the values here, because setting,
+        # anatomy to project data will always "update"
+        # all the attributes
+        oval = {}
+        nval = {}
+        old_attributes = original_entity.attrib.dict()
+        for key, new_value in new_attributes.items():
+            if old_attributes.get(key) == new_value:
+                continue
+            oval[key] = old_attributes.get(key)
+            nval[key] = new_value
+
+        if oval or nval:
+            evt["payload"] = {
+                "oldValue": oval,
+                "newValue": nval,
             }
-            result[-1]["payload"] = payload
+
+            result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
         if not hasattr(original_entity, column_name):
             continue
-        if column_name in patch_data:
-            description = f"Changed {entity_type} {original_entity.name} {column_name}"
-            result.append(
-                {
-                    "topic": f"entity.{entity_type}.{topic_name}",
-                    "description": description,
-                    **common_data,
-                }
-            )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": getattr(original_entity, column_name),
-                    "newValue": patch_data[column_name],
-                }
-                result[-1]["payload"] = payload
+
+        if column_name not in patch_data:
+            continue
+
+        oval = getattr(original_entity, column_name)
+        nval = patch_data.get(column_name)
+
+        # Handle special case for list of dicts
+        # (task_types, folder_types, statuses, tags)
+        if isinstance(nval, list):
+            for item in nval:
+                if isinstance(item, dict):
+                    item.pop("original_name", None)
+
+        if nval == oval:
+            continue
+
+        description = f"Changed project {column_name}"
+        if column_name == "active":
+            if patch_data.get("active"):
+                description = "Project activated"
+            else:
+                description = "Project deactivated"
+
+        evt = {
+            **common_data,
+            "topic": f"entity.{etype}.{topic_name}",
+            "description": description,
+            "payload": {
+                "oldValue": oval,
+                "newValue": nval,
+            },
+        }
+        result.append(evt)
+
+    # Original entity.project.changed event
+
+    result.append(
+        {
+            "topic": f"entity.{etype}.changed",
+            "description": f"Updated project {original_entity.name}",
+            **common_data,
+        }
+    )
 
     return result

@@ -4,102 +4,77 @@ import time
 from typing import Any
 
 from ayon_server.background.background_worker import BackgroundWorker
-
-# Fallback to the default logging module
-# This is just used when ayon_server is loaded in order
-# to get the version number.
-
-try:
-    from nxtools import logging
-
-    has_nxtools = True
-except ModuleNotFoundError:
-    import logging  # type: ignore
-
-    has_nxtools = False
-
-else:
-    from ayon_server.events import dispatch_event
-
-
-def parse_log_message(message):
-    """Convert nxtools log message to event system message."""
-    topic = {
-        0: "log.debug",
-        1: "log.info",
-        2: "log.warning",
-        3: "log.error",
-        4: "log.success",
-    }[message["message_type"]]
-
-    description = message["message"].splitlines()[0]
-    if len(description) > 100:
-        description = description[:100] + "..."
-
-    payload = {
-        "message": message["message"],
-    }
-
-    return {
-        "topic": topic,
-        "description": description,
-        "payload": payload,
-    }
+from ayon_server.config import ayonconfig
+from ayon_server.events import EventStream
+from ayon_server.logging import logger
 
 
 class LogCollector(BackgroundWorker):
+    """Log handler that collects log messages and dispatches them to the event stream.
+
+    It is started as a background worker and runs in the background
+    so it does not block the main loop.
+    """
+
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
-        self.msg_id = 0
         self.start_time = time.time()
+        logger.add(self, level=ayonconfig.log_level_db)
 
-    def __call__(self, **kwargs):
+    def __call__(self, message):
         # We need to add messages to the queue even if the
         # collector is not running to catch the messages
         # that are logged during the startup.
+        record = message.record
         if len(self.queue.queue) > 1000:
-            logging.warning("Log collector queue is full", handlers=None)
             return
-        self.queue.put(kwargs)
+
+        topic = f"log.{record['level'].name.lower()}"
+        description = record["message"].splitlines()[0].strip()
+
+        extra = dict(record["extra"])
+        extra["module"] = record["name"]
+
+        # Store user and project separately
+        user = extra.pop("user", None)
+        project = record.pop("project", None)
+
+        if extra.pop("nodb", False):
+            # Used by the API middleware to avoid writing to the database
+            return
+        self.queue.put(
+            {
+                "topic": topic,
+                "description": description,
+                "user": user,
+                "project": project,
+                "payload": extra,
+            }
+        )
 
     async def process_message(self, record):
-        self.msg_id += 1
         try:
-            message = parse_log_message(record)
-            await dispatch_event(
-                message["topic"],
-                # user=None, (TODO: implement this?)
-                description=message["description"],
-                payload=message["payload"],
-            )
+            await EventStream.dispatch(**record)
         except Exception:
-            # This actually should not happen, but if it does,
-            # we don't want to crash the whole application and
-            # we don't want to log the exception using the logger,
-            # since it failed in the first place.
-            logging.error(
-                "Unable to dispatch log message",
-                message["description"],
-                handlers=None,
-            )
+            m = f"Unable to dispatch log message: {record}"
+            with logger.contextualize(nodb=True):
+                logger.warning(m)
 
     async def run(self):
         # During the startup, we cannot write to the database
         # so the following loop patiently waits for the database
-        # to be ready.
+        # to become ready.
         while True:
             try:
-                await dispatch_event("server.log_collector_started")
+                await EventStream.dispatch("server.log_collector_started")
             except Exception:
-                # Do not log the exception using the logger,
-                # if you don't like recursion.
                 await asyncio.sleep(0.5)
                 continue
             break
 
         while True:
             if self.queue.empty():
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)
                 continue
 
             record = self.queue.get()
@@ -107,16 +82,20 @@ class LogCollector(BackgroundWorker):
 
     async def finalize(self):
         while not self.queue.empty():
-            logging.debug(
-                f"Processing {len(self.queue.queue)} remaining log messages",
-                handlers=None,
-            )
+            with logger.contextualize(nodb=True):
+                logger.trace(
+                    f"Processing {len(self.queue.queue)} remaining log messages"
+                )
             record = self.queue.get()
             await self.process_message(record)
 
 
-log_collector = LogCollector()
+# Create the instance here.
+# We are importing it first it in ayon_server.api.server
+# - that initiates the collector and every consecutive log
+# message will be added to the queue.
+# Then we import it in background_workers - that puts it
+# to the background worker class and starts dumping the
+# messages to the database.
 
-if has_nxtools:
-    logging.add_handler(log_collector)
-    logging.info("Log collector initialized", handlers=None)
+log_collector = LogCollector()

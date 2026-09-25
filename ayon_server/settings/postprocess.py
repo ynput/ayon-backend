@@ -1,13 +1,16 @@
 import collections
+import functools
 import inspect
-from typing import Any, Deque, Type
+from typing import Any
 
-from nxtools import logging
+from pydantic.typing import AnyCallable
 
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings.common import BaseSettingsModel
-from ayon_server.types import AttributeEnumItem, SimpleValue, camelize
+from ayon_server.types import SimpleValue, camelize
 
 
 async def get_attrib_enum(
@@ -16,7 +19,7 @@ async def get_attrib_enum(
     enum_values = []
     enum_labels = {}
 
-    res = await Postgres.fetch("SELECT data FROM attributes WHERE name=$1", name)
+    res = await Postgres.fetch("SELECT data FROM public.attributes WHERE name=$1", name)
     if res:
         for item in res[0]["data"].get("enum", []):
             enum_values.append(item["value"])
@@ -25,12 +28,18 @@ async def get_attrib_enum(
     return enum_values, enum_labels
 
 
-async def process_enum(
-    enum_resolver,
+async def process_functional_enum(
+    enum_resolver: AnyCallable,
     context: dict[str, Any] | None = None,
 ) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     if context is None:
         context = {}
+
+    # enum_resolver could use partial for passing arguments in
+    partial_kwargs = {}
+    if isinstance(enum_resolver, functools.partial):
+        partial_kwargs = enum_resolver.keywords
+        enum_resolver = enum_resolver.func
 
     resolver_args = inspect.getfullargspec(enum_resolver).args
 
@@ -38,6 +47,8 @@ async def process_enum(
     for key in resolver_args:
         if key in context:
             ctx_data[key] = context[key]
+        elif key in partial_kwargs:
+            ctx_data[key] = partial_kwargs[key]
         else:
             ctx_data[key] = None
 
@@ -51,11 +62,14 @@ async def process_enum(
     if not isinstance(enum, list):
         return enum_values, enum_labels
     for item in enum:
-        if type(item) is str:
+        if isinstance(item, str):
             enum_values.append(item)
-        elif type(item) is dict:
+        elif isinstance(item, EnumItem):
+            enum_values.append(item.value)
+            enum_labels[item.value] = item.label
+        elif isinstance(item, dict):
             if "value" not in item or "label" not in item:
-                logging.warning(f"Invalid enumerator item: {item}")
+                logger.warning(f"Invalid enumerator item: {item}")
                 continue
             enum_values.append(item["value"])
             enum_labels[item["value"]] = item["label"]
@@ -111,27 +125,35 @@ async def postprocess_settings_schema(  # noqa
                     enum_values, enum_labels = await get_attrib_enum(name)
                 else:
                     for item in enum:
-                        if isinstance(item, AttributeEnumItem):
+                        if isinstance(item, EnumItem):
                             enum_values.append(item.value)
                             enum_labels[item.value] = item.label
-                        elif type(item) is str:
+                        elif isinstance(item, str):
                             enum_values.append(item)
-                        elif type(item) is dict:
+                        elif isinstance(item, dict):
                             if "value" not in item or "label" not in item:
-                                logging.warning(f"Invalid enumerator item: {item}")
+                                logger.warning(f"Invalid enumerator item: {item}")
                                 continue
                             enum_values.append(item["value"])
                             enum_labels[item["value"]] = item["label"]
 
             elif enum_resolver := field.field_info.extra.get("enum_resolver"):
                 is_enum = True
-                try:
-                    enum_values, enum_labels = await process_enum(
-                        enum_resolver, context
+
+                if isinstance(enum_resolver, str):
+                    prop["x-enum-resolver"] = enum_resolver
+                    prop["x-enum-resolver-settings"] = field.field_info.extra.get(
+                        "enum_resolver_settings"
                     )
-                except AyonException as e:
-                    prop["placeholder"] = e.detail
-                    prop["disabled"] = True
+
+                else:
+                    try:
+                        enum_values, enum_labels = await process_functional_enum(
+                            enum_resolver, context
+                        )
+                    except AyonException as e:
+                        prop["placeholder"] = e.detail
+                        prop["disabled"] = True
 
             if is_enum:
                 if "items" in prop:
@@ -150,7 +172,7 @@ async def postprocess_settings_schema(  # noqa
                     prop["enumLabels"] = enum_labels
 
             scope = field.field_info.extra.get("scope")
-            if scope is None or (type(scope) != list):
+            if scope is None or (not isinstance(scope, list)):
                 prop["scope"] = ["project", "studio"]
             else:
                 # TODO assert scope is valid ('project', 'studio' and/or 'site')
@@ -164,7 +186,6 @@ async def postprocess_settings_schema(  # noqa
                 "placeholder",
                 "required_items",
                 "conditional_enum",
-                "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
                     if camelize(extra_field_name) not in prop:
@@ -208,8 +229,8 @@ async def postprocess_settings_schema(  # noqa
     if not is_top_level:
         return
 
-    submodels: dict[str, Type[BaseSettingsModel]] = {}
-    submodels_deque: Deque[Type[BaseSettingsModel]] = collections.deque()
+    submodels: dict[str, type[BaseSettingsModel]] = {}
+    submodels_deque: collections.deque[type[BaseSettingsModel]] = collections.deque()
     submodels_deque.append(model)
     while submodels_deque:
         parent = submodels_deque.popleft()

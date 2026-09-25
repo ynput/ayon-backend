@@ -1,6 +1,6 @@
 from typing import Any
 
-from nxtools import logging
+from ayon_server.logging import logger
 
 
 class AyonException(Exception):
@@ -14,15 +14,17 @@ class AyonException(Exception):
         self,
         detail: str | None = None,
         log: bool | str = False,
+        code: str | None = None,
         **kwargs,
     ) -> None:
+        self.code = code or self.detail.lower().replace(" ", "-")
         if detail is not None:
             self.detail = detail
         self.extra = kwargs
         if log is True:
-            logging.error(f"EXCEPTION: {self.status} {self.detail}")
-        elif type(log) is str:
-            logging.error(f"EXCEPTION: {self.status} {log}")
+            logger.error(f"EXCEPTION: {self.status} {self.detail}")
+        elif isinstance(log, str):
+            logger.error(f"EXCEPTION: {self.status} {log}")
 
         super().__init__(self.detail)
 
@@ -62,11 +64,18 @@ class NotFoundException(AyonException):
     status: int = 404
 
 
+class TooManyRequestsException(AyonException):
+    """Exception raised when a user has sent too many requests at once."""
+
+    detail: str = "Too many requests"
+    status: int = 429
+
+
 class InvalidSettingsException(AyonException):
     """Exception raised when addon settings are invalid."""
 
     detail: str = "Invalid settings"
-    status: int = 503
+    status: int = 500
 
 
 class ConflictException(AyonException):
@@ -90,6 +99,13 @@ class UnsupportedMediaException(AyonException):
     status: int = 415
 
 
+class RangeNotSatisfiableException(AyonException):
+    """Exception raised when a Range Request is not satisfiable."""
+
+    detail: str = "Range Not Satisfiable"
+    status: int = 416
+
+
 class LowPasswordComplexityException(AyonException):
     """Exception raised when a new password doesn't meet the required complexity."""
 
@@ -109,3 +125,31 @@ class NotImplementedException(AyonException):
 
     detail: str = "Not implemented"
     status: int = 501
+
+
+class ServiceUnavailableException(AyonException):
+    """Exception raised when a service is unavailable.
+
+    Request should be retried later.
+    """
+
+    detail: str = "Service unavailable"
+    status: int = 503
+
+
+class DeadlockException(AyonException):
+    """Exception raised when a database deadlock is detected."""
+
+    detail: str = "Database deadlock detected"
+    status: int = 503
+
+
+class ImportRowErrorException(AyonException):
+    """Raised when a row in the CSV import has an unrecoverable error.
+
+    This exception is used when error_handling_mode is set to "abort",
+    meaning the entire import should stop immediately.
+    """
+
+    detail: str = "Import error"
+    status: int = 422  # Unprocessable Entity

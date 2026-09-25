@@ -1,10 +1,14 @@
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.postprocess import postprocess_settings_schema
@@ -50,7 +54,11 @@ async def get_anatomy_presets(user: CurrentUser) -> AnatomyPresetListModel:
     """Return a list of stored anatomy presets."""
 
     presets = []
-    query = "SELECT * from anatomy_presets ORDER BY name, version"
+    query = """
+        SELECT name, is_primary, version
+        FROM anatomy_presets
+        ORDER BY name, version
+        """
     async for row in Postgres.iterate(query):
         presets.append(
             AnatomyPresetListItem(
@@ -66,14 +74,33 @@ async def get_anatomy_presets(user: CurrentUser) -> AnatomyPresetListModel:
 async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
     """Returns the anatomy preset with the given name.
 
-    Use `_` character as a preset name to return the default preset.
+    - Use `__builtin__` character as a preset name to return the builtin preset.
+    - Use `__primary__` character as a preset name to return the primary preset.
+    - `_` is an alias for built in preset (deprecated, kept for backward compatibility).
     """
-    if preset_name == "_":
+
+    if preset_name == "__builtin__" or preset_name == "_":
         tpl = Anatomy()
         return tpl
-    query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
-    async for row in Postgres.iterate(query, preset_name, VERSION):
-        tpl = Anatomy(**row["data"])
+
+    query: tuple[str, str, str] | tuple[str]
+    if preset_name == "__primary__":
+        query = ("SELECT * FROM anatomy_presets WHERE is_primary = TRUE",)
+    else:
+        query = (
+            "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2",
+            preset_name,
+            VERSION,
+        )
+
+    res = await Postgres.fetchrow(*query)
+    if res:
+        tpl = Anatomy(**res["data"])
+        return tpl
+
+    if preset_name == "__primary__":
+        # Primary preset not found, return the builtin preset
+        tpl = Anatomy()
         return tpl
     raise NotFoundException(f"Anatomy preset {preset_name} not found.")
 
@@ -86,6 +113,11 @@ async def update_anatomy_preset(
 
     if not user.is_manager:
         raise ForbiddenException("Only managers can update anatomy presets.")
+
+    if preset_name == "__builtin__":
+        raise BadRequestException("Cannot update builtin preset.")
+    if preset_name == "__primary__":
+        raise BadRequestException("Cannot update primary preset using a reference.")
 
     await Postgres.execute(
         """
@@ -109,24 +141,72 @@ async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyRespon
     if not user.is_manager:
         raise ForbiddenException("Only managers can set primary preset.")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
+    async with Postgres.transaction():
+        await Postgres.execute(
+            """
+            UPDATE anatomy_presets
+            SET is_primary = FALSE
+            WHERE is_primary = TRUE
+            """
+        )
+        if preset_name != "_":
+            await Postgres.execute(
                 """
                 UPDATE anatomy_presets
-                SET is_primary = FALSE
-                WHERE is_primary = TRUE
-                """
+                SET is_primary = TRUE
+                WHERE name = $1
+                """,
+                preset_name,
             )
-            if preset_name != "_":
-                await conn.execute(
-                    """
-                    UPDATE anatomy_presets
-                    SET is_primary = TRUE
-                    WHERE name = $1
-                    """,
-                    preset_name,
-                )
+    return EmptyResponse()
+
+
+@router.delete("/presets/{preset_name}/primary", status_code=204)
+async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
+    """Unset the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can unset primary preset.")
+
+    async with Postgres.transaction():
+        query = "UPDATE anatomy_presets SET is_primary = FALSE WHERE name = $1"
+        await Postgres.execute(query, preset_name)
+    return EmptyResponse()
+
+
+class RenamePresetModel(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            title="New name of the anatomy preset",
+            description="The new name of the anatomy preset.",
+        ),
+    ]
+
+
+@router.post("/presets/{preset_name}/rename", status_code=204)
+async def rename_anatomy_preset(
+    preset_name: str,
+    user: CurrentUser,
+    payload: RenamePresetModel,
+) -> EmptyResponse:
+    """Set the given preset as the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can set primary preset.")
+
+    query = """
+        UPDATE anatomy_presets
+        SET name = $1
+        WHERE name = $2
+        RETURNING *
+    """
+
+    res = await Postgres.fetch(query, payload.name, preset_name)
+
+    if not res:
+        raise NotFoundException(f"Anatomy preset {preset_name} not found.")
+
     return EmptyResponse()
 
 
@@ -137,14 +217,8 @@ async def delete_anatomy_preset(preset_name: str, user: CurrentUser) -> EmptyRes
     if not user.is_manager:
         raise ForbiddenException("Only managers can set primary preset.")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """
-                DELETE FROM anatomy_presets
-                WHERE name = $1
-                """,
-                preset_name,
-            )
+    async with Postgres.transaction():
+        query = "DELETE FROM anatomy_presets WHERE name = $1"
+        await Postgres.execute(query, preset_name)
 
     return EmptyResponse()

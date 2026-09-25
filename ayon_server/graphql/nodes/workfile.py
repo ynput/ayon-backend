@@ -1,19 +1,16 @@
-import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import WorkfileEntity
-from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
+from ayon_server.graphql.types import Info
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
 else:
-    TaskNode = LazyType["TaskNode", ".task"]
+    TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
 
 
 @WorkfileEntity.strawberry_attrib()
@@ -23,27 +20,35 @@ class WorkfileAttribType:
 
 @strawberry.type
 class WorkfileNode(BaseNode):
+    entity_type: strawberry.Private[str] = "workfile"
     path: str
     task_id: str | None
     thumbnail_id: str | None
-    created_by: str | None
-    updated_by: str | None
+    thumbnail: ThumbnailInfo | None = None
+    thumbnail_hash: str = strawberry.field()
     status: str
-    attrib: WorkfileAttribType
     data: str | None
     tags: list[str]
 
-    @strawberry.field(description="Workfile name")
-    def name(self) -> str:
-        """Return a version name based on the workfile path."""
-        return os.path.basename(self.path)
+    _parents: list[str] | None = None
+    _folder_path: strawberry.Private[str | None] = None
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
+        )
+
+    @strawberry.field
+    def attrib(self) -> WorkfileAttribType:
+        return WorkfileAttribType(**self.processed_attrib())
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return self._parents or []
 
 
 #
@@ -51,33 +56,54 @@ class WorkfileNode(BaseNode):
 #
 
 
-def workfile_from_record(
-    project_name: str, record: dict, context: dict
+async def workfile_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
-    data = record.get("data", {})
+    data = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
+    npath = record["path"].replace("\\", "/")
+    name = npath.split("/")[-1] if npath else ""
 
-    return WorkfileNode(  # type: ignore
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
+
+    parents: list[str] = []
+    folder_path = None
+    if folder_path := record.get("_folder_path"):
+        folder_path = "/" + folder_path.strip("/")
+        parents = folder_path.split("/")[:-1] if folder_path else []
+        parents.append(record["_task_name"])
+
+    return WorkfileNode(
         project_name=project_name,
         id=record["id"],
+        name=name,
         path=record["path"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
-        created_by=record["created_by"],
-        updated_by=record["updated_by"],
+        thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            WorkfileAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
+        _parents=parents,
+        _folder_path=folder_path,
     )
 
 

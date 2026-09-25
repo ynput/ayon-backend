@@ -1,0 +1,222 @@
+from typing import Any
+
+from fastapi import Request
+
+from ayon_server.addons.library import AddonLibrary
+from ayon_server.auth.session import Session
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import (
+    BadRequestException,
+    InvalidSettingsException,
+    NotImplementedException,
+    UnauthorizedException,
+)
+from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
+from ayon_server.helpers.email import EmailTemplate, is_mailing_enabled, send_mail
+from ayon_server.helpers.guest_users import GuestUsers
+from ayon_server.logging import log_traceback, logger
+from ayon_server.types import OPModel
+from ayon_server.utils import server_url_from_request, slugify
+
+from .models import LoginResponseModel
+
+
+class TokenPayload(OPModel):
+    email: str
+    is_guest: bool = True
+    subject: str | None = None
+    project_name: str | None = None
+    full_name: str | None = None
+    redirect_url: str | None = None
+
+
+async def send_invite_email(
+    email: str,
+    base_url: str,
+    body_template: str,
+    *,
+    full_name: str | None = None,
+    subject: str | None = None,
+    is_guest: bool = True,
+    project_name: str | None = None,
+    redirect_url: str | None = None,
+    context: dict[str, Any] | None = None,
+) -> None:
+    if not await is_mailing_enabled():
+        raise InvalidSettingsException("Mailing is not enabled.")
+
+    payload = TokenPayload(
+        email=email,
+        full_name=full_name,
+        is_guest=is_guest,
+        project_name=project_name,
+        redirect_url=redirect_url,
+        subject=subject,
+    )
+
+    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
+    token = enc_data.token
+    await enc_data.set_nonce(ttl=3600 * 24)
+
+    ctx = {
+        "full_name": full_name or "User",
+        "email": email,
+        "project_name": project_name or "the project",
+        "invite_link": f"{base_url}/login/_token?q={token}",
+        "redirect_url": redirect_url or "/",
+    }
+    if context:
+        ctx.update(context)
+
+    template = EmailTemplate()
+    body = await template.render(body_template, base_url=base_url, context=ctx)
+    subject = subject or "Invitation to Ayon instance"
+
+    logger.debug(f"Sending guest invite to {email}: redirect to {redirect_url}")
+    await send_mail([email], subject, html=body)
+
+
+async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
+    """Send an email to the user to extend their invite link.
+
+    When a link is used for the first time to log in, it is invalidated.
+    It still contain the original payload, so it "knows" where to take the user
+    but in order to get the users session, user must get a new link.
+
+    This is done automatically, when an expired link is used.
+    """
+
+    if not await is_mailing_enabled():
+        raise InvalidSettingsException("Mailing is not enabled.")
+
+    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
+    token = enc_data.token
+    await enc_data.set_nonce(ttl=3600 * 24)
+
+    ctx = {
+        "full_name": payload.full_name or "User",
+        "email": payload.email,
+        "project_name": payload.project_name or "the project",
+        "invite_link": f"{base_url}/login/_token?q={token}",
+        "redirect_url": payload.redirect_url or "/",
+    }
+
+    template = EmailTemplate()
+    body = await template.render_template(
+        "token_renew.jinja",
+        ctx,
+        base_url=base_url,
+    )
+    subject = payload.subject or "Ayon access link renewal"
+    logger.debug(
+        f"Sending guest exted email to {payload.email}: "
+        f"redirect to {payload.redirect_url}"
+    )
+    await send_mail([payload.email], subject, html=body)
+
+
+async def create_guest_user_session(
+    email: str,
+    request: Request,
+    *,
+    user_name: str | None = None,
+    full_name: str | None = None,
+    redirect_url: str | None = None,
+    guest_access: list[dict[str, Any]] | None = None,
+    is_project_guest: bool = False,
+) -> LoginResponseModel:
+
+    if not user_name:
+        user_name = slugify(f"guest.{email}", separator=".")
+
+    # Invalidate any existing sessions for this guest user, so that
+    # requesting (and using) a new invite link ends any previously
+    # created guest sessions, even in a different browser.
+    await Session.logout_user(user_name)
+
+    user_data: dict[str, Any] = {"isGuest": True}
+    if guest_access:
+        user_data["guestAccess"] = guest_access
+    if is_project_guest:
+        user_data["isProjectGuest"] = True
+
+    user = UserEntity(
+        payload={
+            "name": user_name,
+            "attrib": {"email": email, "fullName": full_name},
+            "data": user_data,
+        }
+    )
+    session = await Session.create(user, request=request)
+
+    logger.debug(f"Guest user {email} logged in (redirect to {redirect_url})")
+    return LoginResponseModel(
+        detail=f"Guest user {email} logged in",
+        token=session.token,
+        user=session.user,
+        redirect_url=redirect_url,
+    )
+
+
+async def handle_token_auth_callback(
+    token: str,
+    request: Request,
+    current_user: UserEntity | None = None,
+) -> LoginResponseModel:
+
+    parts = token.split(".", 1)
+    addon_library = AddonLibrary.getinstance()
+    if parts[0] in addon_library.data:
+        addon_name = parts[0]
+        addon = await addon_library.get_production_addon(addon_name)
+        if not addon:
+            raise NotImplementedException(f"{addon_name} is not available")
+        return await addon.authorize_public_link(token, request, current_user)
+
+    try:
+        enc_data = await decrypt_json_urlsafe(token)
+    except Exception:
+        msg = "Unable to decrypt token"
+        log_traceback()
+        raise BadRequestException(msg)
+
+    try:
+        payload = TokenPayload(**enc_data.data)
+    except Exception:
+        raise BadRequestException("Invalid token payload format")
+
+    if not await enc_data.validate_nonce():
+        logger.debug(f"Token for guest user {payload.email} expired")
+        await send_extend_email(payload, base_url=server_url_from_request(request))
+        raise UnauthorizedException(
+            "Your email link already expired or was used before. "
+            "We're sending you a new one."
+        )
+
+    if payload.is_guest:
+        if not payload.project_name:
+            msg = "Guest user token must contain project name"
+            raise BadRequestException(msg)
+        exists = await GuestUsers.exists(
+            payload.email,
+            project_name=payload.project_name,
+        )
+        if not exists:
+            msg = (
+                f"Guest user {payload.email} "
+                f"does not exist in project {payload.project_name}"
+            )
+            raise UnauthorizedException(msg)
+
+    else:
+        # For future use. For now we only support guest users.
+        msg = "Token is not for guest use"
+        raise BadRequestException(msg)
+
+    return await create_guest_user_session(
+        email=payload.email,
+        request=request,
+        full_name=payload.full_name,
+        redirect_url=payload.redirect_url,
+        is_project_guest=True,
+    )

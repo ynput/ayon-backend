@@ -1,7 +1,4 @@
-__all__ = ["router"]
+__all__ = ["router", "contextfilter", "representations"]
 
 from . import contextfilter, representations
 from .router import router
-
-assert representations
-assert contextfilter

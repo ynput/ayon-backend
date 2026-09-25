@@ -1,7 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import Any, Type
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -12,6 +12,7 @@ from ayon_server.entities.models.fields import (
     project_fields,
     representation_fields,
     task_fields,
+    user_fields,
     version_fields,
     workfile_fields,
 )
@@ -25,7 +26,7 @@ from ayon_server.types import (
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
-    "user": [],
+    "user": user_fields,
     "folder": folder_fields,
     "task": task_fields,
     "product": product_fields,
@@ -79,13 +80,13 @@ class ModelSet:
         self.attributes = attributes or []
         self.has_id = has_id
 
-        self._model: Type[BaseModel] | None = None
-        self._post_model: Type[BaseModel] | None = None
-        self._patch_model: Type[BaseModel] | None = None
-        self._attrib_model: Type[BaseModel] | None = None
+        self._model: type[BaseModel] | None = None
+        self._post_model: type[BaseModel] | None = None
+        self._patch_model: type[BaseModel] | None = None
+        self._attrib_model: type[BaseModel] | None = None
 
     @property
-    def attrib_model(self) -> Type[BaseModel]:
+    def attrib_model(self) -> type[BaseModel]:
         """Return the attribute model."""
         if self._attrib_model is None:
             self._attrib_model = generate_model(
@@ -97,7 +98,7 @@ class ModelSet:
         return self._attrib_model
 
     @property
-    def main_model(self) -> Type[BaseModel]:
+    def main_model(self) -> type[BaseModel]:
         """Return the entity model."""
         if self._model is None:
             self._model = self._generate_entity_model()
@@ -105,7 +106,7 @@ class ModelSet:
         return self._model
 
     @property
-    def post_model(self) -> Type[BaseModel]:
+    def post_model(self) -> type[BaseModel]:
         """Return the post model."""
         if self._post_model is None:
             self._post_model = self._generate_post_model()
@@ -113,7 +114,7 @@ class ModelSet:
         return self._post_model
 
     @property
-    def patch_model(self) -> Type[BaseModel]:
+    def patch_model(self) -> type[BaseModel]:
         """Return the patch model."""
         if self._patch_model is None:
             self._patch_model = self._generate_patch_model()
@@ -133,7 +134,7 @@ class ModelSet:
         return [f["name"] for f in self.fields if f.get("dynamic")] + ["own_attrib"]
 
     @property
-    def _common_fields(self) -> list:
+    def _common_fields(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": "attrib",
@@ -164,7 +165,7 @@ class ModelSet:
         ]
 
     @property
-    def _project_level_fields(self) -> list:
+    def _project_level_fields(self) -> list[dict[str, Any]]:
         if self.entity_name in ["project", "user"]:
             return []
         return [
@@ -184,9 +185,25 @@ class ModelSet:
                 "factory": "list",
                 "example": ["flabadob", "blip", "blop", "blup"],
             },
+            {
+                "name": "created_by",
+                "type": "string",
+                "title": "Created by",
+                "description": f"Who created the {self.entity_name}",
+                "example": "Moe",
+                "required": False,
+            },
+            {
+                "name": "updated_by",
+                "type": "string",
+                "title": "Updated by",
+                "description": f"Who last updated the {self.entity_name}",
+                "example": "Homer",
+                "required": False,
+            },
         ]
 
-    def _generate_entity_model(self) -> Type[BaseModel]:
+    def _generate_entity_model(self) -> type[BaseModel]:
         """Generate the entity model."""
         model_name = f"{self.entity_name.capitalize()}Model"
         pre_fields: list[dict[str, Any]] = (
@@ -246,17 +263,33 @@ class ModelSet:
             EntityModelConfig,
         )
 
-    def _generate_post_model(self) -> Type[BaseModel]:
+    def _generate_post_model(self) -> type[BaseModel]:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
-        fields = [
-            f
-            for f in (self.fields + self._project_level_fields + self._common_fields)
-            if not f.get("dynamic")
-        ]
+        # Allow setting the ID explicitly
+        fields = (
+            [
+                {
+                    "name": "id",
+                    "type": "string",
+                    "title": "Entity ID",
+                    "factory": "uuid",
+                    "description": "Explicitly set the ID of the entity",
+                    "regex": ENTITY_ID_REGEX,
+                    "example": ENTITY_ID_EXAMPLE,
+                }
+            ]
+            if self.has_id
+            else []
+        )
+        for f in self.fields + self._project_level_fields + self._common_fields:
+            if f.get("dynamic"):
+                continue
+            fields.append(f)
+
         return generate_model(model_name, fields, EntityModelConfig)
 
-    def _generate_patch_model(self) -> Type[BaseModel]:
+    def _generate_patch_model(self) -> type[BaseModel]:
         """Generate the patch model."""
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []

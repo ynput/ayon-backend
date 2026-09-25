@@ -1,20 +1,20 @@
 import copy
 from typing import Any
 
-from fastapi import Query
-from nxtools import logging
+from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
-from .router import route_meta, router
+from .router import router
 
 
-@router.get("/{addon_name}/{version}/siteSettings/schema", **route_meta)
+@router.get("/{addon_name}/{version}/siteSettings/schema")
 async def get_addon_site_settings_schema(
     addon_name: str,
     version: str,
@@ -28,7 +28,7 @@ async def get_addon_site_settings_schema(
     model = addon.get_site_settings_model()
 
     if model is None:
-        logging.error(f"No site settings schema for addon {addon_name}")
+        logger.error(f"No site settings schema for addon {addon_name}")
         return {}
 
     schema = copy.deepcopy(model.schema())
@@ -46,12 +46,12 @@ async def get_addon_site_settings_schema(
 # allow managers and admins to retrieve site_overrides of other users
 
 
-@router.get("/{addon_name}/{version}/siteSettings", **route_meta)
+@router.get("/{addon_name}/{version}/siteSettings")
 async def get_addon_site_settings(
     addon_name: str,
     version: str,
     user: CurrentUser,
-    site: str = Query(...),
+    site_id: SiteID,
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
 
@@ -61,7 +61,7 @@ async def get_addon_site_settings(
     model = addon.get_site_settings_model()
 
     if model is None:
-        logging.error(f"No site settings schema for addon {addon_name}")
+        logger.error(f"No site settings schema for addon {addon_name}")
         return {}
 
     data = {}
@@ -70,19 +70,21 @@ async def get_addon_site_settings(
         WHERE site_id = $1 AND addon_name = $2
         AND addon_version = $3 AND user_name = $4
     """
-    async for row in Postgres.iterate(query, site, addon_name, version, user.name):
-        data = row["data"]
+    res = await Postgres.fetchrow(query, site_id, addon_name, version, user.name)
+    if res:
+        data = res["data"]
 
-    return model(**data)
+    # use model to include defaults
+    return model(**data)  # type: ignore
 
 
-@router.put("/{addon_name}/{version}/siteSettings", status_code=204, **route_meta)
+@router.put("/{addon_name}/{version}/siteSettings", status_code=204)
 async def set_addon_site_settings(
     payload: dict[str, Any],
     addon_name: str,
     version: str,
     user: CurrentUser,
-    site: str = Query(..., title="Site ID", regex="^[a-z0-9-]+$"),
+    site_id: SiteID,
 ) -> EmptyResponse:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
@@ -90,10 +92,13 @@ async def set_addon_site_settings(
     model = addon.get_site_settings_model()
 
     if model is None:
-        logging.error(f"No site settings schema for addon {addon_name}")
-        return {}
+        logger.error(f"No site settings schema for addon {addon_name}")
+        return EmptyResponse()
 
-    data = model(**payload)
+    try:
+        data = model(**payload)
+    except ValidationError as e:
+        raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
     await Postgres.execute(
         """
@@ -104,7 +109,7 @@ async def set_addon_site_settings(
         """,
         addon_name,
         version,
-        site,
+        site_id,
         user.name,
         data.dict(),
     )

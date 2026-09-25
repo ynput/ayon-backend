@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from attributes.attributes import router
+from .attributes import router

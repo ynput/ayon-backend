@@ -1,10 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import WorkfileEntity
-from ayon_server.events import dispatch_event
-from ayon_server.events.patch import build_pl_entity_change_events
+from ayon_server.operations.project_level import ProjectLevelOperations
 
 router = APIRouter(tags=["Workfiles"])
 
@@ -37,32 +36,25 @@ async def get_workfile(
 @router.post("/projects/{project_name}/workfiles", status_code=201)
 async def create_workfile(
     post_data: WorkfileEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
 ) -> EntityIdResponse:
     """Create a new workfile.
 
     Use a POST request to create a new workfile
     """
 
-    workfile = WorkfileEntity(project_name=project_name, payload=post_data.dict())
-    await workfile.ensure_create_access(user)
-    event = {
-        "topic": "entity.workfile.created",
-        "description": f"Workfile {workfile.name} created",
-        "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
-        "project": project_name,
-    }
-    await workfile.save()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
-    return EntityIdResponse(id=workfile.id)
+    if not post_data.created_by:
+        post_data.created_by = user.name
+    if not post_data.updated_by:
+        post_data.updated_by = post_data.created_by
+
+    ops = ProjectLevelOperations(project_name, user=user)
+
+    ops.create("workfile", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    entity_id = res.operations[0].entity_id
+    return EntityIdResponse(id=entity_id)
 
 
 #
@@ -73,26 +65,16 @@ async def create_workfile(
 @router.patch("/projects/{project_name}/workfiles/{workfile_id}", status_code=204)
 async def update_workfile(
     post_data: WorkfileEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Patch (partially update) a workfile."""
 
-    workfile = await WorkfileEntity.load(project_name, workfile_id)
-    await workfile.ensure_update_access(user)
-    events = build_pl_entity_change_events(workfile, post_data)
-    workfile.patch(post_data)
-    await workfile.save()
-    for event in events:
-        background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(project_name, user=user)
+
+    ops.update("workfile", workfile_id, **post_data.dict(exclude_unset=True))
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -103,27 +85,13 @@ async def update_workfile(
 
 @router.delete("/projects/{project_name}/workfiles/{workfile_id}", status_code=204)
 async def delete_workfile(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a workfile."""
 
-    workfile = await WorkfileEntity.load(project_name, workfile_id)
-    await workfile.ensure_delete_access(user)
-    event = {
-        "topic": "entity.workfile.deleted",
-        "description": f"Workfile {workfile.name} deleted",
-        "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
-        "project": project_name,
-    }
-    await workfile.delete()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.delete("workfile", workfile_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

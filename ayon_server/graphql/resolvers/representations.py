@@ -1,7 +1,7 @@
+import json
 from typing import Annotated
 
-from strawberry.types import Info
-
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import RepresentationsConnection
 from ayon_server.graphql.edges import RepresentationEdge
 from ayon_server.graphql.nodes.representation import RepresentationNode
@@ -11,15 +11,22 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
 
 async def get_representations(
@@ -40,29 +47,25 @@ async def get_representations(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
     project_name = root.project_name
+    user = info.context["user"]
+    fields = FieldInfo(info, ["representations.edges.node", "representation"])
+
+    if user.is_guest:
+        return RepresentationsConnection(edges=[])
 
     #
     # Conditions
     #
 
-    sql_columns = [
-        "representations.id AS id",
-        "representations.name AS name",
-        "representations.version_id AS version_id",
-        "representations.attrib AS attrib",
-        "representations.status AS status",
-        "representations.tags AS tags",
-        "representations.active AS active",
-        "representations.created_at AS created_at",
-        "representations.updated_at AS updated_at",
-        "representations.creation_order AS creation_order",
-        "representations.files AS files",  # TODO: query conditionally
-        "representations.data AS data",
-    ]
+    sql_columns = ["representations.*"]
 
     sql_joins = []
     sql_conditions = []
@@ -70,33 +73,65 @@ async def get_representations(
     if ids is not None:
         if not ids:
             return RepresentationsConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"representations.id IN {SQLTool.id_array(ids)}")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append(
+                """
+                (
+                    representations.active
+                    AND versions.active
+                    AND products.active
+                    AND f_ex.active
+                )
+                """
+            )
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                """
+                (
+                    NOT representations.active
+                    OR NOT versions.active
+                    OR NOT products.active
+                    OR NOT f_ex.active
+                )
+                """
+            )
+
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(f_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
 
     if version_ids is not None:
         if not version_ids:
             return RepresentationsConnection()
-        sql_conditions.append(f"version_id IN {SQLTool.id_array(version_ids)}")
+        sql_conditions.append(
+            f"representations.version_id IN {SQLTool.id_array(version_ids)}"
+        )
     elif root.__class__.__name__ == "VersionNode":
         # cannot use isinstance here because of circular imports
-        sql_conditions.append(f"version_id = '{root.id}'")
+        sql_conditions.append(f"representations.version_id = '{root.id}'")
 
     if names is not None:
         if not names:
             return RepresentationsConnection()
         validate_name_list(names)
-        sql_conditions.append(f"name IN {SQLTool.array(names)}")
+        sql_conditions.append(f"representations.name IN {SQLTool.array(names)}")
 
     if statuses is not None:
         if not statuses:
             return RepresentationsConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"representations.status IN {SQLTool.array(statuses)}")
 
     if tags is not None:
         if not tags:
             return RepresentationsConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(
+            f"representations.tags @> {SQLTool.array(tags, curly=True)}"
+        )
 
     if has_links is not None:
         sql_conditions.extend(
@@ -108,11 +143,14 @@ async def get_representations(
     #
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-        )
-
+    if (
+        access_list is not None
+        or search
+        or fields.any_endswith("path")
+        or fields.any_endswith("parents")
+        or visibility != EntityVisibility.ALL
+        or not include_internal_folder
+    ):
         sql_joins.extend(
             [
                 f"""
@@ -124,42 +162,96 @@ async def get_representations(
                 ON products.id = versions.product_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = products.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS f_ex
+                ON f_ex.folder_id = products.folder_id
                 """,
             ]
         )
+
+        sql_columns.extend(
+            [
+                "f_ex.path AS _folder_path",
+                "products.name AS _product_name",
+                "versions.version AS _version_number",
+            ]
+        )
+
+        if access_list is not None:
+            sql_conditions.append(
+                f"f_ex.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+
+    if search:
+        if cond := build_search_conditions(
+            search,
+            [
+                "products.name",
+                "products.product_type",
+                "f_ex.path",
+                "representations.name",
+            ],
+            version_check=True,
+        ):
+            sql_conditions.append(cond)
+
+    #
+    # Filter
+    #
+
+    if filter:
+        column_whitelist = [
+            "name",
+            "version_id",
+            "files",
+            "attrib",
+            "data",
+            "traits",
+            "status",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="representations",
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination
     #
 
     order_by = ["representations.creation_order"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
     #
 
     query = f"""
-        SELECT {cursor}, {', '.join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.representations
-        {' '.join(sql_joins)}
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         RepresentationsConnection,
         RepresentationEdge,
         RepresentationNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
@@ -168,11 +260,11 @@ async def get_representation(
     root,
     info: Info,
     id: str,
-) -> RepresentationNode | None:
+) -> RepresentationNode:
     """Return a representation node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_representations(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Representation not found")
     return connection.edges[0].node

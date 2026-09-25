@@ -1,13 +1,20 @@
+import time
+from collections import defaultdict
 from typing import Any
 
+from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.events import dispatch_event
+from ayon_server.entities.project_skeleton import ProjectSkeletonEntity
+from ayon_server.events import EventStream
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
+    """Convert anatomy to project data."""
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
@@ -30,15 +37,29 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             "frame": anatomy.templates.frame,
         }
     }
+
+    config["entityNaming"] = anatomy.entity_naming.dict(
+        exclude_defaults=True,
+        exclude_unset=True,
+        exclude_none=True,
+    )
+
+    config["productBaseTypes"] = anatomy.product_base_types.dict(
+        exclude_defaults=True,
+        exclude_unset=True,
+        exclude_none=True,
+    )
+
+    templates = anatomy.templates.dict()
     for template_type in (
         "work",
         "publish",
         "hero",
         "delivery",
         "others",
-        "staging_directories",
+        "staging",
     ):
-        template_group = anatomy.templates.dict().get(template_type, [])
+        template_group = templates.get(template_type, [])
         if not template_group:
             continue
         config["templates"][template_type] = {}
@@ -67,66 +88,179 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "link_types": link_types,
         "statuses": statuses,
         "tags": tags,
-        "attrib": anatomy.attributes.dict(),  # type: ignore
+        "attrib": anatomy.attributes.dict(),
         "config": config,
     }
 
     return result
 
 
+async def assign_default_users_to_project(project_name: str) -> None:
+    """Assign a project to all users with default access groups"""
+
+    # NOTE: we need to use explicit public here, because the
+    # previous statement in the transaction scopes the transaction
+    # to the project schema.
+
+    query = """
+        SELECT u.* FROM public.users AS u
+        WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
+        AND active
+        FOR UPDATE OF u
+    """
+
+    users = await Postgres.fetch(query)
+    if not users:
+        return
+
+    sessions = defaultdict(list)
+    async for session in Session.list():
+        # querying sessions for all users is not efficient
+        # so we will just load all active sessions and work with them
+        user_name = session.user.name
+        sessions[user_name].append(session.token)
+
+    for row in users:
+        user = UserEntity.from_record(row)
+
+        if user.is_manager:
+            # we don't need to assign projects to managers and above
+            # as they have access to all projects
+            continue
+
+        access_groups = user.data.get("accessGroups", {})
+        access_groups[project_name] = user.data["defaultAccessGroups"]
+        user.data["accessGroups"] = access_groups
+        # do not run hooks as we're updating all sessions in the next step
+        await user.save(run_hooks=False)
+
+        for token in sessions[user.name]:
+            await Session.update(token, user)
+
+        # TODO: consider dispatching an event with this information as
+        # it could be used to notify the user.
+        logger.debug(f"Added user {row['name']} to project {project_name}")
+
+
 async def create_project_from_anatomy(
     name: str,
     code: str,
     anatomy: Anatomy,
+    *,
+    label: str | None = None,
     library: bool = False,
+    user_name: str | None = None,
+    data: dict[str, Any] | None = None,
+    assign_users: bool = True,
 ) -> None:
     """Deploy a project.
 
     Create a new project with the given name and code, and deploy the
-    given anatomy to it. Assing the project to all users with
-    defaultAccessGroups.
+    given anatomy to it, assign the project to all users with
+    defaultAccessGroups (if assign_users is True) and dispatch the
+    entity.project.created event.
 
-    This is a preffered way of creating a new project, as it will
-    create all the necessary data in the database.
+    This is a preferred way of creating a new project, as it will
+    create all the necessary data in the database consistently.
     """
+
+    project_data = anatomy_to_project_data(anatomy)
+    if data:
+        if "data" not in project_data:
+            project_data["data"] = {}
+        project_data["data"].update(data)
+
     project = ProjectEntity(
         payload={
             "name": name,
             "code": code,
+            "label": label,
             "library": library,
-            **anatomy_to_project_data(anatomy),
+            **project_data,
         },
     )
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await project.save(transaction=conn)
+    start_time = time.monotonic()
+    async with Postgres.transaction():
+        await project.save()
+        if assign_users:
+            await assign_default_users_to_project(project.name)
 
-            # Assign the new project to all users with default access groups
+    end_time = time.monotonic()
+    logger.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
 
-            # TBD: limit to active users only?
-            # NOTE: we need to use explicit public here, because the
-            # previous statement in the transaction scopes the transaction
-            # to the project schema.
-            query = """
-                SELECT u.* FROM public.users AS u
-                WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
-                FOR UPDATE OF u
-            """
-
-            users = await conn.fetch(query)
-
-            for row in users:
-                user = UserEntity.from_record(row)
-                access_groups = user.data.get("accessGroups", {})
-                access_groups[project.name] = user.data["defaultAccessGroups"]
-                user.data["accessGroups"] = access_groups
-                await user.save(transaction=conn)
-
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.created",
-        sender="ayon",
         project=project.name,
-        user="",
+        user=user_name,
         description=f"Created project {project.name}",
+    )
+
+
+#
+# Skeleton projects
+#
+
+
+async def create_project_skeleton_from_anatomy(
+    name: str,
+    code: str,
+    anatomy: Anatomy,
+    *,
+    label: str | None = None,
+    library: bool = False,
+    user_name: str | None = None,
+    data: dict[str, Any] | None = None,
+    assign_users: bool = True,
+) -> None:
+    project_data = anatomy_to_project_data(anatomy)
+
+    if data:
+        if "data" not in project_data:
+            project_data["data"] = {}
+        project_data["data"].update(data)
+
+    project = ProjectSkeletonEntity(
+        payload={
+            "name": name,
+            "code": code,
+            "label": label,
+            "library": library,
+            **project_data,
+        },
+    )
+
+    async with Postgres.transaction():
+        await project.save()
+        if assign_users:
+            await assign_default_users_to_project(project.name)
+
+    await EventStream.dispatch(
+        "entity.project_skeleton.created",
+        project=project.name,
+        user=user_name,
+        description=f"Created project {project.name}",
+    )
+
+
+async def promote_project_from_skeleton(
+    project_name: str,
+    anatomy: Anatomy | None = None,
+) -> None:
+    skeleton = await ProjectEntity.load(project_name)
+    if not isinstance(skeleton, ProjectSkeletonEntity):
+        raise BadRequestException(f"Project {project_name} is not a skeleton")
+    skeleton.data.pop("isSkeleton", None)
+
+    if anatomy:
+        patch_data = anatomy_to_project_data(anatomy)
+        patch = ProjectEntity.model.patch_model(**patch_data)
+        skeleton.patch(patch)
+
+    await skeleton.promote()
+
+    await EventStream.dispatch(
+        "entity.project.created",
+        project=skeleton.name,
+        description=f"Project {skeleton.name} promoted from skeleton",
     )

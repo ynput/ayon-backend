@@ -1,39 +1,16 @@
-import enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from nxtools import get_base_name
-from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import json_dumps
+from ayon_server.graphql.types import Info
+from ayon_server.utils import get_base_name, json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    VersionNode = LazyType["VersionNode", ".version"]
-
-
-class StatusEnum(enum.IntEnum):
-    NOT_AVAILABLE = -1
-    IN_PROGRESS = 0
-    QUEUED = 1
-    FAILED = 2
-    PAUSED = 3
-    SYNCED = 4
-
-
-@strawberry.type
-class SyncStatusType:
-    status: int
-    size: int = 0
-    total_size: int = 0
-    timestamp: int = 0
-    message: str = ""
-    retries: int = 0
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
 
 
 @strawberry.type
@@ -42,7 +19,7 @@ class FileNode:
     name: str
     path: str
     hash: str | None = None
-    size: int = 0
+    size: str = "0"
     hash_type: str = "md5"
 
 
@@ -53,11 +30,15 @@ class RepresentationAttribType:
 
 @strawberry.type
 class RepresentationNode(BaseNode):
+    entity_type: strawberry.Private[str] = "representation"
     version_id: str
     status: str
     tags: list[str]
-    attrib: RepresentationAttribType
     data: str | None
+    traits: str | None
+    path: str | None = None
+
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -66,7 +47,7 @@ class RepresentationNode(BaseNode):
         record = await info.context["version_loader"].load(
             (self.project_name, self.version_id)
         )
-        return info.context["version_from_record"](
+        return await info.context["version_from_record"](
             self.project_name, record, info.context
         )
 
@@ -83,6 +64,17 @@ class RepresentationNode(BaseNode):
         description="JSON serialized context data",
     )
 
+    @strawberry.field
+    def attrib(self) -> RepresentationAttribType:
+        return RepresentationAttribType(**self.processed_attrib())
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
 
 def parse_files(
     files: list[dict[str, Any]],
@@ -93,16 +85,27 @@ def parse_files(
     for fdata in files:
         if "name" not in fdata:
             fdata["name"] = get_base_name(fdata["path"])
+            # Transfer size as string to overcome GraphQL int limit
+            fdata["size"] = str(fdata["size"])
         result.append(FileNode(**fdata))
     return result
 
 
-def representation_from_record(
-    project_name: str, record: dict, context: dict
+async def representation_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
 
     data = record.get("data") or {}
+
+    path = None
+    folder_path = None
+    if record.get("_folder_path"):
+        folder_path = "/" + record["_folder_path"].strip("/")
+        product_name = record["_product_name"]
+        version_number = record["_version_number"]
+        version_name = f"v{version_number:03d}"
+        path = f"{folder_path}/{product_name}/{version_name}/{record['name']}"
 
     return RepresentationNode(
         project_name=project_name,
@@ -111,18 +114,19 @@ def representation_from_record(
         version_id=record["version_id"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            RepresentationAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
+        traits=json_dumps(record["traits"]) if record["traits"] else None,
+        path=path,
+        _folder_path=folder_path,
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
     )
 
 

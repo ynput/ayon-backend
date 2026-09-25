@@ -1,17 +1,18 @@
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Header
-
-from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    TaskID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
-from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
-from ayon_server.events import dispatch_event
-from ayon_server.events.patch import build_pl_entity_change_events
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import Field, OPModel
 
-router = APIRouter(tags=["Tasks"])
+from .router import router
 
 #
 # [GET]
@@ -39,39 +40,22 @@ async def get_task(
 #
 
 
-@router.post(
-    "/projects/{project_name}/tasks",
-    status_code=201,
-    response_model=EntityIdResponse,
-)
+@router.post("/projects/{project_name}/tasks", status_code=201)
 async def create_task(
     post_data: TaskEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
 ) -> EntityIdResponse:
     """Create a new task.
 
     Use a POST request to create a new task (with a new id).
     """
 
-    task = TaskEntity(project_name=project_name, payload=post_data.dict())
-    # TODO: how to solve access control?
-    event = {
-        "topic": "entity.task.created",
-        "description": f"Task {task.name} created",
-        "summary": {"entityId": task.id, "parentId": task.parent_id},
-        "project": project_name,
-    }
-    await task.save()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
-    return EntityIdResponse(id=task.id)
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.create("task", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    entity_id = res.operations[0].entity_id
+    return EntityIdResponse(id=entity_id)
 
 
 #
@@ -82,26 +66,15 @@ async def create_task(
 @router.patch("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def update_task(
     post_data: TaskEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Patch (partially update) a task."""
 
-    task = await TaskEntity.load(project_name, task_id)
-    await task.ensure_update_access(user)
-    events = build_pl_entity_change_events(task, post_data)
-    task.patch(post_data)
-    await task.save()
-    for event in events:
-        background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.update("task", task_id, **post_data.dict(exclude_unset=True))
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -112,30 +85,15 @@ async def update_task(
 
 @router.delete("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def delete_task(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a task."""
 
-    task = await TaskEntity.load(project_name, task_id)
-    event = {
-        "topic": "entity.task.deleted",
-        "description": f"Task {task.name} deleted",
-        "summary": {"entityId": task.id, "parentId": task.parent_id},
-        "project": project_name,
-    }
-    if ayonconfig.audit_trail:
-        event["payload"] = {"entityData": task.dict_simple()}
-    await task.delete()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.delete("task", task_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -161,35 +119,48 @@ class AssignUsersRequestModel(OPModel):
 
 @router.post("/projects/{project_name}/tasks/{task_id}/assign", status_code=204)
 async def assign_users_to_task(
-    post_data: AssignUsersRequestModel,  # type: ignore
+    post_data: AssignUsersRequestModel,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
 ) -> EmptyResponse:
     """Change the list of users assigned to a task."""
 
-    if not user.is_manager and post_data.users != [user.name]:
+    if not user.is_manager and post_data.users != [user.name]:  # TBD
         raise ForbiddenException("Normal users can only assign themselves")
 
     task = await TaskEntity.load(project_name, task_id)
-    assignees = task.assignees
+    assignees = set(task.assignees)
+    original_assignees = set(task.assignees)
 
     if post_data.mode == "add":
-        assignees.extend(post_data.users)
-        # Remove duplicates
-        assignees = list(dict.fromkeys(assignees))
+        assignees.update(post_data.users)
     elif post_data.mode == "remove":
-        assignees = [
-            assignee for assignee in assignees if assignee not in post_data.users
-        ]
+        for uname in post_data.users:
+            assignees.discard(uname)
     elif post_data.mode == "set":
-        assignees = post_data.users
+        assignees = set(post_data.users)
     else:
         raise ValueError(f"Unknown mode: {post_data.mode}")
 
-    task.assignees = assignees
+    if assignees == original_assignees:
+        # nothing changed
+        return EmptyResponse()
+
+    task.assignees = list(assignees)
     await task.save()
 
-    # TODO: trigger event
+    event_payload: dict[str, Any] = {
+        "description": f"Changed task {task.name} assignees",
+        "project": project_name,
+        "summary": {"entityId": task.id, "parentId": task.folder_id},
+        "user": user.name,
+    }
+    event_payload["payload"] = {
+        "oldValue": list(original_assignees),
+        "newValue": list(assignees),
+    }
+
+    await EventStream.dispatch("entity.task.assignees_changed", **event_payload)
 
     return EmptyResponse()

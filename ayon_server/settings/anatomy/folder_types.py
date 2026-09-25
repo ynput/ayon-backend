@@ -1,25 +1,12 @@
-from pydantic import Field, validator
+from ayon_server.settings.settings_field import SettingsField
 
-from ayon_server.settings.common import BaseSettingsModel
+from .aux_model import BaseAuxModel
 
 
-class FolderType(BaseSettingsModel):
-    _layout: str = "compact"
-    name: str = Field(..., title="Name", min_length=1, max_length=100)
-    shortName: str = Field("", title="Short name")
-    icon: str = Field("folder", title="Icon", widget="icon")
-
-    # Set to old name when renaming
-    original_name: str | None = Field(None, title="Original name", scope=[])
-
-    def __hash__(self):
-        return hash(self.name)
-
-    @validator("original_name")
-    def validate_original_name(cls, v, values):
-        if v is None:
-            return values["name"]
-        return v
+class FolderType(BaseAuxModel):
+    shortName: str = SettingsField("", title="Short name")
+    color: str = SettingsField("#cccccc", title="Color", widget="color")
+    icon: str = SettingsField("folder", title="Icon", widget="icon")
 
 
 default_folder_types = [

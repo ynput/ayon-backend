@@ -16,9 +16,13 @@ class Secret(OPModel):
     value: str | None = Field(None, title="Secret value")
 
 
-@router.get("/secrets", response_model_exclude_none=True, tags=["Secrets"])
+@router.get("/secrets", response_model_exclude_none=True)
 async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
-    """Return a list of stored secrets"""
+    """Return a list of stored secrets
+
+    List all available secret names for managers,
+    but only the values for the admin.
+    """
     if not user.is_manager:
         raise ForbiddenException()
 
@@ -26,11 +30,14 @@ async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
     all_secrets = await Secrets.all()
     for name, value in all_secrets.items():
         val = value if user.is_admin else None
+        if name.startswith("_"):
+            # Skip internal secrets
+            continue
         result.append(Secret(name=name, value=val))
     return result
 
 
-@router.get("/secrets/{secret_name}", tags=["Secrets"])
+@router.get("/secrets/{secret_name}")
 async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     """Return a secret value"""
 
@@ -44,7 +51,7 @@ async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     return Secret(name=secret_name, value=value)
 
 
-@router.put("/secrets/{secret_name}", status_code=204, tags=["Secrets"])
+@router.put("/secrets/{secret_name}", status_code=204)
 async def save_secret(
     payload: Secret, user: CurrentUser, secret_name: SecretName
 ) -> EmptyResponse:
@@ -60,7 +67,7 @@ async def save_secret(
     return EmptyResponse()
 
 
-@router.delete("/secrets/{secret_name}", status_code=204, tags=["Secrets"])
+@router.delete("/secrets/{secret_name}", status_code=204)
 async def delete_secret(user: CurrentUser, secret_name: SecretName) -> EmptyResponse:
     """Delete a secret"""
 

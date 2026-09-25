@@ -1,42 +1,43 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Path
-from nxtools import logging
+from fastapi import Path
 
-from ayon_server.api import ResponseFactory
 from ayon_server.api.clientinfo import ClientInfo
-from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
+from ayon_server.api.dependencies import (
+    AllowGuests,
+    CurrentUser,
+    UserName,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.lib.postgres import Postgres
+from ayon_server.helpers.rename_user import rename_user as _rename_user
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
-from ayon_server.utils import get_nickname, obscure
 
-#
-# Router
-#
-
-
-router = APIRouter(
-    prefix="/users",
-    tags=["Users"],
-    responses={401: ResponseFactory.error(401)},
-)
+from .avatar import REDIS_NS, obtain_avatar
+from .router import router
 
 #
 # [GET] /api/users/me
 #
 
 
-@router.get("/me", response_model_exclude_none=True)
+@router.get(
+    "/me",
+    response_model_exclude_none=True,
+    dependencies=[AllowGuests],
+    deprecated=True,
+)
 async def get_current_user(
     user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
@@ -44,8 +45,15 @@ async def get_current_user(
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
     the user is still logged in.
+
+    This endpoint is deprecated and will be removed in a future version.
+    Use [GET] /api/profile instead, which returns the same information.
     """
-    return user.payload
+
+    payload = user.payload
+    payload.ui_exposure_level = await user.get_ui_exposure_level()  # type: ignore
+    payload.data.pop("supportToken", None)  # type: ignore
+    return payload
 
 
 #
@@ -71,45 +79,39 @@ async def get_user(
     if user.is_manager:
         return result.payload
 
-    if (
-        user.is_guest
-        and user.name != result.name
-        and result.data.get("createdBy") != user.name
-    ):
-        result.name = get_nickname(result.name)
-        if result.attrib.email:
-            result.attrib.email = obscure(result.attrib.email)
-        if result.attrib.fullName:
-            result.attrib.fullName = obscure(result.attrib.fullName)
-        result.attrib.avatarUrl = None
-
-    # To normal users, show only colleague's name
-    return {"name": result.name}
+    # Non-managers can only see basic info about other users
+    return {
+        "name": result.name,
+        "attrib": {
+            "fullName": result.attrib.fullName,
+        },
+    }
 
 
 class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
+    api_key: str | None = Field(None, description="API Key for the new service user")
 
 
-def validate_user_data(data: dict[str, Any]):
+def validate_user_data(data: dict[str, Any]) -> None:
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
-            assert (
-                type(default_access_groups) == list
-            ), "defaultAccessGroups must be a list"
+            assert isinstance(default_access_groups, list), (
+                "defaultAccessGroups must be a list"
+            )
             assert all(
-                type(access_group) == str for access_group in default_access_groups
+                isinstance(access_group, str) for access_group in default_access_groups
             ), "defaultAccessGroups must be a list of str"
 
         if access_groups := data.get("accessGroups"):
-            assert type(access_groups) == dict, "accessGroups must be a dict"
+            assert isinstance(access_groups, dict), "accessGroups must be a dict"
             ag_to_remove = []
             for project, ag_list in access_groups.items():
-                assert type(project) == str, "project name must be a string"
-                assert type(ag_list) == list, "access group list must be a list"
-                assert all(
-                    type(ag) == str for ag in ag_list
-                ), "acces group list must be a list of str"
+                assert isinstance(project, str), "project name must be a string"
+                assert isinstance(ag_list, list), "access group list must be a list"
+                assert all(isinstance(ag, str) for ag in ag_list), (
+                    "acces group list must be a list of str"
+                )
                 if not ag_list:
                     ag_to_remove.append(project)
             for project in ag_to_remove:
@@ -132,9 +134,6 @@ async def create_user(
 
     validate_user_data(put_data.data)
 
-    if user.is_guest:
-        put_data.data["isGuest"] = True
-
     try:
         nuser = await UserEntity.load(user_name)
     except NotFoundException:
@@ -143,21 +142,52 @@ async def create_user(
     else:
         raise ConflictException("User already exists")
 
+    if nuser.is_guest and (nuser.is_service or nuser.is_admin):
+        raise BadRequestException("Guests cannot be service or admin users")
+
     if put_data.password:
+        if nuser.is_service:
+            raise BadRequestException("Service users cannot have passwords")
         nuser.set_password(put_data.password, complexity_check=not user.is_admin)
+
+    if put_data.api_key:
+        if not nuser.is_service:
+            raise BadRequestException("Only service users can have API keys")
+        nuser.set_api_key(put_data.api_key)
+
+    event: dict[str, Any] = {
+        "topic": "entity.user.created",
+        "description": f"User {user_name} created",
+        "summary": {"entityName": user.name},
+    }
+
     await nuser.save()
+    await EventStream.dispatch(**event)
     return EmptyResponse()
 
 
 @router.delete("/{user_name}")
-async def delete_user(user: CurrentUser, user_name: UserName) -> EmptyResponse:
-    logging.info(f"[DELETE] /users/{user_name}")
+async def delete_user(
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
-    await target_user.delete()
 
+    entity_data = target_user.dict_simple()
+    entity_data["data"].pop("password", None)
+    entity_data["data"].pop("apiKey", None)
+
+    event: dict[str, Any] = {
+        "description": f"User {user_name} deleted",
+        "summary": {"entityName": user_name},
+        "payload": {"entityData": entity_data},
+    }
+
+    await target_user.delete()
+    await EventStream.dispatch("entity.user.deleted", **event)
     return EmptyResponse()
 
 
@@ -166,36 +196,20 @@ async def patch_user(
     payload: UserEntity.model.patch_model,  # type: ignore
     user: CurrentUser,
     user_name: UserName,
-    access_token: AccessToken,
 ) -> EmptyResponse:
-    logging.info(f"[PATCH] /users/{user_name}")
+    payload.data["updatedBy"] = user.name
+    target_user = await UserEntity.load(user_name)
 
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
         payload.data = {}
-        payload.active = None
+        payload.active = target_user.active
     elif not user.is_manager:
         raise ForbiddenException("Only managers can modify other users")
 
-    payload.data["updatedBy"] = user.name
-    target_user = await UserEntity.load(user_name)
-
     if target_user.is_admin and (not user.is_admin):
         raise ForbiddenException("Admins can only be modified by other admins")
-
-    if user.is_guest:
-        # Guests can only modify themselves and users they created
-        if (
-            target_user.name != user.name
-            and target_user.data.get("createdBy") != user.name
-        ):
-            raise ForbiddenException(
-                "Guests can only modify themselves and their guests"
-            )
-        # user cannot change any user's guest status
-        payload.data.pop("isGuest", None)
-        payload.data.pop("isDeveloper", None)
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
@@ -208,21 +222,34 @@ async def patch_user(
     if not user.is_manager:
         # Non-managers cannot change any user's manager status
         payload.data.pop("isManager", None)
+        payload.data.pop("disablePasswordLogin", None)
     elif target_user.name == user.name:
         # Managers cannot demote themselves
         payload.data.pop("isManager", None)
 
+    if payload.data.get("isGuest"):
+        raise BadRequestException("Guest users cannot be modified this way")
+
     validate_user_data(payload.data)
+
+    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    avatar_changed = False
+    if (
+        "avatarUrl" in attrib_dict
+        and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
+    ):
+        url = attrib_dict["avatarUrl"]
+        if (url) and not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequestException("Invalid avatar URL")
+        avatar_changed = True
 
     target_user.patch(payload)
     await target_user.save()
 
-    async for session in Session.list(user_name):
-        token = session.token
-        if not target_user.active:
-            await Session.delete(token)
-        else:
-            await Session.update(token, target_user)
+    if avatar_changed:
+        logger.debug(f"User {user_name} avatar changed, updating cache")
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     return EmptyResponse()
 
@@ -303,6 +330,8 @@ async def check_password(
 # Change login name
 #
 
+# Deprecated PATCH endpoint, replaced with POST for clarity and consistency
+
 
 class ChangeUserNameRequestModel(OPModel):
     new_name: str = Field(
@@ -313,46 +342,63 @@ class ChangeUserNameRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/rename")
+@router.patch("/{user_name}/rename", deprecated=True)
 async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
+    """Changes the user name of a user.
+
+    This is a manager-only operation. Target user name must not exist.
+    This is a dangerous operation and should be used with caution.
+    """
+
     if not user.is_manager:
         raise ForbiddenException
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "UPDATE users SET name = $1 WHERE name = $2",
-                patch_data.new_name,
-                user_name,
-            )
+    await _rename_user(
+        user_name,
+        patch_data.new_name,
+        invoking_user_name=user.name,
+    )
+    return EmptyResponse()
 
-            # Update tasks assignees - since assignees is an array,
-            # it won't update automatically (there's no foreign key)
 
-            projects = await conn.fetch("SELECT name FROM projects")
-            project_names = [row["name"] for row in projects]
+# New and shiny rename user endpoint
 
-            for project_name in project_names:
-                query = f"""
-                    UPDATE project_{project_name}.tasks SET
-                    assignees = array_replace(
-                        assignees,
-                        '{user_name}',
-                        '{patch_data.new_name}'
-                    )
-                    WHERE '{user_name}' = ANY(assignees)
-                """
-                await conn.execute(query)
 
-    # Renaming user has many side effects, so we need to log out all Sessions
-    # and let the user log in again
-    async for session in Session.list(user_name):
-        token = session.token
-        await Session.delete(token)
+class RenameUserRequestModel(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            description="New user name",
+            example="EvenBetterUser",
+            regex=USER_NAME_REGEX,
+        ),
+    ]
+
+
+@router.post("/{user_name}/rename")
+async def rename_user(
+    patch_data: RenameUserRequestModel,
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
+    """Changes the user name of a user.
+
+    This is a manager-only operation. Target user name must not exist.
+    This is a dangerous operation and should be used with caution.
+    """
+
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await _rename_user(
+        user_name,
+        patch_data.name,
+        invoking_user_name=user.name,
+    )
     return EmptyResponse()
 
 
@@ -364,7 +410,7 @@ async def change_user_name(
 class UserSessionModel(OPModel):
     token: str
     is_service: bool
-    last_used: int
+    last_used: float
     client_info: ClientInfo | None = None
 
 
@@ -405,7 +451,8 @@ async def delete_user_session(
         raise ForbiddenException(
             "You are not allowed to delete sessions which don't belong to you"
         )
-    await Session.delete(session_id)
+    msg = f"Logged out by {current_user.name}"
+    await Session.delete(session_id, message=msg)
     return EmptyResponse()
 
 
@@ -430,8 +477,8 @@ class AssignAccessGroupsRequestModel(OPModel):
         default_factory=list,
         description="List of access groups to assign",
         example=[
-            {"project": "project1", "roles": ["artist", "viewer"]},
-            {"project": "project2", "roles": ["viewer"]},
+            {"project": "project1", "accessGroups": ["artist", "viewer"]},
+            {"project": "project2", "accessGroups": ["viewer"]},
         ],
     )
 
@@ -459,7 +506,6 @@ async def assign_access_groups(
 
     target_user.data["accessGroups"] = ag_set
     await target_user.save()
-
     return EmptyResponse()
 
 

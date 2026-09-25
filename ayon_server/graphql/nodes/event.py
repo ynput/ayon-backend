@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 import strawberry
 
-from ayon_server.utils import get_nickname, json_dumps, obscure
+from ayon_server.utils import json_dumps
 
 
 @strawberry.type
@@ -21,18 +22,17 @@ class EventNode:
     created_at: datetime
     updated_at: datetime
     data: str | None
+    payload: str | None
 
 
-def event_from_record(record: dict, context: dict) -> EventNode:
-    current_user = context["user"]
+async def event_from_record(
+    project_name: str | None,
+    record: dict[str, Any],
+    context: dict[str, Any],
+) -> EventNode:
     record = dict(record)
-
-    if current_user.is_guest and record["user_name"] != current_user.name:
-        if record["user_name"]:
-            record["user_name"] = get_nickname(record["user_name"])
-        if record["topic"].startswith("log") and record["description"]:
-            record["description"] = obscure(record["description"])
     data = record.get("data", {})
+    payload = record.get("payload", {})
 
     return EventNode(
         id=record["id"],
@@ -48,7 +48,8 @@ def event_from_record(record: dict, context: dict) -> EventNode:
         summary=json_dumps(record["summary"]),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        data=json_dumps(data) if data else None,
+        data=json_dumps(data) if data else None,  # deprecated, to be removed
+        payload=json_dumps(payload) if payload else None,
     )
 
 

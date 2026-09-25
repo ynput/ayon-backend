@@ -3,120 +3,47 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
-from ayon_server.api.dependencies import CurrentUser, SiteID
-from ayon_server.exceptions import BadRequestException
+from ayon_server.api.dependencies import AllowGuests, ClientSiteID, CurrentUser
+from ayon_server.exceptions import (
+    BadRequestException,
+    NotFoundException,
+    ServiceUnavailableException,
+)
+from ayon_server.helpers.project_list import normalize_project_name
+from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
+from ayon_server.types import NAME_REGEX, ProjectLevelEntityType
 
+from .models import (
+    ParsedURIModel,
+    ResolvedEntityModel,
+    ResolvedURIModel,
+    ResolveRequestModel,
+)
 from .templating import StringTemplate
 
-router = APIRouter(tags=["URI resolver"])
+router = APIRouter(tags=["URIs"])
 
 
-class ResolveRequestModel(OPModel):
-    resolve_roots: bool = Field(
-        False,
-        title="Resolve roots",
-        description="If x-ayon-site-id header is provided, resolve representation path roots",
-    )
-    uris: list[str] = Field(
-        ...,
-        title="URIs",
-        description="List of uris to resolve",
-        example=[
-            "ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004"
-        ],
-    )
+SDF_REGEX = re.compile(r":SDF_FORMAT_ARGS.*$")
+NAME_VALIDATOR = re.compile(NAME_REGEX)
 
 
-class ResolvedEntityModel(OPModel):
-    project_name: str = Field(
-        ...,
-        title="Project name",
-        example="demo_Big_Feature",
-    )
-    folder_id: str | None = Field(
-        None,
-        title="Folder id",
-        example="0254c370005811ee9a740242ac130004",
-    )
-    product_id: str | None = Field(
-        None,
-        title="Product id",
-        example="0255ce50005811ee9a740242ac130004",
-    )
-    task_id: str | None = Field(
-        None,
-        title="Task id",
-        example=None,
-    )
-    version_id: str | None = Field(
-        None,
-        title="Version id",
-        example="0256ba2c005811ee9a740242ac130004",
-    )
-    representation_id: str | None = Field(
-        None,
-        title="Representation id",
-        example=None,
-    )
-    workfile_id: str | None = Field(
-        None,
-        title="Workfile id",
-        example=None,
-    )
-    file_path: str | None = Field(
-        None,
-        title="File path",
-        description="Path to the file if a representation is specified",
-        example="/path/to/file.ma",
-    )
+def sanitize_uri(uri: str) -> str:
+    # remove `:SDF_FORMAT_ARGS` suffix
+    uri = re.sub(SDF_REGEX, "", uri)
+    return uri
 
 
-class ResolvedURIModel(OPModel):
-    uri: str = Field(
-        ...,
-        title="Resolved URI",
-        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
-    )
-    entities: list[ResolvedEntityModel] = Field(
-        ...,
-        title="Resolved entities",
-        example=[
-            {
-                "projectName": "demo_Big_Feature",
-                "folderId": "0254c370005811ee9a740242ac130004",
-                "productId": "0255ce50005811ee9a740242ac130004",
-                "taskId": None,
-                "versionId": "0256ba2c005811ee9a740242ac130004",
-                "representationId": None,
-                "workfileId": None,
-                "filePath": "/path/to/file.ma",
-            }
-        ],
-    )
-
-
-class ParsedURIModel(OPModel):
-    uri: str = Field(..., title="Resolved URI")
-    project_name: str = Field(..., title="Project name")
-    path: str | None = Field(None, title="Path")
-    product_name: str | None = Field(None, title="Product name")
-    task_name: str | None = Field(None, title="Task name")
-    version_name: str | None = Field(None, title="Version name")
-    representation_name: str | None = Field(None, title="Representation name")
-    workfile_name: str | None = Field(None, title="Workfile name")
-
-
-def validate_name(name: str) -> None:
+def validate_name(name: str | None) -> None:
     if name is None:
         return
     if name == "*":
         return
-    name_validator = re.compile(NAME_REGEX)
-    assert name_validator.match(name), f"Invalid name: {name}"
+    if not NAME_VALIDATOR.match(name):
+        raise ValueError(f"Invalid name: {name}")
 
 
 def parse_uri(uri: str) -> ParsedURIModel:
@@ -128,17 +55,21 @@ def parse_uri(uri: str) -> ParsedURIModel:
     representation_name: str | None
     workfile_name: str | None
 
+    uri = sanitize_uri(uri)
+
     parsed_uri = urlparse(uri)
-    assert parsed_uri.scheme in [
-        "ayon",
-        "ayon+entity",
-    ], f"Invalid scheme: {parsed_uri.scheme}"
+    if parsed_uri.scheme not in ["ayon", "ayon+entity"]:
+        raise ValueError(f"Invalid scheme: {parsed_uri.scheme}")
 
     project_name = parsed_uri.netloc
-    name_validator = re.compile(NAME_REGEX)
-    assert name_validator.match(project_name), f"Invalid project name: {project_name}"
+    if not NAME_VALIDATOR.match(project_name):
+        raise ValueError(f"Invalid project name: {project_name}")
 
     path = parsed_uri.path.strip("/") or None
+    if path:
+        for element in path.split("/"):
+            if not NAME_VALIDATOR.match(element):
+                raise ValueError(f"Invalid path element: {element}")
 
     qs: dict[str, Any] = parse_qs(parsed_uri.query)
 
@@ -165,11 +96,14 @@ def parse_uri(uri: str) -> ParsedURIModel:
     # assert we don't have incompatible arguments
 
     if task_name is not None or workfile_name is not None:
-        assert product_name is None, "Tasks cannot be queried with products"
-        assert version_name is None, "Tasks cannot be queried with versions"
-        assert (
-            representation_name is None
-        ), "Tasks cannot be queried with representations"
+        if product_name is not None:
+            raise ValueError("Tasks and workfiles cannot be queried with products")
+        if version_name is not None:
+            raise ValueError("Tasks and workfiles cannot be queried with versions")
+        if representation_name is not None:
+            raise ValueError(
+                "Tasks and workfiles cannot be queried with representations"
+            )
 
     return ParsedURIModel(
         uri=uri,
@@ -211,24 +145,50 @@ def get_product_conditions(product_name: str | None) -> list[str]:
 def get_version_conditions(version_name: str | None) -> list[str]:
     if version_name is None:
         return []
+
     if version_name == "*":
         return []
+
+    original_version_name = version_name
+    version_name = version_name.strip().lower()
     if version_name.startswith("v"):
         version_name = version_name[1:]
+
+    if version_name.isdigit():
         return [f"v.version = {int(version_name)}"]
+
     if version_name == "latest":
         return [
             """
             v.id in (
-                SELECT l.ids[array_upper(l.ids, 1)]
-                FROM version_list AS l
+                SELECT vv.id
+                FROM versions vv
+                WHERE vv.product_id = s.id
+                ORDER BY vv.version DESC
+                LIMIT 1
             )
         """
         ]
+
+    if version_name == "latestdone":
+        return [
+            """
+            v.id in (
+                    SELECT vv.id
+                    FROM versions vv
+                    JOIN statuses st ON st.name = vv.status
+                    WHERE vv.product_id = s.id
+                      AND st.data->>'state' = 'done'
+                    ORDER BY vv.version DESC
+                    LIMIT 1
+            )
+        """
+        ]
+
     if version_name == "hero":
         return ["v.version < 0"]
 
-    return []
+    raise ValueError(f"Invalid version name: {original_version_name}")
 
 
 def get_representation_conditions(representation_name: str | None) -> list[str]:
@@ -240,11 +200,13 @@ def get_representation_conditions(representation_name: str | None) -> list[str]:
 
 
 async def resolve_entities(
-    conn,
     req: ParsedURIModel,
     roots: dict[str, str],
     site_id: str | None = None,
+    path_only: bool = False,
 ) -> list[ResolvedEntityModel]:
+    assert await Postgres.is_in_transaction(), "Must be called in a transaction"
+
     result = []
     cols = ["h.id as folder_id"]
     joins = []
@@ -252,7 +214,18 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
+
     target_entity_type: ProjectLevelEntityType | None = None
+
+    if not (
+        req.product_name
+        or req.version_name
+        or req.representation_name
+        or req.task_name
+        or req.workfile_name
+        or req.path
+    ):
+        return []
 
     platform = None
     if site_id:
@@ -266,7 +239,7 @@ async def resolve_entities(
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
-            conds.append(f"w.name = '{req.workfile_name}'")
+            conds.append(f"w.path LIKE '%/{req.workfile_name}'")
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
@@ -320,9 +293,7 @@ async def resolve_entities(
 
     query += " LIMIT 1000"
 
-    _ = target_entity_type
-
-    statement = await conn.prepare(query)
+    statement = await Postgres.prepare(query)
     async for row in statement.cursor():
         file_path = None
         if ("file_template" in row) and ("context" in row):
@@ -337,13 +308,17 @@ async def resolve_entities(
                 if platform == "windows":
                     file_path = file_path.replace("/", "\\")
 
-        result.append(
-            ResolvedEntityModel(
-                project_name=req.project_name,
-                file_path=file_path,
-                **row,
+        if path_only:
+            result.append(ResolvedEntityModel(file_path=file_path))
+        else:
+            result.append(
+                ResolvedEntityModel(
+                    project_name=req.project_name,
+                    file_path=file_path,
+                    target=target_entity_type,
+                    **row,
+                )
             )
-        )
 
     return result
 
@@ -351,89 +326,65 @@ async def resolve_entities(
 async def get_platform_for_site_id(site_id: str) -> str:
     """Return the platform for the given site id."""
     res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+        "SELECT data->>'platform' as platform FROM public.sites WHERE id = $1", site_id
     )
     if not res:
         raise BadRequestException(status_code=404, detail="Site not found")
     return res[0]["platform"]
 
 
-async def get_roots_for_projects(
-    user_name: str, site_id: str, projects: list[str]
-) -> dict[str, dict[str, str]]:
-    # platform specific roots for each requested project
-    # e.g. roots[project][root_name] = root_path
-    roots: dict[str, dict[str, str]] = {}
-
-    site_res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
-    )
-    if not site_res:
-        raise BadRequestException(status_code=404, detail="Site not found")
-
-    platform = site_res[0]["platform"]
-
-    # get roots from project anatomies
-
-    async for row in Postgres.iterate(
-        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
-    ):
-        _project_name = row["name"]
-        _roots = row["config"].get("roots", {})
-        roots[_project_name] = {}
-        for _root_name, _root_paths in _roots.items():
-            roots[_project_name][_root_name] = _root_paths[platform]
-
-    # root project overrides
-
-    for project_name in projects:
-        async for row in Postgres.iterate(
-            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
-            user_name,
-            site_id,
-        ):
-            roots[project_name].update(row["data"])
-
-    return roots
-
-
-@router.post("/resolve", response_model_exclude_none=True)
+@router.post("/resolve", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def resolve_uris(
     request: ResolveRequestModel,
-    site_id: SiteID,
+    site_id: ClientSiteID,
     user: CurrentUser,
+    path_only: bool = Query(
+        False,
+        alias="pathOnly",
+        description="Return only file paths",
+    ),
 ) -> list[ResolvedURIModel]:
     """Resolve a list of ayon:// URIs to entities.
 
-    Each URI starts with `ayon://{project_name}/{path}` which determines the requested folder.
+    Each URI starts with `ayon://{project_name}/{path}` which
+    determines the requested folder.
 
-    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is just a shorter alias).
+    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is a shorter alias).
 
-    Additional query arguments [`product`, `version`, `representation`] or [`task`, `workfile`]
-    are allowed. Note that arguments from product/version/representations cannot be mixed with
+    Additional query arguments [`product`, `version`, `representation`]
+    or [`task`, `workfile`] are allowed.
+    Note that arguments from product/version/representations cannot be mixed with
     task/workfile arguments.
 
     ### Implicit wildcards
 
     The response contains a list of resolved URIs with the requested entities.
-    One URI can match multiple entities - for example when **product** and **representation** are requested,
-    the response will contain all matching **representations** from all **versions** of the product.
+    One URI can match multiple entities - for example when
+    **product** and **representation** are requested,
+    the response will contain all matching **representations**
+    from all **versions** of the product.
 
     ### Explicit wildcards
 
-    It is possible to use a `*` wildcard for querying multiple entities at the deepest level
-    of the data structure:
+    It is possible to use a `*` wildcard for querying multiple
+    entities at the deepest level of the data structure:
 
-    `ayon://my_project/assets/characters?product=setdress?version=*` will return all versions
-    of the given product.
+    `ayon://my_project/assets/characters?product=setdress?version=*`
+    will return all versions of the given product.
 
     ### Representation paths
 
-    When a representation is requested, the response will contain the resolved file path,
-    and if the request contains `X-ayon-site-id` header and `resolve_roots` is set to `true`,
-    in the request, the server will resolve the file path to the actual absolute path.
+    When a representation is requested, the response will contain the
+    resolved file path, and if the request contains `X-ayon-site-id`
+    header and `resolve_roots` is set to `true`, in the request,
+    the server will resolve the file path to the actual absolute path.
 
     """
+
+    if Postgres.get_available_connections() < 3:
+        msg = f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        raise ServiceUnavailableException(msg)
+
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
@@ -441,17 +392,38 @@ async def resolve_uris(
 
     result: list[ResolvedURIModel] = []
     current_project = ""
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            for uri in request.uris:
+    async with Postgres.transaction():
+        for uri in request.uris:
+            try:
                 parsed_uri = parse_uri(uri)
-                if parsed_uri.project_name != current_project:
-                    await conn.execute(
-                        f"SET LOCAL search_path TO project_{parsed_uri.project_name}"
+            except ValueError as e:
+                result.append(ResolvedURIModel(uri=uri, error=str(e)))
+                continue
+
+            if parsed_uri.project_name != current_project:
+                try:
+                    project_name = await normalize_project_name(parsed_uri.project_name)
+                except NotFoundException:
+                    result.append(
+                        ResolvedURIModel(
+                            uri=uri,
+                            entities=[],
+                            error=f"Project {parsed_uri.project_name} not found",
+                        )
                     )
-                    current_project = parsed_uri.project_name
+                    continue
+                await Postgres.set_project_schema(project_name)
+                current_project = parsed_uri.project_name
+
+            try:
                 entities = await resolve_entities(
-                    conn, parsed_uri, roots.get(current_project, {}), site_id
+                    parsed_uri,
+                    roots.get(project_name, {}),
+                    site_id,
+                    path_only=path_only,
                 )
-                result.append(ResolvedURIModel(uri=uri, entities=entities))
+            except ValueError as e:
+                result.append(ResolvedURIModel(uri=uri, entities=[], error=str(e)))
+                continue
+            result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result

@@ -1,5 +1,3 @@
-import contextlib
-import ipaddress
 import os
 
 import geoip2
@@ -9,18 +7,19 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
+from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 
 
 class LocationInfo(BaseModel):
-    country: str = Field(None, title="Country")
-    subdivision: str = Field(None, title="Subdivision")
-    city: str = Field(None, title="City")
+    country: str | None = Field(None, title="Country")
+    subdivision: str | None = Field(None, title="Subdivision")
+    city: str | None = Field(None, title="City")
 
 
 class AgentInfo(BaseModel):
-    platform: str = Field(None, title="Platform")
-    client: str = Field(None, title="Client")
-    device: str = Field(None, title="Device")
+    platform: str | None = Field(None, title="Platform")
+    client: str | None = Field(None, title="Client")
+    device: str | None = Field(None, title="Device")
 
 
 class ClientInfo(BaseModel):
@@ -32,8 +31,8 @@ class ClientInfo(BaseModel):
 
 
 def get_real_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for", request.client.host)
-    return xff.split(",")[0].strip()
+    # deprecated, use get_real_ip_from_request instead
+    return get_real_ip_from_request(request)
 
 
 def geo_lookup(ip: str):
@@ -46,30 +45,20 @@ def geo_lookup(ip: str):
         except geoip2.errors.AddressNotFoundError:
             return None
 
-        return LocationInfo(
-            country=response.country.name,
-            subdivision=response.subdivisions.most_specific.name,
-            city=response.city.name,
-        )
-    return None
-
-
-def is_internal_ip(ip: str) -> bool:
-    with contextlib.suppress(ValueError):
-        if ipaddress.IPv4Address(ip).is_private:
-            return True
-
-    with contextlib.suppress(ValueError):
-        if ipaddress.IPv6Address(ip).is_private:
-            return True
-    return False
+    return LocationInfo(
+        country=response.country.name,
+        subdivision=response.subdivisions.most_specific.name,
+        city=response.city.name,
+    )
 
 
 def parse_ayon_headers(request: Request) -> dict[str, str]:
     headers: dict[str, str] = {}
     result: dict[str, str] = {}
     for header in ["x-ayon-platform", "x-ayon-version", "x-ayon-hostname"]:
-        headers[header] = request.headers.get(header)
+        value = request.headers.get(header)
+        if value:
+            headers[header] = value
 
     if headers.get("x-ayon-platform"):
         result["platform"] = headers["x-ayon-platform"]
@@ -77,8 +66,6 @@ def parse_ayon_headers(request: Request) -> dict[str, str]:
         result["client"] = f"Ayon client {headers['x-ayon-version']}"
     if headers.get("x-ayon-hostname"):
         result["device"] = headers["x-ayon-hostname"]
-    if headers.get("x-ayon-site-id"):
-        result["site_id"] = headers["x-ayon-site-id"]
     return result
 
 
@@ -104,12 +91,12 @@ def get_ua_data(request) -> AgentInfo | None:
     return None
 
 
-def get_prefed_languages(request: Request) -> list[str]:
+def get_preferred_languages(request: Request) -> list[str]:
     languages = []
     if accept_language := request.headers.get("Accept-Language"):
         try:
-            for lngk in accept_language.split(";"):
-                lang = lngk.split(",")[-1]
+            for lang_token in accept_language.split(";"):
+                lang = lang_token.split(",")[-1]
                 if len(lang) == 2:
                     languages.append(lang)
         except Exception:
@@ -120,7 +107,7 @@ def get_prefed_languages(request: Request) -> list[str]:
 
 
 def get_client_info(request: Request) -> ClientInfo:
-    ip = get_real_ip(request)
+    ip = get_real_ip_from_request(request)
     if is_internal_ip(ip):
         location = None
     else:
@@ -129,5 +116,6 @@ def get_client_info(request: Request) -> ClientInfo:
         ip=ip,
         agent=get_ua_data(request),
         location=location,
-        languages=get_prefed_languages(request),
+        languages=get_preferred_languages(request),
+        site_id=request.headers.get("x-ayon-site-id") or None,
     )

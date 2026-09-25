@@ -1,113 +1,50 @@
-import contextlib
-import os
-import time
 from typing import Any
 from urllib.parse import urlparse
 
-from attributes.attributes import AttributeModel
-from fastapi import Request
-from nxtools import log_traceback
+import aiocache
+from attributes.attributes import AttributeModel  # type: ignore
+from fastapi import Query, Request
 from pydantic import ValidationError
 
-from ayon_server import __version__
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api.dependencies import CurrentUserOptional
+from ayon_server.api.dependencies import AllowGuests, CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
+from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.helpers.cloud import CloudUtils
+from ayon_server.helpers.email import is_mailing_enabled
+from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
 from .sites import SiteInfo
 
-BOOT_TIME = time.time()
-
-
-class ReleaseInfo(OPModel):
-    version: str = Field(..., title="Backend version", example="1.0.0")
-    build_date: str = Field(..., title="Build date", example="20231013")
-    build_time: str = Field(..., title="Build time", example="1250")
-    frontend_branch: str = Field(..., title="Frontend branch", example="main")
-    backend_branch: str = Field(..., title="Backend branch", example="main")
-    frontend_commit: str = Field(..., title="Frontend commit", example="1234567")
-    backend_commit: str = Field(..., title="Backend commit", example="1234567")
-
-
-release_info: dict[str, Any] = {}
-
-
-def get_release_info() -> ReleaseInfo | None:
-    """
-    Get the release info from RELEASE file.
-    This file is created when building the docker image.
-    and contains key=value pairs.
-
-    If file is not found, return None - server is probably running from
-    a mounted local directory.
-    """
-
-    try:
-        if release_info.get("error", False):
-            return None
-
-        if release_info:
-            return ReleaseInfo(**release_info)
-
-        if not os.path.isfile("RELEASE"):
-            release_info["error"] = True
-            return None
-
-        with open("RELEASE") as f:
-            for line in f:
-                key, value = line.strip().split("=")
-                release_info[key] = value
-
-        return ReleaseInfo(**release_info)
-    except Exception:
-        return None
-
-
-def get_uptime():
-    return time.time() - BOOT_TIME
-
-
-def get_build_date() -> str | None:
-    """
-    Get the build date from the BUILD_DATE file
-    This file is created when building the docker image.
-    """
-    if os.path.isfile("BUILD_DATE"):
-        return open("BUILD_DATE").read().strip()
-    return None
-
-
-def get_version():
-    """
-    Get the version of the Ayon API
-    If the BUILD_DATE file exists, append the build date to the version
-    """
-    version = __version__
-    build_date = get_build_date()
-    if build_date:
-        version += f"+{build_date}"
-    return version
-
 
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
-        ayonconfig.motd,
-        title="Message of the day",
+        None,
+        title="Login Page Message",
         description="Instance specific message to be displayed in the login page",
         example="Hello and welcome to Ayon!",
     )
     login_page_background: str | None = Field(
-        default=ayonconfig.login_page_background,
+        None,
         description="URL of the background image for the login page",
         example="https://i.insider.com/602ee9d81a89f20019a377c6?width=1136&format=jpeg",
     )
     login_page_brand: str | None = Field(
-        default=ayonconfig.login_page_brand,
+        None,
+        title="Brand logo",
+        description="Replaced by `studio_logo`, kept for backward compatibility",
+        deprecated=True,
+    )
+    studio_logo: str | None = Field(
+        None,
         title="Brand logo",
         description="URL of the brand logo for the login page",
     )
@@ -135,20 +72,43 @@ class InfoResponseModel(OPModel):
         None,
         title="Onboarding",
     )
+
+    hide_password_auth: bool | None = Field(
+        None,
+        title="Hide password authentication",
+        description="Password authentication will not be shown on the login page",
+    )
+
+    password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
-    sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
-    sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
+
+    sites: list[SiteInfo] | None = Field(None, title="List of sites")
+    sso_options: list[SSOOption] | None = Field(None, title="SSO options")
+    frontend_flags: list[str] | None = Field(None, title="Frontend flags")
+    extras: str | None = Field(None)
+
+    disable_changelog: bool | None = Field(
+        None,
+        title="Disable changelog",
+        description="If set, the changelog will not be shown to the user",
+    )
+    disable_feedback: bool | None = Field(
+        title="Disable feedback",
+        default_factory=lambda: (
+            ayonconfig.offline_mode or ayonconfig.disable_feedback or None
+        ),
+    )
+    offline_mode: bool | None = Field(
+        title="Offline mode",
+        default_factory=lambda: ayonconfig.offline_mode or None,
+    )
 
 
-async def admin_exists() -> bool:
-    async for row in Postgres.iterate(
-        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
-    ):
-        return True
-    return False
+# Get all SSO options from the active addons
 
 
+@aiocache.cached(ttl=10)
 async def get_sso_options(request: Request) -> list[SSOOption]:
     referer = request.headers.get("referer")
     if referer:
@@ -161,8 +121,11 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     library = AddonLibrary.getinstance()
     active_versions = await library.get_active_versions()
 
-    for _name, definition in library.data.items():
-        vers = active_versions.get(definition.name, {})
+    for definition in library.data.values():
+        try:
+            vers = active_versions.get(definition.name, {})
+        except ValueError:
+            continue
         production_version = vers.get("production", None)
         if not production_version:
             continue
@@ -172,7 +135,12 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
         except KeyError:
             continue
 
-        options = await addon.get_sso_options(base_url)
+        try:
+            options = await addon.get_sso_options(base_url)
+        except Exception:
+            log_traceback(f"Failed to get SSO options for addon {addon.name}")
+            continue
+
         if not options:
             continue
 
@@ -181,47 +149,75 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     return result
 
 
-async def get_additional_info(user: UserEntity, request: Request):
-    current_site: SiteInfo | None = None
+async def get_user_sites(
+    user_name: str, current_site: SiteInfo | None = None
+) -> list[SiteInfo]:
+    """Return a list of sites the user is registered to
 
-    with contextlib.suppress(ValidationError):
-        current_site = SiteInfo(
-            id=request.headers.get("x-ayon-site-id"),
-            platform=request.headers.get("x-ayon-platform"),
-            hostname=request.headers.get("x-ayon-hostname"),
-            version=request.headers.get("x-ayon-version"),
-            users=[user.name],
-        )
+    If site information in the request headers, it will be added to the
+    top of the listand updated in the database if necessary.
+    """
 
-    sites = []
-    async for row in Postgres.iterate("SELECT id, data FROM sites"):
+    sites: list[SiteInfo] = []
+    current_needs_update = False
+    current_site_exists = False
+
+    query_id = current_site.id if current_site else ""
+
+    # Get all sites the user is registered to or the current site
+    query = """
+        SELECT id, data FROM sites
+        WHERE id = $1 OR data->'users' ? $2
+    """
+
+    async for row in Postgres.iterate(query, query_id, user_name):
         site = SiteInfo(id=row["id"], **row["data"])
-
         if current_site and site.id == current_site.id:
-            current_site.users = list(set(current_site.users + site.users))
+            # record matches the current site
+            current_site_exists = True
+            if user_name not in site.users:
+                current_site.users.update(site.users)
+                current_needs_update = True
+            # we can use elif here, because we only need to check one condition
+            elif site.platform != current_site.platform:
+                current_needs_update = True
+            elif site.version != current_site.version:
+                current_needs_update = True
+            # do not add the current site to the list,
+            # we'll insert it at the beginning at the end of the loop
             continue
-
-        if user.name not in site.users:
-            continue
-
         sites.append(site)
 
     if current_site:
-        mdata = current_site.dict()
-        mid = mdata.pop("id")
-        await Postgres.execute(
-            """
-            INSERT INTO sites (id, data)
-            VALUES ($1, $2) ON CONFLICT (id)
-            DO UPDATE SET data = EXCLUDED.data
-            """,
-            mid,
-            mdata,
-        )
+        # if the current site is not in the database
+        # or has been changed, upsert it
+        if current_needs_update or not current_site_exists:
+            logger.debug(f"Registering to site {current_site.id}")
+            mdata = current_site.dict()
+            mid = mdata.pop("id")
+            await Postgres.execute(
+                """
+                INSERT INTO sites (id, data)
+                VALUES ($1, $2) ON CONFLICT (id)
+                DO UPDATE SET data = EXCLUDED.data
+                """,
+                mid,
+                mdata,
+            )
 
+        # insert the current site at the beginning of the list
         sites.insert(0, current_site)
+    return sites
 
-    # load dynamic_enums
+
+@aiocache.cached(ttl=5)
+async def get_attributes() -> list[AttributeModel]:
+    """Return a list of available attributes
+
+    populate enum fields with values from the database
+    in the case dynamic enums are used.
+    """
+
     enums: dict[str, Any] = {}
     async for row in Postgres.iterate(
         "SELECT name, data FROM attributes WHERE data->'enum' is not null"
@@ -232,48 +228,162 @@ async def get_additional_info(user: UserEntity, request: Request):
     for row in attribute_library.info_data:
         row = {**row}
         if row["name"] in enums:
-            row["enum"] = enums[row["name"]]
+            row["data"]["enum"] = enums[row["name"]]
         try:
             attr_list.append(AttributeModel(**row))
         except ValidationError:
             log_traceback(f"Invalid attribute data: {row}")
             continue
+    return attr_list
+
+
+async def get_additional_info(
+    user_name: str,
+    is_admin: bool,
+    is_guest: bool,
+    site_id: str | None,
+    site_platform: str | None,
+    site_hostname: str | None,
+    site_version: str | None,
+) -> dict[str, Any]:
+    """Return additional information for the user
+
+    This is returned only if the user is logged in.
+    """
+    server_config = await get_server_config()
+
+    sites = []
+    if site_id and site_platform and site_hostname and site_version:
+        current_site = SiteInfo(
+            id=site_id,
+            platform=site_platform,
+            hostname=site_hostname,
+            version=site_version,
+            users={user_name},
+        )
+    else:
+        current_site = None
+
+    if not is_guest:
+        sites = await get_user_sites(user_name, current_site)
+
+    attr_list = await get_attributes()
+    extras = await CloudUtils.get_extras()
+
     return {
         "attributes": attr_list,
         "sites": sites,
+        "extras": extras,
+        "disable_changelog": ayonconfig.offline_mode
+        or ayonconfig.disable_feedback
+        or not (is_admin or server_config.changelog.show_changelog_to_users),
     }
 
 
-@router.get("/info", response_model_exclude_none=True, tags=["System"])
+@Redis.cached("global", "onboardingFinished")
+async def is_onboarding_finished() -> bool:
+    """Check if the onboarding process has been finished"""
+    query = "SELECT * FROM config where key = 'onboardingFinished'"
+    rdb = await Postgres.fetch(query)
+    if rdb:
+        return True
+    return False
+
+
+#
+# The actual endpoint
+#
+
+
+@router.get(
+    "/info",
+    response_model_exclude_none=True,
+    dependencies=[NoTraces, AllowGuests],
+)
 async def get_site_info(
     request: Request,
     current_user: CurrentUserOptional,
+    full: bool = Query(False, description="Include frontend-related information"),
 ) -> InfoResponseModel:
     """Return site information.
 
     This is the initial endpoint that is called when the user opens the page.
     It returns information about the site, the current user and the configuration.
 
-    If the user is not logged in, only the message of the day and the API version
-    are returned.
+    If the user is not logged in, only the login page message (motd) and the
+    API version are returned.
     """
-    additional_info = {}
-    if current_user:
-        additional_info = await get_additional_info(current_user, request)
 
-        if current_user.is_admin:
-            res = await Postgres.fetch(
-                """SELECT * FROM config where key = 'onboardingFinished'"""
-            )
-            if not res:
+    coalesce = RequestCoalescer()
+
+    additional_info = {}
+    server_config = await get_server_config()
+
+    if current_user:
+        site_id = request.headers.get("x-ayon-site-id")
+        site_platform = request.headers.get("x-ayon-platform")
+        site_hostname = request.headers.get("x-ayon-hostname")
+        site_version = request.headers.get("x-ayon-version")
+        frontend_flags = server_config.customization.frontend_flags
+
+        additional_info = await coalesce(
+            get_additional_info,
+            current_user.name,
+            current_user.is_admin,
+            current_user.is_guest,
+            site_id,
+            site_platform,
+            site_hostname,
+            site_version,
+        )
+
+        additional_info["frontend_flags"] = frontend_flags
+
+        if current_user.is_admin and not current_user.is_service:
+            if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
 
-    else:
+    if full:
+        customization = server_config.customization
         sso_options = await get_sso_options(request)
-        has_admin_user = await admin_exists()
-        additional_info = {
-            "sso_options": sso_options,
-            "no_admin_user": not has_admin_user,
-        }
-    user_payload = current_user.payload if (current_user is not None) else None
+
+        if not current_user:
+            has_admin_user = await CloudUtils.get_admin_exists()
+            additional_info["no_admin_user"] = (not has_admin_user) or None
+            additional_info["password_recovery_available"] = bool(
+                await is_mailing_enabled()
+            )
+
+            if customization.motd:
+                additional_info["motd"] = customization.motd
+            elif ayonconfig.motd:  # Deprecated
+                additional_info["motd"] = ayonconfig.motd
+
+            if customization.login_background:
+                url = f"/static/customization/{customization.login_background}"
+                additional_info["login_page_background"] = url
+            elif ayonconfig.login_page_background:  # Deprecated
+                additional_info["login_page_background"] = (
+                    ayonconfig.login_page_background
+                )
+
+            if server_config.authentication.hide_password_auth:
+                additional_info["hide_password_auth"] = True
+
+        additional_info["sso_options"] = sso_options
+
+        if customization.studio_logo:
+            url = f"/static/customization/{customization.studio_logo}"
+            additional_info["login_page_brand"] = url
+            additional_info["studio_logo"] = url
+        elif ayonconfig.login_page_brand:  # Deprecated
+            additional_info["login_page_brand"] = ayonconfig.login_page_brand
+            additional_info["studio_logo"] = ayonconfig.login_page_brand
+
+    user_payload = None
+    if current_user:
+        user_payload = current_user.payload
+        if not current_user.is_service:
+            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()  # type: ignore
+
     return InfoResponseModel(user=user_payload, **additional_info)

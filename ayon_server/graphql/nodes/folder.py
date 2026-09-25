@@ -1,21 +1,22 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import FolderEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
+from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import json_dumps
+from ayon_server.graphql.types import Info
+from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import ProductsConnection, TasksConnection
 else:
-    ProductsConnection = LazyType["ProductsConnection", "..connections"]
-    TasksConnection = LazyType["TasksConnection", "..connections"]
+    ProductsConnection = Annotated[
+        "ProductsConnection", strawberry.lazy("..connections")
+    ]
+    TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
 
 
 @FolderEntity.strawberry_attrib()
@@ -25,22 +26,35 @@ class FolderAttribType:
 
 @strawberry.type
 class FolderNode(BaseNode):
+    entity_type: strawberry.Private[str] = "folder"
     label: str | None
     folder_type: str
     parent_id: str | None
     thumbnail_id: str | None
+    thumbnail: ThumbnailInfo | None = None
     path: str | None
     status: str
     tags: list[str]
-    attrib: FolderAttribType
-    own_attrib: list[str]
     data: str | None
+    thumbnail_hash: str = strawberry.field()
+
+    _project_attrib: strawberry.Private[dict[str, Any]]
+    _inherited_attrib: strawberry.Private[dict[str, Any]]
+    _folder_path: strawberry.Private[str | None] = None
+
+    latest_comments: list[EntityComment] | None = strawberry.field(default=None)
 
     # GraphQL specifics
 
     child_count: int = strawberry.field(default=0)
     product_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
+    has_versions: bool = strawberry.field(default=False)
+    has_reviewables: bool = strawberry.field(default=False)
+    total_folder_count: int = strawberry.field(default=0)
+    total_task_count: int = strawberry.field(default=0)
+    total_product_count: int = strawberry.field(default=0)
+    total_version_count: int = strawberry.field(default=0)
 
     products: ProductsConnection = strawberry.field(
         resolver=get_products,
@@ -71,21 +85,33 @@ class FolderNode(BaseNode):
 
     @strawberry.field()
     def parents(self) -> list[str]:
+        if not self.path:
+            return []
         path = self.path.strip("/")
         return path.split("/")[:-1] if path else []
 
     @strawberry.field
-    async def parent(self, info: Info) -> Optional["FolderNode"]:
+    async def parent(self, info: Info) -> "FolderNode | None":
         if not self.parent_id:
             return None
         record = await info.context["folder_loader"].load(
             (self.project_name, self.parent_id)
         )
-        return (
-            info.context["folder_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
+
+    @strawberry.field
+    def attrib(self) -> FolderAttribType:
+        return FolderAttribType(**self.processed_attrib())
+
+    @strawberry.field
+    def own_attrib(self) -> list[str]:
+        """Return a list of attributes that are defined on the task."""
+        return list(self._attrib.keys())
 
 
 #
@@ -93,12 +119,35 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
+async def folder_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> FolderNode:
     """Construct a folder node from a DB row."""
 
-    own_attrib = list(record["attrib"].keys())
-    data = record.get("data")
+    data = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
 
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
+    thumbnail = None
+    if record.get("thumbnail_id"):
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
+
+    try:
+        latest_comments = json_loads(record.get("latest_comments") or "[]")
+    except Exception:
+        latest_comments = []
+
+    path = "/" + record.get("path", "").strip("/")
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -108,24 +157,31 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            FolderAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-            project_attrib=record["project_attributes"],
-            inherited_attrib=record["inherited_attributes"],
-        ),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
-        path="/" + record.get("path", "").strip("/"),
-        own_attrib=own_attrib,
+        has_reviewables=has_reviewables,
+        has_versions=record.get("has_versions", False),
+        total_folder_count=record.get("total_folder_count", 0),
+        total_task_count=record.get("total_task_count", 0),
+        total_product_count=record.get("total_product_count", 0),
+        total_version_count=record.get("total_version_count", 0),
+        latest_comments=[EntityComment(**comment) for comment in latest_comments],
+        thumbnail_hash=thumbnail_hash,
+        path=path,
+        _folder_path=path,
+        _attrib=record["attrib"] or {},
+        _project_attrib=record["project_attributes"] or {},
+        _inherited_attrib=record["inherited_attributes"] or {},
+        _user=context["user"],
     )
 
 

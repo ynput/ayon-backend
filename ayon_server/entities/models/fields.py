@@ -11,6 +11,9 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
+from typing import Any, NotRequired, TypedDict
+
+from pydantic import BaseModel
 
 from ayon_server.entities.models.submodels import LinkTypeModel, RepresentationFileModel
 from ayon_server.types import (
@@ -19,9 +22,27 @@ from ayon_server.types import (
     LABEL_REGEX,
     NAME_REGEX,
     PROJECT_NAME_REGEX,
+    USER_NAME_REGEX,
 )
 
-project_fields = [
+
+class FieldDefinitionDict(TypedDict):
+    """TypedDict for field definition dictionaries."""
+
+    name: str
+    type: NotRequired[str]  # not required if list_of_submodels is provided
+    required: NotRequired[bool]
+    regex: NotRequired[str]
+    example: NotRequired[Any]
+    title: NotRequired[str]
+    description: NotRequired[str]
+    default: NotRequired[Any]
+    factory: NotRequired[str]
+    list_of_submodels: NotRequired[type[BaseModel]]
+    dynamic: NotRequired[bool]
+
+
+project_fields: list[FieldDefinitionDict] = [
     # Name is not here, since it's added by ModelSet class
     # (it is used as a primary key)
     {
@@ -31,6 +52,13 @@ project_fields = [
         "example": "prj",
         "title": "Project code",
         "required": True,
+    },
+    {
+        "name": "label",
+        "type": "string",
+        "title": "Project label",
+        "regex": LABEL_REGEX,
+        "example": "My awesome project",
     },
     {
         "name": "library",
@@ -99,10 +127,27 @@ project_fields = [
         "default": {},
         "title": "Project config",
     },
+    {
+        "name": "skeleton",
+        "type": "boolean",
+        "title": "Skeleton project",
+        "example": True,
+        "dynamic": True,
+    },
+]
+
+user_fields = [
+    {
+        "name": "ui_exposure_level",
+        "type": "integer",
+        "title": "UI Exposure Level",
+        "example": 100,
+        "dynamic": True,
+    },
 ]
 
 
-folder_fields = [
+folder_fields: list[FieldDefinitionDict] = [
     {
         "name": "name",
         "type": "string",
@@ -148,10 +193,17 @@ folder_fields = [
         "example": "/assets/characters/xenomorph",
         "dynamic": True,
     },
+    {
+        "name": "has_versions",
+        "type": "boolean",
+        "title": "Has versions",
+        "example": True,
+        "dynamic": True,
+    },
 ]
 
 
-task_fields = [
+task_fields: list[FieldDefinitionDict] = [
     {
         "name": "name",
         "type": "string",
@@ -197,10 +249,17 @@ task_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modeling",
+        "dynamic": True,
+    },
 ]
 
 
-product_fields = [
+product_fields: list[FieldDefinitionDict] = [
     {
         "name": "name",
         "type": "string",
@@ -223,14 +282,30 @@ product_fields = [
         "type": "string",
         "required": True,
         "title": "Product type",
-        "description": "Product ",
+        "description": "Product type",
+        "regex": NAME_REGEX,
+        "example": "modelMain",
+    },
+    {
+        "name": "product_base_type",
+        "type": "string",
+        "required": False,
+        "title": "Product base type",
+        "description": "Product base type",
         "regex": NAME_REGEX,
         "example": "model",
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain",
+        "dynamic": True,
     },
 ]
 
 
-version_fields = [
+version_fields: list[FieldDefinitionDict] = [
     {
         "name": "version",
         "type": "integer",
@@ -268,13 +343,20 @@ version_fields = [
     {
         "name": "author",
         "type": "string",
-        "regex": NAME_REGEX,
+        "regex": USER_NAME_REGEX,
         "example": "john_doe",
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003",
+        "dynamic": True,
     },
 ]
 
 
-representation_fields = [
+representation_fields: list[FieldDefinitionDict] = [
     {
         "name": "name",
         "type": "string",
@@ -299,9 +381,36 @@ representation_fields = [
         "title": "Files",
         "description": "List of files",
     },
+    {
+        "name": "traits",
+        "type": "dict",
+        "title": "Traits",
+        "description": "Dict of traits",
+        "example": {
+            "ayon.2d.PixelBased.v1": {
+                "display_window_width": 1920,
+                "display_window_height": 1080,
+            },
+            "ayon.2d.Image.v1": {},
+        },
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003/ma",
+        "dynamic": True,
+    },
+    {
+        "name": "belongs_to_hero",
+        "type": "boolean",
+        "title": "Belongs to HERO version",
+        "example": False,
+        "dynamic": True,
+    },
 ]
 
-workfile_fields = [
+workfile_fields: list[FieldDefinitionDict] = [
     {
         "name": "path",
         "type": "string",

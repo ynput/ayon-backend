@@ -1,3 +1,3 @@
-from .thumbnails import router
+__all__ = ["router"]
 
-assert router
+from .thumbnails import router

@@ -26,7 +26,8 @@ class EntityCounts(OPModel):
 
 @router.get("/entities")
 async def get_project_entity_counts(
-    user: CurrentUser, project_name: ProjectName
+    user: CurrentUser,
+    project_name: ProjectName,
 ) -> EntityCounts:
     """Retrieve entity counts for a given project."""
 
@@ -200,7 +201,7 @@ async def get_project_activity(
     project_name: ProjectName,
     days: int = Query(50, description="Number of days to retrieve activity for"),
 ) -> ActivityResponseModel:
-    activity = {k: 0 for k in get_midnight_dates(days)}
+    activity = dict.fromkeys(get_midnight_dates(days), 0)
 
     query = """
         SELECT
@@ -224,7 +225,7 @@ async def get_project_activity(
     return ActivityResponseModel(activity=result)
 
 
-class UsersResponseModel(OPModel):
+class ProjectTeamsResponseModel(OPModel):
     team_size_active: int = Field(0, description="Number of active team members")
     team_size_total: int = Field(0, description="Total number of team members")
     users_with_access_active: int = Field(0, description="Number of active users")
@@ -238,14 +239,14 @@ class UsersResponseModel(OPModel):
 
 
 @router.get("/users")
-async def get_project_users(
+async def get_project_teams(
     user: CurrentUser, project_name: ProjectName
-) -> UsersResponseModel:
-    team_members: list[str] = []
+) -> ProjectTeamsResponseModel:
+    team_members: set[str] = set()
     project = await ProjectEntity.load(project_name)
     for team_data in project.data.get("teams", []):
         for member in team_data.get("members", []):
-            team_members.append(member["name"])
+            team_members.add(member["name"])
 
     role_counts: dict[str, int] = {}
     team_size_active = 0
@@ -275,7 +276,7 @@ async def get_project_users(
         for role in project_roles:
             role_counts[role] = role_counts.get(role, 0) + 1
 
-    return UsersResponseModel(
+    return ProjectTeamsResponseModel(
         team_size_active=team_size_active,
         team_size_total=team_size_total,
         users_with_access_active=users_with_access_active,

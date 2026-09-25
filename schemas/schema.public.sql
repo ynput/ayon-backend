@@ -1,12 +1,27 @@
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+ALTER EXTENSION pg_trgm SET SCHEMA public;
+
 CREATE TABLE IF NOT EXISTS public.config(
   key VARCHAR NOT NULL PRIMARY KEY,
   value JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-- Server updates
+
+CREATE TABLE IF NOT EXISTS public.server_updates(
+  id SERIAL PRIMARY KEY,
+  version VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS server_updates_version_idx ON public.server_updates(version);
+
 -- Projects
 
 CREATE TABLE IF NOT EXISTS public.projects(
     name VARCHAR NOT NULL PRIMARY KEY,
+    label VARCHAR,
     code VARCHAR NOT NULL,
     library BOOLEAN NOT NULL DEFAULT FALSE,
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -18,8 +33,38 @@ CREATE TABLE IF NOT EXISTS public.projects(
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS label VARCHAR;
+
 CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects(LOWER(name));
 CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
+CREATE UNIQUE INDEX IF NOT EXISTS projectlabel_idx ON public.projects(LOWER(label));
+CREATE INDEX IF NOT EXISTS projectactive_idx ON public.projects(active);
+
+
+CREATE TABLE IF NOT EXISTS project_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    label VARCHAR NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    parent_id UUID REFERENCES project_folders(id) ON DELETE CASCADE,
+    data JSONB DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label 
+  ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+
+
+CREATE TABLE IF NOT EXISTS project_skeleton_thumbnails(
+    project_name VARCHAR NOT NULL PRIMARY KEY 
+      REFERENCES public.projects(name) 
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    mime VARCHAR NOT NULL,
+    data BYTEA NOT NULL,
+    meta JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.project_skeleton_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+
 
 -- Users
 
@@ -43,6 +88,29 @@ CREATE TABLE IF NOT EXISTS public.product_types(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-----------
+-- VIEWS --
+-----------
+
+CREATE TABLE IF NOT EXISTS views(
+  id UUID NOT NULL PRIMARY KEY,
+  view_type VARCHAR NOT NULL,
+  label VARCHAR NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+
+  owner VARCHAR,
+  visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+  working BOOLEAN NOT NULL DEFAULT TRUE,
+
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
+CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
+CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
 
 ------------
 -- Events --
@@ -53,13 +121,14 @@ CREATE TABLE IF NOT EXISTS public.events(
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
-  project_name VARCHAR, -- REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
-  user_name VARCHAR, -- REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  sender_type VARCHAR,
+  project_name VARCHAR,
+  user_name VARCHAR,
   depends_on UUID REFERENCES public.events(id),
   status VARCHAR NOT NULL
     DEFAULT 'finished'
     CHECK (status IN (
-      'pending', 
+      'pending',
       'in_progress',
       'finished',
       'failed',
@@ -76,9 +145,28 @@ CREATE TABLE IF NOT EXISTS public.events(
   creation_order SERIAL NOT NULL
 );
 
--- TODO: some indices here
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
 CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order);
+
+CREATE INDEX IF NOT EXISTS event_topic_idx ON events USING GIN (topic public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS event_depends_on_idx ON events(depends_on);
+CREATE INDEX IF NOT EXISTS event_project_name_idx ON events (project_name);
+CREATE INDEX IF NOT EXISTS event_user_name_idx ON events (user_name);
+CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
+CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
+CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
+CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
+CREATE INDEX IF NOT EXISTS events_sender_type_idx ON events(sender_type);
+
+CREATE INDEX IF NOT EXISTS idx_events_excluded_lookup 
+  ON public.events (topic, updated_at)
+  INCLUDE (depends_on) WHERE depends_on IS NOT NULL AND status IN ('finished', 'failed');
+
+CREATE INDEX IF NOT EXISTS idx_events_source_processing
+  ON public.events (topic, status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_events_target_lookup 
+  ON public.events (depends_on, topic);
 
 --------------
 -- Settings --
@@ -90,7 +178,7 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_staging BOOLEAN NOT NULL DEFAULT FALSE,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   is_dev BOOLEAN NOT NULL DEFAULT FALSE,
-  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL,
+  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -113,7 +201,7 @@ CREATE TABLE IF NOT EXISTS public.sites(
 
 
 CREATE TABLE IF NOT EXISTS public.access_groups(
-    name VARCHAR NOT NULL PRIMARY KEY, 
+    name VARCHAR NOT NULL PRIMARY KEY,
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
@@ -147,7 +235,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
   site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -166,6 +254,23 @@ CREATE TABLE IF NOT EXISTS public.secrets(
   name VARCHAR NOT NULL PRIMARY KEY,
   value VARCHAR NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS action_config(
+  hash VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB,
+  identifier VARCHAR NOT NULL,
+  addon_name VARCHAR,
+  addon_version VARCHAR,
+  project_name VARCHAR REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  last_used BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_config_addon_name ON action_config (addon_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_addon_version ON action_config (addon_version);
+CREATE INDEX IF NOT EXISTS idx_action_config_project_name ON action_config (project_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_user_name ON action_config (user_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_last_used ON action_config (last_used);
 
 
 --------------
@@ -190,7 +295,155 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+CREATE TABLE IF NOT EXISTS public.licenses(
+    id UUID NOT NULL PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS public.traffic_stats(
+    date DATE NOT NULL,
+    service VARCHAR NOT NULL,
+    ingress BIGINT NOT NULL DEFAULT 0,
+    egress BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, service)
+);
+
+CREATE TABLE IF NOT EXISTS public.user_stats(
+    date DATE NOT NULL PRIMARY KEY,
+    users JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
 
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
 
+
+-----------
+-- INBOX --
+-----------
+
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT 'DROP FUNCTION ' || oid::regprocedure || ';' as drop_command
+        FROM pg_proc
+        WHERE proname = 'get_user_inbox'
+    LOOP
+        EXECUTE r.drop_command;
+    END LOOP;
+END $$;
+
+
+CREATE OR REPLACE FUNCTION get_user_inbox(
+  user_name TEXT,
+  show_active_projects BOOLEAN DEFAULT NULL,
+  show_active_messages BOOLEAN DEFAULT NULL,
+  show_unread_messages BOOLEAN DEFAULT NULL,
+  before TIMESTAMPTZ DEFAULT NULL,
+  last INTEGER DEFAULT 100,
+  additional_filters TEXT DEFAULT ''
+)
+RETURNS TABLE (
+    project_name TEXT,
+    reference_id UUID,
+    activity_id UUID,
+    reference_type VARCHAR,
+    entity_type VARCHAR,
+    entity_id UUID,
+    entity_name VARCHAR,
+    entity_path VARCHAR,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    creation_order INTEGER,
+    activity_type VARCHAR,
+    body TEXT,
+    tags VARCHAR[],
+    activity_data JSONB,
+    reference_data JSONB,
+    active BOOLEAN
+
+) AS $$
+DECLARE
+    project RECORD;
+    query TEXT;
+
+BEGIN
+    FOR project IN
+      SELECT p.name FROM projects AS p JOIN users AS u ON u.name = user_name
+      WHERE (show_active_projects IS NULL OR p.active = show_active_projects)
+      AND (p.data->>'isSkeleton' IS DISTINCT FROM  'true')
+      AND (
+        (
+          (u.data->'isManager')::boolean
+          OR (u.data->'isAdmin')::boolean
+        )
+        OR (u.data->'accessGroups'->p.name IS NOT NULL)
+      )
+    LOOP
+        query := format('
+            SELECT
+                ''%s'' AS project_name,
+
+                t.reference_id as reference_id,
+                t.activity_id as activity_id,
+                t.reference_type as reference_type,
+                t.entity_type as entity_type,
+                t.entity_id as entity_id,
+                t.entity_name as entity_name,
+                t.entity_path as entity_path,
+
+                t.created_at as created_at,
+                t.updated_at as updated_at,
+                t.creation_order as creation_order,
+
+                t.activity_type as activity_type,
+                substring(t.body from 1 for 200) as body,
+                t.tags as tags,
+
+                t.activity_data as activity_data,
+                t.reference_data as reference_data,
+                t.active as active
+
+            FROM
+                project_%s.activity_feed t
+            WHERE
+                t.entity_type = ''user''
+            AND t.entity_name = %L
+            AND t.reference_type != ''author''
+            AND t.updated_at <= COALESCE(%L, NOW())
+            AND t.activity_data->>''author'' != %L
+            %s
+            %s
+            %s
+            ORDER BY t.updated_at DESC
+            LIMIT %s
+        ',
+
+          project.name,
+          project.name,
+          user_name,
+          before,
+          user_name,
+
+        CASE
+            WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
+            WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
+            ELSE ''
+        END,
+
+        CASE
+            WHEN show_unread_messages IS FALSE THEN 'AND (t.reference_data->>''read'')::boolean'
+            WHEN show_unread_messages IS TRUE THEN 'AND not coalesce((t.reference_data->>''read'')::boolean, false)'
+            ELSE ''
+        END,
+
+        additional_filters,
+        last
+        );
+
+        RETURN QUERY EXECUTE query;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;

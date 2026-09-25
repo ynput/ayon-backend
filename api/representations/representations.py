@@ -1,13 +1,13 @@
-from fastapi import BackgroundTasks, Header
-
-from ayon_server.api.dependencies import CurrentUser, ProjectName, RepresentationID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    RepresentationID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
-from ayon_server.events import dispatch_event
-from ayon_server.events.patch import build_pl_entity_change_events
+from ayon_server.operations.project_level import ProjectLevelOperations
 
 from .router import router
-
 
 #
 # [GET]
@@ -35,41 +35,19 @@ async def get_representation(
 #
 
 
-@router.post(
-    "/projects/{project_name}/representations",
-    status_code=201,
-    response_model=EntityIdResponse,
-)
+@router.post("/projects/{project_name}/representations", status_code=201)
 async def create_representation(
     post_data: RepresentationEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
 ) -> EntityIdResponse:
     """Create a new representation."""
 
-    representation = RepresentationEntity(
-        project_name=project_name, payload=post_data.dict()
-    )
-    await representation.ensure_create_access(user)
-    event = {
-        "topic": "entity.representation.created",
-        "description": f"Representation {representation.name} created",
-        "summary": {
-            "entityId": representation.id,
-            "parentId": representation.parent_id,
-        },
-        "project": project_name,
-    }
-    await representation.save()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
-    return EntityIdResponse(id=representation.id)
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.create("representation", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    entity_id = res.operations[0].entity_id
+    return EntityIdResponse(id=entity_id)
 
 
 #
@@ -82,26 +60,19 @@ async def create_representation(
 )
 async def update_representation(
     post_data: RepresentationEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a representation."""
 
-    representation = await RepresentationEntity.load(project_name, representation_id)
-    await representation.ensure_update_access(user)
-    events = build_pl_entity_change_events(representation, post_data)
-    representation.patch(post_data)
-    await representation.save()
-    for event in events:
-        background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.update(
+        "representation",
+        representation_id,
+        **post_data.dict(exclude_unset=True),
+    )
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -114,30 +85,13 @@ async def update_representation(
     "/projects/{project_name}/representations/{representation_id}", status_code=204
 )
 async def delete_representation(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    x_sender: str | None = Header(default=None),
 ):
     """Delete a representation."""
 
-    representation = await RepresentationEntity.load(project_name, representation_id)
-    await representation.ensure_delete_access(user)
-    event = {
-        "topic": "entity.representation.deleted",
-        "description": f"Representation {representation.name} deleted",
-        "summary": {
-            "entityId": representation.id,
-            "parentId": representation.parent_id,
-        },
-        "project": project_name,
-    }
-    await representation.delete()
-    background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
-        user=user.name,
-        **event,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
+    ops.delete("representation", representation_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

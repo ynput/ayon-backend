@@ -1,13 +1,12 @@
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import datetime
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import ProductEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.types import Info
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -15,9 +14,11 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.folder import FolderNode
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    FolderNode = LazyType["FolderNode", ".folder"]
-    VersionNode = LazyType["VersionNode", ".version"]
-    VersionsConnection = LazyType["VersionsConnection", "..connections"]
+    VersionsConnection = Annotated[
+        "VersionsConnection", strawberry.lazy("..connections")
+    ]
+    FolderNode = Annotated["FolderNode", strawberry.lazy(".folder")]
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
 
 
 @strawberry.type
@@ -41,12 +42,20 @@ class ProductAttribType:
 
 @strawberry.type
 class ProductNode(BaseNode):
+    entity_type: strawberry.Private[str] = "product"
     folder_id: str
     product_type: str
+    product_base_type: str | None
     status: str
     tags: list[str]
-    attrib: ProductAttribType
     data: str | None
+    path: str | None = None
+
+    _folder_path: strawberry.Private[str | None] = None
+
+    _hero_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_done_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_version_data: strawberry.Private[dict[str, Any] | None] = None
 
     # GraphQL specifics
 
@@ -65,7 +74,7 @@ class ProductNode(BaseNode):
         description="Simple (id /version) list of versions in the product",
     )
 
-    _folder: Optional[FolderNode] = None
+    _folder: strawberry.Private[FolderNode | None] = None
 
     @strawberry.field(description="Parent folder of the product")
     async def folder(self, info: Info) -> FolderNode:
@@ -75,29 +84,95 @@ class ProductNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
     @strawberry.field(description="Last version of the product")
-    async def latest_version(self, info: Info) -> Optional[VersionNode]:
+    async def latest_version(self, info: Info) -> VersionNode | None:
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
         )
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
+    @strawberry.field
+    def attrib(self) -> ProductAttribType:
+        return ProductAttribType(**self.processed_attrib())
 
-def product_from_record(
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
+    @strawberry.field
+    async def featured_version(
+        self,
+        info: Info,
+        order: list[str] | None = None,
+    ) -> VersionNode | None:
+        """Return the featured version of the product.
+
+        Order may contain ["latestDone", "hero", "latest"]
+        which is the order of preference for the featured version.
+
+        This array is optional, if not provided, this exact order is used.
+
+        This node may be null if no versions are available.
+        """
+
+        if order is None:
+            order = ["latestDone", "hero", "latest"]
+
+        for item in order:
+            if item == "hero" and self._hero_version_data:
+                data = self._hero_version_data
+                data["featured_version_type"] = "hero"
+            elif item == "latestDone" and self._latest_done_version_data:
+                data = self._latest_done_version_data
+                data["featured_version_type"] = "latestDone"
+            elif item == "latest" and self._latest_version_data:
+                data = self._latest_version_data
+                data["featured_version_type"] = "latest"
+            else:
+                continue
+
+            data["_folder_path"] = self._folder_path
+            data["_product_name"] = self.name
+            # to_jsonb keeps uuid dashes, loaders expect them stripped
+            for key in (
+                "id",
+                "hero_version_id",
+                "product_id",
+                "task_id",
+                "thumbnail_id",
+            ):
+                if data.get(key):
+                    data[key] = data[key].replace("-", "")
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+            return await info.context["version_from_record"](
+                self.project_name, data, info.context
+            )
+
+        return None
+
+
+async def product_from_record(
     project_name: str,
-    record: dict,
+    record: dict[str, Any],
     context: dict[str, Any],
 ) -> ProductNode:
     """Construct a product node from a DB row."""
 
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -105,19 +180,30 @@ def product_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
-    else:
-        folder = None
+        if folder_data.get("id"):
+            try:
+                cfun = context["folder_from_record"]
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
+            except KeyError:
+                pass
 
     vlist = []
-    for id, vers in zip(record.get("version_ids", []), record.get("version_list", [])):
-        vlist.append(VersionListItem(id=id, version=vers))
+    version_ids = record.get("version_ids", [])
+    version_list = record.get("version_list", [])
+    if version_ids and version_list:
+        for id, vers in zip(version_ids, version_list):
+            vlist.append(VersionListItem(id=id, version=vers))
 
     data = record.get("data", {})
+
+    path = None
+    folder_path = None
+    if record.get("_folder_path"):
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
 
     return ProductNode(
         project_name=project_name,
@@ -125,20 +211,24 @@ def product_from_record(
         name=record["name"],
         folder_id=record["folder_id"],
         product_type=record["product_type"],
+        product_base_type=record.get("product_base_type"),
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            ProductAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         version_list=vlist,
+        path=path,
         _folder=folder,
+        _folder_path=folder_path,
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
+        _hero_version_data=record.get("_hero_version_data"),
+        _latest_done_version_data=record.get("_latest_done_version_data"),
+        _latest_version_data=record.get("_latest_version_data"),
     )
 
 

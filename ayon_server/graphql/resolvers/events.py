@@ -1,9 +1,7 @@
 import datetime
 from typing import Annotated
 
-from nxtools import slugify
-from strawberry.types import Info
-
+from ayon_server.constraints import Constraints
 from ayon_server.graphql.connections import EventsConnection
 from ayon_server.graphql.edges import EventEdge
 from ayon_server.graphql.nodes.event import EventNode
@@ -13,17 +11,17 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGIds,
     ARGLast,
-    FieldInfo,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_name_list,
     validate_topic_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 
 async def get_events(
@@ -33,7 +31,10 @@ async def get_events(
     topics: Annotated[list[str] | None, argdesc("List of topics")] = None,
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
-    states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    states: Annotated[
+        list[str] | None, argdesc("List of states (deprecated. use statuses)")
+    ] = None,
+    statuses: Annotated[list[str] | None, argdesc("List of statuses")] = None,
     has_children: Annotated[bool | None, argdesc("Has children")] = None,
     older_than: Annotated[str | None, argdesc("Timestamp")] = None,
     newer_than: Annotated[str | None, argdesc("Timestamp")] = None,
@@ -46,10 +47,15 @@ async def get_events(
 ) -> EventsConnection:
     """Return a list of events."""
 
+    user = info.context["user"]
+    if user.is_guest:
+        return EventsConnection(edges=[])
     sql_conditions = []
 
     if ids is not None:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+    elif not user.is_manager:
+        users = [user.name]
 
     if topics is not None:
         if not topics:
@@ -71,11 +77,14 @@ async def get_events(
             return EventsConnection()
         users = validate_user_name_list(users)
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
-    if states is not None:
-        if not states:
+
+    # states is deprecated
+    statuses = statuses or states
+    if statuses is not None:
+        if not statuses:
             return EventsConnection()
-        states = validate_name_list(states)
-        sql_conditions.append(f"status IN {SQLTool.array(states)}")
+        statuses = validate_name_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
     if older_than:
         _ = datetime.datetime.fromisoformat(older_than)
@@ -87,12 +96,12 @@ async def get_events(
 
     if has_children is not None:
         if has_children:
-            sql_conditions.append("id IN (SELECT depends_on FROM events)")
+            sql_conditions.append("id IN (SELECT depends_on FROM public.events)")
         else:
-            sql_conditions.append("id NOT IN (SELECT depends_on FROM events)")
+            sql_conditions.append("id NOT IN (SELECT depends_on FROM public.events)")
 
     if filter:
-        elms = slugify(filter, make_set=True)
+        elms = slugify(filter, make_set=True, split_chars=" ")
         search_cols = ["topic", "project_name", "user_name", "description"]
         lconds = []
         for elm in elms:
@@ -100,45 +109,41 @@ async def get_events(
                 continue
 
             lconds.append(
-                f"""({' OR '.join([f"{col} LIKE '%{elm}%'" for col in search_cols])})"""
+                f"""({" OR ".join([f"{col} LIKE '%{elm}%'" for col in search_cols])})"""
             )
 
         if lconds:
             sql_conditions.extend(lconds)
 
-    paging_fields = FieldInfo(info, ["events"])
-    need_cursor = paging_fields.has_any(
-        "events.pageInfo.startCursor",
-        "events.pageInfo.endCursor",
-        "events.edges.cursor",
-    )
-
     order_by = ["creation_order"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
+
+    if (event_history := await Constraints.check("eventHistory")) is not None:
+        event_history = event_history or 7
+        sql_conditions.append(f"updated_at > NOW() - INTERVAL '{event_history} days'")
 
     # TODO: select data only when needed
 
     query = f"""
-        SELECT {cursor}, * FROM events
+        SELECT {cursor}, * FROM public.events
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         EventsConnection,
         EventEdge,
         EventNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
         context=info.context,
+        order_by=order_by,
     )

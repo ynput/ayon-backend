@@ -1,39 +1,96 @@
-from fastapi import Header
-from nxtools import logging
+from typing import Annotated, cast
 
-from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
-from ayon_server.api.responses import EmptyResponse
+from ayon_server.api.dependencies import (
+    AllowGuests,
+    AllowProjectSkeleton,
+    CurrentUser,
+    NewProjectName,
+    ProjectName,
+)
 from ayon_server.entities import ProjectEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
+from ayon_server.events.patch import build_project_change_events
 from ayon_server.exceptions import (
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.files import Storages
+from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.rename_project import rename_project as _rename_project
 from ayon_server.lib.postgres import Postgres
-from projects.router import router
+from ayon_server.settings.anatomy.folder_types import FolderType
+from ayon_server.settings.anatomy.product_base_types import (
+    enrich_project_config_with_product_base_types,
+)
+from ayon_server.settings.anatomy.statuses import Status
+from ayon_server.settings.anatomy.tags import Tag
+from ayon_server.settings.anatomy.task_types import TaskType
+from ayon_server.types import PROJECT_CODE_REGEX, PROJECT_NAME_REGEX, Field, OPModel
+
+from .router import router
 
 #
 # [GET]
 #
 
 
-@router.get("/projects/{project_name}", response_model_exclude_none=True)
+FOLDER_TYPES_FIELD = Annotated[
+    list[FolderType],
+    Field(default_factory=list, title="Folder types"),
+]
+
+TASK_TYPES_FIELD = Annotated[
+    list[TaskType],
+    Field(default_factory=list, title="Task types"),
+]
+STATUSES_FIELD = Annotated[
+    list[Status],
+    Field(default_factory=list, title="Statuses"),
+]
+TAGS_FIELD = Annotated[
+    list[Tag],
+    Field(default_factory=list, title="Tags"),
+]
+
+
+class ProjectModel(ProjectEntity.model.main_model):  # type: ignore
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+class ProjectPostModel(ProjectEntity.model.post_model):  # type: ignore
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+@router.get(
+    "/projects/{project_name}",
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    dependencies=[AllowGuests, AllowProjectSkeleton],
+)
 async def get_project(
     user: CurrentUser,
     project_name: ProjectName,
-) -> ProjectEntity.model.main_model:  # type: ignore
+) -> ProjectModel:
     """Retrieve a project by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project"
-            )
-
+    await user.ensure_project_access(project_name)
     project = await ProjectEntity.load(project_name)
-    return project.as_user(user)
+    enrich_project_config_with_product_base_types(project.config)
+    return cast(ProjectModel, project.as_user(user))
 
 
 #
@@ -45,13 +102,7 @@ async def get_project(
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project statistics"
-            )
-
+    await user.ensure_project_access(project_name)
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(
@@ -72,10 +123,10 @@ async def get_project_stats(user: CurrentUser, project_name: ProjectName):
 
 @router.put("/projects/{project_name}", status_code=201)
 async def create_project(
-    put_data: ProjectEntity.model.post_model,  # type: ignore
+    put_data: ProjectPostModel,
     user: CurrentUser,
     project_name: NewProjectName,
-) -> EmptyResponse:
+) -> None:
     """Create a new project.
 
     Since project has no ID, and a unique name is used as its
@@ -92,26 +143,25 @@ async def create_project(
     ([POST] /api/projects) for general usage.
     """
 
-    if not user.is_manager:
-        raise ForbiddenException("You need to be a manager in order to create projects")
-
-    action = ""
+    user.check_permissions("studio.create_projects")
 
     try:
         project = await ProjectEntity.load(project_name)
-        # NOTE: Replacing projects is not (and shoud not be) supported
-        # project.replace(put_data)
-        # action = "Replaced"
     except NotFoundException:
         project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
-        action = "Created"
     else:
         raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
+    etype = "project_skeleton" if project.skeleton else "project"
 
-    logging.info(f"[PUT] {action} project {project.name}", user=user.name)
-    return EmptyResponse(status_code=201)
+    await EventStream.dispatch(
+        f"entity.{etype}.created",
+        project=project.name,
+        description=f"Created project {project.name}",
+    )
+
+    return None
 
 
 #
@@ -119,13 +169,16 @@ async def create_project(
 #
 
 
-@router.patch("/projects/{project_name}", status_code=204)
+@router.patch(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def update_project(
-    patch_data: ProjectEntity.model.patch_model,  # type: ignore
+    patch_data: ProjectPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
-):
+) -> None:
     """Patch a project.
 
     Use a PATCH request to partially update a project.
@@ -133,24 +186,23 @@ async def update_project(
     """
 
     project = await ProjectEntity.load(project_name)
+    events = build_project_change_events(project, patch_data)
 
     if not user.is_manager:
         raise ForbiddenException(
             "You need to be a manager in order to update a project"
         )
 
-    project.patch(patch_data)
+    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_converted = ProjectEntity.model.patch_model(**patch_data_dict)
+
+    project.patch(patch_data_converted)
     await project.save()
 
-    await dispatch_event(
-        "entity.project.changed",
-        sender=x_sender,
-        project=project_name,
-        user=user.name,
-        description=f"Updated project {project_name}",
-    )
-    logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
-    return EmptyResponse()
+    for edata in events:
+        await EventStream.dispatch(**edata)
+
+    return None
 
 
 #
@@ -158,8 +210,41 @@ async def update_project(
 #
 
 
-@router.delete("/projects/{project_name}", status_code=204)
-async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyResponse:
+async def unassign_users_from_deleted_projects() -> None:
+    """Unassign all users from non-existent projects."""
+
+    res = await Postgres.fetch(
+        """
+        SELECT DISTINCT jsonb_object_keys(data->'accessGroups')
+        AS project_name FROM users
+        """
+    )
+    assigned_projects = [row["project_name"] for row in res]
+    existing_projects = [
+        project.name for project in await get_project_list(with_skeleton=True)
+    ]
+
+    for project_name in assigned_projects:
+        if project_name not in existing_projects:
+            await Postgres.execute(
+                f"""
+                UPDATE users
+                SET data = data #- '{{accessGroups, {project_name}}}'
+                WHERE data->'accessGroups'->'{project_name}' IS NOT NULL;
+                """
+            )
+    # we don't need to update sessions, as they are updated on the next login
+
+
+@router.delete(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
+async def delete_project(
+    user: CurrentUser,
+    project_name: ProjectName,
+) -> None:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -168,5 +253,67 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
         raise ForbiddenException("You need to be a manager in order to delete projects")
 
     await project.delete()
-    logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
-    return EmptyResponse()
+
+    # clean-up (TODO: consider running as a background task)
+
+    storage = await Storages.project(project_name)
+    await storage.trash()
+    await unassign_users_from_deleted_projects()
+
+    etype = "project_skeleton" if project.skeleton else "project"
+
+    await EventStream.dispatch(
+        f"entity.{etype}.deleted",
+        project=project.name,
+        description=f"Deleted project {project.name}",
+    )
+
+    return None
+
+
+#
+# Rename
+#
+
+
+class RenameProjectRequestModel(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            title="New project name",
+            example="better_project_name",
+            regex=PROJECT_NAME_REGEX,
+            min_length=1,
+        ),
+    ]
+    code: Annotated[
+        str | None,
+        Field(
+            title="New project code",
+            description="If not provided, the code will remain unchanged.",
+            example="BETTER",
+            regex=PROJECT_CODE_REGEX,
+            min_length=1,
+        ),
+    ]
+
+
+@router.post(
+    "/projects/{project_name}/rename",
+    status_code=204,
+    dependencies=[AllowProjectSkeleton],
+)
+async def rename_project(
+    user: CurrentUser,
+    project_name: ProjectName,
+    payload: RenameProjectRequestModel,
+) -> None:
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await _rename_project(
+        project_name,
+        payload.name,
+        payload.code,
+    )
+    return None

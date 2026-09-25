@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import WorkfilesConnection
 from ayon_server.graphql.edges import WorkfileEdge
 from ayon_server.graphql.nodes.workfile import WorkfileNode
@@ -11,17 +10,22 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
 SORT_OPTIONS = {
     "name": "workfiles.name",
@@ -50,32 +54,25 @@ async def get_workfiles(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> WorkfilesConnection:
     """Return a list of workfiles."""
 
     project_name = root.project_name
+    user = info.context["user"]
+    fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
+
+    if user.is_guest:
+        return WorkfilesConnection(edges=[])
 
     #
     # SQL
     #
 
-    sql_columns = [
-        "workfiles.id AS id",
-        "workfiles.path AS path",
-        "workfiles.task_id AS task_id",
-        "workfiles.thumbnail_id AS thumbnail_id",
-        "workfiles.created_by AS created_by",
-        "workfiles.updated_by AS updated_by",
-        "workfiles.attrib AS attrib",
-        "workfiles.data AS data",
-        "workfiles.status AS status",
-        "workfiles.tags AS tags",
-        "workfiles.active AS active",
-        "workfiles.created_at AS created_at",
-        "workfiles.updated_at AS updated_at",
-        "workfiles.creation_order AS creation_order",
-    ]
+    sql_columns = ["workfiles.*"]
 
     # sql_joins = []
     sql_conditions = []
@@ -84,25 +81,37 @@ async def get_workfiles(
     if ids is not None:
         if not ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"workfiles.id IN {SQLTool.id_array(ids)}")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("workfiles.active AND tasks.active AND f_ex.active")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                "(NOT workfiles.active OR NOT tasks.active OR NOT f_ex.active)"
+            )
+
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(f_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
 
     if task_ids is not None:
         if not task_ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
+        sql_conditions.append(f"workfiles.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
-        sql_conditions.append(f"task_id = '{root.id}'")
+        sql_conditions.append(f"workfiles.task_id = '{root.id}'")
 
     if paths is not None:
         if not paths:
             return WorkfilesConnection()
         paths = [r.replace("'", "''") for r in paths]
-        sql_conditions.append(f"path IN {SQLTool.array(paths)}")
+        sql_conditions.append(f"workfiles.path IN {SQLTool.array(paths)}")
 
     if path_ex:
         # TODO: is this safe?
         path_ex = path_ex.replace("'", "''").replace("\\", "\\\\")
-        sql_conditions.append(f"path ~ '{path_ex}'")
+        sql_conditions.append(f"workfiles.path ~ '{path_ex}'")
 
     if has_links is not None:
         sql_conditions.extend(
@@ -113,31 +122,58 @@ async def get_workfiles(
         if not statuses:
             return WorkfilesConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"workfiles.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return WorkfilesConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"workfiles.tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+    if (
+        access_list is not None
+        or search
+        or fields.any_endswith("parents")
+        or fields.any_endswith("path")
+        or visibility != EntityVisibility.ALL
+        or not include_internal_folder
+    ):
+        sql_columns.extend(
+            [
+                "tasks.name AS _task_name",
+                "f_ex.path AS _folder_path",
+            ]
         )
 
         sql_joins.extend(
             [
                 f"""
                 INNER JOIN project_{project_name}.tasks AS tasks
-                ON task.id = workfiles.task_id
+                ON tasks.id = workfiles.task_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = tasks.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS f_ex
+                ON f_ex.folder_id = tasks.folder_id
                 """,
             ]
         )
+
+        if access_list is not None:
+            sql_conditions.append(
+                f"f_ex.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+
+    if search:
+        if cond := build_search_conditions(
+            search,
+            [
+                "tasks.name",
+                "tasks.task_type",
+                "f_ex.path",
+                "workfiles.path",
+            ],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Pagination
@@ -153,22 +189,14 @@ async def get_workfiles(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["workfiles"])
-    need_cursor = paging_fields.has_any(
-        "workfiles.pageInfo.startCursor",
-        "workfiles.pageInfo.endCursor",
-        "workfiles.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -179,26 +207,27 @@ async def get_workfiles(
         FROM project_{project_name}.workfiles AS workfiles
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         WorkfilesConnection,
         WorkfileEdge,
         WorkfileNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_workfile(root, info: Info, id: str) -> WorkfileNode | None:
+async def get_workfile(root, info: Info, id: str) -> WorkfileNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Workfile ID not specified")
     connection = await get_workfiles(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Workfile not found")
     return connection.edges[0].node

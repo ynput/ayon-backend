@@ -1,6 +1,4 @@
-from . import auth, sessions
-from .router import router
+__all__ = ["auth", "sessions", "router", "user_pools"]
 
-assert router
-assert auth
-assert sessions
+from . import auth, sessions, user_pools
+from .router import router

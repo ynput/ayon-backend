@@ -1,47 +1,141 @@
+import inspect
 import os
+
+from ayon_server.auth.models import LoginResponseModel
 
 try:
     import toml
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Type
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from nxtools import logging
+from fastapi import Request
+from fastapi.responses import HTMLResponse
 
-from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
-from ayon_server.exceptions import AyonException, NotFoundException
+from ayon_server.actions.config import get_action_config, set_action_config
+from ayon_server.actions.context import ActionContext
+from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
+from ayon_server.actions.manifest import (
+    DynamicActionManifest,
+    SimpleActionManifest,
+)
+from ayon_server.addons.models import (
+    FrontendModules,
+    FrontendScopes,
+    ServerSourceInfo,
+    SourceInfo,
+    SSOOption,
+)
+from ayon_server.addons.openapi import get_addon_api_docs, get_addon_openapi
+from ayon_server.addons.settings_caching import AddonSettingsCache
+from ayon_server.entities.user import UserEntity
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel, apply_overrides
+from ayon_server.settings.common import migrate_settings_overrides
+from ayon_server.utils import hash_data
 
 if TYPE_CHECKING:
+    from fastapi import APIRouter
+
     from ayon_server.addons.definition import ServerAddonDefinition
+
+METADATA_KEYS = [
+    "name",
+    "version",
+    "title",
+    "services",
+    "app_host_name",
+    "project_can_override_addon_version",
+    # compatibility object
+    "ayon_server_version",
+    "ayon_launcher_version",
+    "ayon_required_addons",
+    "ayon_soft_required_addons",
+    "ayon_compatible_addons",
+]
+
+
+class AddonCompatibilityModel(BaseSettingsModel):
+    server_version: str | None = None
+    launcher_version: str | None = None
+    required_addons: dict[str, str | None] | None = None
+    soft_required_addons: dict[str, str | None] | None = None
+    compatible_addons: dict[str, str | None] | None = None
 
 
 class BaseServerAddon:
+    # metadata from package.py
     name: str
     version: str
     title: str | None = None
-    app_host_name: str | None = None
-    definition: "ServerAddonDefinition"
-    endpoints: list[dict[str, Any]]
-    settings_model: Type[BaseSettingsModel] | None = None
-    site_settings_model: Type[BaseSettingsModel] | None = None
-    frontend_scopes: dict[str, Any] = {}
     services: dict[str, Any] = {}
-    system: bool = False  # Hide settings for non-admins and make the addon mandatory
+    project_can_override_addon_version: bool = False
 
-    def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
-        assert self.name and self.version
+    # should be defined on addon class
+    addon_type: Literal["server", "pipeline"] = "pipeline"
+    system: bool = False  # Hide settings for non-admins and make the addon mandatory
+    settings_model: type[BaseSettingsModel] | None = None
+    site_settings_model: type[BaseSettingsModel] | None = None
+    app_host_name: str | None = None
+    frontend_scopes: ClassVar[FrontendScopes] = {}
+    frontend_modules: ClassVar[FrontendModules] = {}
+
+    compatibility: AddonCompatibilityModel | None = None
+
+    # automatically set
+    definition: "ServerAddonDefinition"
+    legacy: bool = False  # auto-set to true if it is the old style addon
+    endpoints: list[dict[str, Any]]
+    routers: list["APIRouter"]
+    settings_cache: AddonSettingsCache | None = None  # to optimize /api/settings
+
+    def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
+        # populate metadata from package.py
+
+        compatibility = AddonCompatibilityModel(
+            server_version=kwargs.pop("ayon_server_version", None),
+            launcher_version=kwargs.pop("ayon_launcher_version", None),
+            required_addons=kwargs.pop("ayon_required_addons", None),
+            soft_required_addons=kwargs.pop("ayon_soft_required_addons", None),
+            compatible_addons=kwargs.pop("ayon_compatible_addons", None),
+        )
+
+        self.compatibility = compatibility
+
+        for key in METADATA_KEYS:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+        # ensure name and version are set
+        assert self.name and self.version, (
+            f"Addon {addon_dir} is missing name or version"
+        )
+
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+        self.routers = []
         self.restart_requested = False
-        logging.info(f"Initializing addon {self.name} v{self.version} in {addon_dir}")
+        logger.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
 
     def __repr__(self) -> str:
         return f"<Addon name='{self.definition.name}' version='{self.version}'>"
+
+    def get_project_can_override_addon_version(self) -> bool:
+        # TODO: This is just for testing until we have a proper implementation
+        # in the addons
+        # if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
+        #     return True
+        return self.project_can_override_addon_version
 
     @property
     def friendly_name(self) -> str:
@@ -51,7 +145,7 @@ class BaseServerAddon:
     async def is_production(self) -> bool:
         """Return True if the addon is in production bundle."""
         res = await Postgres.fetch(
-            "SELECT data FROM bundles WHERE is_production IS true"
+            "SELECT data FROM public.bundles WHERE is_production IS true"
         )
         if not res:
             return False
@@ -108,13 +202,16 @@ class BaseServerAddon:
         If called from setup the server will restart after all addons are
         setup.
         """
-        logging.info(f"Addon {self.name}:{self.version} requested server restart")
+        logger.info(f"Addon {self.name}:{self.version} requested server restart")
         self.restart_requested = True
+
+    def add_router(self, router: "APIRouter") -> None:
+        self.routers.append(router)
 
     def add_endpoint(
         self,
         path: str,
-        handler: Callable,
+        handler: Callable[..., Any],
         *,
         method: str = "GET",
         name: str | None = None,
@@ -131,6 +228,18 @@ class BaseServerAddon:
                 "description": description or handler.__doc__ or "",
             }
         )
+
+    def get_openapi(self) -> dict[str, Any]:
+        return get_addon_openapi(self)
+
+    def get_api_docs(self) -> HTMLResponse:
+        return get_addon_api_docs(self)
+
+    async def get_frontend_scopes(self) -> FrontendScopes:
+        return self.frontend_scopes
+
+    async def get_frontend_modules(self) -> FrontendModules:
+        return self.frontend_modules
 
     #
     # File serving
@@ -208,87 +317,184 @@ class BaseServerAddon:
     # Settings
     #
 
-    def get_settings_model(self) -> Type[BaseSettingsModel] | None:
+    def get_settings_model(self) -> type[BaseSettingsModel] | None:
         return self.settings_model
 
-    def get_site_settings_model(self) -> Type[BaseSettingsModel] | None:
+    def get_site_settings_model(self) -> type[BaseSettingsModel] | None:
         return self.site_settings_model
 
     # Load overrides from the database
 
-    async def get_studio_overrides(self, variant: str = "production") -> dict[str, Any]:
+    async def get_studio_overrides(
+        self,
+        variant: str = "production",
+        as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
+    ) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
-        query = """
-            SELECT data FROM settings
-            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
-            """
+        data = {}
+        if settings_cache and settings_cache.studio is not None:
+            data = settings_cache.studio or {}
+        else:
+            query = """
+                SELECT data FROM public.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+                """
+            res = await Postgres.fetch(query, self.name, self.version, variant)
+            if res:
+                data = res[0]["data"]
 
-        res = await Postgres.fetch(query, self.definition.name, self.version, variant)
-        if res:
-            return dict(res[0]["data"])
-        return {}
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                return await target_addon.convert_settings_overrides(
+                    self.version, overrides=data
+                )
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
+
+        return data
 
     async def get_project_overrides(
         self,
         project_name: str,
         variant: str = "production",
+        as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
-        query = f"""
-            SELECT data FROM project_{project_name}.settings
-            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
-            """
+        data = {}
+        if settings_cache and settings_cache.project is not None:
+            data = settings_cache.project or {}
+        else:
+            query = f"""
+                SELECT data FROM project_{project_name}.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+                """
+            try:
+                res = await Postgres.fetch(
+                    query, self.definition.name, self.version, variant
+                )
+            except Postgres.UndefinedTableError:
+                raise NotFoundException(
+                    f"Project {project_name} does not exist"
+                ) from None
+            if res:
+                data = res[0]["data"]
 
-        try:
-            res = await Postgres.fetch(
-                query, self.definition.name, self.version, variant
-            )
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} does not exists") from None
-        if res:
-            return dict(res[0]["data"])
-        return {}
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                kw = {}
+                additional_args = inspect.getfullargspec(
+                    target_addon.convert_settings_overrides
+                ).args
+
+                if "project_name" in additional_args:
+                    kw["project_name"] = project_name
+
+                return await target_addon.convert_settings_overrides(
+                    self.version,
+                    overrides=data,
+                    **kw,
+                )
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
+
+        return data
 
     async def get_project_site_overrides(
         self,
         project_name: str,
         user_name: str,
         site_id: str,
+        as_version: str | None = None,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any]:
         """Load the site overrides from the database."""
+        data = {}
+        if settings_cache and settings_cache.project_site is not None:
+            data = settings_cache.project_site or {}
+        else:
+            res = await Postgres.fetch(
+                f"""
+                SELECT data FROM project_{project_name}.project_site_settings
+                WHERE addon_name = $1 AND addon_version = $2
+                AND user_name = $3 AND site_id = $4
+                """,
+                self.definition.name,
+                self.version,
+                user_name,
+                site_id,
+            )
+            if res:
+                data = res[0]["data"]
 
-        res = await Postgres.fetch(
-            f"""
-            SELECT data FROM project_{project_name}.project_site_settings
-            WHERE addon_name = $1 AND addon_version = $2
-            AND user_name = $3 AND site_id = $4
-            """,
-            self.definition.name,
-            self.version,
-            user_name,
-            site_id,
-        )
-        if res:
-            return dict(res[0]["data"] or {})
-        return {}
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                return await target_addon.convert_settings_overrides(
+                    self.version, overrides=data
+                )
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
+        return data
 
     # Get settings and apply the overrides
 
     async def get_studio_settings(
         self,
         variant: str = "production",
+        as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_default_settings()
+        if as_version and as_version != self.version:
+            try:
+                settings = await self.definition[as_version].get_default_settings()
+            except KeyError:
+                raise NotFoundException(
+                    f"Version {as_version} does not exists"
+                ) from None
+        else:
+            settings = await self.get_default_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        overrides = await self.get_studio_overrides(variant=variant)
+        overrides = await self.get_studio_overrides(
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
+        )
         if overrides:
             settings = apply_overrides(settings, overrides)
             settings._has_studio_overrides = True
@@ -299,19 +505,29 @@ class BaseServerAddon:
         self,
         project_name: str,
         variant: str = "production",
+        as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_studio_settings(variant=variant)
+        settings = await self.get_studio_settings(
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
+        )
         if settings is None:
             return None  # this addon has no settings at all
         has_studio_overrides = settings._has_studio_overrides
 
         project_overrides = await self.get_project_overrides(
-            project_name, variant=variant
+            project_name,
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
@@ -325,18 +541,30 @@ class BaseServerAddon:
         user_name: str,
         site_id: str,
         variant: str = "production",
+        as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio, project and site overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
-        settings = await self.get_project_settings(project_name, variant=variant)
+        settings = await self.get_project_settings(
+            project_name,
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
+        )
         if settings is None:
             return None
         has_project_overrides = settings._has_project_overrides
         has_studio_overrides = settings._has_studio_overrides
         site_overrides = await self.get_project_site_overrides(
-            project_name, user_name, site_id
+            project_name,
+            user_name,
+            site_id,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
@@ -345,34 +573,56 @@ class BaseServerAddon:
         settings._has_studio_overrides = has_studio_overrides
         return settings
 
-    async def get_site_settings(self, user_name: str, site_id: str) -> dict:
+    async def get_site_settings(
+        self,
+        user_name: str,
+        site_id: str,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
+    ) -> dict[str, Any] | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None
 
-        data = {}
-        query = """
-            SELECT data FROM site_settings
-            WHERE site_id = $1 AND addon_name = $2
-            AND addon_version = $3 AND user_name = $4
-        """
-        async for row in Postgres.iterate(
-            query,
-            site_id,
-            self.name,
-            self.version,
-            user_name,
-        ):
-            data = row["data"]
-            break
+        if settings_cache and settings_cache.site is not None:
+            data = settings_cache.site or {}
+
         else:
-            return None
+            query = """
+                SELECT data FROM public.site_settings
+                WHERE site_id = $1 AND addon_name = $2
+                AND addon_version = $3 AND user_name = $4
+            """
+            row = await Postgres.fetchrow(
+                query, site_id, self.name, self.version, user_name
+            )
+
+            # No site settings found, return None
+            if row is None:
+                return None
+            data = row["data"]
 
         return site_settings_model(**data).dict()
+
+    async def on_settings_changed(
+        self,
+        old_settings: BaseSettingsModel,
+        new_settings: BaseSettingsModel,
+        variant: str = "production",
+        project_name: str | None = None,  # for project overrides
+        site_id: str | None = None,  # for site overrides
+        user_name: str | None = None,  # for site overrides
+    ) -> None:
+        """Hook called when the addon settings are changed."""
+        pass
 
     #
     # Overridable settings-related methods
     #
+
+    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
+        """Return a list of SSO options provided by the addon"""
+        return None
 
     async def get_default_settings(self) -> BaseSettingsModel | None:
         """Get the default addon settings.
@@ -387,21 +637,179 @@ class BaseServerAddon:
             return None
         return model()
 
-    def convert_system_overrides(
+    async def convert_settings_overrides(
         self,
         source_version: str,
         overrides: dict[str, Any],
     ) -> dict[str, Any]:
-        """Convert system overrides from a previous version."""
-        return overrides
+        """Convert settings overrides from a previous version.
 
-    def convert_project_overrides(
+        By default, migrate_setting helper is used to perform a "best guess"
+        in order to create compatible version of the settings, but you may
+        override this method and set up a custom logic.
+
+        Result should be a dictionary cotaining override data (same as they are
+        stored in the database)
+
+        You may extend migrate_settings functionality using custom parsers.
+
+        Assuming a field "submodel.info" (where . is used for nesting),
+        has been changed from `str` to `list[str]`, you may use:
+
+        ```python
+        async def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+            if isinstance(value, str):
+                return [value]
+            elif isinstance(value, list):
+                return value
+
+        result = migrate_settings(
+            overrides,
+            new_model_class=self.get_settings_model(),
+            custom_conversions={
+                "submodel.info": convert_str_to_list_str
+            }
+        )
+
+        ```
+        """
+
+        model_class = self.get_settings_model()
+        if model_class is None:
+            return {}
+        defaults = await self.get_default_settings()
+        assert defaults is not None
+        return migrate_settings_overrides(
+            overrides,
+            new_model_class=model_class,
+            defaults=defaults.dict(),
+        )
+
+    async def get_app_host_names(self) -> list[str]:
+        """Return a list of application host names that the addon uses.
+
+        Addon may reimplment this method to return a list of host names that
+        the addon uses.
+
+        By default, it returns a single host name from the
+        addon's attributes. If the addon uses multiple host names, you should
+        override this method.
+        """
+
+        if self.app_host_name is None:
+            return []
+        return [self.app_host_name]
+
+    #
+    # Actions
+    #
+
+    async def get_simple_actions(
         self,
-        from_version: str,
-        overrides: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Convert project overrides from a previous version."""
-        return overrides
+        project_name: str | None = None,
+        variant: str = "production",
+    ) -> list[SimpleActionManifest]:
+        """Return a list of simple actions provided by the addon"""
+        return []
 
-    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
-        return None
+    async def get_dynamic_actions(
+        self,
+        context: ActionContext,
+        variant: str = "production",
+    ) -> list[DynamicActionManifest]:
+        """Return a list of dynamic actions provided by the addon"""
+        return []
+
+    # TODO: do we need this?
+    # async def get_all_actions(
+    #     self,
+    #     context: ActionContext,
+    # ) -> list[BaseActionManifest]:
+    #     """Return a list of all actions provided by the addon"""
+    #     return await self.get_simple_actions()
+
+    async def execute_action(
+        self,
+        executor: ActionExecutor,
+    ) -> ExecuteResponseModel:
+        """Execute an action provided by the addon"""
+        raise BadRequestException(f"Unknown action: {executor.identifier}")
+
+    async def create_action_config_hash(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+    ) -> str:
+        """Create a hash for action config store"""
+        hash_content = [
+            user.name,
+            identifier,
+            context.project_name,
+        ]
+        return hash_data(hash_content)
+
+    async def set_action_config(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+        config: dict[str, Any],
+    ) -> None:
+        """Set action config provided by the addon"""
+        config_hash = await self.create_action_config_hash(
+            identifier,
+            context,
+            user,
+            variant,
+        )
+
+        # Keep in mind that even though, contextual
+        # kwargs here are optional, you should always
+        # provide them. Otherwise you won't be able
+        # to clean up the config later.
+        #
+        # Well... you could always TRUNCATE TABLE, but...
+
+        await set_action_config(
+            config_hash,
+            config,
+            addon_name=self.name,
+            addon_version=self.version,
+            identifier=identifier,
+            project_name=context.project_name,
+            user_name=user.name,
+        )
+
+    async def get_action_config(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+    ) -> dict[str, Any]:
+        """Get action config provided by the addon"""
+
+        config_hash = await self.create_action_config_hash(
+            identifier,
+            context,
+            user,
+            variant,
+        )
+
+        return await get_action_config(config_hash)
+
+    async def authorize_public_link(
+        self,
+        token: str,
+        request: "Request",
+        current_user: UserEntity | None = None,
+    ) -> LoginResponseModel:
+        """Authorize a public link."""
+        from ayon_server.exceptions import NotImplementedException
+
+        raise NotImplementedException(
+            f"{self} addon does not support public link authentication"
+        )

@@ -1,15 +1,18 @@
-__all__ = [
-    "OPModel",
-    "Field",
-]
+__all__ = ["OPModel", "Field", "camelize"]
 
 import re
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ayon_server.exceptions import BadRequestException
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.models import (
+    RestField as Field,  # backwards compatibility
+)
+from ayon_server.models import (
+    RestModel as OPModel,  # backwards compatibility
+)
+from ayon_server.utils import camelize  # backwards compatibilitycamelize
 
 #
 # Common constants and types used everywhere
@@ -59,7 +62,6 @@ AttributeType = Literal[
 
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
-STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
 TOPIC_REGEX = r"^[a-zA-Z][a-zA-Z0-9_\.\*]{2,64}$"
 
 # labels should not contain single quotes or semicolons (sql injection prevention)
@@ -67,18 +69,25 @@ LABEL_REGEX = r"^[^';]*$"
 
 # entity names
 NAME_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]*[a-zA-Z0-9_])?$"
+# statuses and type names (folder type, task type) can also contain spaces
+STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
+TYPE_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{0,64}[a-zA-Z0-9_]$"
 
 # user names shouldn't start or end with underscores
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 # project name cannot contain - / . (sql hard limit for schema names)
 PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+ATTRIBUTE_NAME_REGEX = "^[a-zA-Z0-9]{2,64}$"
 
 # TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 
 # api key can contain alphanumeric characters and hyphens
 API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
+ADDON_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_\.\-]*[a-zA-Z0-9_]$"
+SEMVER_REGEX = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
+EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
 
 
 def validate_name(name: str, regex: str = NAME_REGEX) -> str:
@@ -97,23 +106,41 @@ def validate_user_name(name: str) -> str:
     return name
 
 
-def validate_name_list(names: list, regex: str = NAME_REGEX) -> list[str]:
+def validate_email(email: str) -> str:
+    """Validate email."""
+    if not re.match(EMAIL_REGEX, email):
+        raise BadRequestException(f"Invalid email: '{email}'")
+    return email
+
+
+def validate_email_list(emails: list[str]) -> list[str]:
+    """Validate list of emails."""
+    return [validate_email(email) for email in emails]
+
+
+def validate_name_list(names: list[str], regex: str = NAME_REGEX) -> list[str]:
     """Validate list of names."""
     return [validate_name(name, regex) for name in names]
 
 
-def validate_status_list(statuses: list) -> list[str]:
+def validate_status_list(statuses: list[str]) -> list[str]:
     """Validate list of statuses."""
     regex = STATUS_REGEX
     return [validate_name(status, regex) for status in statuses]
 
 
-def validate_user_name_list(names: list) -> list[str]:
+def validate_type_name_list(type_names: list[str]) -> list[str]:
+    """Validate list of type names."""
+    regex = TYPE_NAME_REGEX
+    return [validate_name(type_name, regex) for type_name in type_names]
+
+
+def validate_user_name_list(names: list[str]) -> list[str]:
     """Validate list of user names."""
     return [validate_user_name(name) for name in names]
 
 
-def validate_topic_list(topics: list) -> list[str]:
+def validate_topic_list(topics: list[str]) -> list[str]:
     """Validate list of topics."""
     result = []
     for topic in topics:
@@ -125,29 +152,9 @@ def validate_topic_list(topics: list) -> list[str]:
     return result
 
 
-#
-# Pydantic model used for API requests and responses,
-# entity payloads etc.
-#
-
-
-def camelize(src: str) -> str:
-    """Convert snake_case to camelCase."""
-    components = src.split("_")
-    return components[0] + "".join(x.title() for x in components[1:])
-
-
-class OPModel(BaseModel):
-    """Base API model."""
-
-    class Config:
-        """API model config."""
-
-        orm_mode = True
-        allow_population_by_field_name = True
-        alias_generator = camelize
-        json_loads = json_loads
-        json_dumps = json_dumps
+def sanitize_string_list(strings: list[str]) -> list[str]:
+    """Make list of strings safe to use in SQL queries."""
+    return [s.replace("'", "''") for s in strings]
 
 
 #
@@ -221,8 +228,17 @@ class ColorRGBA_float(NamedTuple):
     a: float
 
 
-class AttributeEnumItem(OPModel):
-    """Attribute enum item."""
+def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:
+    """Normalize the input data to a dictionary format.
 
-    value: SimpleValue = Field(..., title="Enum value")
-    label: str = Field(..., title="Enum label")
+    The input data can be either a dictionary or an instance of a Pydantic BaseModel.
+
+    Raises:
+    ValueError: If the input data is neither a dictionary nor a Pydantic BaseModel.
+    """
+
+    if isinstance(s, dict):
+        return s
+    elif isinstance(s, BaseModel):
+        return s.dict()
+    raise ValueError(f"Can't normalize {s}")

@@ -1,12 +1,11 @@
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 # The following parameters may be used:
 # name, scope, type, title, default, example,
-# gt, lt, regex, min_len, max_len, description
+# gt, lt, regex, min_len, max_len, description, widget
 #
 # Scope and type are required.
 # All project attributes should have a default value
@@ -21,6 +20,38 @@ from ayon_server.lib.postgres import Postgres
 
 
 DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
+    "priority": {
+        "scope": "P, F, T",
+        "type": "string",
+        "title": "Priority",
+        "default": "normal",
+        "enum": [
+            {
+                "value": "urgent",
+                "label": "Urgent",
+                "color": "#FF8585",
+                "icon": "keyboard_double_arrow_up",
+            },
+            {
+                "value": "high",
+                "label": "High",
+                "color": "#FFAD66",
+                "icon": "keyboard_arrow_up",
+            },
+            {
+                "value": "normal",
+                "label": "Normal",
+                "color": "#9AC0E7",
+                "icon": "check_indeterminate_small",
+            },
+            {
+                "value": "low",
+                "label": "Low",
+                "color": "#9FA7B1",
+                "icon": "keyboard_arrow_down",
+            },
+        ],
+    },
     "fps": {
         "scope": "P, F, V, R, T",
         "type": "float",
@@ -198,31 +229,17 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Description",
         "description": "Textual description of the entity",
         "inherit": False,
+        "widget": "markdown",
     },
-    # "testEnum": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "string",
-    #     "title": "Test enum",
-    #     "default": "test1",
-    #     "example": "test1",
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
-    # "testList": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "list_of_strings",
-    #     "title": "Test LoS",
-    #     "default": ["test1"],
-    #     "example": ["test1", "test2"],
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
+    "entityListCategory": {
+        "scope": "L",
+        "type": "string",
+        "example": "To-do",
+        "title": "List category",
+        "description": "Category of the entity list",
+        "inherit": False,
+        "enum": [],
+    },
 }
 
 
@@ -240,11 +257,12 @@ async def deploy_attributes() -> None:
                     "v": "version",
                     "r": "representation",
                     "w": "workfile",
+                    "l": "list",
                 }[k.strip().lower()]
                 for k in tdata["scope"].split(",")
             ]
         except KeyError:
-            logging.error(f"Unknown scope specified on {name}. Skipping")
+            logger.error(f"Unknown scope specified on {name}. Skipping")
             continue
 
         if tdata["type"] not in [
@@ -256,7 +274,7 @@ async def deploy_attributes() -> None:
             "list_of_strings",
             "list_of_integers",
         ]:
-            logging.error(f"Unknown type sepecified on {name}. Skipping.")
+            logger.error(f"Unknown type sepecified on {name}. Skipping.")
             continue
 
         data = {
@@ -275,16 +293,12 @@ async def deploy_attributes() -> None:
             "gt",
             "lt",
             "inherit",
+            "enum",
+            "widget",
+            "widget_settings",
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
-
-        # Migration from 0.1.x to 0.2.x
-        await Postgres.execute(
-            """
-            DELETE FROM ATTRIBUTES WHERE 'subset' = ANY(scope);
-            """
-        )
 
         await Postgres.execute(
             """
@@ -297,7 +311,15 @@ async def deploy_attributes() -> None:
                 position = EXCLUDED.position,
                 scope = EXCLUDED.scope,
                 builtin = EXCLUDED.builtin,
-                data = EXCLUDED.data
+                data = case
+                when $4->'enum' IS NULL then
+                    EXCLUDED.data
+                else
+                    EXCLUDED.data || jsonb_build_object(
+                        'enum', public.attributes.data->'enum'
+                    )
+                end
+
             """,
             name,
             position,

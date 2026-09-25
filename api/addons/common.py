@@ -1,11 +1,9 @@
 from typing import Literal
 
-from nxtools import log_traceback
-
 from ayon_server.addons import AddonLibrary
 from ayon_server.exceptions import NotFoundException
-from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
+from ayon_server.settings.set_addon_settings import set_addon_settings
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import dict_remove_path
 
@@ -21,6 +19,7 @@ async def remove_override(
     path: list[str],
     variant: str = "production",
     project_name: str | None = None,
+    user_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
@@ -28,30 +27,19 @@ async def remove_override(
     # TODO: ensure the path is not a part of a group
 
     if project_name:
-        scope = f"project_{project_name}."
         overrides = await addon.get_project_overrides(project_name, variant=variant)
     else:
-        scope = "public."
         overrides = await addon.get_studio_overrides(variant=variant)
 
-    try:
-        dict_remove_path(overrides, path)
-    except KeyError:
-        log_traceback()
-        return
+    dict_remove_path(overrides, path)
 
-    await Postgres.execute(
-        f"""
-        INSERT INTO {scope}settings
-            (addon_name, addon_version, variant, data)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (addon_name, addon_version, variant)
-        DO UPDATE SET data = $4
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        variant,
         overrides,
+        variant=variant,
+        project_name=project_name,
+        user_name=user_name,
     )
 
 
@@ -61,23 +49,25 @@ async def pin_override(
     path: list[str],
     variant: str = "production",
     project_name: str | None = None,
+    user_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     if project_name:
-        scope = f"project_{project_name}."
         overrides = await addon.get_project_overrides(project_name, variant=variant)
         settings = await addon.get_project_settings(project_name, variant=variant)
     else:
-        scope = ""
         overrides = await addon.get_studio_overrides(variant=variant)
         settings = await addon.get_studio_settings(variant=variant)
+
+    if not settings:
+        return
 
     c_field = settings
     c_overr = overrides
 
-    for _i, key in enumerate(path):
+    for key in path:
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 
@@ -108,18 +98,13 @@ async def pin_override(
             c_overr[key] = c_field
         break
 
-    await Postgres.execute(
-        f"""
-        INSERT INTO {scope}settings
-            (addon_name, addon_version, variant, data)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (addon_name, addon_version, variant)
-        DO UPDATE SET data = $4
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        variant,
         overrides,
+        variant=variant,
+        project_name=project_name,
+        user_name=user_name,
     )
 
 
@@ -141,25 +126,15 @@ async def remove_site_override(
 
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
 
-    try:
-        dict_remove_path(overrides, path)
-    except KeyError:
-        log_traceback()
-        return
+    dict_remove_path(overrides, path)
 
-    await Postgres.execute(
-        f"""
-        INSERT INTO project_{project_name}.project_site_settings
-            (addon_name, addon_version, site_id, user_name, data)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (addon_name, addon_version, site_id, user_name)
-        DO UPDATE SET data = $5
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        site_id,
-        user_name,
         overrides,
+        project_name=project_name,
+        site_id=site_id,
+        user_name=user_name,
     )
 
 
@@ -177,10 +152,13 @@ async def pin_site_override(
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
     settings = await addon.get_project_site_settings(project_name, user_name, site_id)
 
+    if not settings:
+        return
+
     c_field = settings
     c_overr = overrides
 
-    for _i, key in enumerate(path):
+    for key in path:
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 
@@ -211,17 +189,11 @@ async def pin_site_override(
             c_overr[key] = c_field
         break
 
-    await Postgres.execute(
-        f"""
-        INSERT INTO project_{project_name}.project_site_settings
-            (addon_name, addon_version, site_id, user_name, data)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (addon_name, addon_version, site_id, user_name)
-        DO UPDATE SET data = $5
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        site_id,
-        user_name,
         overrides,
+        project_name=project_name,
+        site_id=site_id,
+        user_name=user_name,
     )

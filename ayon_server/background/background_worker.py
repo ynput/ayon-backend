@@ -1,16 +1,11 @@
 import asyncio
 
-try:
-    from nxtools import logging
-
-    has_nxtools = True
-except ModuleNotFoundError:
-    has_nxtools = False
+from ayon_server.logging import log_traceback, logger
 
 
 class BackgroundWorker:
     def __init__(self):
-        self.task: asyncio.Task | None = None
+        self.task: asyncio.Task[None] | None = None
         self.shutting_down = False
         self.initialize()
 
@@ -18,8 +13,7 @@ class BackgroundWorker:
         pass
 
     def start(self):
-        if has_nxtools:
-            logging.info(f"Starting background worker {self.__class__.__name__}")
+        logger.debug(f"Starting background worker {self.__class__.__name__}")
         self.task = asyncio.create_task(self._run())
 
     async def shutdown(self):
@@ -27,31 +21,33 @@ class BackgroundWorker:
             self.task.cancel()
 
         self.shutting_down = True
-        while self.is_running:
-            print(f"Waiting for {self.__class__.__name__} to stop")
-            await asyncio.sleep(0.1)
-        print(f"{self.__class__.__name__} stopped")
+        with logger.contextualize(nodb=True):
+            while self.is_running:
+                logger.debug(f"Waiting for {self.__class__.__name__} to stop")
+                await asyncio.sleep(0.1)
+            logger.debug(f"{self.__class__.__name__} stopped")
 
     @property
     def is_running(self):
         return self.task and not self.task.done()
 
-    async def _run(self):
+    async def _run(self) -> None:
         try:
             await self.run()
         except asyncio.CancelledError:
-            print(f"{self.__class__.__name__} is cancelled")
+            with logger.contextualize(nodb=True):
+                logger.debug(f"{self.__class__.__name__} is cancelled")
             self.shutting_down = True
         except Exception:
-            import traceback
-
-            traceback.print_exc()
+            with logger.contextualize(nodb=True):
+                log_traceback()
         finally:
             await self.finalize()
             self.task = None
 
         if not self.shutting_down:
-            print("Restarting", self.__class__.__name__)
+            with logger.contextualize(nodb=True):
+                logger.debug(f"Restarting {self.__class__.__name__}")
             self.start()
 
     async def run(self):

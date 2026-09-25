@@ -1,19 +1,15 @@
-from pydantic import Field, validator
+from ayon_server.settings.settings_field import SettingsField
 
-from ayon_server.settings.common import BaseSettingsModel
+from .aux_model import BaseAuxModel
 
 
-class Tag(BaseSettingsModel):
-    _layout: str = "compact"
-    name: str = Field(..., title="Name", min_length=1, max_length=100)
-    color: str = Field("#cacaca", title="Color", widget="color")
-    original_name: str | None = Field(None, scope=[])  # Used for renaming
+class Tag(BaseAuxModel):
+    color: str = SettingsField(
+        "#cacaca", title="Color", widget="color", example="#3498db"
+    )
 
-    @validator("original_name")
-    def validate_original_name(cls, v, values):
-        if v is None:
-            return values["name"]
-        return v
 
-    def __hash__(self):
-        return hash(self.name)
+default_tags = [
+    Tag(name="important", color="#ff2450"),
+    Tag(name="for reel", color="#5be1c6"),
+]

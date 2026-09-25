@@ -5,121 +5,19 @@ from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.api.system import require_server_restart
+from ayon_server.attributes.models import (
+    AttributeModel,
+    AttributePatchModel,
+    AttributePutModel,
+)
+from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import (
-    AttributeEnumItem,
-    AttributeType,
-    OPModel,
-    ProjectLevelEntityType,
-    TopLevelEntityType,
-)
+from ayon_server.types import OPModel
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
-
-
-class AttributeData(OPModel):
-    type: AttributeType = Field(
-        ...,
-        title="Type",
-        description="Type of attribute value",
-        example="string",
-    )
-    title: str | None = Field(
-        None,
-        title="Title",
-        description="Nice, human readable title of the attribute",
-        example="My attribute",
-    )
-    description: str | None = Field(
-        None,
-        title="Field description",
-        example="Value of my attribute",
-    )
-    example: Any = Field(
-        None,
-        title="Field example",
-        description="Example value of the field.",
-        example="value1",
-    )
-    default: Any = Field(
-        None,
-        title="Field default value",
-        description="Default value for the attribute. Do not set for list types.",
-    )
-    gt: int | float | None = Field(None, title="Greater than")
-    ge: int | float | None = Field(None, title="Geater or equal")
-    lt: int | float | None = Field(None, title="Less")
-    le: int | float | None = Field(None, title="Less or equal")
-    min_length: int | None = Field(None, title="Minimum length")
-    max_length: int | None = Field(None, title="Maximum length")
-    min_items: int | None = Field(
-        None,
-        title="Minimum items",
-        description="Minimum number of items in list type.",
-    )
-    max_items: int | None = Field(
-        None,
-        title="Maximum items",
-        description="Only for list types. Maximum number of items in the list.",
-    )
-    regex: str | None = Field(
-        None,
-        title="Field regex",
-        description="Only for string types. The value must match this regex.",
-        example="^[a-zA-Z0-9_]+$",
-    )
-
-    enum: list[AttributeEnumItem] | None = Field(
-        None,
-        title="Field enum",
-        description="List of enum items used for displaying select/multiselect widgets",
-        example=[
-            {"value": "value1", "label": "Value 1"},
-            {"value": "value2", "label": "Value 2"},
-            {"value": "value3", "label": "Value 3"},
-        ],
-    )
-    inherit: bool = Field(
-        True,
-        title="Inherit",
-        description="Inherit the attribute value from the parent entity.",
-    )
-
-
-class AttributeNameModel(OPModel):
-    name: str = Field(
-        ...,
-        name="Attribute name",
-        regex="^[a-zA-Z0-9]{2,30}$",
-        example="my_attribute",
-    )
-
-
-class AttributePutModel(OPModel):
-    position: int = Field(
-        ...,
-        title="Positon",
-        description="Default order",
-        example=12,
-    )
-    scope: list[ProjectLevelEntityType | TopLevelEntityType] = Field(
-        default_factory=list,
-        title="Scope",
-        description="List of entity types the attribute is available on",
-        example=["folder", "task"],
-    )
-    builtin: bool = Field(
-        False,
-        title="Builtin",
-        description="Is attribute builtin. Built-in attributes cannot be removed.",
-    )
-    data: AttributeData
-
-
-class AttributeModel(AttributePutModel, AttributeNameModel):
-    pass
 
 
 class GetAttributeListModel(OPModel):
@@ -138,7 +36,12 @@ class SetAttributeListModel(GetAttributeListModel):
     )
 
 
-async def save_attribute(attribute: AttributeModel):
+async def save_attribute(attribute: AttributeModel) -> None:
+    """Save attribute configuration to the database.
+
+    Additionally performs validation of the attribute data and updates
+    the enumerator in the running instance.
+    """
     query = """
     INSERT INTO attributes
     (name, position, scope, data)
@@ -146,6 +49,8 @@ async def save_attribute(attribute: AttributeModel):
     ON CONFLICT (name)
     DO UPDATE SET position = $2, scope = $3, data = $4
     """
+
+    validate_attribute_data(attribute.name, attribute.data)
 
     await Postgres.execute(
         query,
@@ -155,9 +60,10 @@ async def save_attribute(attribute: AttributeModel):
         attribute.data.dict(exclude_none=True),
     )
 
-    if (enum := attribute.data.enum) is not None:
-        # print(f"Enum of {attribute.name} is {enum}")
+    # TODO: The following code does not support horizontal scaling!!
+    # Notify other instances instead and reload the attribute library
 
+    if (enum := attribute.data.enum) is not None:
         for name, field in ProjectEntity.model.attrib_model.__fields__.items():
             if name != attribute.name:
                 continue
@@ -172,7 +78,6 @@ async def save_attribute(attribute: AttributeModel):
             if name != attribute.name:
                 continue
             field_enum = field.field_info.extra.get("enum")
-            print(field_enum)
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
@@ -248,6 +153,7 @@ async def set_attribute_list(
     for attr in new_attributes:
         await save_attribute(attr)
 
+    await require_server_restart()
     return EmptyResponse()
 
 
@@ -265,13 +171,77 @@ async def get_attribute_config(
 
 @router.put("/{attribute_name}", status_code=204)
 async def set_attribute_config(
-    payload: AttributePutModel, user: CurrentUser, attribute_name: AttributeName
+    payload: AttributePutModel,
+    user: CurrentUser,
+    attribute_name: AttributeName,
 ) -> EmptyResponse:
     """Update attribute configuration"""
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.dict())
     await save_attribute(attribute)
+    await require_server_restart(
+        None, "Restart the server to apply the attribute changes."
+    )
+    return EmptyResponse()
+
+
+@router.patch("/{attribute_name}", status_code=204)
+async def patch_attribute_config(
+    payload: AttributePatchModel, user: CurrentUser, attribute_name: AttributeName
+) -> EmptyResponse:
+    """Partially update attribute configuration"""
+
+    attribute = await get_attribute_config(user, attribute_name)
+
+    patch_payload = payload.dict(exclude_unset=True)
+    patch_data = patch_payload.pop("data", {})
+
+    requires_restart = False
+
+    if "scope" in patch_payload or any(
+        k in patch_data
+        for k in (
+            "type",
+            "default",
+            "gt",
+            "ge",
+            "lt",
+            "le",
+            "regex",
+            "min_length",
+            "max_length",
+            "min_items",
+            "max_items",
+            "inherit",
+            "widget",
+            "widget_settings",
+        )
+    ):
+        requires_restart = True
+
+        if not user.is_admin:
+            raise ForbiddenException(
+                "Only administrators are allowed to modify attribute configuration"
+            )
+
+    if not user.is_manager:
+        raise ForbiddenException(
+            "Only managers are allowed to modify attribute metadata"
+        )
+
+    for key, value in patch_payload.items():
+        setattr(attribute, key, value)
+
+    for key, value in patch_data.items():
+        setattr(attribute.data, key, value)
+
+    await save_attribute(attribute)
+
+    if requires_restart:
+        await require_server_restart(
+            None, "Restart the server to apply the attribute changes."
+        )
     return EmptyResponse()
 
 
@@ -283,4 +253,7 @@ async def delete_attribute(
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     await remove_attribute(attribute_name)
+    await require_server_restart(
+        None, "Restart the server to apply the attribute changes."
+    )
     return EmptyResponse()

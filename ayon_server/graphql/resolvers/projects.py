@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProjectsConnection
 from ayon_server.graphql.edges import ProjectEdge
 from ayon_server.graphql.nodes.project import ProjectNode
@@ -10,11 +9,14 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    ARGVisibility,
+    EntityVisibility,
     FieldInfo,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name
 from ayon_server.utils import SQLTool
 
@@ -31,72 +33,147 @@ async def get_projects(
             """
         ),
     ] = None,
+    code: Annotated[str | None, argdesc("The code of the project to retrieve.")] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
+    include_skeleton: bool = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
+    user = info.context["user"]
+
+    sql_cte = []
+    sql_joins = []
     sql_conditions = []
     if name is not None:
         validate_name(name)
         sql_conditions.append(f"projects.name ILIKE '{name}'")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("projects.active IS TRUE")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("projects.active IS FALSE")
+
+    if code is not None:
+        validate_name(code)
+        sql_conditions.append(f"projects.code ILIKE '{code}'")
+
+    if not include_skeleton:
+        sql_conditions.append("projects.data->>'isSkeleton' IS DISTINCT FROM 'true'")
 
     fields = FieldInfo(info, ["projects.edges.node", "project"])
 
     cols = [
         "name",
+        "label",
         "code",
         "library",
         "attrib",
         "active",
         "created_at",
         "updated_at",
+        "data->'color' AS color",
+        "data->'projectFolder' AS project_folder",
+        "data->'isSkeleton' AS is_skeleton",
     ]
 
-    if fields.has_any("data"):
+    if fields.has_any("config"):
+        cols.append("config")
+
+    if fields.has_any("data", "bundle") or info.context["user"].is_guest:
         cols.append("data")
+
+    if user.is_guest:
+        if guest_access := user.data.get("guestAccess"):
+            pnames = [g.get("projectName") for g in guest_access]
+            sql_conditions.append(f"projects.name IN {SQLTool.array(pnames)}")
+        else:
+            sql_conditions.append(
+                f"data->'guestUsers'->'{user.attrib.email}' IS NOT NULL"
+            )
+
+    elif not user.is_manager:
+        sql_cte.append(
+            f"""
+            accessible_projects AS (
+                SELECT
+                    ag.key AS project
+                FROM users u
+                CROSS JOIN LATERAL jsonb_each(u.data->'accessGroups') AS ag(key, value)
+                WHERE u.name = '{user.name}'
+                AND jsonb_typeof(ag.value) = 'array'
+                AND jsonb_array_length(ag.value) > 0
+            )
+            """
+        )
+
+        sql_joins.append(
+            """
+            JOIN accessible_projects ap
+            ON ap.project = projects.name
+            """
+        )
 
     #
     # Pagination
     #
 
     order_by = ["name"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
     cols.append(cursor)
 
     #
-    #
+    # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
-        SELECT {', '.join(cols)}
-        FROM projects
+        {cte}
+        SELECT {", ".join(cols)}
+        FROM public.projects
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
+
+    # print()
+    # print ("get_projects query")
+    # print(query)
+    # print()
 
     return await resolve(
         ProjectsConnection,
         ProjectEdge,
         ProjectNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_project(root, info: Info, name: str) -> ProjectNode | None:
+async def get_project(
+    root,
+    info: Info,
+    name: str | None = None,
+    code: str | None = None,
+) -> ProjectNode:
     """Return a project node based on its name."""
-    if not name:
-        return None
-    connection = await get_projects(root, info, name=name)
+    if not (name or code):
+        raise BadRequestException("Either name or code must be provided.")
+    connection = await get_projects(root, info, name=name, code=code)
     if not connection.edges:
-        return None
+        raise NotFoundException("Project not found")
     return connection.edges[0].node

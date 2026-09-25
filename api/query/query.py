@@ -6,7 +6,7 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.events import EventModel
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.sqlfilter import Filter, build_filter
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
 
 router = APIRouter(prefix="", tags=["Events"])
@@ -24,7 +24,9 @@ class QueryRequestModel(OPModel):
         "representation",
         "workfile",
     ] = Field(...)
-    filter: Filter | None = Field(None, title="Filter", description="Filter events")
+    filter: QueryFilter | None = Field(
+        None, title="Filter", description="Filter events"
+    )
     limit: int = Field(
         100, title="Limit", description="Maximum number of events to return"
     )
@@ -63,6 +65,7 @@ async def query(
                 project=record["project_name"],
                 user=record["user_name"],
                 sender=record["sender"],
+                sender_type=record["sender_type"],
                 depends_on=record["depends_on"],
                 status=record["status"],
                 retries=record["retries"],

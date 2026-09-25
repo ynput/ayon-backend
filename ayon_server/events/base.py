@@ -1,8 +1,7 @@
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any, Literal
-
-from pydantic import Field
 
 from ayon_server.events.typing import (
     DEPENDS_ON_FIELD,
@@ -13,10 +12,8 @@ from ayon_server.events.typing import (
     SUMMARY_FIELD,
     USER_FIELD,
 )
-from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
-from ayon_server.types import OPModel
-from ayon_server.utils import EntityID, SQLTool, json_dumps
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID
 
 
 def create_id():
@@ -56,19 +53,20 @@ class EventModel(OPModel):
     hash: str = Field(...)
     topic: str = Field(...)
     sender: str | None = SENDER_FIELD
+    sender_type: str | None = Field(None)
     project: str | None = PROJECT_FIELD
     user: str | None = USER_FIELD
     depends_on: str | None = DEPENDS_ON_FIELD
     status: EventStatus = Field("pending")
     retries: int = Field(0)
-    description: str = DESCRIPTION_FIELD
+    description: str | None = DESCRIPTION_FIELD
     summary: dict[str, Any] = SUMMARY_FIELD
     payload: dict[str, Any] = PAYLOAD_FIELD
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
     @classmethod
-    def from_row(cls, row):
+    def from_row(cls, row: dict[str, Any]) -> "EventModel":
         return cls(
             id=row["id"],
             hash=row["hash"],
@@ -76,6 +74,7 @@ class EventModel(OPModel):
             project=row["project_name"],
             user=row["user_name"],
             sender=row["sender"],
+            sender_type=row["sender_type"],
             depends_on=row["depends_on"],
             status=row["status"],
             retries=row["retries"],
@@ -87,168 +86,4 @@ class EventModel(OPModel):
         )
 
 
-async def dispatch_event(
-    topic: str,
-    *,
-    sender: str | None = None,
-    hash: str | None = None,
-    project: str | None = None,
-    user: str | None = None,
-    depends_on: str | None = None,
-    description: str | None = None,
-    summary: dict | None = None,
-    payload: dict | None = None,
-    finished: bool = True,
-    store: bool = True,
-) -> str | None:
-    if summary is None:
-        summary = {}
-    if payload is None:
-        payload = {}
-    if description is None:
-        description = ""
-
-    event_id = create_id()
-    if hash is None:
-        hash = f"{event_id}"
-
-    status: str = "finished" if finished else "pending"
-    progress: float = 100 if finished else 0.0
-
-    event = EventModel(
-        id=event_id,
-        hash=hash,
-        sender=sender,
-        topic=topic,
-        project=project,
-        user=user,
-        depends_on=depends_on,
-        status=status,
-        description=description,
-        summary=summary,
-        payload=payload,
-    )
-
-    if store:
-        query = SQLTool.insert(
-            table="events",
-            id=event.id,
-            hash=event.hash,
-            sender=event.sender,
-            topic=event.topic,
-            project_name=event.project,
-            user_name=event.user,
-            depends_on=depends_on,
-            status=status,
-            description=description,
-            summary=event.summary,
-            payload=event.payload,
-        )
-        try:
-            await Postgres.execute(*query)
-        except Postgres.ForeignKeyViolationError:
-            print(f"Unable to dispatch {event.topic}")
-            return None
-
-    await Redis.publish(
-        json_dumps(
-            {
-                "id": str(event.id).replace("-", ""),
-                "topic": event.topic,
-                "project": event.project,
-                "user": event.user,
-                "dependsOn": str(event.depends_on).replace("-", ""),
-                "description": event.description,
-                "summary": event.summary,
-                "status": event.status,
-                "progress": progress,
-                "sender": sender,
-                "store": store,  # useful to allow querying details
-                "createdAt": event.created_at,
-                "updatedAt": event.updated_at,
-            }
-        )
-    )
-
-    return event.id
-
-
-async def update_event(
-    event_id: str,
-    sender: str | None = None,
-    project: str | None = None,
-    user: str | None = None,
-    status: EventStatus | None = None,
-    description: str | None = None,
-    summary: dict[str, Any] | None = None,
-    payload: dict[str, Any] | None = None,
-    progress: float | None = None,
-    store: bool = True,
-    retries: int | None = None,
-):
-    new_data: dict[str, Any] = {"updated_at": datetime.now()}
-
-    if sender is not None:
-        new_data["sender"] = sender
-    if project is not None:
-        new_data["project_name"] = project
-    if status is not None:
-        new_data["status"] = status
-    if description is not None:
-        new_data["description"] = description
-    if summary is not None:
-        new_data["summary"] = summary
-    if payload is not None:
-        new_data["payload"] = payload
-    if retries is not None:
-        new_data["retries"] = retries
-    if user is not None:
-        new_data["user_name"] = user
-
-    if store:
-        query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
-
-        query[0] = (
-            query[0]
-            + """
-             RETURNING
-                id,
-                topic,
-                project_name,
-                user_name,
-                depends_on,
-                description,
-                summary,
-                status,
-                sender,
-                created_at,
-                updated_at
-        """
-        )
-
-    else:
-        query = ["SELECT * FROM events WHERE id=$1", event_id]
-
-    result = await Postgres.fetch(*query)
-    for row in result:
-        data = dict(row)
-        if not store:
-            data.update(new_data)
-        message = {
-            "id": data["id"],
-            "topic": data["topic"],
-            "project": data["project_name"],
-            "user": data["user_name"],
-            "dependsOn": data["depends_on"],
-            "description": data["description"],
-            "summary": data["summary"],
-            "status": data["status"],
-            "sender": data["sender"],
-            "createdAt": data["created_at"],
-            "updatedAt": data["updated_at"],
-        }
-        if progress is not None:
-            message["progress"] = progress
-        await Redis.publish(json_dumps(message))
-        return True
-    return False
+HandlerType = Callable[[EventModel], Awaitable[None]]

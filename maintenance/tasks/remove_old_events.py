@@ -1,0 +1,67 @@
+import time
+
+from ayon_server.config import ayonconfig
+from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
+from maintenance.maintenance_task import StudioMaintenanceTask
+
+
+async def clear_events() -> None:
+    """Purge old events.
+
+    Delete events older than the value specified in ayon-config.
+    This is opt-in and by default, old events are not deleted.
+    """
+
+    if ayonconfig.event_retention_days is None:
+        return
+
+    num_days = ayonconfig.event_retention_days
+
+    while True:
+        start_time = time.monotonic()
+        res = await Postgres.fetch(
+            f"""
+            WITH blocked_events AS (
+                SELECT DISTINCT(depends_on) as id FROM public.events
+                WHERE depends_on IS NOT NULL
+            ),
+
+            deletable_events AS (
+                SELECT id
+                FROM public.events parent
+                WHERE updated_at < now() - interval '{num_days} days'
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM public.events child
+                    WHERE child.depends_on = parent.id
+                )
+                ORDER BY updated_at ASC
+                LIMIT 10000
+            ),
+
+            deleted_events AS(
+                DELETE FROM public.events
+                WHERE id IN (SELECT id FROM deletable_events)
+                RETURNING id as deleted
+            )
+
+            SELECT count(*) as deleted FROM deleted_events;
+
+            """
+        )
+        deleted = res[0]["deleted"]
+        if deleted:
+            logger.debug(
+                f"Deleted {deleted} old events"
+                f" in {time.monotonic() - start_time:.2f} seconds"
+            )
+        else:
+            break
+
+
+class RemoveOldEvents(StudioMaintenanceTask):
+    description = "Removing old events"
+
+    async def main(self):
+        await clear_events()

@@ -5,10 +5,12 @@ from fastapi import APIRouter, Query
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
-from hierarchy.solver import HierarchyResolver
+
+from .solver import HierarchyResolver
 
 router = APIRouter(tags=["Folders"])
 
@@ -72,11 +74,14 @@ async def get_folder_hierarchy(
 
     hierarchy = HierarchyResolver()
 
-    conds = []
+    conds = [
+        f"NOT starts_with(path, '{AYON_INTERNAL_FOLDER_NAME}')",
+    ]
+
     if type_list:
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
-    access_list = await folder_access_list(user, project_name, ["read"])
+    access_list = await folder_access_list(user, project_name, "read")
 
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
@@ -138,10 +143,12 @@ async def get_folder_hierarchy(
         hierarchy.commit()
         hresult = hierarchy()
 
-    elapsed = round(time.time() - start_time, 4)
-
-    return HierarchyResponseModel.construct(
-        detail=f"Hierarchy loaded in {elapsed}s",
+    res = HierarchyResponseModel.construct(
+        detail="Working",
         projectName=project_name,
-        hierarchy=hresult,
+        hierarchy=hresult,  # type: ignore
     )
+    elapsed = round(time.time() - start_time, 4)
+    detail = f"Hierarchy loaded in {elapsed}s"
+    res.detail = detail
+    return res

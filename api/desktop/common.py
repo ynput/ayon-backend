@@ -1,14 +1,23 @@
+__all__ = [
+    "get_desktop_dir",
+    "md5sum",
+    "get_desktop_file_path",
+    "load_json_file",
+    "save_json_file",
+    "iter_names",
+    "InstallResponseModel",
+    "FileNameInPath",
+]
+
 import hashlib
 import json
 import os
-from typing import Any, Generator
+from typing import Annotated, Any
 
-import aiofiles
-from fastapi import Request
-from starlette.responses import FileResponse
+from fastapi import Path
 
-from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
-from ayon_server.installer.common import get_desktop_dir
+from ayon_server.exceptions import AyonException
+from ayon_server.installer.common import get_desktop_dir, iter_names
 from ayon_server.types import Field, OPModel
 
 
@@ -31,7 +40,7 @@ def load_json_file(*args) -> dict[str, Any]:
     if not os.path.isfile(path):
         raise FileNotFoundError(f"File does not exist: {path}")
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except Exception as e:
         raise ValueError(f"Failed to load file {path}: {e}")
@@ -46,60 +55,8 @@ def save_json_file(*args, data: Any) -> None:
         raise AyonException(f"Failed to save file {path}: {e}")
 
 
-def iter_names(directory: str) -> Generator[str, None, None]:
-    """Iterate over package names in a directory."""
-
-    root = get_desktop_dir(directory, for_writing=False)
-    if not os.path.isdir(root):
-        return
-    for filename in os.listdir(root):
-        if not os.path.isfile(os.path.join(root, filename)):
-            continue
-        if not filename.endswith(".json"):
-            continue
-        yield filename[:-5]
-
-
-async def handle_upload(request: Request, target_path: str) -> None:
-    """Store raw body from the request to a file."""
-
-    directory, filename = os.path.split(target_path)
-
-    if not os.path.isdir(directory):
-        try:
-            os.makedirs(directory)
-        except Exception as e:
-            raise AyonException(f"Failed to create directory: {e}") from e
-
-    i = 0
-    async with aiofiles.open(target_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
-            i += len(chunk)
-
-    if i == 0:
-        raise BadRequestException("Empty file")
-
-    return None
-
-
-async def handle_download(
-    path: str,
-    media_type: str = "application/octet-stream",
-    filename: str | None = None,
-) -> FileResponse:
-    directory, _filename = os.path.split(path)
-    if filename is None:
-        filename = _filename
-    if not os.path.isfile(path):
-        raise NotFoundException(f"No such file {filename}")
-
-    return FileResponse(
-        path,
-        media_type=media_type,
-        filename=filename,
-    )
-
-
 class InstallResponseModel(OPModel):
     event_id: str | None = Field(None, title="Event ID")
+
+
+FileNameInPath = Annotated[str, Path(title="File name", regex=r"^[\w\-. ]+$")]

@@ -1,0 +1,23 @@
+{% extends "base.jinja" %}
+
+{% block content %}
+  {% call ui.paragraph() %}
+    Hi <strong>{{ full_name }}</strong>
+  {% endcall %}
+
+  {% call ui.paragraph() %}
+    Your guest access to AYON has been renewed, use the automatic sign in button below.
+  {% endcall %}
+{% endblock %}
+
+{% block call_to_action %}
+  {{ ui.call_to_action("Log in", invite_link) }}
+{% endblock %}
+
+{% block footer %}
+  You are receiving this email because your previous
+  AYON guest session expired or has been signed out.
+
+  This secure link is personalised for {{ email }}. 
+  The link is unique to you and forwarding it will invalidate it.
+{% endblock %}
