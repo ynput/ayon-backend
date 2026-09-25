@@ -36,3 +36,40 @@ def test_own_values_take_precedence():
         project_attrib={"fps": 30.0},
     )
     assert result["fps"] == 24.0
+
+
+class TestInvalidStoredValues:
+    """GraphQL follows the same rules as REST (see test_entity_attributes.py)"""
+
+    def test_invalid_own_value_falls_back_to_inherited(self):
+        result = process_attrib_data(
+            "folder",
+            {"fps": "abc", "resolutionWidth": 1920},
+            user=MANAGER,
+            inherited_attrib={"fps": 24.0},
+        )
+        assert result["fps"] == 24.0
+        assert result["resolutionWidth"] == 1920
+
+    def test_invalid_inherited_value_falls_back_to_project(self):
+        result = process_attrib_data(
+            "folder",
+            {},
+            user=MANAGER,
+            inherited_attrib={"fps": "abc"},
+            project_attrib={"fps": 25.0},
+        )
+        assert result["fps"] == 25.0
+
+    def test_undefined_attributes_are_dropped(self):
+        result = process_attrib_data("version", {"removedAttribute": 1}, user=MANAGER)
+        assert "removedAttribute" not in result
+
+    def test_list_attributes_are_kept(self):
+        result = process_attrib_data(
+            "version",
+            {"reviewNote": "ok"},
+            user=MANAGER,
+            list_attribute_config={"reviewNote": "string"},
+        )
+        assert result["reviewNote"] == "ok"

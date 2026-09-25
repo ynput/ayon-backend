@@ -1,7 +1,7 @@
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.core import ProjectLevelEntity, attribute_library
+from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
@@ -45,20 +45,15 @@ class TaskEntity(ProjectLevelEntity):
 
     @staticmethod
     def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
-        attrib: dict[str, Any] = {}
-        inhereited_attrib: dict[str, Any] = {}
-        if (ia := record["inherited_attrib"]) is not None:
-            for key, value in ia.items():
-                if key in attribute_library.inheritable_attributes():
-                    attrib[key] = value
-                    inhereited_attrib[key] = value
-        elif record["parent_id"] is not None:
+        # `attrib` holds the own values, `inherited_attrib` the exported
+        # attributes of the folder. The attribute values are resolved
+        # from them (see resolve_attrib)
+        if record["inherited_attrib"] is None and record["parent_id"] is not None:
             logger.warning(
                 f"Task {record['id']} does not have inherited attributes."
                 "this shouldn't happen"
             )
-        attrib |= record["attrib"]
-        payload = {**record, "attrib": attrib, "inherited_attrib": inhereited_attrib}
+        payload = dict(record)
 
         folder_path = payload.pop("folder_path", None)
         folder_path = folder_path.strip("/")

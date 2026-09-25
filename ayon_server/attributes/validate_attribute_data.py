@@ -29,15 +29,16 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
 
     field = {}
     for k in ("gt", "ge", "lt", "le", "min_length", "max_length"):
-        if getattr(fdef, k):
+        # 0 is a valid limit
+        if getattr(fdef, k) is not None:
             field[k] = getattr(fdef, k)
 
     # Pydantic 2 names of the Pydantic 1 validators
     if fdef.regex:
         field["pattern"] = fdef.regex
-    if fdef.min_items:
+    if fdef.min_items is not None:
         field["min_length"] = fdef.min_items
-    if fdef.max_items:
+    if fdef.max_items is not None:
         field["max_length"] = fdef.max_items
 
     ftype = FIELD_TYPES[fdef.type]

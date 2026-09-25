@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
+from ayon_server.attributes.values import ResolvedAttrib, resolve_attrib
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
 
@@ -19,7 +20,16 @@ def process_attrib_data(
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
+    label: str | None = None,
+    resolved: ResolvedAttrib | None = None,
 ) -> dict[str, Any]:
+    """Return the attribute values of an entity the user can read.
+
+    The values are resolved from the own, inherited and project values
+    by `resolve_attrib` (the same way as in REST), unless `resolved`
+    values are provided. List item attributes (`list_attribute_config`)
+    are not entity attributes and are used as they are.
+    """
     attr_limit: list[str] | Literal["all"] = []
 
     if user.is_guest:
@@ -47,29 +57,19 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    # A copy: own_attrib is the node's own attribute dict, which must not
-    # get the inherited values (ownAttrib lists its keys)
-    data = dict(own_attrib or {})
-    if entity_type in {"folder", "task"}:
-        # Apply inherited and project attributes for folders and tasks
-        # (other entities do not inherit attributes)
-        if inherited_attrib is not None:
-            for key in attribute_library.inheritable_attributes():
-                if data.get(key) is not None:
-                    continue
-                if key in inherited_attrib:
-                    data[key] = inherited_attrib[key]
-
-        project_attrib = {
-            **attribute_library.project_defaults,
-            **(project_attrib or {}),
-        }
-        if project_attrib:
-            for key in attribute_library.inheritable_attributes():
-                if data.get(key) is not None:
-                    continue
-                if key in project_attrib:
-                    data[key] = project_attrib[key]
+    list_keys = set(list_attribute_config or {})
+    if resolved is None:
+        resolved = resolve_attrib(
+            entity_type,
+            {k: v for k, v in (own_attrib or {}).items() if k not in list_keys},
+            inherited=inherited_attrib,
+            project=project_attrib,
+            label=label or f"{entity_type} in {project_name}",
+        )
+    data = {
+        **resolved.values,
+        **{k: v for k, v in (own_attrib or {}).items() if k in list_keys},
+    }
 
     if not data:
         return {}
@@ -79,7 +79,7 @@ def process_attrib_data(
         if not (attr_limit == "all" or key in attr_limit):
             continue
 
-        if list_attribute_config and key in own_attrib and key in list_attribute_config:
+        if list_attribute_config and key in list_keys and key in own_attrib:
             attr_type = list_attribute_config[key]
         else:
             try:

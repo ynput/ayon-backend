@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.utils import dict_exclude
 
@@ -18,12 +19,21 @@ class TopLevelEntity(BaseEntity):
         attrib_dict = payload.get("attrib", {})
         if isinstance(attrib_dict, BaseModel):
             attrib_dict = attrib_dict.model_dump()
-        self.own_attrib = list(attrib_dict.keys())
+        payload = dict_exclude(payload, ["own_attrib"])
 
-        self._payload = self.model.main_model(
-            **dict_exclude(payload, ["own_attrib"]),
-            own_attrib=self.own_attrib,
-        )
+        if exists:
+            # Loaded from the database: invalid values are ignored
+            resolved = resolve_attrib(
+                self.entity_type,
+                attrib_dict,
+                label=f"{self.entity_type} {payload.get('name')}",
+            )
+            payload["attrib"] = resolved.values
+            self.own_attrib = resolved.own
+        else:
+            self.own_attrib = list(attrib_dict.keys())
+
+        self._payload = self.model.main_model(**payload, own_attrib=self.own_attrib)
         self.exists = exists
 
     @classmethod

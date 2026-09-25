@@ -1,11 +1,12 @@
 import builtins
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from ayon_server.attributes.values import validate_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -28,6 +29,29 @@ class BaseEntity:
 
     def __bool__(self) -> bool:
         return bool(self._payload)
+
+    def validated_attrib(
+        self, values: builtins.dict[str, Any]
+    ) -> builtins.dict[str, Any]:
+        """Validate attribute values before they are saved.
+
+        Values set by code (such as `entity.attrib.fps = 25`) are not
+        validated when they are assigned, so they are validated here.
+        Returns the validated values. Attributes without a definition
+        are dropped.
+        """
+        try:
+            return builtins.dict(
+                validate_attrib(self.entity_type, values, partial=True)
+            )
+        except ValidationError as e:
+            details = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                for error in e.errors()
+            )
+            raise BadRequestException(
+                f"Invalid attribute values of {self.entity_type}: {details}"
+            ) from e
 
     def dict(
         self,

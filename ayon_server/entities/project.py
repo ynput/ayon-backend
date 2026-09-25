@@ -259,6 +259,7 @@ class ProjectEntity(TopLevelEntity):
             )
 
             fields["updated_at"] = datetime.now()
+            fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
 
             await Postgres.execute(
                 *SQLTool.update(
@@ -271,23 +272,20 @@ class ProjectEntity(TopLevelEntity):
 
         else:
             # Create a project record
-            await Postgres.execute(
-                *SQLTool.insert(
-                    "projects",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        [
-                            "folder_types",
-                            "task_types",
-                            "link_types",
-                            "statuses",
-                            "tags",
-                            "own_attrib",
-                            "skeleton",
-                        ],
-                    ),
-                )
+            fields = dict_exclude(
+                self.dict(exclude_none=True),
+                [
+                    "folder_types",
+                    "task_types",
+                    "link_types",
+                    "statuses",
+                    "tags",
+                    "own_attrib",
+                    "skeleton",
+                ],
             )
+            fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
+            await Postgres.execute(*SQLTool.insert("projects", **fields))
             # Create a new schema for the project tablespace
             await Postgres.execute(f"CREATE SCHEMA project_{project_name}")
 

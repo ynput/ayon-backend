@@ -11,8 +11,7 @@ a changed attribute constraint), are only reported.
 
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
-
+from ayon_server.attributes.values import invalid_attrib
 from ayon_server.cli import app
 from ayon_server.entities import (
     FolderEntity,
@@ -55,19 +54,6 @@ def convert_value(value: Any, attr_type: str | None) -> Any:
     return value
 
 
-def _invalid_attributes(
-    model: type[BaseModel], attrib: dict[str, Any]
-) -> dict[str, str]:
-    """Return {attribute name: error message} of invalid attributes"""
-    try:
-        model.model_validate(attrib)
-    except ValidationError as e:
-        return {
-            str(error["loc"][0]): error["msg"] for error in e.errors() if error["loc"]
-        }
-    return {}
-
-
 async def fix_table(
     table: str,
     key_column: str,
@@ -81,7 +67,6 @@ async def fix_table(
     When `key` is set, only the row with the given key is checked.
     """
 
-    attrib_model = entity_class.model.attrib_model
     types = {
         attr["name"]: attr["type"]
         for attr in attribute_library[entity_class.entity_type]
@@ -99,7 +84,7 @@ async def fix_table(
 
     async for row in Postgres.iterate(query, *args):
         attrib = row["attrib"] or {}
-        invalid = _invalid_attributes(attrib_model, attrib)
+        invalid = invalid_attrib(entity_class.entity_type, attrib)
         if not invalid:
             continue
 
@@ -112,7 +97,7 @@ async def fix_table(
         fixes = {name: v for name, v in fixes.items() if v != attrib[name]}
 
         # Keep only the fixes, which make the attribute valid
-        still_invalid = _invalid_attributes(attrib_model, {**attrib, **fixes})
+        still_invalid = invalid_attrib(entity_class.entity_type, {**attrib, **fixes})
         for name, message in still_invalid.items():
             fixes.pop(name, None)
             value = str(attrib.get(name))[:70]

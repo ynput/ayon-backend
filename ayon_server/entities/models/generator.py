@@ -169,20 +169,13 @@ def generate_model(
         # Documentation and validation
         #
 
-        for k in (
-            # Descriptive tags
-            "title",
-            "description",
-            # Numeric validators
-            "gt",
-            "ge",
-            "lt",
-            "le",
-            # String validators
-            "min_length",
-            "max_length",
-        ):
+        for k in ("title", "description"):
             if getattr(fdef, k):
+                field[k] = getattr(fdef, k)
+
+        # Numeric and string validators (0 is a valid limit)
+        for k in ("gt", "ge", "lt", "le", "min_length", "max_length"):
+            if getattr(fdef, k) is not None:
                 field[k] = getattr(fdef, k)
 
         if fdef.example:
@@ -190,9 +183,9 @@ def generate_model(
         if fdef.regex:
             field["pattern"] = fdef.regex
         # Array validators
-        if fdef.min_items:
+        if fdef.min_items is not None:
             field["min_length"] = fdef.min_items
-        if fdef.max_items:
+        if fdef.max_items is not None:
             field["max_length"] = fdef.max_items
 
         # Enum

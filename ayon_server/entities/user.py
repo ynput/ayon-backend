@@ -248,6 +248,7 @@ class UserEntity(TopLevelEntity):
                 data = dict_exclude(
                     self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
                 )
+                data["attrib"] = self.validated_attrib(data.get("attrib", {}))
                 await Postgres.execute(
                     *SQLTool.update(
                         "public.users",
@@ -256,12 +257,9 @@ class UserEntity(TopLevelEntity):
                     )
                 )
             else:
-                await Postgres.execute(
-                    *SQLTool.insert(
-                        "users",
-                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
-                    )
-                )
+                data = dict_exclude(self.dict(exclude_none=True), ["own_attrib"])
+                data["attrib"] = self.validated_attrib(data.get("attrib", {}))
+                await Postgres.execute(*SQLTool.insert("users", **data))
                 self.exists = True
 
             if (

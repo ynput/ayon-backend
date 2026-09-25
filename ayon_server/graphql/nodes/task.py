@@ -96,8 +96,8 @@ class TaskNode(BaseNode):
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
-        """Return a list of attributes that are defined on the task."""
-        return list(self._attrib.keys())
+        """Return a list of attributes that are set on the entity itself."""
+        return self.resolved_attrib().own
 
     @strawberry.field()
     def parents(self) -> list[str]:

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.core import ProjectLevelEntity, attribute_library
+from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
@@ -81,27 +81,15 @@ class FolderEntity(ProjectLevelEntity):
         if path is not None:
             # ensure path starts with / but does not end with /
             record["path"] = f"/{path.strip('/')}"
-        attrib: dict[str, Any] = {}
-        inherited_attrib: dict[str, Any] = {}
-
-        for key, value in record.get("project_attrib", {}).items():
-            if key in attribute_library.inheritable_attributes():
-                attrib[key] = value
-                inherited_attrib[key] = value
-
-        if (ia := record["inherited_attrib"]) is not None:
-            for key, value in ia.items():
-                if key in attribute_library.inheritable_attributes():
-                    attrib[key] = value
-                    inherited_attrib[key] = value
-
-        elif record["parent_id"] is not None:
+        # `attrib` holds the own values, `inherited_attrib` the exported
+        # attributes of the parent and `project_attrib` the project values.
+        # The attribute values are resolved from them (see resolve_attrib)
+        if record["inherited_attrib"] is None and record["parent_id"] is not None:
             logger.warning(
                 f"Folder {record['path']} does not have inherited attributes."
                 "this shouldn't happen"
             )
-        attrib.update(record["attrib"])
-        return {**record, "attrib": attrib, "inherited_attrib": inherited_attrib}
+        return record
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():

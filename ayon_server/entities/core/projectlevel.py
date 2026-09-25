@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.exceptions import (
@@ -39,6 +40,8 @@ class ProjectLevelEntity(BaseEntity):
         payload: dict[str, Any],
         exists: bool = False,
         own_attrib: list[str] | None = None,
+        inherited_attrib: dict[str, Any] | None = None,
+        project_attrib: dict[str, Any] | None = None,
     ) -> None:
         """Return a new entity instance from given data.
 
@@ -46,21 +49,35 @@ class ProjectLevelEntity(BaseEntity):
         considered entity's own. When set to list, only selected
         attributes will be stored in the attrib column, others will
         be considered inherited (and stored in exported_attribs)
+
+        Entities loaded from the database (`exists`) resolve their attribute
+        values from the stored own values and the `inherited_attrib`
+        (exported attributes of the parent) and `project_attrib` values.
+        Invalid stored values are ignored (see `resolve_attrib`).
         """
 
         attrib_dict = payload.get("attrib", {})
         if isinstance(attrib_dict, BaseModel):
             attrib_dict = attrib_dict.model_dump()
         if own_attrib is None:
-            self.own_attrib = list(attrib_dict.keys())
+            own_attrib = list(attrib_dict.keys())
+        payload = dict_exclude(payload, ["own_attrib"])
+
+        if exists:
+            resolved = resolve_attrib(
+                self.entity_type,
+                {k: attrib_dict[k] for k in own_attrib if k in attrib_dict},
+                inherited=inherited_attrib,
+                project=project_attrib,
+                label=f"{self.entity_type} {payload.get('id')} in {project_name}",
+            )
+            payload["attrib"] = resolved.values
+            self.own_attrib = resolved.own
+            self.inherited_attrib = resolved.inherited
         else:
             self.own_attrib = own_attrib
 
-        self._payload = self.model.main_model(
-            **dict_exclude(payload, ["own_attrib"]),
-            own_attrib=self.own_attrib,
-        )
-
+        self._payload = self.model.main_model(**payload, own_attrib=self.own_attrib)
         self.exists = exists
         self.project_name = project_name
 
@@ -77,25 +94,25 @@ class ProjectLevelEntity(BaseEntity):
         # because it accepts a DB row data and de-serializes JSON fields
         and reformats ids.
 
+        The record contains the own attribute values of the entity
+        (`attrib`). Folders and tasks also contain the values they inherit
+        (`inherited_attrib` and `project_attrib`, see `resolve_attrib`).
         """
         # ensure payload is a dict (it might be a asyncpg.Record)
-        payload = dict(payload)
-        if own_attrib is None:
-            own_attrib = list(payload["attrib"].keys())
-        payload = cls.preprocess_record(payload)
+        payload = cls.preprocess_record(dict(payload))
         parsed = {}
         for key in cls.model.main_model.model_fields:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        result = cls(
+        return cls(
             project_name,
             parsed,
             exists=True,
             own_attrib=own_attrib,
+            inherited_attrib=payload.get("inherited_attrib"),
+            project_attrib=payload.get("project_attrib"),
         )
-        result.inherited_attrib = payload.get("inherited_attrib", {})
-        return result
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""
@@ -227,6 +244,7 @@ class ProjectLevelEntity(BaseEntity):
                 with suppress(AttributeError):
                     if (value := getattr(self.attrib, key)) is not None:
                         attrib[key] = value
+            attrib = self.validated_attrib(attrib)
 
             if self.exists:
                 await self.pre_save(False)
