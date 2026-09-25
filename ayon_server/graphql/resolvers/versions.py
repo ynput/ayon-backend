@@ -25,7 +25,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import create_pagination, with_tiebreakers
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter, filter_columns
@@ -36,7 +36,12 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import ARGVisibility, EntityVisibility, build_search_conditions
+from .common import (
+    ARGVisibility,
+    EntityVisibility,
+    build_search_conditions,
+    get_sort_keys,
+)
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -401,7 +406,7 @@ async def get_versions(
         argdesc("Filter versions by their representations using QueryFilter"),
     ] = None,
     sort_by: Annotated[
-        str | None,
+        list[str] | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
     calculate_statistics: Annotated[
@@ -928,22 +933,24 @@ async def get_versions(
     # Pagination
     #
 
-    order_by = ["versions.creation_order"]
-    if sort_by is not None:
-        joins.for_sort(*SORT_JOINS.get(sort_by, ()))
-        if sort_by == "status":
+    order_by = []
+    for sort_key in get_sort_keys(sort_by):
+        joins.for_sort(*SORT_JOINS.get(sort_key, ()))
+        if sort_key == "status":
             status_type_case = get_status_sort_case(project, "versions.status")
-            order_by.insert(0, status_type_case)
-        elif sort_by == "path":
-            order_by = ["folder_ex.path", "products.name", "versions.version"]
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+            order_by.append(status_type_case)
+        elif sort_key == "path":
+            order_by.extend(["folder_ex.path", "products.name", "versions.version"])
+        elif sort_key in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_key])
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "versions.attrib")
-            order_by.insert(0, attr_case)
+            order_by.append(attr_case)
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+    order_by = with_tiebreakers(order_by, "versions.creation_order")
 
     sql_from = f"project_{project_name}.versions AS versions"
     main_joins = joins.all

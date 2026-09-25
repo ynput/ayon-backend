@@ -24,7 +24,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import create_pagination, with_tiebreakers
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
@@ -35,7 +35,12 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import ARGVisibility, EntityVisibility, build_search_conditions
+from .common import (
+    ARGVisibility,
+    EntityVisibility,
+    build_search_conditions,
+    get_sort_keys,
+)
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -134,7 +139,7 @@ async def get_products(
         argdesc("Filter products that have at least one version with reviewables"),
     ] = None,
     sort_by: Annotated[
-        str | None,
+        list[str] | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
     calculate_statistics: Annotated[
@@ -598,10 +603,11 @@ async def get_products(
                 """
             )
 
+    sort_keys = get_sort_keys(sort_by)
     if (
         use_folder_query
         or "folder" in fields
-        or sort_by in ["folderName", "folderType"]
+        or any(key in sort_keys for key in ["folderName", "folderType"])
     ):
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "products.folder_id", sql_joins=sql_joins
@@ -613,16 +619,16 @@ async def get_products(
     # Pagination
     #
 
-    order_by = ["products.creation_order"]
-    if sort_by is not None:
-        if sort_by == "status":
+    order_by = []
+    for sort_key in sort_keys:
+        if sort_key == "status":
             status_type_case = get_status_sort_case(project, "products.status")
-            order_by.insert(0, status_type_case)
+            order_by.append(status_type_case)
 
-        elif sort_by == "path":
-            order_by = ["folder_ex.path", "products.name"]
+        elif sort_key == "path":
+            order_by.extend(["folder_ex.path", "products.name"])
 
-        elif sort_by == "version":
+        elif sort_key == "version":
             # count by product version count
             sql_cte.append(
                 f"""
@@ -642,21 +648,23 @@ async def get_products(
                 ON pvc.product_id = products.id
                 """
             )
-            order_by.insert(0, "COALESCE(pvc.version_count, 0)")
+            order_by.append("COALESCE(pvc.version_count, 0)")
 
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.insert(0, attr_case)
+            order_by.append(attr_case)
 
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_key in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_key])
 
-        elif sort_by.startswith("task"):
+        elif sort_key.startswith("task"):
             pass  # this is not supported - not easily solvable
 
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+    order_by = with_tiebreakers(order_by, "products.creation_order")
 
     ordering = ""
     cursor = "''"

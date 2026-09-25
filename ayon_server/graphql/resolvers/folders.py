@@ -36,6 +36,7 @@ from .common import (
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
+    get_sort_keys,
     resolve,
     sortdesc,
 )
@@ -45,7 +46,7 @@ from .field_stats import (
     generate_specific_stats_columns,
     generate_stats_columns,
 )
-from .pagination import create_pagination
+from .pagination import create_pagination, with_tiebreakers
 from .sorting import (
     get_attrib_sort_case,
     get_folder_types_sort_case,
@@ -121,7 +122,7 @@ async def get_folders(
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
     task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
     ] = False,
@@ -600,34 +601,34 @@ async def get_folders(
 
     order_by = []
 
-    if sort_by is not None:
-        if sort_by == "folderType":
+    for sort_key in get_sort_keys(sort_by):
+        if sort_key == "folderType":
             folder_type_case = get_folder_types_sort_case(project)
             order_by.append(folder_type_case)
-        elif sort_by == "status":
+        elif sort_key == "status":
             status_type_case = get_status_sort_case(project, "folders.status")
             order_by.append(status_type_case)
-        elif sort_by in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+        elif sort_key in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_key])
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             exp = "(coalesce(ex.attrib, '{}'::JSONB) || folders.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.append(attr_case)
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise ValueError(f"Invalid sort_by value: {sort_key}")
 
     if not order_by:
         # If no sorting specified, use creation order to have stable sorting
         # as the requester doesn't care about the order in this case.
         order_by.append("folders.creation_order")
 
-    elif len(order_by) < 2:
-        # If a single sort criteria is specified, add a secondary sort by name
-        # to have stable sorting when multiple items have the same value
-        # In this case we don't want to use creation order as secondary sort,
-        # because sorting is mainly invoked from the GUI and path makes more sense
-        order_by.append("hierarchy.path")
+    else:
+        # Add a secondary sort by path to have stable sorting when multiple
+        # items have the same values. In this case we don't want to use
+        # creation order as secondary sort, because sorting is mainly invoked
+        # from the GUI and path makes more sense
+        order_by = with_tiebreakers(order_by, "hierarchy.path")
 
     ordering = ""
     cursor = "''"

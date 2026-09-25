@@ -7,7 +7,7 @@ import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -60,10 +60,32 @@ def argdesc(description: str) -> StrawberryArgumentAnnotation:
     return strawberry.argument(description=description)
 
 
+MAX_SORT_KEYS = 5
+
+
 def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
     """Return a textual description for sorting argument"""
-    description = f"Sort by one of {', '.join(sort_options.keys())}"
+    description = (
+        f"Sort by one or more of {', '.join(sort_options.keys())}. "
+        "Multiple keys are applied in order of precedence. "
+        "A single string is accepted as well."
+    )
     return strawberry.argument(description=description)
+
+
+def get_sort_keys(sort_by: str | list[str] | None) -> list[str]:
+    """Normalize the `sortBy` argument to a list of unique sort keys.
+
+    A single string is accepted for backwards compatibility.
+    """
+    if not sort_by:
+        return []
+    if isinstance(sort_by, str):
+        return [sort_by]
+    keys = list(dict.fromkeys(sort_by))
+    if len(keys) > MAX_SORT_KEYS:
+        raise BadRequestException(f"sortBy accepts at most {MAX_SORT_KEYS} keys")
+    return keys
 
 
 ARGFirst = Annotated[int | None, argdesc("Pagination: first")]

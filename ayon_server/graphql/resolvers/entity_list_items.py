@@ -37,6 +37,7 @@ from .common import (
     argdesc,
     build_search_conditions,
     create_folder_access_list,
+    get_sort_keys,
     resolve,
 )
 from .field_stats import (
@@ -45,7 +46,7 @@ from .field_stats import (
     generate_specific_stats_columns,
     generate_stats_columns,
 )
-from .pagination import create_pagination
+from .pagination import create_pagination, with_tiebreakers
 from .sorting import get_attrib_sort_case
 
 COLS_ITEMS = [
@@ -133,7 +134,7 @@ async def get_entity_list_items(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
-    sort_by: str | None = None,
+    sort_by: list[str] | None = None,
     filter: str | None = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     accessible_only: bool = False,
@@ -486,33 +487,33 @@ async def get_entity_list_items(
 
     order_by = []
 
-    if sort_by:
-        if item_sort_by := ITEM_SORT_OPTIONS.get(sort_by):
+    for sort_key in get_sort_keys(sort_by):
+        if item_sort_by := ITEM_SORT_OPTIONS.get(sort_key):
             order_by.append(item_sort_by)
 
-        elif sort_by in ITEM_SORT_OPTIONS.values():
-            order_by.append(sort_by)
+        elif sort_key in ITEM_SORT_OPTIONS.values():
+            order_by.append(sort_key)
 
-        elif entity_sort_by := ENTITY_SORT_OPTIONS.get(entity_type, {}).get(sort_by):
+        elif entity_sort_by := ENTITY_SORT_OPTIONS.get(entity_type, {}).get(sort_key):
             order_by.append(entity_sort_by)
 
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
             order_by.append(f"({attr_case})")
 
-        elif sort_by.startswith("entity"):
-            s = camel_to_snake(sort_by)
+        elif sort_key.startswith("entity"):
+            s = camel_to_snake(sort_key)
             s = s.removeprefix("entity_")
             if s not in cols:
                 raise BadRequestException(
-                    f"Invalid entity sort key {sort_by}. "
+                    f"Invalid entity sort key {sort_key}. "
                     f"Available are: {', '.join(cols)}"
                 )
             order_by.append(f"_entity_{s}")
 
-        elif sort_by.startswith("parent"):
-            s = camel_to_snake(sort_by)
+        elif sort_key.startswith("parent"):
+            s = camel_to_snake(sort_key)
             s = s.removeprefix("parent_")
             if s not in allowed_parent_keys:
                 raise BadRequestException(
@@ -523,13 +524,12 @@ async def get_entity_list_items(
 
         else:
             # This is not a valid sort key
-            raise BadRequestException(f"Invalid sort key {sort_by}")
+            raise BadRequestException(f"Invalid sort key {sort_key}")
 
     # secondary sorting for duplicate values
     # unless we're already sorting by position
 
-    if sort_by != "position":
-        order_by.append("position")
+    order_by = with_tiebreakers(order_by, "position")
 
     ordering = ""
     cursor = "''"

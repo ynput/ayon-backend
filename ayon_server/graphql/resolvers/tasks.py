@@ -40,14 +40,19 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import ARGVisibility, EntityVisibility, build_search_conditions
+from .common import (
+    ARGVisibility,
+    EntityVisibility,
+    build_search_conditions,
+    get_sort_keys,
+)
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
     generate_specific_stats_columns,
     generate_stats_columns,
 )
-from .pagination import create_pagination
+from .pagination import create_pagination, with_tiebreakers
 from .sorting import (
     get_attrib_sort_case,
     get_status_sort_case,
@@ -178,7 +183,7 @@ async def get_tasks(
     folder_filter: Annotated[
         str | None, argdesc("Filter tasks by queryfilter on folders")
     ] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
     ] = False,
@@ -503,7 +508,8 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or "folder" in fields or sort_by == "folderName":
+    sort_keys = get_sort_keys(sort_by)
+    if use_folder_query or "folder" in fields or "folderName" in sort_keys:
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "tasks.folder_id", is_inner=False, sql_joins=sql_joins
         )
@@ -515,36 +521,36 @@ async def get_tasks(
     #
 
     order_by = []
-    if sort_by is not None:
-        if sort_by == "taskType":
+    for sort_key in sort_keys:
+        if sort_key == "taskType":
             task_type_case = get_task_types_sort_case(project)
             order_by.append(task_type_case)
-        elif sort_by == "status":
+        elif sort_key == "status":
             status_type_case = get_status_sort_case(project, "tasks.status")
             order_by.append(status_type_case)
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by == "path":
-            order_by = ["hierarchy.path", "tasks.name"]
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+        elif sort_key in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_key])
+        elif sort_key == "path":
+            order_by.extend(["hierarchy.path", "tasks.name"])
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             exp = "(f_ex.attrib || tasks.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
-            order_by.insert(0, attr_case)
+            order_by.append(attr_case)
         else:
-            raise BadRequestException(f"Invalid sort_by value: {sort_by}")
+            raise BadRequestException(f"Invalid sort_by value: {sort_key}")
 
     if not order_by:
         # If no sorting specified, use creation order to have stable sorting
         # as the requester doesn't care about the order in this case.
         order_by.append("tasks.creation_order")
 
-    elif len(order_by) < 2:
-        # If a single sort criteria is specified, add a secondary sort by name
-        # to have stable sorting when multiple items have the same value
-        # In this case we don't want to use creation order as secondary sort,
-        # because sorting is mainly invoked from the GUI and path makes more sense
-        order_by.extend(["hierarchy.path", "tasks.name"])
+    else:
+        # Add a secondary sort by path to have stable sorting when multiple
+        # items have the same values. In this case we don't want to use
+        # creation order as secondary sort, because sorting is mainly invoked
+        # from the GUI and path makes more sense
+        order_by = with_tiebreakers(order_by, "hierarchy.path", "tasks.name")
 
     ordering = ""
     cursor = "''"
