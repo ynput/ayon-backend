@@ -1,4 +1,4 @@
-from pydantic import Field, create_model
+from pydantic import Field, ValidationError, create_model
 from pydantic_core import SchemaError
 
 from ayon_server.attributes.models import AttributeData
@@ -44,7 +44,7 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
     ftype = FIELD_TYPES[fdef.type]
 
     try:
-        _ = create_model("test", test=(ftype, Field(**field)))
+        model = create_model("test", test=(ftype, Field(**field)))
     except SchemaError as e:
         if "pattern" not in field:
             log_traceback(f"Unable to construct attribute '{name}'")
@@ -61,3 +61,13 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
         raise BadRequestException(
             f"Unable to construct attribute '{name}' Check the logs for more details."
         ) from e
+
+    # Defaults are used when a value is not set, so they must be valid
+    if fdef.default is not None:
+        try:
+            model(test=fdef.default)
+        except ValidationError as e:
+            raise BadRequestException(
+                f"Default value of attribute '{name}' is not valid: "
+                f"{e.errors()[0]['msg']}"
+            ) from e

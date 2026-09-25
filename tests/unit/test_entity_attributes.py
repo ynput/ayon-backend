@@ -143,3 +143,20 @@ class TestSaving:
     def test_undefined_attributes_are_dropped(self):
         folder = FolderEntity("project", {**FOLDER, "attrib": {}})
         assert folder.validated_attrib({"removedAttribute": 1}) == {}
+
+
+class TestAttributeDefinitions:
+    def test_invalid_default_is_rejected(self):
+        from ayon_server.attributes.models import AttributeData
+        from ayon_server.attributes.validate_attribute_data import (
+            validate_attribute_data,
+        )
+
+        validate_attribute_data(
+            "rating", AttributeData(type="integer", title="Rating", default=3, ge=0)
+        )
+        with pytest.raises(BadRequestException, match="Default value"):
+            validate_attribute_data(
+                "rating",
+                AttributeData(type="integer", title="Rating", default=-1, ge=0),
+            )

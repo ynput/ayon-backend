@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ayon_server.attributes.values.common import attrib_errors
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
@@ -18,6 +19,7 @@ from ayon_server.entities.models.fields import (
     workfile_fields,
 )
 from ayon_server.entities.models.generator import generate_model
+from ayon_server.logging import logger
 from ayon_server.models.attrib_values import AttribValues
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
@@ -88,6 +90,7 @@ class ModelSet:
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
         self._attrib_model_revision: int | None = None
+        self._inherited_defaults: dict[str, Any] = {}
 
         # Types of the `attrib` field of the entity models
         self.attrib_type = AttribValues(lambda: self.attrib_model)
@@ -128,8 +131,32 @@ class ModelSet:
                 AttribModelConfig,
             )
             self._attrib_model_revision = revision
+            self._inherited_defaults = self._get_inherited_defaults()
         assert self._attrib_model is not None
         return self._attrib_model
+
+    @property
+    def inherited_defaults(self) -> dict[str, Any]:
+        """Default values of the inheritable attributes (do not modify).
+
+        Only the defaults valid for the attribute model are included.
+        They change together with the attribute model.
+        """
+        _ = self.attrib_model  # regenerated when the attributes change
+        return self._inherited_defaults
+
+    def _get_inherited_defaults(self) -> dict[str, Any]:
+        library = self._attribute_library
+        defaults = {
+            name: value
+            for name, value in library.project_defaults.items()
+            if name in library.inheritable
+        }
+        assert self._attrib_model is not None
+        for name in attrib_errors(self._attrib_model, defaults):
+            logger.warning(f"Invalid default value of attribute {name}")
+            del defaults[name]
+        return defaults
 
     def validate_attrib(self, data: Any, partial: bool = False) -> Any:
         """Validate attribute values. Return AttribDict.

@@ -45,6 +45,7 @@ class AttributeLibrary:
 
         self._fingerprint: str | None = None
         self._inheritable: list[str] = []
+        self._inheritable_set: frozenset[str] = frozenset()
         self._by_name: dict[str, dict[str, Any]] = {}
         self._by_name_scoped: dict[tuple[str, str], dict[str, Any]] = {}
         self._reload_callbacks: list[ReloadCallback] = []
@@ -151,6 +152,7 @@ class AttributeLibrary:
         self.data = data
         self.info_data = rows
         self._inheritable = list(inheritable)
+        self._inheritable_set = frozenset(inheritable)
         self._by_name = by_name
         self._by_name_scoped = by_name_scoped
         self._fingerprint = hashlib.sha256(json_dumps(rows).encode()).hexdigest()
@@ -216,6 +218,11 @@ class AttributeLibrary:
 
     def inheritable_attributes(self) -> list[str]:
         return self._inheritable
+
+    @property
+    def inheritable(self) -> frozenset[str]:
+        """Names of the inheritable attributes."""
+        return self._inheritable_set
 
     def by_name(self, name: str) -> dict[str, Any]:
         """Return attribute definition by name."""

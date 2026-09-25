@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from ayon_server.utils import json_dumps
-
-from .common import INHERITING_ENTITY_TYPES, get_attribute_library
+from .common import INHERITING_ENTITY_TYPES, get_attribute_library, get_model_set
 from .valid import valid_attrib
 
 
@@ -16,49 +14,6 @@ class ResolvedAttrib:
     #: Values inherited from the parents, the project and the defaults
     #: (also for the attributes set on the entity itself)
     inherited: dict[str, Any]
-
-
-# Inherited values are shared by many entities (all entities of a project
-# inherit the same project values, siblings the same parent values), so
-# they are resolved once. Key: (entity type, attribute library revision,
-# project values as JSON, parent values as JSON)
-_inherited_cache: dict[tuple[str, int, str, str], dict[str, Any]] = {}
-_INHERITED_CACHE_LIMIT = 4096
-
-
-def _resolve_inherited(
-    entity_type: str,
-    project: dict[str, Any] | None,
-    inherited: dict[str, Any] | None,
-    label: str,
-) -> dict[str, Any]:
-    attribute_library = get_attribute_library()
-    key = (
-        entity_type,
-        attribute_library.revision,
-        json_dumps(project) if project else "",
-        json_dumps(inherited) if inherited else "",
-    )
-    if (result := _inherited_cache.get(key)) is not None:
-        return result
-
-    inheritable = set(attribute_library.inheritable_attributes())
-    result = {}
-    layers = (
-        ("default attributes", attribute_library.project_defaults),
-        ("project attributes", project),
-        ("inherited attributes", inherited),
-    )
-    for layer_label, layer_values in layers:
-        layer = valid_attrib(entity_type, layer_values, f"{layer_label} of {label}")
-        for name, value in layer.items():
-            if name in inheritable:
-                result[name] = value
-
-    if len(_inherited_cache) >= _INHERITED_CACHE_LIMIT:
-        _inherited_cache.clear()
-    _inherited_cache[key] = result
-    return result
 
 
 def resolve_attrib(
@@ -96,8 +51,19 @@ def resolve_attrib(
     if entity_type not in INHERITING_ENTITY_TYPES:
         return ResolvedAttrib(values=own_values, own=list(own_values), inherited={})
 
-    # A copy, the cached values are shared
-    inherited_values = dict(_resolve_inherited(entity_type, project, inherited, label))
+    inheritable = get_attribute_library().inheritable
+    model_set = get_model_set(entity_type)
+    assert model_set is not None
+    inherited_values = dict(model_set.inherited_defaults)
+    for layer_label, layer_values in (
+        ("project attributes", project),
+        ("inherited attributes", inherited),
+    ):
+        layer = valid_attrib(entity_type, layer_values, f"{layer_label} of {label}")
+        inherited_values.update(
+            {name: value for name, value in layer.items() if name in inheritable}
+        )
+
     return ResolvedAttrib(
         values={**inherited_values, **own_values},
         own=list(own_values),
