@@ -62,7 +62,11 @@ def argdesc(description: str) -> StrawberryArgumentAnnotation:
 
 def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
     """Return a textual description for sorting argument"""
-    description = f"Sort by one of {', '.join(sort_options.keys())}"
+    description = (
+        f"Sort by one or more of {', '.join(sort_options.keys())}. "
+        "Multiple keys are applied in order of precedence. "
+        "A single string is accepted as well."
+    )
     return strawberry.argument(description=description)
 
 

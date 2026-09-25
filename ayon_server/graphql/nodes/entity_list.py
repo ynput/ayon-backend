@@ -228,7 +228,7 @@ class EntityListNode:
         after: str | None = None,
         last: int | None = None,
         before: str | None = None,
-        sort_by: str | None = None,
+        sort_by: list[str] | None = None,
         accessible_only: bool = False,
         filter: str | None = None,
         search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
