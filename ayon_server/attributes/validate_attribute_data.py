@@ -35,10 +35,15 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
         "min_length",
         "max_length",
         "regex",
+        "pattern",
         "min_items",
         "max_items",
     ):
         if getattr(fdef, k):
+            if k == "regex":
+                field["pattern"] = getattr(fdef, k)
+                continue
+
             field[k] = getattr(fdef, k)
 
     ftype = FIELD_TYPES[fdef.type]
