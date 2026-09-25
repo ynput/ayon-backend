@@ -47,7 +47,9 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    data = own_attrib or {}
+    # A copy: own_attrib is the node's own attribute dict, which must not
+    # get the inherited values (ownAttrib lists its keys)
+    data = dict(own_attrib or {})
     if entity_type in {"folder", "task"}:
         # Apply inherited and project attributes for folders and tasks
         # (other entities do not inherit attributes)
