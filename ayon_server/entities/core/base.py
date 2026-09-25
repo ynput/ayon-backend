@@ -53,6 +53,19 @@ class BaseEntity:
                 f"Invalid attribute values of {self.entity_type}: {details}"
             ) from e
 
+    def own_attrib_to_save(self) -> builtins.dict[str, Any]:
+        """Return the validated own attribute values to be saved.
+
+        Attributes without a value (None) are not saved
+        (the entity inherits them).
+        """
+        values = {
+            key: value
+            for key in self.own_attrib
+            if (value := self.attrib.get(key)) is not None
+        }
+        return self.validated_attrib(values)
+
     def dict(
         self,
         exclude_defaults: bool = False,

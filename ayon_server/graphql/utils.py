@@ -116,13 +116,17 @@ _NATIVE_TYPES: dict[str, type | tuple[type, ...]] = {
 }
 
 # (library revision, entity type) -> {name: (type, native type, default)}
-_attrib_specs: dict[tuple[int, str], dict[str, tuple[str | None, Any, Any]]] = {}
+# Specs per entity type, valid for one revision of the attribute library
+_attrib_specs: dict[str, dict[str, tuple[str | None, Any, Any]]] = {}
+_attrib_specs_revision: int | None = None
 
 
 def _get_attrib_specs(entity_type: str) -> dict[str, tuple[str | None, Any, Any]]:
-    key = (attribute_library.revision, entity_type)
-    if (specs := _attrib_specs.get(key)) is None:
+    global _attrib_specs_revision
+    if _attrib_specs_revision != attribute_library.revision:
         _attrib_specs.clear()
+        _attrib_specs_revision = attribute_library.revision
+    if (specs := _attrib_specs.get(entity_type)) is None:
         specs = {}
         for attr in attribute_library[entity_type]:
             attr_type = attr.get("type")
@@ -131,7 +135,7 @@ def _get_attrib_specs(entity_type: str) -> dict[str, tuple[str | None, Any, Any]
                 _NATIVE_TYPES.get(attr_type or "", ()),
                 attr.get("default"),
             )
-        _attrib_specs[key] = specs
+        _attrib_specs[entity_type] = specs
     return specs
 
 

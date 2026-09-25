@@ -160,3 +160,64 @@ class TestAttributeDefinitions:
                 "rating",
                 AttributeData(type="integer", title="Rating", default=-1, ge=0),
             )
+
+
+class TestReviewFixes:
+    def test_folder_save_validates_attributes(self):
+        folder = FolderEntity("project", {**FOLDER, "attrib": {}})
+        folder.attrib.fps = "abc"
+        folder.own_attrib.append("fps")
+        with pytest.raises(BadRequestException, match="fps"):
+            folder.own_attrib_to_save()
+
+    def test_own_attrib_to_save_skips_none(self):
+        folder = FolderEntity("project", {**FOLDER, "attrib": {"fps": 25}})
+        folder.attrib.fps = None
+        assert folder.own_attrib_to_save() == {}
+
+    def test_task_without_inherited_attributes(self):
+        from ayon_server.entities import TaskEntity
+
+        record = {
+            "id": "a" * 32,
+            "name": "comp",
+            "folder_id": "b" * 32,
+            "folder_path": "sq01/sh010",
+            "attrib": {},
+            "inherited_attrib": None,
+        }
+        assert TaskEntity.preprocess_record(record)["path"] == "/sq01/sh010/comp"
+
+    @pytest.mark.parametrize("name", ["model_config", "model_dump", "json"])
+    def test_reserved_attribute_names(self, name):
+        from ayon_server.attributes.models import AttributeData
+        from ayon_server.attributes.validate_attribute_data import (
+            validate_attribute_data,
+        )
+
+        with pytest.raises(BadRequestException, match="reserved"):
+            validate_attribute_data(name, AttributeData(type="string", title="X"))
+
+        # stored attributes with such names are skipped (no crash)
+        model = generate_model(
+            "Test",
+            [
+                {"name": name, "type": "string", "title": "X"},
+                {"name": "ok", "type": "string", "title": "OK"},
+            ],
+        )
+        assert list(model.model_fields) == ["ok"]
+
+    def test_validate_does_not_modify_the_source_model(self):
+        from ayon_server.models.attrib_values import AttribValues
+
+        source_model = generate_model(
+            "Source",
+            [
+                {"name": "fps", "type": "float", "title": "FPS"},
+                {"name": "removed", "type": "string", "title": "Removed"},
+            ],
+        )
+        source = source_model(fps=25, removed="x")
+        AttribValues(lambda: FolderEntity.model.attrib_model).validate(source)
+        assert source.model_fields_set == {"fps", "removed"}

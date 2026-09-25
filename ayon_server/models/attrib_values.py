@@ -170,7 +170,8 @@ class AttribValues:
             fields_set = value.model_fields_set
             value = dict(value)
         elif isinstance(value, BaseModel):
-            fields_set = value.model_fields_set
+            # A copy: it is modified below (the model must not change)
+            fields_set = set(value.model_fields_set)
             value = value.model_dump()
 
         # Raises ValidationError, which pydantic reports with the field location

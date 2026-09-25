@@ -1,4 +1,3 @@
-from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
@@ -239,12 +238,7 @@ class ProjectLevelEntity(BaseEntity):
             self.status = await self.get_default_status()
 
         async with Postgres.transaction():
-            attrib = {}
-            for key in self.own_attrib:
-                with suppress(AttributeError):
-                    if (value := getattr(self.attrib, key)) is not None:
-                        attrib[key] = value
-            attrib = self.validated_attrib(attrib)
+            attrib = self.own_attrib_to_save()
 
             if self.exists:
                 await self.pre_save(False)

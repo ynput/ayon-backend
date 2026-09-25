@@ -48,7 +48,7 @@ class TaskEntity(ProjectLevelEntity):
         # `attrib` holds the own values, `inherited_attrib` the exported
         # attributes of the folder. The attribute values are resolved
         # from them (see resolve_attrib)
-        if record["inherited_attrib"] is None and record["parent_id"] is not None:
+        if record["inherited_attrib"] is None:
             logger.warning(
                 f"Task {record['id']} does not have inherited attributes."
                 "this shouldn't happen"

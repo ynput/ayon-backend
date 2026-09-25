@@ -108,31 +108,122 @@ class FieldDefinition(BaseModel):
     enum: list[EnumItem] | None = Field(None, title="Enum values")
 
 
+def attribute_field(fdef: FieldDefinition) -> tuple[Any, dict[str, Any]]:
+    """Return the type and the Field arguments of an attribute."""
+    field: dict[str, Any] = {}
+    extra: dict[str, Any] = {}
+
+    #
+    # Documentation and validation
+    #
+
+    for k in ("title", "description"):
+        if getattr(fdef, k):
+            field[k] = getattr(fdef, k)
+
+    # Numeric and string validators (0 is a valid limit)
+    for k in ("gt", "ge", "lt", "le", "min_length", "max_length"):
+        if getattr(fdef, k) is not None:
+            field[k] = getattr(fdef, k)
+
+    if fdef.example:
+        extra["example"] = fdef.example
+    if fdef.regex:
+        field["pattern"] = fdef.regex
+    # Array validators
+    if fdef.min_items is not None:
+        field["min_length"] = fdef.min_items
+    if fdef.max_items is not None:
+        field["max_length"] = fdef.max_items
+
+    # Enum
+    if fdef.enum:
+        extra["_attrib_enum"] = True
+        extra["enum"] = [e.value for e in fdef.enum]
+    if extra:
+        field["json_schema_extra"] = extra
+
+    #
+    # Default value
+    #
+
+    if fdef.submodel:
+        field["default_factory"] = fdef.submodel
+    elif fdef.type.startswith("list_of_") and fdef.required:
+        field["default_factory"] = list
+    elif fdef.factory:
+        field["default_factory"] = FIELD_FACORIES[fdef.factory]
+    elif fdef.default is not None:
+        field["default"] = fdef.default
+    elif fdef.required:
+        field["default"] = ...
+    else:
+        field["default"] = None
+
+    #
+    # Field type
+    #
+
+    if isinstance(fdef.submodel, AttribValues):
+        ftype = fdef.submodel.annotation
+    elif fdef.submodel:
+        ftype = fdef.submodel
+    elif fdef.list_of_submodels:
+        assert fdef.list_of_submodels
+        ftype = list[fdef.list_of_submodels]  # type: ignore
+    elif fdef.type in FIELD_TYPES:
+        if fdef.required:
+            ftype = FIELD_TYPES[fdef.type]
+        else:
+            ftype = FIELD_TYPES[fdef.type] | None
+    else:
+        ftype = Any
+
+    if "default" in field and "default_factory" in field:
+        logger.error(
+            f"Both default and default_factory provided for field '{fdef.name}'"
+        )
+        field.pop("default")
+
+    return ftype, field
+
+
+def attribute_test_model(
+    fdef: FieldDefinition,
+    ftype: Any,
+    field: dict[str, Any],
+    config: ConfigDict | None,
+) -> type[BaseModel]:
+    """Create a model with the attribute only, to check it can be constructed.
+
+    The real field name is used, as some names are reserved by pydantic.
+    Raises an exception when the attribute definition is not valid.
+    """
+    if hasattr(BaseModel, fdef.name):
+        # e.g. model_config, model_dump or json (create_model would take
+        # model_config as the model configuration instead of a field)
+        raise ValueError(f"'{fdef.name}' is reserved and cannot be used")
+    return create_model(  # type: ignore[call-overload]
+        "test", __config__=config, **{fdef.name: (ftype, Field(**field))}
+    )
+
+
 def _test_field(
     fdef: FieldDefinition,
     ftype: Any,
     field: dict[str, Any],
     config: ConfigDict | None,
 ) -> None:
-    """Ensure a model with the given field can be constructed.
-
-    The real field name is used, as some names are reserved by pydantic.
+    """Ensure a stored attribute can be constructed.
 
     Pydantic 2 uses the Rust regex engine, which does not support
     look-around and backreferences, but attributes created before
     Pydantic 2 may use them. Such regex is removed from the field
     (the attribute is kept, but its values are not validated by the regex).
+    New attributes with such regex are rejected (validate_attribute_data).
     """
-
-    def build() -> None:
-        create_model(
-            "test",
-            __config__=config,
-            **{fdef.name: (ftype, Field(**field))},  # type: ignore
-        )
-
     try:
-        build()
+        attribute_test_model(fdef, ftype, field, config)
     except SchemaError:
         if "pattern" not in field:
             raise
@@ -141,7 +232,7 @@ def _test_field(
             f"and it won't be validated: {fdef.regex}"
         )
         field.pop("pattern")
-        build()
+        attribute_test_model(fdef, ftype, field, config)
 
 
 def generate_model(
@@ -162,80 +253,7 @@ def generate_model(
 
             continue
 
-        field: dict[str, Any] = {}
-        extra: dict[str, Any] = {}
-
-        #
-        # Documentation and validation
-        #
-
-        for k in ("title", "description"):
-            if getattr(fdef, k):
-                field[k] = getattr(fdef, k)
-
-        # Numeric and string validators (0 is a valid limit)
-        for k in ("gt", "ge", "lt", "le", "min_length", "max_length"):
-            if getattr(fdef, k) is not None:
-                field[k] = getattr(fdef, k)
-
-        if fdef.example:
-            extra["example"] = fdef.example
-        if fdef.regex:
-            field["pattern"] = fdef.regex
-        # Array validators
-        if fdef.min_items is not None:
-            field["min_length"] = fdef.min_items
-        if fdef.max_items is not None:
-            field["max_length"] = fdef.max_items
-
-        # Enum
-        if fdef.enum:
-            extra["_attrib_enum"] = True
-            extra["enum"] = [e.value for e in fdef.enum]
-        if extra:
-            field["json_schema_extra"] = extra
-
-        #
-        # Default value
-        #
-
-        if fdef.submodel:
-            field["default_factory"] = fdef.submodel
-        elif fdef.type.startswith("list_of_") and fdef.required:
-            field["default_factory"] = list
-        elif fdef.factory:
-            field["default_factory"] = FIELD_FACORIES[fdef.factory]
-        elif fdef.default is not None:
-            field["default"] = fdef.default
-        elif fdef.required:
-            field["default"] = ...
-        else:
-            field["default"] = None
-
-        #
-        # Field type
-        #
-
-        if isinstance(fdef.submodel, AttribValues):
-            ftype = fdef.submodel.annotation
-        elif fdef.submodel:
-            ftype = fdef.submodel
-        elif fdef.list_of_submodels:
-            assert fdef.list_of_submodels
-            ftype = list[fdef.list_of_submodels]  # type: ignore
-        elif fdef.type in FIELD_TYPES:
-            if fdef.required:
-                ftype = FIELD_TYPES[fdef.type]
-            else:
-                ftype = FIELD_TYPES[fdef.type] | None
-        else:
-            ftype = Any
-
-        if "default" in field and "default_factory" in field:
-            logger.error(
-                f"Both default and default_factory provided for field '{fdef.name}'"
-            )
-            field.pop("default")
+        ftype, field = attribute_field(fdef)
 
         # ensure we can construct the model
         # (using the real field name, as some names are reserved by pydantic)
