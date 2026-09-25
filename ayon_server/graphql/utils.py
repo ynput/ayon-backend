@@ -19,7 +19,6 @@ def process_attrib_data(
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
-    label: str | None = None,
     resolved: ResolvedAttrib | None = None,
 ) -> dict[str, Any]:
     """Return the attribute values of an entity the user can read.
@@ -63,7 +62,6 @@ def process_attrib_data(
             {k: v for k, v in (own_attrib or {}).items() if k not in list_keys},
             inherited=inherited_attrib,
             project=project_attrib,
-            label=label or f"{entity_type} in {project_name}",
         )
     data = {
         **resolved.values,
@@ -77,8 +75,8 @@ def process_attrib_data(
     for key, value in data.items():
         if not (attr_limit == "all" or key in attr_limit):
             continue
-        # Entity attributes are already validated and converted (resolve_attrib),
-        # list item attributes are used as they are stored
+        # Datetime list item attributes are converted
+        # (entity attributes are returned as they are stored)
         if (
             key in list_keys
             and list_attribute_config
@@ -98,21 +96,21 @@ def attrib_to_json(
     entity_type: str,
     data: dict[str, Any],
     names: list[str] | None = None,
-    legacy_selection: list[str] | None = None,
+    legacy_selection: str | None = None,
 ) -> dict[str, Any]:
     """Return attribute values for the `attrib` GraphQL field.
 
     - `names`: return only the given attributes (all by default)
     - `legacy_selection`: selection of the former typed `attrib` field
       (`attrib { fps rate: frameRate }`), rewritten by `LegacyAttribSelection`
-      to `["fps", "rate:frameRate"]`. Every selected attribute is returned
+      to `"fps rate:frameRate"`. Every selected attribute is returned
       (None when missing) under its alias.
 
     `data` are the resolved values (see resolve_attrib), which already
     include the inherited and default values.
 
-    The values are already converted to the attribute types by
-    resolve_attrib (the same way the typed field did). Only datetimes
+    Values are validated when they are written, so they are returned
+    as they are stored. Only datetimes (list item attributes)
     are converted to ISO strings (JSON).
     """
 
@@ -121,7 +119,7 @@ def attrib_to_json(
 
     if legacy_selection is not None:
         result: dict[str, Any] = {}
-        for item in legacy_selection:
+        for item in legacy_selection.split():
             alias, _, name = item.partition(":")
             name = name or alias
             if name == "__typename":

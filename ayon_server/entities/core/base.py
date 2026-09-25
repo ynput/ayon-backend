@@ -7,6 +7,7 @@ from ayon_server.attributes.values import resolve_attrib, validate_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
 from ayon_server.utils import dict_exclude
 
 if TYPE_CHECKING:
@@ -59,7 +60,6 @@ class BaseEntity:
         payload: builtins.dict[str, Any],
         *,
         exists: bool,
-        label: str,
         own_attrib: list[str] | None = None,
         inherited_attrib: builtins.dict[str, Any] | None = None,
         project_attrib: builtins.dict[str, Any] | None = None,
@@ -67,9 +67,9 @@ class BaseEntity:
         """Construct the entity model from the given data.
 
         Entities loaded from the database (`exists`) resolve their attribute
-        values from the stored ones (see `resolve_attrib`): invalid values
-        are ignored, folders and tasks inherit values from `inherited_attrib`
-        and `project_attrib`. `own_attrib` lists the attributes set on the
+        values from the stored ones (see `resolve_attrib`), folders and tasks
+        inherit values from `inherited_attrib` and `project_attrib`. Stored
+        values are not validated again. `own_attrib` lists the attributes set on the
         entity itself (all given attributes by default).
         """
         attrib = payload.get("attrib") or {}
@@ -85,15 +85,17 @@ class BaseEntity:
                 {key: attrib[key] for key in own_attrib if key in attrib},
                 inherited=inherited_attrib,
                 project=project_attrib,
-                label=label,
             )
             payload["attrib"] = resolved.values
             self.own_attrib = resolved.own
             self.inherited_attrib = resolved.inherited
+            self._payload = self.model.main_model.model_validate(
+                {**payload, "own_attrib": self.own_attrib},
+                context=STORED_VALUES_CONTEXT,
+            )
         else:
             self.own_attrib = own_attrib
-
-        self._payload = self.model.main_model(**payload, own_attrib=self.own_attrib)
+            self._payload = self.model.main_model(**payload, own_attrib=own_attrib)
         self.exists = exists
 
     def fields_to_save(self, exclude: list[str]) -> builtins.dict[str, Any]:

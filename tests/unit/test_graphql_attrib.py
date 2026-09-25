@@ -38,28 +38,31 @@ def test_own_values_take_precedence():
     assert result["fps"] == 24.0
 
 
-class TestInvalidStoredValues:
+class TestStoredValues:
     """GraphQL follows the same rules as REST (see test_entity_attributes.py)"""
 
-    def test_invalid_own_value_falls_back_to_inherited(self):
-        result = process_attrib_data(
-            "folder",
-            {"fps": "abc", "resolutionWidth": 1920},
-            user=MANAGER,
-            inherited_attrib={"fps": 24.0},
-        )
-        assert result["fps"] == 24.0
-        assert result["resolutionWidth"] == 1920
+    def test_same_as_rest(self):
+        from ayon_server.entities import FolderEntity
 
-    def test_invalid_inherited_value_falls_back_to_project(self):
-        result = process_attrib_data(
+        own = {"fps": 24.0, "resolutionWidth": 0, "removedAttribute": 1}
+        inherited = {"fps": 25.0, "resolutionHeight": 858}
+        project = {"pixelAspect": 2.0, "frameStart": None}
+        graphql = process_attrib_data(
             "folder",
-            {},
+            own,
             user=MANAGER,
-            inherited_attrib={"fps": "abc"},
-            project_attrib={"fps": 25.0},
+            inherited_attrib=inherited,
+            project_attrib=project,
         )
-        assert result["fps"] == 25.0
+        rest = FolderEntity(
+            "project",
+            {"name": "shot010", "folder_type": "Shot", "attrib": own},
+            exists=True,
+            inherited_attrib=inherited,
+            project_attrib=project,
+        )
+        assert graphql == rest.dict(exclude_none=True)["attrib"]
+        assert graphql["resolutionWidth"] == 0  # stored values are not validated
 
     def test_undefined_attributes_are_dropped(self):
         result = process_attrib_data("version", {"removedAttribute": 1}, user=MANAGER)

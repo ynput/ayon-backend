@@ -24,11 +24,11 @@ AttribNamesArgument = Annotated[
 ]
 
 LegacyAttribSelectionArgument = Annotated[
-    list[str] | None,
+    str | None,
     strawberry.argument(
         description=(
             "Used internally for backwards compatibility: `attrib { a b: c }` "
-            'queries are rewritten to `attrib(legacySelection: ["a", "b:c"])`'
+            'queries are rewritten to `attrib(legacySelection: "a b:c")`'
         ),
         deprecation_reason="Use `names` or select all attributes",
     ),
@@ -192,9 +192,6 @@ class AttribFields:
     def attrib_project_name(self) -> str | None:
         return None
 
-    def attrib_label(self) -> str:
-        return self.attrib_entity_type()
-
     def resolved_attrib(self) -> ResolvedAttrib:
         """Attribute values resolved the same way as in REST (resolve_attrib)"""
         if self._resolved_attrib is None:
@@ -203,7 +200,6 @@ class AttribFields:
                 self._attrib,
                 inherited=getattr(self, "_inherited_attrib", None),
                 project=getattr(self, "_project_attrib", None),
-                label=self.attrib_label(),
             )
         return self._resolved_attrib
 
@@ -259,9 +255,6 @@ class BaseNode(AttribFields):
 
     def attrib_project_name(self) -> str | None:
         return self.project_name
-
-    def attrib_label(self) -> str:
-        return f"{self.entity_type} {self.id} in {self.project_name}"
 
     @strawberry.field
     async def links(

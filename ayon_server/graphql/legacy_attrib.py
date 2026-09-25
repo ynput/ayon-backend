@@ -9,7 +9,7 @@ select attributes explicitly:
 `attrib` is now a JSON field, so such a query would not be valid.
 Before the query is parsed, the selections are rewritten to
 
-    attrib(legacySelection: ["fps", "resolutionWidth"])
+    attrib(legacySelection: "fps resolutionWidth")
 
 which returns an object with the same shape as the typed field did
 (aliases and `__typename` included).
@@ -54,7 +54,7 @@ def _parse_selection(selection: str) -> list[str] | None:
 
 
 def rewrite_legacy_attrib_selections(query: str) -> tuple[str, int]:
-    """Rewrite `attrib { a b: c }` to `attrib(legacySelection: ["a", "b:c"])`
+    """Rewrite `attrib { a b: c }` to `attrib(legacySelection: "a b:c")`
 
     Returns the new query and the number of rewritten selections.
     """
@@ -69,8 +69,8 @@ def rewrite_legacy_attrib_selections(query: str) -> tuple[str, int]:
         if items is None:
             return match.group(0)
         count += 1
-        values = ", ".join(f'"{item}"' for item in items)
-        return f"attrib(legacySelection: [{values}])"
+        # A single string: arguments are parsed for every node, lists are slower
+        return f'attrib(legacySelection: "{" ".join(items)}")'
 
     return LEGACY_ATTRIB_SELECTION.sub(replace, query), count
 

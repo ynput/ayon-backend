@@ -152,9 +152,6 @@ class ProjectNode(AttribFields):
     def attrib_project_name(self) -> str | None:
         return self.project_name
 
-    def attrib_label(self) -> str:
-        return f"project {self.project_name}"
-
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,
         description=get_entity_list.__doc__,

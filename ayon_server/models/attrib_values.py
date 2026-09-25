@@ -19,6 +19,12 @@ from pydantic.fields import FieldInfo
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 
+# Validation context of entities loaded from the database. Their attribute
+# values were validated when they were written, so they are trusted
+# (invalid values after attribute changes are fixed by fix_attribute_values).
+STORED_VALUES = "stored_attrib_values"
+STORED_VALUES_CONTEXT = {STORED_VALUES: True}
+
 
 class AttribDict(dict[str, Any]):
     """Attribute values of an entity.
@@ -165,6 +171,8 @@ class AttribValues:
 
     def validate(self, value: Any, context: Any = None) -> AttribDict:
         model = self.resolve()
+        if isinstance(context, dict) and context.get(STORED_VALUES):
+            return self._from_storage(model, value)
         fields_set: set[str] | None = None
         if isinstance(value, AttribDict):
             fields_set = value.model_fields_set
@@ -188,6 +196,16 @@ class AttribValues:
             partial = {k: v for k, v in values.items() if k in fields_set}
             return AttribDict(partial, fields_set)
         return AttribDict(values, fields_set)
+
+    def _from_storage(self, model: type[BaseModel], value: Any) -> AttribDict:
+        """Stored values are not validated again (they were, when written)."""
+        values = dict(value) if isinstance(value, dict) else {}
+        if self.partial:
+            return AttribDict(values)
+        return AttribDict(
+            {**dict.fromkeys(model.__pydantic_fields__), **values},
+            fields_set=values.keys(),
+        )
 
     #
     # Pydantic hooks

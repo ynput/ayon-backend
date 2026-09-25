@@ -48,9 +48,6 @@ class UserNode(AttribFields):
     def attrib_entity_type(self) -> str:
         return "user"
 
-    def attrib_label(self) -> str:
-        return f"user {self.name}"
-
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> TasksConnection:
         root = FakeRoot(project_name)

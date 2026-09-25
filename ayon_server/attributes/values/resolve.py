@@ -2,14 +2,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from .common import INHERITING_ENTITY_TYPES, get_attribute_library, get_model_set
-from .valid import valid_attrib
 
 
 @dataclass
 class ResolvedAttrib:
     #: Attribute values of the entity (own values over the inherited ones)
     values: dict[str, Any]
-    #: Names of the attributes set on the entity itself (with a valid value)
+    #: Names of the attributes set on the entity itself
     own: list[str]
     #: Values inherited from the parents, the project and the defaults
     #: (also for the attributes set on the entity itself)
@@ -20,7 +19,6 @@ def resolve_attrib(
     entity_type: str,
     own: dict[str, Any] | None,
     *,
-    label: str,
     inherited: dict[str, Any] | None = None,
     project: dict[str, Any] | None = None,
 ) -> ResolvedAttrib:
@@ -28,8 +26,8 @@ def resolve_attrib(
 
     Used by both REST (entities) and GraphQL, so they return the same values.
 
-    Folders and tasks inherit attributes. The first valid value of each
-    inheritable attribute is used, in the following order:
+    Folders and tasks inherit attributes. Each inheritable attribute
+    has the first value set in the following order:
 
     1. own value of the entity
     2. value inherited from the parent folders (`inherited`,
@@ -39,23 +37,23 @@ def resolve_attrib(
 
     Other entity types have their own values and the defaults of the
     attribute definitions (only project attributes have defaults).
-    Invalid values, None
-    values and attributes without a definition are ignored
-    (see `valid_attrib`).
-    """
-    # None means "not set" (the inherited value is used)
-    own_values = {
-        name: value
-        for name, value in valid_attrib(entity_type, own, label).items()
-        if value is not None
-    }
 
+    Stored values are not validated (they were, when they were written).
+    None values and attributes without a definition are ignored.
+    """
     model_set = get_model_set(entity_type)
     if model_set is None:
+        own_values = {k: v for k, v in (own or {}).items() if v is not None}
         return ResolvedAttrib(values=own_values, own=list(own_values), inherited={})
 
+    defined = model_set.attrib_model.__pydantic_fields__
+    own_values = {
+        name: value
+        for name, value in (own or {}).items()
+        if value is not None and name in defined
+    }
+
     if entity_type not in INHERITING_ENTITY_TYPES:
-        # Missing values are the defaults (only projects have defaults)
         return ResolvedAttrib(
             values={**model_set.defaults, **own_values},
             own=list(own_values),
@@ -64,14 +62,15 @@ def resolve_attrib(
 
     inheritable = get_attribute_library().inheritable
     inherited_values = dict(model_set.inherited_defaults)
-    for layer_label, layer_values in (
-        ("project attributes", project),
-        ("inherited attributes", inherited),
-    ):
-        layer = valid_attrib(entity_type, layer_values, f"{layer_label} of {label}")
-        inherited_values.update(
-            {name: value for name, value in layer.items() if name in inheritable}
-        )
+    for layer in (project, inherited):
+        if layer:
+            inherited_values.update(
+                {
+                    name: value
+                    for name, value in layer.items()
+                    if value is not None and name in inheritable and name in defined
+                }
+            )
 
     return ResolvedAttrib(
         values={**inherited_values, **own_values},

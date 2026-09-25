@@ -6,7 +6,6 @@ from pydantic import ValidationError
 from ayon_server.attributes.values import (
     invalid_attrib,
     resolve_attrib,
-    valid_attrib,
     validate_attrib,
 )
 
@@ -15,20 +14,6 @@ def test_invalid_attrib():
     values = {"fps": "abc", "resolutionWidth": 0, "frameStart": 1001, "gone": 1}
     invalid = invalid_attrib("folder", values)
     assert set(invalid) == {"fps", "resolutionWidth"}
-
-
-def test_valid_attrib():
-    values = {"fps": "25", "frameStart": 1001, "resolutionWidth": 0, "gone": 1}
-    # converted to the attribute types
-    assert valid_attrib("folder", values, label="test") == {
-        "fps": 25.0,
-        "frameStart": 1001,
-    }
-    # as they are stored
-    assert valid_attrib("folder", values, label="test", raw=True) == {
-        "fps": "25",
-        "frameStart": 1001,
-    }
 
 
 def test_validate_attrib():
@@ -44,7 +29,6 @@ class TestResolveAttrib:
             {"fps": 24.0, "frameStart": None},
             inherited={"resolutionWidth": 2048, "frameStart": 1},
             project={"resolutionWidth": 1024, "resolutionHeight": 858},
-            label="test",
         )
         assert resolved.values["fps"] == 24.0  # own
         assert resolved.values["frameStart"] == 1  # None is not set
@@ -55,23 +39,26 @@ class TestResolveAttrib:
         # what the entity inherits (also for the attributes set on it)
         assert resolved.inherited["fps"] == 25
 
-    def test_invalid_values_fall_back(self):
+    def test_stored_values_are_not_validated(self):
         resolved = resolve_attrib(
             "task",
-            {"fps": "abc"},
-            inherited={"fps": "xyz"},
-            project={"fps": 30.0},
-            label="test",
+            {"resolutionWidth": 0, "removedAttribute": 1},
+            inherited={"fps": "xyz", "resolutionWidth": 1920},
         )
-        assert resolved.values["fps"] == 30.0
-        assert resolved.own == []
+        assert resolved.values["fps"] == "xyz"
+        assert resolved.values["resolutionWidth"] == 0
+        assert "removedAttribute" not in resolved.values
+        assert resolved.own == ["resolutionWidth"]
+
+    def test_only_inheritable_values_are_inherited(self):
+        resolved = resolve_attrib("folder", {}, project={"description": "project"})
+        assert "description" not in resolved.values
 
     def test_no_inheritance(self):
         resolved = resolve_attrib(
             "version",
             {"fps": 24.0},
             inherited={"resolutionWidth": 2048},
-            label="test",
         )
         assert resolved.values == {"fps": 24.0}
         assert resolved.inherited == {}
@@ -81,14 +68,14 @@ class TestDefaults:
     """Defaults are applied once (resolve_attrib), for REST and GraphQL"""
 
     def test_project_defaults(self):
-        resolved = resolve_attrib("project", {"fps": 30.0}, label="test")
+        resolved = resolve_attrib("project", {"fps": 30.0})
         assert resolved.values["fps"] == 30.0
         assert resolved.values["priority"] == "normal"  # default
         assert resolved.own == ["fps"]
 
     def test_no_defaults_for_other_entity_types(self):
         # Only project attributes have defaults, folders and tasks inherit them
-        assert resolve_attrib("version", {}, label="test").values == {}
+        assert resolve_attrib("version", {}).values == {}
 
     def test_graphql_matches_rest(self):
         from types import SimpleNamespace
@@ -118,7 +105,7 @@ class TestEntityTypes:
     def test_unknown_entity_types(self):
         values = {"fps": "abc"}
         assert invalid_attrib("unknown", values) == {}
-        assert valid_attrib("unknown", values, label="test") == values
+        assert resolve_attrib("unknown", values).values == values
 
 
 def test_project_actions_have_no_entities():

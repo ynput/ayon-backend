@@ -10,7 +10,7 @@ import dataclasses
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
-from ayon_server.attributes.values import resolve_attrib, valid_attrib
+from ayon_server.attributes.values import resolve_attrib
 from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.core.patch import apply_patch
@@ -302,12 +302,10 @@ def test_graphql_schema_does_not_depend_on_attributes():
 
 
 def test_attrib_to_json():
-    stored = {"fps": 24, "resolutionWidth": 1920.0, "startDate": "2024-01-01T00:00:00Z"}
-    # The server passes resolved values (converted to the attribute types)
-    data = valid_attrib("folder", stored, label="test")
+    data = {"fps": 24.0, "startDate": datetime(2024, 1, 1, tzinfo=UTC)}
+    # Values are returned as they are stored, datetimes (list items) as ISO strings
     assert attrib_to_json("folder", data) == {
         "fps": 24.0,
-        "resolutionWidth": 1920,
         "startDate": "2024-01-01T00:00:00+00:00",
     }
     assert attrib_to_json("folder", data, names=["fps", "description"]) == {
@@ -315,11 +313,11 @@ def test_attrib_to_json():
         "description": None,
     }
     # Default values are part of the resolved values (see resolve_attrib)
-    project_values = resolve_attrib("project", {}, label="test").values
+    project_values = resolve_attrib("project", {}).values
     assert attrib_to_json(
         "project",
         project_values,
-        legacy_selection=["__typename", "rate:fps", "unknown"],
+        legacy_selection="__typename rate:fps unknown",
     ) == {"__typename": "ProjectAttribType", "rate": 25.0, "unknown": None}
 
 
@@ -328,11 +326,11 @@ def test_attrib_to_json():
     [
         (
             "{ a { attrib { fps\n resolutionWidth } } }",
-            '{ a { attrib(legacySelection: ["fps", "resolutionWidth"]) } }',
+            '{ a { attrib(legacySelection: "fps resolutionWidth") } }',
         ),
         (
             "{ a { attrib{__typename, rate : fps} allAttrib ownAttrib } }",
-            '{ a { attrib(legacySelection: ["__typename", "rate:fps"]) '
+            '{ a { attrib(legacySelection: "__typename rate:fps") '
             "allAttrib ownAttrib } }",
         ),
         ("{ a { attrib allAttrib } }", "{ a { attrib allAttrib } }"),
@@ -352,7 +350,8 @@ def test_rewrite_legacy_attrib_selections(query, expected):
 # and the new JSON field with the compatibility layer
 
 DATA = [
-    {"fps": 25, "resolutionWidth": 1920.0, "startDate": "2024-01-01T10:00:00+00:00"},
+    # as stored (validated when written)
+    {"fps": 25.0, "resolutionWidth": 1920, "startDate": "2024-01-01T10:00:00+00:00"},
     {"fps": 24.0, "description": "hello"},
 ]
 
@@ -400,8 +399,7 @@ class JsonFolder:
         names: AttribNamesArgument = None,
         legacy_selection: LegacyAttribSelectionArgument = None,
     ) -> JSON:
-        # The server passes resolved values (converted to the attribute types)
-        values = valid_attrib("folder", self._attrib, label="test")
+        values = resolve_attrib("folder", self._attrib).values
         return JSON(attrib_to_json("folder", values, names, legacy_selection))
 
 

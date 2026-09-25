@@ -1,10 +1,13 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.attributes.fix_attribute_values import (
+    fix_changed_attribute_values,
+)
 from ayon_server.attributes.models import (
     AttributeModel,
     AttributePatchModel,
@@ -61,15 +64,36 @@ async def save_attribute(attribute: AttributeModel) -> None:
     )
 
 
-async def apply_attribute_changes(user_name: str) -> None:
+def _attribute_definitions() -> dict[tuple[str, str], dict[str, Any]]:
+    return {
+        (entity_type, attr["name"]): attr
+        for entity_type, attributes in attribute_library.data.items()
+        for attr in attributes
+    }
+
+
+async def apply_attribute_changes(
+    user_name: str,
+    background_tasks: BackgroundTasks | None = None,
+) -> None:
     """Apply the changed attribute configuration.
 
     The attribute library is reloaded on this instance immediately,
     so the changes are available when the request is finished.
     `server.attributes_updated` event then triggers the reload
     on all other instances (the reload is a no-op on this one).
+
+    Stored values of the attributes, whose definitions changed, are fixed
+    in the background (see `fix_changed_attribute_values`).
     """
+    before = _attribute_definitions()
     await attribute_library.reload()
+    if background_tasks is not None:
+        after = _attribute_definitions()
+        # {(entity type, name): definition}
+        changed = {key[1] for key, attr in after.items() if before.get(key) != attr}
+        if changed:
+            background_tasks.add_task(fix_changed_attribute_values, sorted(changed))
     await EventStream.dispatch(
         "server.attributes_updated",
         description="Attribute configuration changed",
@@ -125,6 +149,7 @@ async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
 async def set_attribute_list(
     payload: SetAttributeListModel,
     user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """
     Set the attribute configuration for all (or ao of) attributes
@@ -150,7 +175,7 @@ async def set_attribute_list(
     for attr in new_attributes:
         await save_attribute(attr)
 
-    await apply_attribute_changes(user.name)
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 
@@ -171,19 +196,23 @@ async def set_attribute_config(
     payload: AttributePutModel,
     user: CurrentUser,
     attribute_name: AttributeName,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Update attribute configuration"""
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.model_dump())
     await save_attribute(attribute)
-    await apply_attribute_changes(user.name)
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 
 @router.patch("/{attribute_name}", status_code=204)
 async def patch_attribute_config(
-    payload: AttributePatchModel, user: CurrentUser, attribute_name: AttributeName
+    payload: AttributePatchModel,
+    user: CurrentUser,
+    attribute_name: AttributeName,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Partially update attribute configuration"""
 
@@ -228,7 +257,7 @@ async def patch_attribute_config(
         setattr(attribute.data, key, value)
 
     await save_attribute(attribute)
-    await apply_attribute_changes(user.name)
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 

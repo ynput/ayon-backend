@@ -1,6 +1,7 @@
 """Attribute values in REST and GraphQL (untyped attributes)."""
 
 import json
+import time
 import uuid
 from datetime import datetime
 from typing import Any
@@ -178,6 +179,42 @@ def test_attributes_can_change_at_runtime(api, graphql, project_name):
     finally:
         assert api.delete(f"/api/attributes/{name}").status_code == 204
     check(None)
+
+
+def test_stored_values_follow_definition_changes(api, graphql, project_name):
+    """Stored values are fixed in the background when a definition changes"""
+    name = f"apiTest{uuid.uuid4().hex[:8]}"
+    data: dict[str, Any] = {"type": "float", "title": "API test"}
+    folder_id = sample_nodes(graphql, project_name, "folders", "")[0]["id"]
+    url = f"/api/projects/{project_name}/folders/{folder_id}"
+
+    def save_definition() -> None:
+        payload = {"position": 999, "scope": ["folder"], "data": data}
+        assert api.put(f"/api/attributes/{name}", json=payload).status_code == 204
+
+    def wait_for_value(expected: Any) -> None:
+        for _ in range(50):
+            if api.get(url).json()["attrib"].get(name) == expected:
+                return
+            time.sleep(0.1)
+        assert api.get(url).json()["attrib"].get(name) == expected
+
+    save_definition()
+    try:
+        assert api.patch(url, json={"attrib": {name: 2.5}}).status_code == 204
+        wait_for_value(2.5)
+
+        data["type"] = "integer"  # converted
+        save_definition()
+        wait_for_value(2)
+
+        data["gt"] = 5  # removed (it cannot be converted)
+        save_definition()
+        wait_for_value(None)
+        assert name not in api.get(url).json()["ownAttrib"]
+    finally:
+        api.patch(url, json={"attrib": {name: None}})
+        assert api.delete(f"/api/attributes/{name}").status_code == 204
 
 
 #

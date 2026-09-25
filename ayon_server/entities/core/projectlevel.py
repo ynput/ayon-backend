@@ -51,7 +51,7 @@ class ProjectLevelEntity(BaseEntity):
         Entities loaded from the database (`exists`) resolve their attribute
         values from the stored own values and the `inherited_attrib`
         (exported attributes of the parent) and `project_attrib` values.
-        Invalid stored values are ignored (see `resolve_attrib`).
+        See `resolve_attrib`.
         """
 
         self._init_payload(
@@ -60,7 +60,6 @@ class ProjectLevelEntity(BaseEntity):
             own_attrib=own_attrib,
             inherited_attrib=inherited_attrib,
             project_attrib=project_attrib,
-            label=f"{self.entity_type} {payload.get('id')} in {project_name}",
         )
         self.project_name = project_name
 

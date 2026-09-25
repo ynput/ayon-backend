@@ -1,7 +1,6 @@
 import time
 from typing import Any
 
-from ayon_server.attributes.values import valid_attrib
 from ayon_server.entities.core import attribute_library
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -59,17 +58,8 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
             current_attrib_set = caching[path_elements[:-1]]
             current_active = active_caching[path_elements[:-1]]
 
-        # Invalid own values are not inherited
-        # (the same rules as when the folder is loaded)
         new_attrib_set = current_attrib_set.copy()
-        new_attrib_set.update(
-            valid_attrib(
-                "folder",
-                record["own"],
-                label=f"folder {record['path']} in {project_name}",
-                raw=True,
-            )
-        )
+        new_attrib_set.update(record["own"])
 
         new_active = current_active and record["own_active"]
 
@@ -126,10 +116,6 @@ async def rebuild_inherited_attributes(
             project_attrib.update(res[0]["attrib"])
         else:
             project_attrib = pattr.copy()
-
-        project_attrib = valid_attrib(
-            "project", project_attrib, label=f"project {project_name}", raw=True
-        )
 
         # Only inheritable attributes are inherited
         project_attrib = {

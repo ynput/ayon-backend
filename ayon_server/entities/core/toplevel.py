@@ -14,11 +14,7 @@ class TopLevelEntity(BaseEntity):
     ) -> None:
         """Return a new entity instance from given data."""
 
-        self._init_payload(
-            payload,
-            exists=exists,
-            label=f"{self.entity_type} {payload.get('name')}",
-        )
+        self._init_payload(payload, exists=exists)
 
     @classmethod
     def from_record(

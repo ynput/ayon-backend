@@ -8,7 +8,6 @@ from pydantic_core import PydanticUndefined
 
 from ayon_server.attributes.values.common import (
     get_attribute_library,
-    validate_values,
 )
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
@@ -22,7 +21,6 @@ from ayon_server.entities.models.fields import (
     workfile_fields,
 )
 from ayon_server.entities.models.generator import generate_model
-from ayon_server.logging import logger
 from ayon_server.models.attrib_values import AttribValues
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
@@ -145,8 +143,7 @@ class ModelSet:
         """Default values of the attributes of the entity type (do not modify).
 
         Only project attributes have defaults. Other entity types inherit
-        them (see `inherited_defaults`). Only valid defaults are included.
-        They change together with the attribute model.
+        them (see `inherited_defaults`). They change together with the attribute model.
         """
         _ = self.attrib_model  # regenerated when the attributes change
         return self._defaults
@@ -155,36 +152,28 @@ class ModelSet:
     def inherited_defaults(self) -> dict[str, Any]:
         """Default values of the inheritable attributes (do not modify).
 
-        Only the defaults valid for the attribute model are included.
         They change together with the attribute model.
         """
         _ = self.attrib_model  # regenerated when the attributes change
         return self._inherited_defaults
 
     def _get_defaults(self) -> dict[str, Any]:
+        # Defaults are validated when the attributes are saved
         assert self._attrib_model is not None
-        defaults = {
+        return {
             name: field.default
             for name, field in self._attrib_model.model_fields.items()
             if field.default is not None and field.default is not PydanticUndefined
         }
-        for name in validate_values(self._attrib_model, defaults)[1]:
-            logger.warning(f"Invalid default value of attribute {name}")
-            del defaults[name]
-        return defaults
 
     def _get_inherited_defaults(self) -> dict[str, Any]:
         library = self._attribute_library
-        defaults = {
+        assert self._attrib_model is not None
+        return {
             name: value
             for name, value in library.project_defaults.items()
-            if name in library.inheritable
+            if name in library.inheritable and name in self._attrib_model.model_fields
         }
-        assert self._attrib_model is not None
-        for name in validate_values(self._attrib_model, defaults)[1]:
-            logger.warning(f"Invalid default value of attribute {name}")
-            del defaults[name]
-        return defaults
 
     def validate_attrib(self, data: Any, partial: bool = False) -> Any:
         """Validate attribute values. Return AttribDict.
