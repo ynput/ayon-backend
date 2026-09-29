@@ -133,6 +133,7 @@ async def upload_file(
         raise BadRequestException("Invalid content type")
     file_id = create_uuid()
     ttl_seconds = ttl if ttl is not None else 30 * 60  # 30 minutes default
+    ttl_seconds = min(ttl_seconds, 86400)  # Cap at 24 hours
     await Redis.set(REDIS_NS, file_id, csv, ttl=ttl_seconds)
 
     return ImportUpload(id=file_id)

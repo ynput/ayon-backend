@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Any
 
-from ayon_server.access.utils import ensure_entity_access
+from ayon_server.access.utils import ensure_entity_access, folder_access_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
+    NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
@@ -212,9 +213,16 @@ class FolderEntity(ProjectLevelEntity):
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
-        Reimplements the method from the parent class, because in
-        case of folders we need to check the parent folder.
+        Managers and users without restricted folder creation can create
+        folders anywhere. Otherwise, the path of the new folder
+        (parent path + name) must be whitelisted in the create access list.
         """
+
+        if user.is_manager:
+            return
+
+        if not user.permissions(self.project_name).create.enabled:
+            return
 
         if self.parent_id is None:
             try:
@@ -224,14 +232,33 @@ class FolderEntity(ProjectLevelEntity):
                 pass
             else:
                 return
+            target_path = self.name
 
-        await ensure_entity_access(
-            user,
-            self.project_name,
-            self.entity_type,
-            self.parent_id,
-            "create",
-        )
+        else:
+            res = await Postgres.fetchrow(
+                f"""
+                SELECT path FROM project_{self.project_name}.hierarchy
+                WHERE id = $1
+                """,
+                self.parent_id,
+            )
+            if res is None:
+                raise NotFoundException(f"Parent folder {self.parent_id} not found")
+            target_path = f"{res['path'].strip('/')}/{self.name}"
+
+        access_list = await folder_access_list(user, self.project_name, "create")
+        if access_list is None:
+            return
+
+        for path in access_list:
+            path = path.strip('"')
+            if path.endswith("/%"):
+                if target_path.startswith(path[:-1]):
+                    return
+            elif target_path == path:
+                return
+
+        raise ForbiddenException(f"You are not allowed to create folder {target_path}")
 
     async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the folder.
