@@ -225,7 +225,6 @@ async def check_bundle(
             if not filename:
                 continue
 
-            # The complex inner logic is neatly tucked into this helper
             package_issue = await _validate_python_package_compatibility(
                 bundle, platform, filename
             )
@@ -255,9 +254,6 @@ async def _validate_python_package_compatibility(
         )
 
     package_python_version = manifest.python_version
-    import pprint
-
-    print(f"package_manifest::{pprint.pformat(manifest, indent=4)}")
     if not package_python_version:
         return None
 
@@ -269,10 +265,8 @@ async def _validate_python_package_compatibility(
             f"Found {num_found} installers for {bundle.name} "
             f"on platform {platform_name}"
         )
-
     installer = installer_list.installers[0]
     installer_manifest = get_installer_manifest(installer.filename)
-    print(f"installer_manifest::{pprint.pformat(installer_manifest, indent=4)}")
     installer_python_version = installer_manifest.python_version
     if not installer_python_version:
         return None
