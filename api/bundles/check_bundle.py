@@ -244,7 +244,7 @@ async def _validate_python_package_compatibility(
     Returns a BundleIssueModel if an issue is found, otherwise None.
     """
     try:
-        manifest = get_manifest(package_filename)
+        manifest = await get_manifest(package_filename)
     except Exception:
         return BundleIssueModel(
             severity="error",
