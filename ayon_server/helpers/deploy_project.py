@@ -83,8 +83,9 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             )
         )
 
+    existing_link_types = {lt.name for lt in anatomy.link_types}
     for default_link_type in default_link_types:
-        if default_link_type in anatomy.link_types:
+        if default_link_type.name in existing_link_types:
             continue
 
         logger.debug(

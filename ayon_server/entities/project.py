@@ -50,9 +50,11 @@ async def ensure_required_project_link_types(
 
     from ayon_server.settings.anatomy.link_types import default_link_types
 
-    # LinkTypeModel equality/hash only consider (link_type, input_type,
-    # output_type) - color/style ("data") is cosmetic and irrelevant here.
-    existing = {LinkTypeModel(**lt) for lt in link_types}
+    # identity is the (link_type, input_type, output_type) triple -
+    # `name` may differ and color/style ("data") is cosmetic
+    existing = {
+        (lt["link_type"], lt["input_type"], lt["output_type"]) for lt in link_types
+    }
     added = False
 
     for default_link_type in default_link_types:
@@ -63,7 +65,8 @@ async def ensure_required_project_link_types(
             output_type=default_link_type.output_type,
             data={"color": default_link_type.color, "style": default_link_type.style},
         )
-        if candidate in existing:
+        identity = (candidate.link_type, candidate.input_type, candidate.output_type)
+        if identity in existing:
             continue
 
         logger.debug(
@@ -94,35 +97,29 @@ async def ensure_required_project_link_types(
         )
 
         if inserted is None:
-            conflicting = await Postgres.fetchrow(
+            # look up by identity only: if the triple exists (under any name),
+            # use it. Otherwise the conflict was on `name` alone.
+            existing_row = await Postgres.fetchrow(
                 f"""
                 SELECT name, link_type, input_type, output_type, data
                 FROM project_{project_name}.link_types
-                WHERE name = $1
-                   OR (link_type, input_type, output_type) = ($2, $3, $4)
+                WHERE (link_type, input_type, output_type) = ($1, $2, $3)
                 """,
-                candidate.name,
                 candidate.link_type,
                 candidate.input_type,
                 candidate.output_type,
             )
-            existing_row = (
-                LinkTypeModel(**dict(conflicting)) if conflicting is not None else None
-            )
-            if existing_row is None or existing_row != candidate:
-                # either the row vanished (raced with a delete) or it's a
-                # genuine conflict (same name, different identity) - can't
-                # safely create or assume the required link type
+            if existing_row is None:
                 logger.warning(
                     f"Cannot create required link type {candidate.name} in "
-                    f"project {project_name}: conflicts with an existing "
+                    f"project {project_name}: the name is used by a different "
                     "link type"
                 )
                 continue
 
             # the required triple already exists, just under a different
             # name - reflect the row that's actually in the database
-            link_types.append(existing_row.dict())
+            link_types.append(dict(existing_row))
             added = True
             continue
 
@@ -313,7 +310,13 @@ class ProjectEntity(TopLevelEntity):
 
         await ensure_required_project_link_types(project_name, link_types)
 
-        await Redis.set_json("project-data", project_name, payload, ttl=3600)
+        if for_update:
+            # we're inside the caller's transaction, which may still roll back
+            # (including the backfill above) - don't publish uncommitted data,
+            # just drop the cache and let the next regular load repopulate it
+            await Redis.delete("project-data", project_name)
+        else:
+            await Redis.set_json("project-data", project_name, payload, ttl=3600)
         project = cls.from_record(payload=payload)
         project.original_attributes = project_data["attrib"]
         return project

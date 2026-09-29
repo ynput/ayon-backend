@@ -16,15 +16,6 @@ class LinkType(BaseSettingsModel):
     def __hash__(self):
         return hash((self.link_type, self.input_type, self.output_type))
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, LinkType):
-            return NotImplemented
-        return (self.link_type, self.input_type, self.output_type) == (
-            other.link_type,
-            other.input_type,
-            other.output_type,
-        )
-
     @property
     def name(self) -> str:
         return f"{self.link_type}|{self.input_type}|{self.output_type}"
@@ -60,3 +51,7 @@ default_link_types = [
         style="solid",
     ),
 ]
+
+# Default link types are required - they're backfilled on project load
+# and can't be deleted. Keyed by the canonical `link_type|input|output` name.
+default_link_type_names = frozenset(lt.name for lt in default_link_types)
