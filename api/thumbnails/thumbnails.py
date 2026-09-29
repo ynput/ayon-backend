@@ -17,6 +17,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.entities.folder import FolderEntity
 from ayon_server.entities.task import TaskEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.exceptions import (
@@ -24,6 +25,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
+from ayon_server.helpers.filmstrip import get_entity_filmstrip, get_filmstrip_response
 from ayon_server.helpers.project_list import get_project_info
 from ayon_server.helpers.thumbnails import (
     PlaceholderOption,
@@ -64,6 +66,50 @@ def get_fake_thumbnail_response() -> Response:
     response.headers["Content-Type"] = "image/png"
     response.headers["Cache-Control"] = "max-age=3600"
     return response
+
+
+# Entity filmstrips are resolved from the latest reviewable,
+# which may change without changing the entity thumbnail hash
+FILMSTRIP_CACHE_CONTROL = "private, max-age=300"
+
+
+async def _get_entity_filmstrip_response(
+    project_name: str,
+    entity_type: str,
+    entity_id: str,
+    *,
+    user: UserEntity,
+    placeholder: PlaceholderOption,
+) -> Response:
+    try:
+        filmstrip = await get_entity_filmstrip(
+            project_name,
+            entity_type,
+            entity_id,
+            user=user,
+        )
+    except NotFoundException:
+        if placeholder == "empty":
+            return Response(
+                status_code=204,
+                headers={"Cache-Control": FILMSTRIP_CACHE_CONTROL},
+            )
+        raise
+    return get_filmstrip_response(filmstrip, cache_control=FILMSTRIP_CACHE_CONTROL)
+
+
+FILMSTRIP_DESCRIPTION = """
+Returns an AVIF image with frames sampled evenly from the latest video
+reviewable of the entity, placed in a grid (left to right, top to bottom).
+
+Frame `i` is taken from the middle of the i-th of N equally long segments
+of the video. The number of frames and the size of a single frame are
+provided in `X-Filmstrip-Frames`, `X-Filmstrip-Columns`,
+`X-Filmstrip-Frame-Width` and `X-Filmstrip-Frame-Height` headers.
+
+If there is no video reviewable, the endpoint returns 204 No Content
+(or 404 Not Found when `placeholder` is set to `none`).
+"""
 
 
 # TODO: This function is a duplicate of the one in ayon_server/helpers/thumbnails
@@ -267,6 +313,28 @@ async def get_folder_thumbnail(
     )
 
 
+@router.get(
+    "/projects/{project_name}/folders/{folder_id}/filmstrip",
+    dependencies=[NoTraces, AllowGuests],
+    response_class=Response,
+    description=FILMSTRIP_DESCRIPTION,
+)
+async def get_folder_filmstrip(
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
+    placeholder: PlaceholderOption = Query("empty"),
+) -> Response:
+    """Get a hover-scrub filmstrip of the folder"""
+    return await _get_entity_filmstrip_response(
+        project_name,
+        "folder",
+        folder_id,
+        user=user,
+        placeholder=placeholder,
+    )
+
+
 #
 # Versions endpoints
 #
@@ -317,6 +385,28 @@ async def get_version_thumbnail(
         user=user,
         placeholder=placeholder,
         original=original,
+    )
+
+
+@router.get(
+    "/projects/{project_name}/versions/{version_id}/filmstrip",
+    dependencies=[NoTraces, AllowGuests],
+    response_class=Response,
+    description=FILMSTRIP_DESCRIPTION,
+)
+async def get_version_filmstrip(
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_id: VersionID,
+    placeholder: PlaceholderOption = Query("empty"),
+) -> Response:
+    """Get a hover-scrub filmstrip of the version"""
+    return await _get_entity_filmstrip_response(
+        project_name,
+        "version",
+        version_id,
+        user=user,
+        placeholder=placeholder,
     )
 
 
@@ -422,6 +512,28 @@ async def get_task_thumbnail(
         user=user,
         placeholder=placeholder,
         original=original,
+    )
+
+
+@router.get(
+    "/projects/{project_name}/tasks/{task_id}/filmstrip",
+    dependencies=[NoTraces, AllowGuests],
+    response_class=Response,
+    description=FILMSTRIP_DESCRIPTION,
+)
+async def get_task_filmstrip(
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+    placeholder: PlaceholderOption = Query("empty"),
+) -> Response:
+    """Get a hover-scrub filmstrip of the task"""
+    return await _get_entity_filmstrip_response(
+        project_name,
+        "task",
+        task_id,
+        user=user,
+        placeholder=placeholder,
     )
 
 

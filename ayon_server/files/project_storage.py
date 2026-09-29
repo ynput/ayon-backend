@@ -89,7 +89,9 @@ class ProjectStorage:
     # Common file management methods
 
     async def get_filegroup_dir(self, file_group: FileGroup) -> str:
-        assert file_group in ["uploads", "thumbnails"], "Invalid file group"
+        assert file_group in ["uploads", "thumbnails", "filmstrips"], (
+            "Invalid file group"
+        )
         root = await self.get_root()
         project_dirname = self.project_name
         if self.storage_type == "s3":
@@ -328,6 +330,7 @@ class ProjectStorage:
 
         if not await self.unlink(file_id):
             raise Exception("Failed to delete file")
+        await self.delete_filmstrip(file_id)
 
         query = f"""
             DELETE FROM project_{self.project_name}.files
@@ -481,6 +484,55 @@ class ProjectStorage:
         """
         logger.debug(f"Deleting thumbnail {thumbnail_id} from {self}")
         await self.unlink(thumbnail_id, file_group="thumbnails")
+
+    # Filmstrip methods
+    # Filmstrips are sprite sheets of evenly sampled frames of a video file,
+    # used for hover-scrub previews. They are stored under the ID of
+    # the source file.
+
+    async def store_filmstrip(self, file_id: str, payload: bytes) -> None:
+        """Store the filmstrip image of a file in the storage."""
+        logger.debug(f"Storing filmstrip of {file_id} to {self}")
+        path = await self.get_path(file_id, file_group="filmstrips")
+        if self.storage_type == "local":
+            directory, _ = os.path.split(path)
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except Exception as e:
+                raise AyonException(f"Failed to create directory: {e}") from e
+
+            try:
+                async with aiofiles.open(path, "wb") as f:
+                    await f.write(payload)
+            except Exception as e:
+                raise AyonException(f"Failed to write file: {e}") from e
+        elif self.storage_type == "s3":
+            return await store_s3_file(self, path, payload)
+
+    async def get_filmstrip(self, file_id: str) -> bytes:
+        """Retrieve the filmstrip image of a file from the storage.
+
+        Raises `FileNotFoundError` if the filmstrip is not found.
+        """
+        path = await self.get_path(file_id, file_group="filmstrips")
+        if self.storage_type == "local":
+            try:
+                async with aiofiles.open(path, "rb") as f:
+                    return await f.read()
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f"Filmstrip of {file_id} not found on {self}"
+                ) from e
+            except Exception as e:
+                raise AyonException(f"Failed to read file: {e}") from e
+        return await retrieve_s3_file(self, path)
+
+    async def delete_filmstrip(self, file_id: str) -> None:
+        """Delete the filmstrip image of a file from the storage.
+
+        Fail silently if the filmstrip is not found.
+        """
+        await self.unlink(file_id, file_group="filmstrips")
 
     # Trash project storage
     # This is called when a project is deleted

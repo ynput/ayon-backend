@@ -22,10 +22,12 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages, create_project_file_record
+from ayon_server.helpers.filmstrip import get_file_filmstrip, get_filmstrip_response
 from ayon_server.helpers.preview import (
     create_video_thumbnail,
     get_file_preview_response,
 )
+from ayon_server.helpers.thumbnails import PlaceholderOption
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
@@ -284,6 +286,42 @@ async def get_project_file_thumbnail(
     await user.ensure_project_access(project_name)
 
     return await get_file_preview_response(project_name, file_id)
+
+
+@router.get(
+    "/{file_id}/filmstrip",
+    response_model=None,
+    dependencies=[AllowGuests, NoTraces],
+)
+async def get_project_file_filmstrip(
+    project_name: ProjectName,
+    file_id: FileID,
+    user: CurrentUser,
+    placeholder: PlaceholderOption = Query("empty"),
+) -> Response:
+    """Get a hover-scrub filmstrip of a video file.
+
+    Returns an AVIF image with frames sampled evenly from the video,
+    placed in a grid (left to right, top to bottom). The number of frames,
+    grid columns and the size of a single frame are provided in
+    `X-Filmstrip-Frames`, `X-Filmstrip-Columns`, `X-Filmstrip-Frame-Width`
+    and `X-Filmstrip-Frame-Height` headers.
+
+    If the file is not a video, the endpoint returns 204 No Content
+    (or 404 Not Found when `placeholder` is set to `none`).
+    """
+
+    await user.ensure_project_access(project_name)
+
+    # File content never changes, so its filmstrip does not either
+    cache_control = "private, max-age=86400"
+    try:
+        filmstrip = await get_file_filmstrip(project_name, file_id)
+    except NotFoundException:
+        if placeholder == "empty":
+            return Response(status_code=204, headers={"Cache-Control": cache_control})
+        raise
+    return get_filmstrip_response(filmstrip, cache_control=cache_control)
 
 
 @router.get(
