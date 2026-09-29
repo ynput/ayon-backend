@@ -18,3 +18,4 @@ cspell*
 mise.toml
 # local scratch scripts in the backend root (tests live in tests/)
 /test_*
+.env

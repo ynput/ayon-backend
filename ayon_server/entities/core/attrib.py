@@ -153,9 +153,9 @@ class AttributeLibrary:
         for row in rows:
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
-                # Only project attributes should have defaults.
-                # All the others are nullable and should inherit from
-                # their parent entities
+                # Only project attributes have defaults (a new project stores
+                # them as its own values). Folders and tasks inherit values
+                # from their parents, other entities have only their own.
                 if (scope != "project") and ("default" in attrd):
                     del attrd["default"]
                 data[scope].append(attrd)
