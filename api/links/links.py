@@ -20,7 +20,9 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.settings.anatomy.link_types import default_link_type_names
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
 
@@ -112,6 +114,9 @@ async def save_link_type(
         request_model.data,
     )
 
+    await Redis.delete("project-data", project_name)
+    await Redis.delete("project-anatomy", project_name)
+
     return EmptyResponse()
 
 
@@ -128,11 +133,20 @@ async def delete_link_type(
 
     user.check_permissions("project.anatomy", project_name, write=True)
 
+    link_type_name = f"{link_type[0]}|{link_type[1]}|{link_type[2]}"
+    if link_type_name in default_link_type_names:
+        raise BadRequestException(
+            f"Link type {link_type_name} is required and cannot be deleted"
+        )
+
     query = f"""
         DELETE FROM project_{project_name}.link_types
         WHERE name = $1
         """
-    await Postgres.execute(query, f"{link_type[0]}|{link_type[1]}|{link_type[2]}")
+    await Postgres.execute(query, link_type_name)
+
+    await Redis.delete("project-data", project_name)
+    await Redis.delete("project-anatomy", project_name)
 
     return EmptyResponse()
 
