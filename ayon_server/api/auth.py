@@ -47,7 +47,7 @@ async def get_logout_reason(token: str) -> str:
             reason = res[0]["description"]
         else:
             reason = "Invalid session"
-        await Redis.set_json("logoutreason", "token", reason, ttl=600)
+        await Redis.set_json("logoutreason", token, reason, ttl=600)
     return reason
 
 
@@ -133,8 +133,16 @@ async def user_from_request(request: Request) -> UserEntity:
     if api_key:
         if (session_data := await Session.check(api_key, request)) is None:
             user = await user_from_api_key(api_key, request)
-            session_data = await Session.create(user, request, token=api_key)
-        session_data.is_api_key = True
+            session_data = await Session.create(
+                user,
+                request,
+                token=api_key,
+                is_api_key=True,
+            )
+        # Sessions stored before is_api_key was persisted lack the flag
+        if not session_data.is_api_key:
+            session_data.is_api_key = True
+            await Redis.set(Session.ns, api_key, session_data.json())
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)

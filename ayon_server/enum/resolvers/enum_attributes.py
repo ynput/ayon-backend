@@ -8,7 +8,10 @@ from ayon_server.types import AttributeType
 
 
 class AttributeEnumResolver(BaseEnumResolver):
+    """Returns the enum values for a given attribute name."""
+
     name = "attrib"
+    label = "Attribute enumerator"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string", "name": "string"}

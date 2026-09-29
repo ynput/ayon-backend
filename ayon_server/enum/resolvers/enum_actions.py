@@ -8,7 +8,10 @@ from ayon_server.types import AttributeType
 
 
 class ActionsEnumResolver(BaseEnumResolver):
+    """List of all actions from all addons."""
+
     name = "actions"
+    label = "Actions"
 
     async def get_accepted_params(self) -> dict[str, AttributeType]:
         return {"project_name": "string"}

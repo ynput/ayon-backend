@@ -66,8 +66,6 @@ def parse_ayon_headers(request: Request) -> dict[str, str]:
         result["client"] = f"Ayon client {headers['x-ayon-version']}"
     if headers.get("x-ayon-hostname"):
         result["device"] = headers["x-ayon-hostname"]
-    if headers.get("x-ayon-site-id"):
-        result["site_id"] = headers["x-ayon-site-id"]
     return result
 
 
@@ -119,4 +117,5 @@ def get_client_info(request: Request) -> ClientInfo:
         agent=get_ua_data(request),
         location=location,
         languages=get_preferred_languages(request),
+        site_id=request.headers.get("x-ayon-site-id") or None,
     )

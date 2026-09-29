@@ -68,7 +68,7 @@ async def ayon_init(
         )
 
     if enum_registry:
-        EnumRegistry.initialize()
+        await EnumRegistry.initialize()
     ActivityFeedEventHook.install(EventStream)
 
     if load_projects:

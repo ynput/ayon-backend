@@ -13,6 +13,10 @@ if TYPE_CHECKING:
     pass
 
 
+# Project bundle placeholders are not real addon versions
+PLACEHOLDER_VERSIONS = ("__inherit__", "__disable__")
+
+
 def is_compatible(version: str, requirements: str) -> bool:
     conditions = requirements.split(",")
     for condition in conditions:
@@ -56,7 +60,7 @@ async def check_bundle(
         return CheckBundleResponseModel(success=True)
 
     for addon_name, addon_version in bundle.addons.items():
-        if addon_version is None:
+        if addon_version is None or addon_version in PLACEHOLDER_VERSIONS:
             continue
         try:
             addon = AddonLibrary.addon(addon_name, addon_version)
@@ -123,6 +127,11 @@ async def check_bundle(
 
         for r_name, r_version in (compat.required_addons or {}).items():
             b_version = bundle.addons.get(r_name)
+            if b_version == "__disable__":
+                b_version = None
+            elif b_version == "__inherit__":
+                # Actual version comes from the base bundle, we cannot check it here
+                continue
 
             if b_version is None:
                 if r_version is not None:
@@ -162,7 +171,7 @@ async def check_bundle(
 
         for r_name, r_version in (compat.soft_required_addons or {}).items():
             b_version = bundle.addons.get(r_name)
-            if b_version is None or r_version is None:
+            if b_version in (None, *PLACEHOLDER_VERSIONS) or r_version is None:
                 # compatible addon is not required
                 continue
             if not is_compatible(b_version, r_version):
@@ -182,7 +191,7 @@ async def check_bundle(
 
         for r_name, r_version in (compat.compatible_addons or {}).items():
             b_version = bundle.addons.get(r_name)
-            if b_version is None or r_version is None:
+            if b_version in (None, *PLACEHOLDER_VERSIONS) or r_version is None:
                 # compatible addon is not required
                 continue
 

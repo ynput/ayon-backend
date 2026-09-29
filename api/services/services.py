@@ -276,12 +276,15 @@ async def patch_service(
     # and this is the new style config that should take precedence
     service_data["data"].update(patch_dict)
 
-    await validate_data(
-        addon_name=service_data["addon_name"],
-        addon_version=service_data["addon_version"],
-        service=service_data["service"],
-        data=service_data["data"],
-    )
+    # Stopping a service must always be possible, even if its addon
+    # is no longer available, so validate only services that should run.
+    if service_data["should_run"]:
+        await validate_data(
+            addon_name=service_data["addon_name"],
+            addon_version=service_data["addon_version"],
+            service=service_data["service"],
+            data=service_data["data"],
+        )
 
     await Postgres.execute(
         *SQLTool.update(
