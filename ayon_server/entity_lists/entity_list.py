@@ -178,7 +178,27 @@ class EntityList:
 
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
-            query = "SELECT * FROM entity_lists WHERE id = $1"
+            query = """
+                SELECT
+                    id,
+                    entity_list_type,
+                    entity_list_folder_id,
+                    entity_type,
+                    label,
+                    owner,
+                    access,
+                    template,
+                    attrib,
+                    data,
+                    tags,
+                    active,
+                    created_at,
+                    updated_at,
+                    created_by,
+                    updated_by
+                FROM entity_lists
+                WHERE id = $1
+            """
             res = await Postgres.fetchrow(query, id)
             if not res:
                 raise NotFoundException(f"Entity list {id} not found")
@@ -200,7 +220,9 @@ class EntityList:
         #
 
         access_level = EntityAccessHelper.MANAGE
-        if user:
+        if user and not user.get_guest_access(
+            type="entityList", project_name=project_name, id=res["id"]
+        ):
             project = await ProjectEntity.load(project_name)
             access_level = EntityAccessHelper.MANAGE
             try:
@@ -329,12 +351,13 @@ class EntityList:
             # Tags are always replaced, not merged
             item.tags = tags
 
-    async def remove(self, item_id: str) -> None:
+    async def remove(self, item_id: str, *, normalize_positions: bool = True) -> None:
         """Remove an item from the list"""
         for i, item in enumerate(self._payload.items):
             if item.id == item_id:
                 del self._payload.items[i]
-                self.normalize_positions()
+                if normalize_positions:
+                    self.normalize_positions()
                 return
         raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
@@ -344,6 +367,7 @@ class EntityList:
         user: UserEntity | None = None,
         sender: str | None = None,
         sender_type: str | None = None,
+        create_events: bool = True,
     ) -> EntityListSummary:
         """Save the entity list to the database"""
         _user = user or self._user
@@ -354,6 +378,7 @@ class EntityList:
                 user=_user,
                 sender=sender,
                 sender_type=sender_type,
+                create_events=create_events,
             )
 
     async def delete(

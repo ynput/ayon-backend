@@ -15,17 +15,21 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     AttributeFilterInput,
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    create_child_folder_ctes,
     create_folder_access_list,
+    get_folder_fields_block,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
@@ -34,8 +38,9 @@ from ayon_server.types import (
     validate_type_name_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -58,6 +63,7 @@ SORT_OPTIONS = {
     "updatedAt": "tasks.updated_at",
     "createdBy": "tasks.created_by",
     "updatedBy": "tasks.updated_by",
+    "folderName": "folders.name",
 }
 
 
@@ -180,6 +186,8 @@ async def get_tasks(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -204,7 +212,7 @@ async def get_tasks(
     sql_columns = [
         "tasks.*",
         "hierarchy.path AS _folder_path",
-        "f_ex.attrib as parent_folder_attrib",
+        "f_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
@@ -236,10 +244,64 @@ async def get_tasks(
             "AS has_reviewables"
         )
 
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = 'task'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_columns.append("c.comments AS latest_comments")
+        sql_joins.append(
+            """
+            LEFT JOIN comments c
+            ON c.entity_id = tasks.id
+            """
+        )
+
     if ids is not None:
         if not ids:
             return TasksConnection()
         sql_conditions.append(f"tasks.id IN {SQLTool.id_array(ids)}")
+    else:
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
+
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("(tasks.active AND f_ex.active)")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append("(NOT tasks.active OR NOT f_ex.active)")
 
     if folder_ids is not None:
         if not folder_ids:
@@ -247,33 +309,12 @@ async def get_tasks(
 
         if include_folder_children:
             use_folder_query = True
-            sql_cte.append(
-                f"""
-                top_folder_paths AS (
-                    SELECT path FROM project_{project_name}.hierarchy
-                    WHERE id IN {SQLTool.id_array(folder_ids)}
-                )
+            sql_cte.extend(create_child_folder_ctes(project_name, folder_ids))
+            sql_joins.append(
                 """
-            )
-
-            sql_cte.append(
-                f"""
-                child_folder_ids AS (
-                    SELECT id FROM project_{project_name}.hierarchy
-                    WHERE EXISTS (
-                        SELECT 1
-                        FROM top_folder_paths
-                        WHERE project_{project_name}.hierarchy.path
-                        LIKE top_folder_paths.path || '/%'
-                    )
-                    OR project_{project_name}.hierarchy.path = ANY (
-                        SELECT path FROM top_folder_paths
-                    )
-                )
+                INNER JOIN child_folder_ids AS cfi
+                ON tasks.folder_id = cfi.id
                 """
-            )
-            sql_conditions.append(
-                "tasks.folder_id IN (SELECT id FROM child_folder_ids)"
             )
 
         else:
@@ -445,21 +486,16 @@ async def get_tasks(
 
     if search:
         use_folder_query = True
-        parts = search.split(",")
-        t1_conds = []
-
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(tasks.name ILIKE '%{term}%'"
-                    f"OR tasks.label ILIKE '%{term}%'"
-                    f"OR tasks.task_type ILIKE '%{term}%'"
-                    f"OR hierarchy.path ILIKE '%{term}%')"
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(
+            search,
+            [
+                "tasks.name",
+                "tasks.label",
+                "tasks.task_type",
+                "hierarchy.path",
+            ],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Additional joins
@@ -467,46 +503,12 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or "folder" in fields:
-        sql_columns.extend(
-            [
-                "folders.id AS _folder_id",
-                "folders.name AS _folder_name",
-                "folders.label AS _folder_label",
-                "folders.folder_type AS _folder_folder_type",
-                "folders.thumbnail_id AS _folder_thumbnail_id",
-                "folders.parent_id AS _folder_parent_id",
-                "folders.attrib AS _folder_attrib",
-                "folders.data AS _folder_data",
-                "folders.active AS _folder_active",
-                "folders.status AS _folder_status",
-                "folders.tags AS _folder_tags",
-                "folders.created_at AS _folder_created_at",
-                "folders.updated_at AS _folder_updated_at",
-                "projects.attrib as _folder_project_attributes",
-                "pf_ex.attrib as _folder_inherited_attributes",
-            ]
+    if use_folder_query or "folder" in fields or sort_by == "folderName":
+        folder_columns, folder_joins = get_folder_fields_block(
+            project_name, "tasks.folder_id", is_inner=False, sql_joins=sql_joins
         )
-
-        # Use inner join, tasks without folder cannot exist
-
-        sql_joins.extend(
-            [
-                f"""
-                INNER JOIN project_{project_name}.folders
-                ON folders.id = tasks.folder_id
-                """,
-                # but not here. parent's parent can be NULL
-                f"""
-                LEFT JOIN project_{project_name}.exported_attributes AS pf_ex
-                ON folders.parent_id = pf_ex.folder_id
-                """,
-                f"""
-                INNER JOIN public.projects AS projects
-                ON projects.name ILIKE '{project_name}'
-                """,
-            ]
-        )
+        sql_columns.extend(folder_columns)
+        sql_joins.extend(folder_joins)
 
     #
     # Pagination
@@ -562,7 +564,10 @@ async def get_tasks(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        # RECURSIVE (harmless for the non-recursive CTEs here) is required
+        # when folder_ids+includeFolderChildren adds create_child_folder_ctes'
+        # self-referencing CTE.
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 

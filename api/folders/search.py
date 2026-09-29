@@ -2,10 +2,11 @@ from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.graphql.resolvers.common import build_search_conditions
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
 
 from .router import router
 
@@ -114,31 +115,16 @@ async def search_folders(
         # we create a CTE returning union of task.folder_id and folder.id
         # matching the search and thenwe join this CTE in the main query
         # to filter folders
-        parts = payload.search.split(",")
 
-        t1_conds = []
-        f1_conds = []
+        task_search_cond = build_search_conditions(
+            payload.search,
+            ["tasks.name", "tasks.label", "tasks.task_type", "e.path"],
+        )
 
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            f2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(tasks.name ILIKE '%{term}%'"
-                    f"OR tasks.label ILIKE '%{term}%'"
-                    f"OR tasks.task_type ILIKE '%{term}%'"
-                    f"OR e.path ILIKE '%{term}%')"
-                )
-                f2_conds.append(
-                    f"(folders.name ILIKE '%{term}%' OR "
-                    f"folders.label ILIKE '%{term}%' OR "
-                    f"e.path ILIKE '%{term}%')"
-                )
-            f1_conds.append(SQLTool.conditions(f2_conds, "AND", add_where=False))
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        task_search_cond = SQLTool.conditions(t1_conds, "OR", add_where=False)
-        folder_search_cond = SQLTool.conditions(f1_conds, "OR", add_where=False)
+        folder_search_cond = build_search_conditions(
+            payload.search,
+            ["folders.name", "folders.label", "e.path"],
+        )
 
         sql_cte.append(
             f"""
@@ -182,21 +168,11 @@ async def search_folders(
                 task_conditions.append(tcond)
 
         if payload.task_search:
-            parts = payload.task_search.split(",")
-            t1_conds = []
-
-            for part in parts:
-                terms = slugify(part, make_set=True, split_chars=" ")
-                t2_conds = []
-                for term in terms:
-                    t2_conds.append(
-                        f"(tasks.name ILIKE '%{term}%'"
-                        f"OR tasks.label ILIKE '%{term}%'"
-                        f"OR tasks.task_type ILIKE '%{term}%'"
-                        f"OR ex.path ILIKE '%{term}%')"
-                    )
-                t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-            task_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+            if cond := build_search_conditions(
+                payload.task_search,
+                ["tasks.name", "tasks.label", "tasks.task_type", "ex.path"],
+            ):
+                task_conditions.append(cond)
 
         sql_cte.append(
             f"""
@@ -234,20 +210,11 @@ async def search_folders(
             sql_conditions.append(fcond)
 
     if payload.folder_search:
-        parts = payload.folder_search.split(",")
-        t1_conds = []
-
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(folders.name ILIKE '%{term}%' OR "
-                    f"folders.label ILIKE '%{term}%' OR "
-                    f"e.path ILIKE '%{term}%')"
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(
+            payload.folder_search,
+            ["folders.name", "folders.label", "e.path"],
+        ):
+            sql_conditions.append(cond)
 
     facl = await folder_access_list(user, project_name, "read")
     if facl is not None:

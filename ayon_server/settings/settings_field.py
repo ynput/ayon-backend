@@ -36,11 +36,13 @@ def SettingsField(
     max_length: int | None = None,
     allow_mutation: bool = True,
     regex: str | None = None,
+    pattern: str | None = None,  # pydantic 2 name for regex
     discriminator: str | None = None,
     repr: bool = True,
     # AYON settings specifics
     example: Any = None,
-    enum_resolver: AnyCallable | None = None,
+    enum_resolver: AnyCallable | str | None = None,
+    enum_resolver_settings: dict[str, Any] | None = None,
     required_items: list[str] | None = None,
     section: str | None = None,
     widget: str | None = None,
@@ -95,6 +97,8 @@ def SettingsField(
         # extra["examples"] = examples
     if enum_resolver is not None:
         extra["enum_resolver"] = enum_resolver
+    if enum_resolver_settings is not None:
+        extra["enum_resolver_settings"] = enum_resolver_settings
     if required_items is not None:
         extra["required_items"] = required_items
     if section is not None:
@@ -141,7 +145,7 @@ def SettingsField(
         min_length=min_length,
         max_length=max_length,
         allow_mutation=allow_mutation,
-        regex=regex,
+        regex=pattern or regex,
         discriminator=discriminator,
         repr=repr,
         **extra,

@@ -8,6 +8,7 @@ from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name,
@@ -15,7 +16,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import EntityID, SQLTool, slugify
+from ayon_server.utils import EntityID, SQLTool
 
 from .common import (
     ARGAfter,
@@ -23,11 +24,16 @@ from .common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
+    ARGVisibility,
     AttributeFilterInput,
     ColumnMetadata,
+    EntityVisibility,
     FieldInfo,
     argdesc,
+    build_search_conditions,
+    create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
     resolve,
@@ -64,6 +70,10 @@ async def get_folders(
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
+    include_folder_children: Annotated[
+        bool,
+        argdesc("Include child folders when ids or parentIds is used"),
+    ] = False,
     parent_id: Annotated[
         str | None,
         argdesc(
@@ -109,7 +119,8 @@ async def get_folders(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
-    task_filter: Annotated[str | None, argdesc("Fitler folders by tasks")] = None,
+    task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
+    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -118,6 +129,8 @@ async def get_folders(
         list[MetricTargetInput] | None,
         argdesc("Map of attribute names to lists of desired statistical aggregations"),
     ] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -159,7 +172,6 @@ async def get_folders(
     sql_having = []
 
     access_list = await create_folder_access_list(root, info)
-
     if access_list is not None:
         sql_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
@@ -234,6 +246,20 @@ async def get_folders(
                 OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count
                 """
             )
+    else:
+        # If no specific ids are requested,
+        # we can filter by visibility and internal folder
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"(hierarchy.path <> '{AYON_INTERNAL_FOLDER_NAME}' AND "
+                f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}/'))"
+            )
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("(COALESCE(ex.active, TRUE) AND folders.active)")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                "(NOT COALESCE(ex.active, TRUE) OR NOT folders.active)"
+            )
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
@@ -298,6 +324,50 @@ async def get_folders(
 
         sql_group_by.append("fwv.ancestor_id")
 
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = 'folder'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_columns.append("MIN(c.comments::text) AS latest_comments")
+        sql_joins.append(
+            """
+            LEFT JOIN comments c
+            ON c.entity_id = folders.id
+            """
+        )
+
     #
     # Conditions
     #
@@ -305,7 +375,13 @@ async def get_folders(
     if ids is not None:
         if not ids:
             return FoldersConnection()
-        sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
+
+        if include_folder_children:
+            sql_cte.extend(create_child_folder_ctes(project_name, ids))
+            sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
+
+        else:
+            sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
 
     if parent_id is not None:
         # Still used. do not remove!
@@ -318,20 +394,26 @@ async def get_folders(
     if parent_ids is not None:
         if not parent_ids:
             return FoldersConnection()
-        pids_set: set[str | None] = set(parent_ids)
-        lconds = []
-        if "root" in pids_set or None in pids_set:
-            lconds.append("folders.parent_id IS NULL")
 
-        pids_set.discard("root")
-        pids_set.discard(None)
+        if include_folder_children:
+            sql_cte.extend(
+                create_child_folder_ctes(project_name, parent_ids, include_self=False)
+            )
+            sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
+        else:
+            pids_set: set[str | None] = set(parent_ids)
+            lconds = []
+            if "root" in pids_set or None in pids_set:
+                lconds.append("folders.parent_id IS NULL")
 
-        if pids_set:
-            pids_list = cast("list[str]", list(pids_set))
-            lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
+            pids_set.discard("root")
+            pids_set.discard(None)
 
-        if lconds:
-            sql_conditions.append(f"({' OR '.join(lconds)})")
+            if pids_set:
+                pids_list = cast("list[str]", list(pids_set))
+                lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
+            if lconds:
+                sql_conditions.append(f"({' OR '.join(lconds)})")
 
     if folder_types is not None:
         if not folder_types:
@@ -401,29 +483,21 @@ async def get_folders(
 
     if assignees is not None:
         validate_name_list(assignees)
-        cond = f"""
+        sql_conditions.append(
+            f"""
             folders.id IN (
                 SELECT folder_id FROM project_{project_name}.tasks
                 WHERE assignees @> {SQLTool.array(assignees, curly=True)}
             )
-        """
-        sql_conditions.append(cond)
+            """
+        )
 
     if search:
-        parts = search.split(",")
-        t1_conds = []
-
-        for part in parts:
-            terms = slugify(part, make_set=True, split_chars=" ")
-            t2_conds = []
-            for term in terms:
-                t2_conds.append(
-                    f"(folders.name ILIKE '%{term}%' OR "
-                    f"folders.label ILIKE '%{term}%' OR "
-                    f"hierarchy.path ILIKE '%{term}%')"
-                )
-            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+        if cond := build_search_conditions(
+            search,
+            ["folders.name", "folders.label", "hierarchy.path"],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter
@@ -453,12 +527,12 @@ async def get_folders(
             column_whitelist=column_whitelist,
             table_prefix="folders",
             column_map={
-                "attrib": "(pr.attrib || coalesce(ex.attrib, '{{}}'::jsonb ) || folders.attrib)",  # noqa: E501
+                "attrib": "(pr.attrib || coalesce(ex.attrib, '{}'::jsonb ) || folders.attrib)",  # noqa: E501
             },
         ):
             sql_conditions.append(fcond)
 
-    if task_filter:
+    if task_filter or task_search:
         column_whitelist = [
             "id",
             "name",
@@ -476,21 +550,39 @@ async def get_folders(
             "updated_by",
         ]
 
-        fdate = json.loads(task_filter)
-        fq = QueryFilter(**fdate)
-        tfilter = build_filter(
-            fq,
-            column_whitelist=column_whitelist,
-            table_prefix="tasks",
-        )
+        task_conditions = []
 
-        if tfilter:
+        if task_filter:
+            fdate = json.loads(task_filter)
+            fq = QueryFilter(**fdate)
+            if tfilter := build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="tasks",
+                column_map={
+                    "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
+                },
+            ):
+                task_conditions.append(tfilter)
+
+        if task_search:
+            if cond := build_search_conditions(
+                task_search,
+                ["tasks.name", "tasks.label", "tasks.task_type", "ex.path"],
+            ):
+                task_conditions.append(cond)
+
+        if task_conditions:
             sql_cte.append(
                 f"""
                 filtered_tasks AS (
-                    SELECT DISTINCT folder_id
-                    FROM project_{project_name}.tasks
-                    WHERE {tfilter}
+                    SELECT DISTINCT tasks.folder_id
+                    FROM project_{project_name}.tasks AS tasks
+                    INNER JOIN public.projects AS pr
+                        ON pr.name ILIKE '{project_name}'
+                    LEFT JOIN project_{project_name}.exported_attributes AS ex
+                        ON tasks.folder_id = ex.folder_id
+                    {SQLTool.conditions(task_conditions)}
                 )
                 """
             )
@@ -598,7 +690,7 @@ async def get_folders(
     stats_select_clause = None
     if calculate_specific_statistics:
         stats_select_clause = generate_specific_stats_columns(
-            calculate_specific_statistics
+            calculate_specific_statistics, True
         )
     elif calculate_statistics:
         stats_select_clause = generate_stats_columns(columns_metadata)
@@ -630,7 +722,8 @@ async def get_folders(
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
     #
-    # logger.debug(f"Folder query\n{query}")
+    # print("Folder query")
+    # print(query)
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)

@@ -14,7 +14,14 @@ async def main():
 
     scheduler = MaintenanceScheduler()
 
-    if "--one-shot" in sys.argv:
+    if "--task" in sys.argv:
+        task_index = sys.argv.index("--task") + 1
+        if task_index < len(sys.argv):
+            task_name = sys.argv[task_index]
+            await scheduler.run_maintenance(task_name=task_name)
+        else:
+            print("Error: --task argument requires a task name.")
+    elif "--one-shot" in sys.argv:
         await scheduler.run_maintenance()
     else:
         await scheduler.run()

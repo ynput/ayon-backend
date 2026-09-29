@@ -13,6 +13,7 @@ __all__ = [
 from pydantic import validator
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.logging import logger
 from ayon_server.settings.anatomy.entity_naming import EntityNaming
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
@@ -109,5 +110,8 @@ class Anatomy(BaseSettingsModel):
 
     @validator("folder_types", "task_types", "statuses")
     def ensure_unique_short_names(cls, value, field):
-        ensure_unique_property(value, "shortName", context=field.name)
+        try:
+            ensure_unique_property(value, "shortName", context=field.name)
+        except Exception:
+            logger.warning(f"Duplicate shortName found in project anatomy {field.name}")
         return value

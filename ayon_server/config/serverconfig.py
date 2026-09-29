@@ -4,6 +4,9 @@ from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
+from ayon_server.settings.overrides import extract_overrides
+
+from .ayonconfig import ayonconfig
 
 
 def get_frontend_flags_enum() -> list[EnumItem]:
@@ -100,6 +103,16 @@ class ChangelogSettingsModel(BaseSettingsModel):
     ] = True
 
 
+class CDNSettingsModel(BaseSettingsModel):
+    default_cdn_resolver_url: Annotated[
+        str,
+        SettingsField(
+            title="Default CDN Resolver URL",
+            placeholder=ayonconfig.default_project_storage_cdn_resolver,
+        ),
+    ] = ""
+
+
 class ServerConfigModel(BaseSettingsModel):
     _layout = "root"
 
@@ -143,6 +156,15 @@ class ServerConfigModel(BaseSettingsModel):
             title="Changelog Settings",
             description="Settings for the changelog feature",
             default_factory=lambda: ChangelogSettingsModel(),
+        ),
+    ]
+
+    cdn: Annotated[
+        CDNSettingsModel,
+        SettingsField(
+            title="CDN Settings",
+            description="Settings for the CDN resolver",
+            default_factory=CDNSettingsModel,
         ),
     ]
 
@@ -190,3 +212,35 @@ async def save_server_config_data(data: dict[str, Any]) -> None:
         data,
     )
     await build_server_config_cache()
+
+
+def _recursive_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge updates into base dictionary."""
+    result = base.copy()
+    for key, value in updates.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _recursive_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+async def update_server_config(
+    updates: dict[str, Any],
+) -> None:
+    """Partially update the server configuration with the given updates.
+
+    Accepts a dictionary of updates in the same structure as the ServerConfigModel.
+    Keys that are not included in the updates will remain unchanged.
+    """
+
+    current_config = await get_server_config()
+    current_dict = current_config.dict()
+    updated_dict = _recursive_merge(current_dict, updates)
+
+    # Validate and normalize; also drops any unknown keys
+    original = ServerConfigModel()  # type: ignore[call-arg]
+    validated = ServerConfigModel(**updated_dict)
+
+    data = extract_overrides(original, validated)
+    await save_server_config_data(data)

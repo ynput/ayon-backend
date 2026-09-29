@@ -1,24 +1,25 @@
 import asyncio
+import contextlib
 import inspect
 import os
 import traceback
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-import semver
-
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
+from ayon_server.api.readiness import set_ready
 from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.helpers.cloud import CloudUtils
+from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logger
+from ayon_server.logging import log_exception, log_traceback, logger
 from ayon_server.utils import slugify
 from maintenance.scheduler import MaintenanceScheduler
 
@@ -109,18 +110,127 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                 )
 
 
+async def maybe_run_async(func, *args, **kwargs) -> None:
+    """Run a function, whether it's async or not."""
+    if inspect.iscoroutinefunction(func):
+        await func(*args, **kwargs)
+    else:
+        func(*args, **kwargs)
+
+
 def init_addon_static(target_app: "FastAPI") -> None:
     """Serve static files for addon frontends."""
 
     target_app.include_router(addon_static_router)
 
 
-@asynccontextmanager
-async def lifespan(app: "FastAPI"):
-    _ = app
-    # Save the process PID
-    with open("/var/run/ayon.pid", "w") as f:
-        f.write(str(os.getpid()))
+async def addon_update(library: AddonLibrary) -> None:
+    if not (required_addons := await CloudUtils.get_required_addons()):
+        return
+
+    async with Postgres.transaction():
+        res = await Postgres.fetchrow(
+            """
+            SELECT data->'addons' AS addons
+            FROM public.bundles WHERE is_production = TRUE
+            """
+        )
+        bundle_update_needed = False
+        if res:
+            production_addons = dict(res["addons"] or {})
+            has_previous_bundle = True
+        else:
+            production_addons = {}
+            has_previous_bundle = False
+
+        for addon_name, addon_version in required_addons:
+            if production_addons.get(addon_name) == addon_version:
+                continue
+
+            from ayon_server.exceptions import NotFoundException
+
+            try:
+                addon = library.addon(addon_name, addon_version)
+            except NotFoundException:
+                logger.debug(
+                    f"Required addon {addon_name} {addon_version} is not installed"
+                )
+                continue
+
+            logger.debug(
+                f"Adding required addon {addon_name} {addon_version} "
+                "to production bundle"
+            )
+
+            if production_addons.get(addon_name):
+                # previous version of the addon is in production, migrate settings
+
+                logger.debug(
+                    f"Migrating {addon_name} settings "
+                    f"from {production_addons[addon_name]} to {addon_version}"
+                )
+
+                try:
+                    production_addon = library.addon(
+                        addon_name, production_addons[addon_name]
+                    )
+                    await migrate_addon_settings(
+                        source_addon=production_addon,
+                        target_addon=addon,
+                        source_variant="production",
+                        target_variant="production",
+                    )
+                except Exception as e:
+                    log_traceback(f"Error migrating {addon_name} settings")
+                    logger.error(f"Unable to migrate {addon_name} settings: {e}")
+                    continue
+
+            # add the required addon to production bundle
+            bundle_update_needed = True
+            production_addons[addon_name] = addon_version
+
+        if bundle_update_needed:
+            if has_previous_bundle:
+                logger.debug("Updating production bundle with required addons")
+                await Postgres.execute(
+                    """
+                    UPDATE public.bundles
+                    SET data = jsonb_set(data, '{addons}', $1::jsonb)
+                    WHERE is_production = TRUE
+                    """,
+                    production_addons,
+                )
+            else:
+                logger.debug("Creating production bundle with required addons")
+                await Postgres.execute(
+                    """
+                    INSERT INTO public.bundles (name, is_production, data)
+                    VALUES (
+                        concat('InitialBundle_', extract(epoch from now())::int),
+                        TRUE,
+                        $1
+                    )
+                    """,
+                    {
+                        "addons": production_addons,
+                        "installer_version": None,
+                        "dependency_packages": {},
+                    },
+                )
+            logger.debug("Production bundle updated with required addons")
+
+
+async def _startup(app: "FastAPI") -> None:
+    """Perform the slow part of server startup in the background.
+
+    This runs as a fire-and-forget task kicked off from `lifespan()`, so
+    the ASGI app can start accepting connections (and /livez, /ws,
+    etc. become reachable) immediately, instead of only after the whole
+    chain below - which, with many addons or a slow database, can take
+    long enough that k8s liveness probes kill the pod before it boots.
+    `app.state.ready` is flipped to True only once everything below,
+    including addon endpoints and the frontend, is actually usable.
+    """
 
     await ayon_init()
     await load_access_groups()
@@ -146,17 +256,15 @@ async def lifespan(app: "FastAPI"):
         )
         return
 
+    await addon_update(library)
+
     restart_requested = False
     bad_addons = {}
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
             try:
-                if inspect.iscoroutinefunction(version.pre_setup):
-                    # Since setup may, but does not have to be async, we need to
-                    # silence mypy here.
-                    await version.pre_setup()
-                else:
-                    version.pre_setup()
+                await maybe_run_async(version.pre_setup)
+
                 if (not restart_requested) and version.restart_requested:
                     logger.warning(
                         f"Restart requested during addon {addon_name} pre-setup."
@@ -178,19 +286,9 @@ async def lifespan(app: "FastAPI"):
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
-            # This is a fix of a bug in the 1.0.4 and earlier versions of the addon
-            # where automatic addon update triggers an error
-            if addon_name == "ynputcloud" and semver.VersionInfo.parse(
-                version.version
-            ) < semver.VersionInfo.parse("1.0.5"):
-                logger.debug(f"Skipping {addon_name} {version.version} setup.")
-                continue
-
             try:
-                if inspect.iscoroutinefunction(version.setup):
-                    await version.setup()
-                else:
-                    version.setup()
+                await maybe_run_async(version.setup)
+
                 if (not restart_requested) and version.restart_requested:
                     logger.warning(
                         f"Restart requested during addon {addon_name} setup."
@@ -233,6 +331,12 @@ async def lifespan(app: "FastAPI"):
         init_frontend(app)
 
         await AddonLibrary.clear_addon_list_cache()
+        await clear_server_restart_required()
+
+        logger.trace(f"{len(app.routes)} routes registered")
+        logger.info("Server is now ready to connect")
+        app.state.ready = True
+        set_ready(True)
 
         if start_event is not None:
             await EventStream.update(
@@ -241,13 +345,38 @@ async def lifespan(app: "FastAPI"):
                 description="Server started",
             )
 
-        asyncio.create_task(clear_server_restart_required())
-        logger.info("Server is now ready to connect")
-        logger.trace(f"{len(app.routes)} routes registered")
+
+def _log_startup_task_exception(app: "FastAPI", task: "asyncio.Task[None]") -> None:
+    if task.cancelled():
+        return
+    if (exc := task.exception()) is not None:
+        log_exception(exc, message="Unhandled error during server startup")
+        app.state.startup_failed = True
+
+
+@asynccontextmanager
+async def lifespan(app: "FastAPI"):
+    # Save the process PID
+    with open("/var/run/ayon.pid", "w") as f:
+        f.write(str(os.getpid()))
+
+    app.state.ready = False
+    app.state.startup_failed = False
+    set_ready(False)
+    startup_task = asyncio.create_task(_startup(app))
+    startup_task.add_done_callback(lambda t: _log_startup_task_exception(app, t))
 
     yield
 
     logger.info("Server is shutting down")
+    app.state.ready = False
+    set_ready(False)
+
+    if not startup_task.done():
+        startup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await startup_task
+
     await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()

@@ -71,7 +71,7 @@ LABEL_REGEX = r"^[^';]*$"
 NAME_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]*[a-zA-Z0-9_])?$"
 # statuses and type names (folder type, task type) can also contain spaces
 STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
-TYPE_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
+TYPE_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{0,64}[a-zA-Z0-9_]$"
 
 # user names shouldn't start or end with underscores
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
@@ -85,6 +85,7 @@ PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 
 # api key can contain alphanumeric characters and hyphens
 API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
+ADDON_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_\.\-]*[a-zA-Z0-9_]$"
 SEMVER_REGEX = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
 EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
 

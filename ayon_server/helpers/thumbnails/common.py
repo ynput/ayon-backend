@@ -1,6 +1,5 @@
 import base64
 import functools
-import random
 from typing import Literal, NotRequired, TypedDict
 
 from fastapi import Response
@@ -8,7 +7,6 @@ from fastapi import Response
 from ayon_server.exceptions import NotFoundException
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
-from ayon_server.helpers.preview import get_file_preview_bytes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -21,7 +19,7 @@ PlaceholderOption = Literal["empty", "none"]
 def get_fake_thumbnail() -> bytes:
     """Returns a fake thumbnail image as a byte stream.
 
-    The image is a 1x1 pixel PNG encoded in base64.
+    The image is a 1x1 pixel PNG.
     """
     base64_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="  # noqa
     return base64.b64decode(base64_string)
@@ -32,6 +30,7 @@ class ThumbnailInfo(TypedDict):
     path: str
     thumbnail_id: NotRequired[str | None]
     file_id: NotRequired[str | None]
+    thumbnail_source: NotRequired[str | None]
 
 
 class ThumbnailData(TypedDict):
@@ -42,7 +41,7 @@ class ThumbnailData(TypedDict):
 @Redis.cached(
     "thumbnail",
     "{project_name}:{thumbnail_id}:{mode}",
-    ttl=7200,
+    ttl=300,
     model="bytes",
 )
 async def retrieve_thumbnail(
@@ -80,22 +79,22 @@ async def get_thumbnail_response(
     file_id = thumbnail_info.get("file_id")
 
     content = None
-    cache_max_age = random.randint(3600, 3700)
-
-    headers = {
-        "Cache-Control": f"max-age={cache_max_age}, public",
-    }
+    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+    if thumbnail_source := thumbnail_info.get("thumbnail_source"):
+        headers["X-Thumbnail-Source"] = thumbnail_source
 
     if thumbnail_id:
-        headers["X-Thumbnail-Id"] = thumbnail_id
         content = await coalesce(
             retrieve_thumbnail,
             thumbnail_info["project_name"],
             thumbnail_id,
             "original" if original else "small",
         )
+        headers["X-Thumbnail-Id"] = thumbnail_id
 
     elif file_id:
+        from ayon_server.helpers.preview import get_file_preview_bytes
+
         try:
             content = await coalesce(
                 get_file_preview_bytes,
@@ -116,6 +115,9 @@ async def get_thumbnail_response(
     if content is None:
         if placeholder_option == "empty":
             content = get_fake_thumbnail()
+            headers["Cache-Control"] = (
+                "public, max-age=3600"  # Cache the empty thumbnail for a shorter time
+            )
             mime = "image/png"
         else:
             raise NotFoundException("No thumbnail available")

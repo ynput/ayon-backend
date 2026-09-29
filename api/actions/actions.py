@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
 from fastapi import Path, Query, Request
@@ -17,7 +17,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import AllowGuests, CurrentUser, Sender, SenderType
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel
+from ayon_server.types import ADDON_NAME_REGEX, SEMVER_REGEX, Field, OPModel
 
 from .router import router
 
@@ -28,8 +28,8 @@ ActionListMode = Literal["simple", "dynamic", "all"]
 async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
-    mode: ActionListMode = Query("simple", title="Action List Mode"),
-    variant: str | None = Query(None, title="Settings Variant"),
+    mode: Annotated[ActionListMode, Query(title="Action List Mode")] = "simple",
+    variant: Annotated[str | None, Query(title="Settings Variant")] = None,
 ) -> AvailableActionsListModel:
     """Get available actions for a context.
 
@@ -101,10 +101,22 @@ async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
 async def configure_action(
     user: CurrentUser,
     config: ActionConfig,
-    addon_name: str = Query(..., title="Addon Name", alias="addonName"),
-    addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
-    variant: str = Query("production", title="Action Variant"),
-    identifier: str = Query(..., title="Action Identifier"),
+    addon_name: Annotated[
+        str,
+        Query(title="Addon Name", alias="addonName", regex=ADDON_NAME_REGEX),
+    ],
+    addon_version: Annotated[
+        str,
+        Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
+    ],
+    identifier: Annotated[
+        str,
+        Query(title="Action Identifier"),
+    ],
+    variant: Annotated[
+        str,
+        Query(title="Action Variant"),
+    ] = "production",
 ) -> dict[str, Any]:
     addon = AddonLibrary.addon(addon_name, addon_version)
     config_dict = config.dict()
@@ -135,10 +147,22 @@ async def execute_action(
     context: ActionContext,
     sender: Sender,
     sender_type: SenderType,
-    addon_name: str = Query(..., title="Addon Name", alias="addonName"),
-    addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
-    variant: str = Query("production", title="Action Variant"),
-    identifier: str = Query(..., title="Action Identifier"),
+    addon_name: Annotated[
+        str,
+        Query(title="Addon Name", alias="addonName", regex=ADDON_NAME_REGEX),
+    ],
+    addon_version: Annotated[
+        str,
+        Query(title="Addon Version", alias="addonVersion", regex=SEMVER_REGEX),
+    ],
+    identifier: Annotated[
+        str,
+        Query(title="Action Identifier"),
+    ],
+    variant: Annotated[
+        str,
+        Query(title="Action Variant"),
+    ] = "production",
 ) -> ExecuteResponseModel:
     """Run an action.
 
@@ -194,55 +218,74 @@ async def execute_action(
 
 
 class TakeResponseModel(OPModel):
-    event_id: str = Field(
-        ...,
-        title="Event ID",
-        example="aae4b3d4-7b7b-4b7b-8b7b-7b7b7b7b7b7b",
-    )
-    action_identifier: str = Field(
-        ...,
-        title="Action Identifier",
-        example="launch-maya",
-    )
-    args: list[str] = Field(
-        [],
-        title="Action Arguments",
-        example=["-file", "path/to/file.ma"],
-    )
-    context: ActionContext = Field(
-        ...,
-        title="Action Context",
-    )
-    addon_name: str = Field(
-        ...,
-        title="Addon Name",
-        example="maya",
-    )
-    addon_version: str = Field(
-        ...,
-        title="Addon Version",
-        example="1.5.6",
-    )
-    variant: str = Field(
-        ...,
-        title="Action Variant",
-        example="production",
-    )
-    user_name: str = Field(
-        ...,
-        title="User Name",
-        description="The user who initiated the action",
-        example="john.doe",
-    )
+    event_id: Annotated[
+        str,
+        Field(
+            title="Event ID",
+            example="aae4b3d4-7b7b-4b7b-8b7b-7b7b7b7b7b7b",
+        ),
+    ]
+    action_identifier: Annotated[
+        str,
+        Field(
+            title="Action Identifier",
+            example="launch-maya",
+        ),
+    ]
+    args: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            title="Action Arguments",
+            example=["-file", "path/to/file.ma"],
+        ),
+    ]
+    context: Annotated[
+        ActionContext,
+        Field(
+            title="Action Context",
+        ),
+    ]
+    addon_name: Annotated[
+        str,
+        Field(
+            title="Addon Name",
+            example="maya",
+        ),
+    ]
+    addon_version: Annotated[
+        str,
+        Field(
+            title="Addon Version",
+            example="1.5.6",
+        ),
+    ]
+    variant: Annotated[
+        str,
+        Field(
+            title="Action Variant",
+            example="production",
+        ),
+    ]
+    user_name: Annotated[
+        str,
+        Field(
+            title="User Name",
+            description="The user who initiated the action",
+            example="john.doe",
+        ),
+    ]
 
 
 @router.get("/take/{token}")
 async def take_action(
-    token: str = Path(
-        ...,
-        title="Action Token",
-        pattern=r"[a-f0-9]{64}",
-    ),
+    token: Annotated[
+        str,
+        Path(
+            title="Action Token",
+            regex=r"[a-f0-9]{64}",
+        ),
+    ],
 ) -> TakeResponseModel:
     """called by launcher
 
@@ -300,17 +343,19 @@ async def take_action(
 
 
 class AbortRequestModel(OPModel):
-    message: str = Field("Action aborted", title="Message")
+    message: Annotated[str, Field(title="Message")] = "Action aborted by user"
 
 
 @router.post("/abort/{token}")
 async def abort_action(
     request: AbortRequestModel,
-    token: str = Path(
-        ...,
-        title="Action Token",
-        pattern=r"[a-f0-9]{64}",
-    ),
+    token: Annotated[
+        str,
+        Path(
+            title="Action Token",
+            regex=r"[a-f0-9]{64}",
+        ),
+    ],
 ) -> None:
     """called by launcher
 

@@ -14,4 +14,4 @@ class Storages:
         storage = cls.project_storage_overrides.get(project_name)
         if storage:
             return storage
-        return ProjectStorage.default(project_name)
+        return await ProjectStorage.default(project_name)

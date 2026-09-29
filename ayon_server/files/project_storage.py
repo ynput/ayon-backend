@@ -1,5 +1,6 @@
 import os
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import aiocache
@@ -8,10 +9,10 @@ import aioshutil
 import httpx
 from fastapi import Request
 from fastapi.responses import RedirectResponse
-from typing_extensions import AsyncGenerator
 
 from ayon_server.api.files import handle_upload
 from ayon_server.config import ayonconfig
+from ayon_server.config.serverconfig import get_server_config
 from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 from ayon_server.files.s3 import (
     S3Config,
@@ -30,8 +31,10 @@ from ayon_server.helpers.download import download_file
 from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logger
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .common import FileGroup, StorageType
 from .utils import list_local_files
@@ -75,24 +78,8 @@ class ProjectStorage:
     # Base storage methods
 
     @classmethod
-    def default(cls, project_name: str) -> "ProjectStorage":
-        if ayonconfig.default_project_storage_type == "local":
-            return cls(
-                project_name,
-                "local",
-                ayonconfig.default_project_storage_root,
-                cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
-            )
-        elif ayonconfig.default_project_storage_type == "s3":
-            return cls(
-                project_name,
-                "s3",
-                ayonconfig.default_project_storage_root.lstrip("/"),
-                bucket_name=ayonconfig.default_project_storage_bucket_name,
-                cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
-            )
-
-        raise Exception("Unknown storage type. This should not happen.")
+    async def default(cls, project_name: str) -> "ProjectStorage":
+        return await _get_default_project_storage(project_name)
 
     @aiocache.cached()
     async def get_root(self) -> str:
@@ -179,53 +166,36 @@ class ProjectStorage:
 
         This method is only supported for CDN-enabled storages.
         """
-        try:
-            if self.cdn_resolver is None:
-                raise AyonException("CDN is not enabled for this project")
-            if self.project_info is None:
-                self.project_info = await get_project_info(self.project_name)
-            assert self.project_info  # mypy
-            project_timestamp = int(self.project_info.created_at.timestamp())
-            payload = {
-                "projectName": self.project_name,
-                "projectTimestamp": project_timestamp,
-                "fileId": file_id,
-                "ynputShared": ynput_shared,
-            }
+        if self.cdn_resolver is None:
+            raise AyonException("CDN is not enabled for this project")
+        if self.project_info is None:
+            self.project_info = await get_project_info(self.project_name)
+        assert self.project_info  # mypy
+        project_timestamp = int(self.project_info.created_at.timestamp())
 
-            headers = await CloudUtils.get_api_headers()
-            async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-                res = await client.post(
-                    self.cdn_resolver,
-                    json=payload,
-                    headers=headers,
-                )
+        coalesce = RequestCoalescer()
 
-            if res.status_code == 401:
-                raise ForbiddenException("Unauthorized instance")
+        data = await coalesce(
+            _get_cdn_link,
+            self.cdn_resolver,
+            self.project_name,
+            project_timestamp,
+            file_id,
+            ynput_shared=ynput_shared,
+        )
 
-            if res.status_code >= 400:
-                logger.error(f"CDN Error {res.status_code}: {res.text}")
-                raise NotFoundException(f"Error {res.status_code} from CDN")
-
-            data = res.json()
-            url = data["url"]
-            cookies = data.get("cookies", {})
-
-            response = RedirectResponse(url=url, status_code=302)
-            for key, value in cookies.items():
-                response.set_cookie(
-                    key,
-                    value,
-                    httponly=True,
-                    secure=True,
-                    samesite="none",
-                )
-
-            return response
-        except Exception:
-            log_traceback("Error getting CDN link")
-            raise AyonException("Failed to get CDN link")
+        url = data["url"]
+        cookies = data.get("cookies", {})
+        response = RedirectResponse(url=url, status_code=302)
+        for key, value in cookies.items():
+            response.set_cookie(
+                key,
+                value,
+                httponly=True,
+                secure=True,
+                samesite="none",
+            )
+        return response
 
     #
     # Putting files into the storage
@@ -392,11 +362,6 @@ class ProjectStorage:
 
         await Postgres.execute(query)
 
-        # prevent circular import
-        from ayon_server.helpers.preview import uncache_file_preview
-
-        await uncache_file_preview(self.project_name, file_id)
-
     async def delete_unused_files(self) -> None:
         """Delete project files that are not referenced in any activity."""
 
@@ -427,7 +392,8 @@ class ProjectStorage:
             f"""
             SELECT size,
             data->>'mime' as content_type,
-            data->>'filename' as filename
+            data->>'filename' as filename,
+            data->'mediaInfo' as media_info
             FROM project_{self.project_name}.files
             WHERE id = $1
             """,
@@ -448,6 +414,7 @@ class ProjectStorage:
             if finfo:
                 result.filename = finfo["filename"]
                 result.content_type = finfo["content_type"]
+                result.media_info = finfo.get("media_info")
                 return result
 
         raise AyonException("Unknown storage type")
@@ -549,7 +516,7 @@ class ProjectStorage:
 
     async def list_files(
         self, file_group: FileGroup = "uploads"
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """List all files in the storage for the project"""
         if self.storage_type == "local":
             projects_root = await self.get_root()
@@ -566,3 +533,72 @@ class ProjectStorage:
                 yield f
 
         return
+
+
+async def _get_default_project_storage(project_name: str) -> "ProjectStorage":
+    server_config = await get_server_config()
+    cdn_resolver = (
+        server_config.cdn.default_cdn_resolver_url
+        or ayonconfig.default_project_storage_cdn_resolver
+        or None
+    )
+    if ayonconfig.default_project_storage_type == "local":
+        return ProjectStorage(
+            project_name,
+            "local",
+            ayonconfig.default_project_storage_root,
+            cdn_resolver=cdn_resolver,
+        )
+    elif ayonconfig.default_project_storage_type == "s3":
+        return ProjectStorage(
+            project_name,
+            "s3",
+            ayonconfig.default_project_storage_root.lstrip("/"),
+            bucket_name=ayonconfig.default_project_storage_bucket_name,
+            cdn_resolver=cdn_resolver,
+        )
+
+    raise Exception("Unknown storage type. This should not happen.")
+
+
+@Redis.cached(
+    "cdn-link",
+    "{project_name}:{project_timestamp}:{file_id}:{ynput_shared}",
+    ttl=120,
+)
+async def _get_cdn_link(
+    cdn_resolver,
+    project_name,
+    project_timestamp,
+    file_id,
+    ynput_shared=False,
+) -> dict[str, Any]:
+    payload = {
+        "projectName": project_name,
+        "projectTimestamp": project_timestamp,
+        "fileId": file_id,
+        "ynputShared": ynput_shared,
+    }
+
+    headers = await CloudUtils.get_api_headers()
+    try:
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            res = await client.post(
+                cdn_resolver,
+                json=payload,
+                headers=headers,
+            )
+    except Exception:
+        raise AyonException("Failed to get CDN link") from None
+
+    if res.status_code == 401:
+        raise ForbiddenException("Unauthorized instance")
+
+    if res.status_code >= 400:
+        logger.error(f"CDN Error {res.status_code}: {res.text}")
+        raise NotFoundException(f"Error {res.status_code} from CDN")
+
+    try:
+        return res.json()
+    except ValueError:
+        raise AyonException("Failed to get CDN link") from None

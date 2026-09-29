@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     FieldInfo,
     argdesc,
@@ -20,10 +21,12 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
-from ayon_server.utils.strings import slugify
+
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
 
 async def get_representations(
@@ -46,6 +49,8 @@ async def get_representations(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -69,6 +74,34 @@ async def get_representations(
         if not ids:
             return RepresentationsConnection()
         sql_conditions.append(f"representations.id IN {SQLTool.id_array(ids)}")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append(
+                """
+                (
+                    representations.active
+                    AND versions.active
+                    AND products.active
+                    AND f_ex.active
+                )
+                """
+            )
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                """
+                (
+                    NOT representations.active
+                    OR NOT versions.active
+                    OR NOT products.active
+                    OR NOT f_ex.active
+                )
+                """
+            )
+
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(f_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
 
     if version_ids is not None:
         if not version_ids:
@@ -115,6 +148,8 @@ async def get_representations(
         or search
         or fields.any_endswith("path")
         or fields.any_endswith("parents")
+        or visibility != EntityVisibility.ALL
+        or not include_internal_folder
     ):
         sql_joins.extend(
             [
@@ -127,15 +162,15 @@ async def get_representations(
                 ON products.id = versions.product_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = products.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS f_ex
+                ON f_ex.folder_id = products.folder_id
                 """,
             ]
         )
 
         sql_columns.extend(
             [
-                "hierarchy.path AS _folder_path",
+                "f_ex.path AS _folder_path",
                 "products.name AS _product_name",
                 "versions.version AS _version_number",
             ]
@@ -143,26 +178,21 @@ async def get_representations(
 
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"f_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
-        for term in terms:
-            sub_conditions = []
-            if term.isdigit():
-                sub_conditions.append(f"versions.version = {int(term)}")
-            elif term.startswith("v") and term[1:].isdigit():
-                sub_conditions.append(f"versions.version = {int(term[1:])}")
-
-            term = term.replace("'", "''")  # Escape single quotes
-            sub_conditions.append(f"products.name ILIKE '%{term}%'")
-            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
-            sub_conditions.append(f"representations.name ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            [
+                "products.name",
+                "products.product_type",
+                "f_ex.path",
+                "representations.name",
+            ],
+            version_check=True,
+        ):
+            sql_conditions.append(cond)
 
     #
     # Filter

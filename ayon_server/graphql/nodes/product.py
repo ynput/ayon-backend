@@ -74,7 +74,7 @@ class ProductNode(BaseNode):
         description="Simple (id /version) list of versions in the product",
     )
 
-    _folder: FolderNode | None = None
+    _folder: strawberry.Private[FolderNode | None] = None
 
     @strawberry.field(description="Parent folder of the product")
     async def folder(self, info: Info) -> FolderNode:
@@ -145,12 +145,16 @@ class ProductNode(BaseNode):
 
             data["_folder_path"] = self._folder_path
             data["_product_name"] = self.name
-            data["id"] = data["id"].replace("-", "")
-            data["hero_version_id"] = (
-                data["hero_version_id"].replace("-", "")
-                if data.get("hero_version_id")
-                else None
-            )
+            # to_jsonb keeps uuid dashes, loaders expect them stripped
+            for key in (
+                "id",
+                "hero_version_id",
+                "product_id",
+                "task_id",
+                "thumbnail_id",
+            ):
+                if data.get(key):
+                    data[key] = data[key].replace("-", "")
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 

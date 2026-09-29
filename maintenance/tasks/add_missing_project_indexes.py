@@ -15,9 +15,15 @@ INDEXES = {
     "product_attrib_idx": "products USING gin(attrib);",
     "version_task_id_idx": "versions(task_id);",
     "version_status_idx": "versions(status);",
+    "version_parent_version_idx": "versions(product_id, version DESC);",
     "version_attrib_idx": "versions USING gin(attrib);",
+    "version_product_corder_idx": "versions(product_id, creation_order DESC) WHERE version >= 0;",  # noqa: E501
+    "version_product_status_corder_idx": "versions(product_id, status, creation_order DESC) WHERE version >= 0;",  # noqa: E501
     "representation_status_idx": "representations(status);",
     "representation_attrib_idx": "representations USING gin(attrib);",
+    "activity_origin_desc_idx": "activity_references (entity_type, entity_id, created_at DESC) WHERE reference_type = 'origin';",  # noqa: E501
+    "activity_author_idx": "activities((data->>'author'));",  # noqa: E501
+    "activity_watcher_idx": "activities((data->>'watcher')) WHERE activity_type = 'watch';",  # noqa: E501
 }
 
 
@@ -37,7 +43,9 @@ class AddMissingProjectIndexes(ProjectMaintenanceTask):
                 'versions',
                 'products',
                 'representations',
-                'hierarchy'
+                'hierarchy',
+                'activities',
+                'activity_references'
             );
         """
         result = await Postgres.fetch(query, f"project_{project_name}")

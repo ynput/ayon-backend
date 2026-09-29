@@ -64,6 +64,13 @@ class NotFoundException(AyonException):
     status: int = 404
 
 
+class TooManyRequestsException(AyonException):
+    """Exception raised when a user has sent too many requests at once."""
+
+    detail: str = "Too many requests"
+    status: int = 429
+
+
 class InvalidSettingsException(AyonException):
     """Exception raised when addon settings are invalid."""
 

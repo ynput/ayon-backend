@@ -4,13 +4,17 @@ from ayon_server.addons.library import AddonLibrary
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import AttributeType
 
 
 class ActionsEnumResolver(BaseEnumResolver):
-    name = "actions"
+    """List of all actions from all addons."""
 
-    async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+    name = "actions"
+    label = "Actions"
+
+    async def get_accepted_params(self) -> dict[str, AttributeType]:
+        return {"project_name": "string"}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         action_idents = set()
@@ -41,6 +45,11 @@ class ActionsEnumResolver(BaseEnumResolver):
                     for action in actions:
                         if action.identifier in action_idents:
                             continue
+
+                        if action.icon and action.icon.url:
+                            action.icon.url = action.icon.url.format(
+                                addon_url=f"/addons/{addon_name}/{addon_version}"
+                            )
 
                         action_idents.add(action.identifier)
                         result.append(

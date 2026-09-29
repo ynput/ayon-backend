@@ -80,7 +80,11 @@ class PasswordAuth:
         # name active attrib data
 
         result = await Postgres.fetch(
-            "SELECT * FROM public.users WHERE name ilike $1", name
+            """
+            SELECT * FROM public.users
+            WHERE LOWER(name) = $1
+            """,
+            name.lower(),
         )
         if not result:
             raise ForbiddenException("Invalid login/password combination")

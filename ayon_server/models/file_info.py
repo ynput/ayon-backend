@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import root_validator
 
 from .rest_model import RestModel
@@ -26,6 +28,7 @@ class FileInfo(RestModel):
     size: int
     filename: str = "unknown"
     content_type: str = "application/octet-stream"
+    media_info: dict[str, Any] | None = None
 
     @root_validator(pre=True)
     def set_content_type(cls, values):

@@ -66,7 +66,11 @@ def get_fake_thumbnail_response() -> Response:
     return response
 
 
-async def retrieve_thumbnail(
+# TODO: This function is a duplicate of the one in ayon_server/helpers/thumbnails
+# We should refactor this to use get_thumbnail_response
+
+
+async def _retrieve_thumbnail(
     project_name: str,
     thumbnail_id: str | None,
     placeholder: PlaceholderOption = "none",
@@ -199,7 +203,7 @@ async def get_thumbnail(
     if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
-    return await retrieve_thumbnail(
+    return await _retrieve_thumbnail(
         project_name, thumbnail_id, placeholder=placeholder, original=original
     )
 
@@ -510,7 +514,7 @@ async def get_project_thumbnail(
         else:
             raise NotFoundException("Project thumbnail not found")
 
-    return await retrieve_thumbnail(
+    return await _retrieve_thumbnail(
         project_name,
         PROJECT_THUMBNAIL_ID,
         placeholder=placeholder,

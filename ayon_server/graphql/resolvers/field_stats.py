@@ -84,35 +84,38 @@ def _get_stats_for_column(
     """Returns SQL fragments for statistics based on column data type."""
     if data_type in ("numeric", "int", "float"):
         return [
-            f"MIN({column_expr}::numeric) AS {column_name}_min",
-            f"MAX({column_expr}::numeric) AS {column_name}_max",
-            f"AVG({column_expr}::numeric) AS {column_name}_avg",
+            f'MIN({column_expr}::numeric) AS "{column_name}_min"',
+            f'MAX({column_expr}::numeric) AS "{column_name}_max"',
+            f'AVG({column_expr}::numeric) AS "{column_name}_avg"',
         ]
     if data_type == "string":
         return [
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
-            f"NULL AND {column_expr} != '') AS {column_name}_filled",
+            f"NULL AND {column_expr} != '') AS \"{column_name}_filled\"",
             f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
-            f"{column_expr} = '') AS {column_name}_not_filled",
+            f"{column_expr} = '') AS \"{column_name}_not_filled\"",
         ]
     if data_type == "uuid":
         return [
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
-            f"NULL) AS {column_name}_filled",
+            f'NULL) AS "{column_name}_filled"',
             f"COUNT(*) FILTER (WHERE {column_expr} IS NULL) "
-            f"AS {column_name}_not_filled",
+            f'AS "{column_name}_not_filled"',
         ]
     if data_type == "bool":
         return [
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
-            f"AS {column_name}_true",
+            f'AS "{column_name}_true"',
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
-            f"{column_expr} IS NULL) AS {column_name}_false",
+            f'{column_expr} IS NULL) AS "{column_name}_false"',
         ]
     return []
 
 
-def generate_specific_stats_columns(calculate_specific_statistics) -> str:
+def generate_specific_stats_columns(
+    calculate_specific_statistics: list[MetricTargetInput],
+    has_project_attributes: bool = False,
+) -> str:
     """Generate aggregations strictly requested by FE definitions."""
     stats_fields = set()
 
@@ -127,52 +130,66 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
         else:
             column_expr = raw_field
 
+        # collect values from all levels
+        if "inherited_attributes." in raw_field:
+            pure_name = raw_field.replace("inherited_attributes.", "")
+            pr_attr = (
+                f", project_attributes->>'{pure_name}' "
+                if has_project_attributes
+                else ""
+            )
+            column_expr = (
+                f"COALESCE(attrib->>'{pure_name}', "
+                f"inherited_attributes->>'{pure_name}'"
+                f" {pr_attr})"
+            )
+
         AGGR_TEMPLATES = {
-            "min": f"MIN({column_expr}::numeric) AS {column_name}_min",
-            "max": f"MAX({column_expr}::numeric) AS {column_name}_max",
-            "avg": f"AVG({column_expr}::numeric) AS {column_name}_avg",
-            "sum": f"SUM({column_expr}::numeric) AS {column_name}_sum",
-            "count": f"COUNT(*) AS {column_name}_count",
+            "min": f'MIN({column_expr}::numeric) AS "{column_name}_min"',
+            "max": f'MAX({column_expr}::numeric) AS "{column_name}_max"',
+            "avg": f'AVG({column_expr}::numeric) AS "{column_name}_avg"',
+            "sum": f'SUM({column_expr}::numeric) AS "{column_name}_sum"',
+            "count": f'COUNT(*) AS "{column_name}_count"',
             "not_filled": (
                 f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
                 f"{column_expr}::text IN ('', '{{}}', '[]')) "
-                f"AS {column_name}_not_filled,\n    "
+                f'AS "{column_name}_not_filled",\n    '
                 f"ROUND((COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
                 f"{column_expr}::text IN ('', '{{}}', '[]')) * 100.0) / "
                 f"NULLIF(COUNT(*), 0), 2) "
-                f"AS {column_name}_percentage_not_filled"
+                f'AS "{column_name}_percentage_not_filled"'
             ),
             "filled": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
                 f"NULL AND {column_expr}::text NOT IN ('', '{{}}', '[]')) "
-                f"AS {column_name}_filled,\n    "
+                f'AS "{column_name}_filled",\n    '
                 f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
                 f"IS NOT NULL AND {column_expr}::text NOT IN "
                 f"('', '{{}}', '[]')) * 100.0) / NULLIF(COUNT(*), 0), 2) "
-                f"AS {column_name}_percentage_filled"
+                f'AS "{column_name}_percentage_filled"'
             ),
             "not_checked": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE "
-                f"OR {column_expr} IS NULL) AS {column_name}_false,\n    "
+                f'OR {column_expr} IS NULL) AS "{column_name}_false",\n    '
                 f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
                 f"= FALSE OR {column_expr} IS NULL) * 100.0) / "
                 f"NULLIF(COUNT(*), 0), 2) "
-                f"AS {column_name}_percentage_not_checked"
+                f'AS "{column_name}_percentage_not_checked"'
             ),
             "checked": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
-                f"AS {column_name}_true,\n    "
+                f'AS "{column_name}_true",\n    '
                 f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
                 f"= TRUE) * 100.0) / NULLIF(COUNT(*), 0), 2) "
-                f"AS {column_name}_percentage_checked"
+                f'AS "{column_name}_percentage_checked"'
             ),
             "distribution": (
                 f"(SELECT json_agg(json_build_object('value', "
-                f"{column_name}, 'count', cnt)) FROM (SELECT "
-                f"{column_expr} as {column_name}, COUNT(*) as cnt "
+                f"\"{column_name}\", 'count', cnt)) FROM (SELECT "
+                f'{column_expr} AS "{column_name}", COUNT(*) AS cnt '
                 f"FROM raw_data WHERE {column_expr} IS NOT NULL "
                 f"GROUP BY {column_expr}) dist) AS "
-                f"{column_name}_distribution"
+                f'"{column_name}_distribution"'
             ),
         }
 

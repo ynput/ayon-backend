@@ -4,10 +4,11 @@ import strawberry
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
+from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.utils import json_dumps
+from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import ProductsConnection, TasksConnection
@@ -40,6 +41,8 @@ class FolderNode(BaseNode):
     _project_attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _folder_path: strawberry.Private[str | None] = None
+
+    latest_comments: list[EntityComment] | None = strawberry.field(default=None)
 
     # GraphQL specifics
 
@@ -139,6 +142,11 @@ async def folder_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    try:
+        latest_comments = json_loads(record.get("latest_comments") or "[]")
+    except Exception:
+        latest_comments = []
+
     path = "/" + record.get("path", "").strip("/")
     return FolderNode(
         project_name=project_name,
@@ -166,6 +174,7 @@ async def folder_from_record(
         total_task_count=record.get("total_task_count", 0),
         total_product_count=record.get("total_product_count", 0),
         total_version_count=record.get("total_version_count", 0),
+        latest_comments=[EntityComment(**comment) for comment in latest_comments],
         thumbnail_hash=thumbnail_hash,
         path=path,
         _folder_path=path,

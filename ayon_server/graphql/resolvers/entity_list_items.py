@@ -35,6 +35,7 @@ from .common import (
     ColumnMetadata,
     FieldInfo,
     argdesc,
+    build_search_conditions,
     create_folder_access_list,
     resolve,
 )
@@ -88,6 +89,16 @@ ITEM_SORT_OPTIONS = {
 }
 
 
+ENTITY_SORT_OPTIONS: dict[str, dict[str, str]] = {
+    "version": {
+        "productName": "_entity__product_name",
+    },
+    "product": {
+        "productName": "_entity_name",
+    },
+}
+
+
 @functools.cache
 def cols_for_entity(entity_type: str) -> list[str]:
     fields: list[FieldDefinitionDict]
@@ -124,6 +135,7 @@ async def get_entity_list_items(
     before: ARGBefore = None,
     sort_by: str | None = None,
     filter: str | None = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     accessible_only: bool = False,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -220,6 +232,62 @@ async def get_entity_list_items(
 
     allowed_parent_keys = []
 
+    #
+    # Common CTEs
+    #
+
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = '{entity_type}'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_columns.append(
+            """
+            c.comments AS _entity_latest_comments
+            """
+        )
+        sql_joins.append(
+            """
+            LEFT JOIN comments c
+            ON c.entity_id = e.id
+            """
+        )
+
+    #
+    # Per-entity type CTEs, joins and columns
+    #
+
     if entity_type == "task":
         if fields.any_endswith("hasReviewables"):
             sql_cte.append(
@@ -245,7 +313,7 @@ async def get_entity_list_items(
 
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
-        sql_columns.append("px.attrib as _entity_parent_folder_attrib")
+        sql_columns.append("px.attrib as _entity_inherited_attributes")
         sql_columns.append("pf.folder_type as _parent_folder_type")
         sql_columns.append("hierarchy.path AS _entity__folder_path")
         sql_joins.extend(
@@ -425,6 +493,9 @@ async def get_entity_list_items(
         elif sort_by in ITEM_SORT_OPTIONS.values():
             order_by.append(sort_by)
 
+        elif entity_sort_by := ENTITY_SORT_OPTIONS.get(entity_type, {}).get(sort_by):
+            order_by.append(entity_sort_by)
+
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
@@ -501,6 +572,31 @@ async def get_entity_list_items(
             raise BadRequestException(str(e))
         if filter is not None:
             sql_conditions.append(filter)
+
+    #
+    # Search
+    #
+    if search:
+        if entity_type == "folder":
+            hierarchy_path_col = "_entity_path"
+        elif entity_type in ("task", "product", "version"):
+            hierarchy_path_col = "_entity__folder_path"
+        else:
+            hierarchy_path_col = None
+
+        if entity_type == "version":
+            sql_columns.append("pd.name AS _search_entity_name")
+        elif entity_type == "workfile":
+            sql_columns.append("e.path AS _search_entity_name")
+        else:
+            sql_columns.append("e.name AS _search_entity_name")
+
+        search_columns = ["label", "_search_entity_name"]
+        if hierarchy_path_col is not None:
+            search_columns.append(hierarchy_path_col)
+
+        if cond := build_search_conditions(search, search_columns):
+            sql_conditions.append(cond)
 
     #
     # Construct the query

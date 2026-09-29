@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Any
 
-from ayon_server.access.utils import ensure_entity_access
+from ayon_server.access.utils import ensure_entity_access, folder_access_list
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
+    NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
@@ -161,6 +162,7 @@ class FolderEntity(ProjectLevelEntity):
 
             # This needs to run in save, not in refresh_views, because
             # we may need the hierarchy record in the same transaction
+            logger.trace(f"Refreshing {self.project_name} hierarchy")
             await Postgres.execute(
                 f"""
                 REFRESH MATERIALIZED VIEW
@@ -169,10 +171,10 @@ class FolderEntity(ProjectLevelEntity):
             )
 
             if auto_commit:
-                await self.commit()
+                await self.commit(refresh_hierarchy=False)  # already refreshed
 
     @classmethod
-    async def refresh_views(cls, project_name: str) -> None:
+    async def refresh_views(cls, project_name: str, **kwargs) -> None:
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
@@ -186,7 +188,11 @@ class FolderEntity(ProjectLevelEntity):
         #  - caches the hierarchy table in Redis
         #  - which depends on the exported_attributes table
 
-        await rebuild_inherited_attributes(project_name)
+        refresh_hierarchy = kwargs.get("refresh_hierarchy", True)
+        await rebuild_inherited_attributes(
+            project_name,
+            refresh_hierarchy=refresh_hierarchy,
+        )
         await rebuild_hierarchy_cache(project_name)
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
@@ -204,13 +210,7 @@ class FolderEntity(ProjectLevelEntity):
                     """,
                     self.path.lstrip("/"),
                 )
-
-            res = await super().delete()
-            if not res:
-                return False
-            elif auto_commit:
-                await self.commit()
-        return res
+            return await super().delete(*args, auto_commit=auto_commit, **kwargs)
 
     async def get_versions(self) -> list[str]:
         """Return of version ids associated with this folder."""
@@ -230,25 +230,52 @@ class FolderEntity(ProjectLevelEntity):
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
-        Reimplements the method from the parent class, because in
-        case of folders we need to check the parent folder.
+        Managers and users without restricted folder creation can create
+        folders anywhere. Otherwise, the path of the new folder
+        (parent path + name) must be whitelisted in the create access list.
         """
-        try:
-            if self.parent_id is None:
-                # if user can create a project, they can create a root folders
-                user.check_permissions("studio.create_projects")
-        except ForbiddenException:
-            pass
-        else:
+
+        if user.is_manager:
             return
 
-        await ensure_entity_access(
-            user,
-            self.project_name,
-            self.entity_type,
-            self.parent_id,
-            "create",
-        )
+        if not user.permissions(self.project_name).create.enabled:
+            return
+
+        if self.parent_id is None:
+            try:
+                # if user can create a project, they can create root folders
+                user.check_permissions("studio.create_projects")
+            except ForbiddenException:
+                pass
+            else:
+                return
+            target_path = self.name
+
+        else:
+            res = await Postgres.fetchrow(
+                f"""
+                SELECT path FROM project_{self.project_name}.hierarchy
+                WHERE id = $1
+                """,
+                self.parent_id,
+            )
+            if res is None:
+                raise NotFoundException(f"Parent folder {self.parent_id} not found")
+            target_path = f"{res['path'].strip('/')}/{self.name}"
+
+        access_list = await folder_access_list(user, self.project_name, "create")
+        if access_list is None:
+            return
+
+        for path in access_list:
+            path = path.strip('"')
+            if path.endswith("/%"):
+                if target_path.startswith(path[:-1]):
+                    return
+            elif target_path == path:
+                return
+
+        raise ForbiddenException(f"You are not allowed to create folder {target_path}")
 
     async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the folder.

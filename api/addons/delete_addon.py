@@ -1,4 +1,5 @@
 import os
+from typing import Annotated
 
 import aioshutil
 from fastapi import Query
@@ -52,7 +53,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
 async def delete_addon(
     user: CurrentUser,
     addon_name: str,
-    purge: bool = Query(False, title="Purge all data related to the addon"),
+    purge: Annotated[bool, Query(title="Purge all data related to the addon")] = False,
 ) -> EmptyResponse:
     """Delete an addon"""
 
@@ -73,7 +74,7 @@ async def delete_addon_version(
     user: CurrentUser,
     addon_name: str,
     addon_version: str,
-    purge: bool = Query(False, title="Purge all data related to the addon"),
+    purge: Annotated[bool, Query(title="Purge all data related to the addon")] = False,
 ) -> EmptyResponse:
     """Delete an addon version"""
 

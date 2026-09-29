@@ -27,7 +27,6 @@ from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
 from ayon_server.types import PROJECT_CODE_REGEX, PROJECT_NAME_REGEX, Field, OPModel
-from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
 
@@ -89,9 +88,7 @@ async def get_project(
     """Retrieve a project by its name."""
 
     await user.ensure_project_access(project_name)
-    coalesce = RequestCoalescer()
-    project = await coalesce(ProjectEntity.load, project_name)
-
+    project = await ProjectEntity.load(project_name)
     enrich_project_config_with_product_base_types(project.config)
     return cast(ProjectModel, project.as_user(user))
 

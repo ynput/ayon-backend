@@ -38,7 +38,7 @@ async def get_product_types(
 ) -> ProductTypesList:
     """Retrieve a project statistics by its name."""
 
-    user.check_permissions("project.access", project_name)
+    _ = user  # Unused dependency, but we want to ensure the user is authenticated
     anatomy = await get_project_anatomy(project_name)
 
     default = DefaultProductType(

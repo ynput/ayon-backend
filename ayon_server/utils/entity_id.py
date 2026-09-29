@@ -1,11 +1,18 @@
 __all__ = ["EntityID"]
 
 import uuid
-from typing import Any
+from typing import Any, TypedDict
 
 from pydantic import Field
 
 from .hashing import create_uuid
+
+
+class EntityIDMeta(TypedDict):
+    example: str
+    min_length: int
+    max_length: int
+    regex: str
 
 
 class EntityID:

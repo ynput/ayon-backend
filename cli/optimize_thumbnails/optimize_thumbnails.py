@@ -2,6 +2,7 @@ import asyncio
 import time
 
 from ayon_server.cli import app
+from ayon_server.config import ayonconfig
 from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.helpers.thumbnails import (
@@ -12,9 +13,6 @@ from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import format_filesize
-
-MAX_THUMBNAIL_HEIGHT = 600
-MAX_THUMBNAIL_WIDTH = 600
 
 
 async def process_project_thumbnails(project_name: str) -> None:
@@ -55,7 +53,7 @@ async def process_project_thumbnails(project_name: str) -> None:
             try:
                 thumbnail = await process_thumbnail(
                     payload,
-                    (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+                    (ayonconfig.thumbnail_size, ayonconfig.thumbnail_size),
                     raise_on_noop=True,
                 )
             except ThumbnailProcessNoop:

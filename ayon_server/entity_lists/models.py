@@ -215,6 +215,7 @@ class EntityListPatchModel(OPModel):
 class EntityListSummary(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType]
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     count: Annotated[int, Field(title="Item count", ge=0)] = 0

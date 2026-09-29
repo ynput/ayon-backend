@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
@@ -204,11 +203,10 @@ async def set_addon_settings(
 
     # Dispatch settings.changed event
 
-    if ayonconfig.audit_trail:
-        payload = {
-            "originalValue": original_data or {},
-            "newValue": updated_data or {},
-        }
+    payload = {
+        "originalValue": original_data or {},
+        "newValue": updated_data or {},
+    }
 
     otype = "project " if project_name else "studio "
     if site_id and user_name:

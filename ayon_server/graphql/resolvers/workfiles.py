@@ -10,6 +10,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGHasLinks,
     ARGIds,
+    ARGIncludeInternalFolder,
     ARGLast,
     FieldInfo,
     argdesc,
@@ -20,8 +21,11 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.types import validate_name_list, validate_status_list
-from ayon_server.utils import SQLTool, slugify
+from ayon_server.utils import SQLTool
+
+from .common import ARGVisibility, EntityVisibility, build_search_conditions
 
 SORT_OPTIONS = {
     "name": "workfiles.name",
@@ -52,6 +56,8 @@ async def get_workfiles(
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    include_internal_folder: ARGIncludeInternalFolder = False,
+    visibility: ARGVisibility = EntityVisibility.ALL,
 ) -> WorkfilesConnection:
     """Return a list of workfiles."""
 
@@ -76,6 +82,18 @@ async def get_workfiles(
         if not ids:
             return WorkfilesConnection()
         sql_conditions.append(f"workfiles.id IN {SQLTool.id_array(ids)}")
+    else:
+        if visibility == EntityVisibility.VISIBLE:
+            sql_conditions.append("workfiles.active AND tasks.active AND f_ex.active")
+        elif visibility == EntityVisibility.HIDDEN:
+            sql_conditions.append(
+                "(NOT workfiles.active OR NOT tasks.active OR NOT f_ex.active)"
+            )
+
+        if not include_internal_folder:
+            sql_conditions.append(
+                f"NOT starts_with(f_ex.path, '{AYON_INTERNAL_FOLDER_NAME}')"
+            )
 
     if task_ids is not None:
         if not task_ids:
@@ -112,11 +130,18 @@ async def get_workfiles(
         sql_conditions.append(f"workfiles.tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None or search or fields.any_endswith("parents"):
+    if (
+        access_list is not None
+        or search
+        or fields.any_endswith("parents")
+        or fields.any_endswith("path")
+        or visibility != EntityVisibility.ALL
+        or not include_internal_folder
+    ):
         sql_columns.extend(
             [
                 "tasks.name AS _task_name",
-                "hierarchy.path AS _folder_path",
+                "f_ex.path AS _folder_path",
             ]
         )
 
@@ -127,29 +152,28 @@ async def get_workfiles(
                 ON tasks.id = workfiles.task_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = tasks.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS f_ex
+                ON f_ex.folder_id = tasks.folder_id
                 """,
             ]
         )
 
         if access_list is not None:
             sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                f"f_ex.path like ANY ('{{ {','.join(access_list)} }}')"
             )
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2)
-        for term in terms:
-            sub_conditions = []
-            term = term.replace("'", "''")  # Escape single quotes
-            sub_conditions.append(f"tasks.name ILIKE '%{term}%'")
-            sub_conditions.append(f"tasks.task_type ILIKE '%{term}%'")
-            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
-            sub_conditions.append(f"workfiles.path ILIKE '%{term}%'")
-
-            condition = " OR ".join(sub_conditions)
-            sql_conditions.append(f"({condition})")
+        if cond := build_search_conditions(
+            search,
+            [
+                "tasks.name",
+                "tasks.task_type",
+                "f_ex.path",
+                "workfiles.path",
+            ],
+        ):
+            sql_conditions.append(cond)
 
     #
     # Pagination

@@ -4,9 +4,14 @@
 - Logout (revoke access token)
 """
 
-from fastapi import Request
+from fastapi import Depends, Request
 
-from ayon_server.api.dependencies import AccessToken, AllowGuests, CurrentUserOptional
+from ayon_server.api.dependencies import (
+    AccessToken,
+    AllowGuests,
+    CurrentUserOptional,
+    throttle,
+)
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
@@ -32,7 +37,10 @@ class LoginRequestModel(OPModel):
     )
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    dependencies=[Depends(throttle(limit=10, window=60))],
+)
 async def login(request: Request, login: LoginRequestModel) -> LoginResponseModel:
     """Login using name/password credentials.
 
@@ -62,7 +70,10 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
     return LogoutResponseModel()
 
 
-@router.get("/tokenauth", dependencies=[AllowGuests])
+@router.get(
+    "/tokenauth",
+    dependencies=[AllowGuests, Depends(throttle(limit=5, window=60))],
+)
 async def token_auth_callback(
     request: Request, current_user: CurrentUserOptional
 ) -> LoginResponseModel:

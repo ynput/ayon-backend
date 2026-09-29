@@ -5,9 +5,6 @@ from starlette.concurrency import run_in_threadpool
 
 from ayon_server.logging import logger
 
-MAX_THUMBNAIL_WIDTH = 600
-MAX_THUMBNAIL_HEIGHT = 600
-
 
 class ThumbnailProcessNoop(Exception):
     pass

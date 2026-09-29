@@ -29,6 +29,7 @@ from .thumbnail_info_resolvers import (
     resolve_folder_thumbnail_info,
     resolve_task_thumbnail_info,
     resolve_version_thumbnail_info,
+    resolve_workfile_thumbnail_info,
 )
 
 
@@ -50,8 +51,6 @@ async def resolve_thumbnail(
     elif entity_type == "version":
         resolver = resolve_version_thumbnail_info
     elif entity_type == "workfile":
-        from .thumbnail_info_resolvers import resolve_workfile_thumbnail_info
-
         resolver = resolve_workfile_thumbnail_info
     else:
         raise ValueError(f"Unsupported entity type '{entity_type}' for thumbnail")

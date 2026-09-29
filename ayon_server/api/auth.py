@@ -1,6 +1,10 @@
 import asyncio
+import re
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
+import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -43,7 +47,7 @@ async def get_logout_reason(token: str) -> str:
             reason = res[0]["description"]
         else:
             reason = "Invalid session"
-        await Redis.set_json("logoutreason", "token", reason, ttl=600)
+        await Redis.set_json("logoutreason", token, reason, ttl=600)
     return reason
 
 
@@ -129,8 +133,16 @@ async def user_from_request(request: Request) -> UserEntity:
     if api_key:
         if (session_data := await Session.check(api_key, request)) is None:
             user = await user_from_api_key(api_key, request)
-            session_data = await Session.create(user, request, token=api_key)
-        session_data.is_api_key = True
+            session_data = await Session.create(
+                user,
+                request,
+                token=api_key,
+                is_api_key=True,
+            )
+        # Sessions stored before is_api_key was persisted lack the flag
+        if not session_data.is_api_key:
+            session_data.is_api_key = True
+            await Redis.set(Session.ns, api_key, session_data.json())
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)
@@ -153,8 +165,84 @@ async def user_from_request(request: Request) -> UserEntity:
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
         # sudo :)
         user = await UserEntity.load(x_as_user)
+        user.add_session(session_data)
 
     return user
+
+
+THROTTLERS = [
+    (
+        "GraphQL",
+        lambda request: request.url.path.startswith("/graphql"),
+        10,
+    ),
+    (
+        "Operations",
+        # matches /api/projects/{project_name}/operations
+        lambda request: re.match(r"^/api/projects/[^/]+/operations", request.url.path),
+        2,
+    ),
+]
+
+
+@asynccontextmanager
+async def user_request_throttler(
+    user: UserEntity | None, request: Request
+) -> AsyncGenerator[None]:
+
+    if not user:
+        yield
+        return
+
+    if user.is_service:
+        yield
+        return
+
+    for op_name, matcher, limit in THROTTLERS:
+        if not matcher(request):
+            continue
+
+        assert user.session, "User must have a session"
+        session_token = user.session.token or "xxx"
+        key = f"{user.name}@{session_token}:{op_name}"
+
+        req_count = await Redis.incr("concurrent-requests", key, ttl=60)
+        await Redis.incr("concurrent-requests", "total", ttl=60)
+
+        try:
+            if req_count > limit:
+                short_token = shortuuid.uuid(name=session_token)[:8]
+
+                msg = (
+                    f"Too many concurrent {op_name} requests for "
+                    f"{user.name}@{short_token} ({req_count}) "
+                )
+
+                logger.debug(msg)
+
+                # This warning will be replaced with an exception in the future,
+                # after we get a better understanding of how many concurrent
+                # requests are actually being made by users and when it is appropriate
+                # to block them.
+
+                yield
+
+                if graphql_query := getattr(request.state, "graphql_query", None):
+                    logger.debug(
+                        f"Concurrent request {user.name}@{short_token}: {graphql_query}"
+                    )
+                return
+
+                # raise TooManyRequestsException(msg)
+
+            yield
+            return
+
+        finally:
+            await Redis.decr("concurrent-requests", key)
+            await Redis.decr("concurrent-requests", "total")
+
+    yield
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -170,7 +258,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = None
             request.state.unauthorized_reason = str(e)
 
-        with logger.contextualize(**context):
-            response = await call_next(request)
+        async with user_request_throttler(request.state.user, request):
+            with logger.contextualize(**context):
+                response = await call_next(request)
 
         return response

@@ -10,7 +10,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 
-from .hooks import OperationHooks
+from .hooks import HookResult, OperationHooks
 from .models import OperationModel
 from .validation import validate_task
 
@@ -116,6 +116,8 @@ async def update_project_level_entity(
     )
     entity = await entity_class.load(project_name, operation.entity_id)
 
+    calculated_attributes: set[str] = set()
+
     hooks = OperationHooks.hooks()
     if hooks:
         temp_entity = entity_class(project_name, entity.payload.dict())
@@ -124,7 +126,9 @@ async def update_project_level_entity(
         temp_entity.patch(temp_payload, user=user)
 
         for hook in hooks:
-            await hook(operation, temp_entity, user)
+            res = await hook(operation, temp_entity, user)
+            if isinstance(res, HookResult) and res.calculated_attributes:
+                calculated_attributes.update(res.calculated_attributes)
 
     # Casting the payload to the model class is used to validate the data
     payload = entity_class.model.patch_model(**operation.data)
@@ -147,7 +151,11 @@ async def update_project_level_entity(
     # Build events for every change
     # Do this before applying the patch, to the entity to detect the changes
 
-    events = build_pl_entity_change_events(entity, payload)
+    events = build_pl_entity_change_events(
+        entity,
+        payload,
+        calculated_attributes=calculated_attributes,
+    )
     if user:
         for event in events:
             event["user"] = user.name

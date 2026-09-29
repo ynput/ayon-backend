@@ -28,6 +28,7 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
@@ -37,12 +38,13 @@ if TYPE_CHECKING:
 
 class SessionInfo:
     is_api_key: bool = False
+    token: str
     client_info: Optional["ClientInfo"] = None
-    token: str | None = None
 
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key
         self.client_info = session.client_info
+        self.token = session.token
 
     def __repr__(self) -> str:
         return f"SessionInfo(is_api_key={self.is_api_key})"
@@ -418,6 +420,11 @@ class UserEntity(TopLevelEntity):
             return
 
         if self.is_guest:
+            if guest_access := self.data.get("guestAccess"):
+                pnames = [g.get("projectName") for g in guest_access]
+                if project_name in pnames:
+                    return  # Guest user has access to this project
+
             project = await ProjectEntity.load(project_name)
             guest_users = project.data.get("guestUsers", {})
             if self.attrib.email not in guest_users:
@@ -524,3 +531,16 @@ class UserEntity(TopLevelEntity):
                         break
             self._teams = result
         return self._teams
+
+    def get_guest_access(self, **kwargs: Any) -> dict[str, Any] | None:
+        """Get guest access for the user."""
+        if not self.is_guest:
+            return None
+        guest_access = self.data.get("guestAccess", [])
+        for access in guest_access:
+            for key, value in kwargs.items():
+                if access.get(camelize(key)) != value:
+                    break
+            else:
+                return access
+        return None

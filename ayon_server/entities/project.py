@@ -26,16 +26,119 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.utils import SQLTool, dict_exclude, get_nickname
+from ayon_server.logging import logger
+from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
 
 
+async def ensure_required_project_link_types(
+    project_name: str,
+    link_types: list[dict[str, Any]],
+) -> bool:
+    """Ensure that the required link types exist in the project.
+
+    Creates any missing default link types in the database and appends
+    them to `link_types` in place, so the caller's already-built payload
+    (which holds the same list instance) picks up the new entries too.
+
+    Returns True if any link type was added, so callers that cache
+    `link_types` (e.g. as part of a larger payload) know they need to
+    refresh that cache.
+    """
+
+    from ayon_server.settings.anatomy.link_types import default_link_types
+
+    # identity is the (link_type, input_type, output_type) triple -
+    # `name` may differ and color/style ("data") is cosmetic
+    existing = {
+        (lt["link_type"], lt["input_type"], lt["output_type"]) for lt in link_types
+    }
+    added = False
+
+    for default_link_type in default_link_types:
+        candidate = LinkTypeModel(
+            name=default_link_type.name,
+            link_type=default_link_type.link_type,
+            input_type=default_link_type.input_type,
+            output_type=default_link_type.output_type,
+            data={"color": default_link_type.color, "style": default_link_type.style},
+        )
+        identity = (candidate.link_type, candidate.input_type, candidate.output_type)
+        if identity in existing:
+            continue
+
+        logger.debug(
+            f"Creating missing link type {candidate.name} in project {project_name}"
+        )
+
+        # `name` isn't guaranteed to match (link_type, input_type, output_type) -
+        # e.g. custom link types created via the enum "add new" flow can have an
+        # arbitrary name. The table also has a unique index on the
+        # (link_type, input_type, output_type) triple, so a conflict can occur
+        # on either constraint - omit the conflict target to catch both, then
+        # verify what's actually in the database before assuming the insert
+        # succeeded or the required link type is genuinely unavailable.
+        inserted = await Postgres.fetchrow(
+            f"""
+            INSERT INTO project_{project_name}.link_types
+                (name, link_type, input_type, output_type, data)
+            VALUES
+                ($1, $2, $3, $4, $5)
+            ON CONFLICT DO NOTHING
+            RETURNING name, link_type, input_type, output_type, data
+            """,
+            candidate.name,
+            candidate.link_type,
+            candidate.input_type,
+            candidate.output_type,
+            candidate.data,
+        )
+
+        if inserted is None:
+            # look up by identity only: if the triple exists (under any name),
+            # use it. Otherwise the conflict was on `name` alone.
+            existing_row = await Postgres.fetchrow(
+                f"""
+                SELECT name, link_type, input_type, output_type, data
+                FROM project_{project_name}.link_types
+                WHERE (link_type, input_type, output_type) = ($1, $2, $3)
+                """,
+                candidate.link_type,
+                candidate.input_type,
+                candidate.output_type,
+            )
+            if existing_row is None:
+                logger.warning(
+                    f"Cannot create required link type {candidate.name} in "
+                    f"project {project_name}: the name is used by a different "
+                    "link type"
+                )
+                continue
+
+            # the required triple already exists, just under a different
+            # name - reflect the row that's actually in the database
+            link_types.append(dict(existing_row))
+            added = True
+            continue
+
+        link_types.append(candidate.dict())
+        added = True
+
+    if added:
+        # invalidate the separate anatomy cache (helpers.anatomy.get_project_anatomy)
+        # so it doesn't keep serving the stale link types until its own TTL expires
+        await Redis.delete("project-anatomy", project_name)
+
+    return added
+
+
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
-    original_attributes: dict[str, Any] = {}
+    # Set per instance by _load(), used by _save() to detect attrib changes
+    original_attributes: dict[str, Any] | None = None
 
     #
     # Load
@@ -67,7 +170,20 @@ class ProjectEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction=None,  # deprecated
+        transaction: Any = None,  # deprecated
+        for_update: bool = False,
+    ) -> "ProjectEntity":
+        """Load a project from the database."""
+
+        if not for_update:
+            coalesce = RequestCoalescer()
+            return await coalesce(cls._load, name)
+        return await cls._load(name, for_update=for_update)
+
+    @classmethod
+    async def _load(
+        cls,
+        name: str,
         for_update: bool = False,
     ) -> "ProjectEntity":
         """Load a project from the database."""
@@ -84,7 +200,17 @@ class ProjectEntity(TopLevelEntity):
 
                 if payload["data"].get("isSkeleton", False):
                     return cls.return_project_skeleton(payload=payload)
-                return cls.from_record(payload=payload)
+
+                if await ensure_required_project_link_types(
+                    project_name, payload["link_types"]
+                ):
+                    await Redis.set_json(
+                        "project-data", project_name, payload, ttl=3600
+                    )
+
+                project = cls.from_record(payload=payload)
+                project.original_attributes = payload["attrib"]
+                return project
 
         try:
             project_data = await Postgres.fetchrow(
@@ -182,16 +308,25 @@ class ProjectEntity(TopLevelEntity):
                 f"Project '{project_name}' is currently being modified"
             )
 
-        cls.original_attributes = project_data["attrib"]
-        await Redis.set_json("project-data", project_name, payload, ttl=3600)
-        return cls.from_record(payload=payload)
+        await ensure_required_project_link_types(project_name, link_types)
+
+        if for_update:
+            # we're inside the caller's transaction, which may still roll back
+            # (including the backfill above) - don't publish uncommitted data,
+            # just drop the cache and let the next regular load repopulate it
+            await Redis.delete("project-data", project_name)
+        else:
+            await Redis.set_json("project-data", project_name, payload, ttl=3600)
+        project = cls.from_record(payload=payload)
+        project.original_attributes = project_data["attrib"]
+        return project
 
     #
     # Save
     #
 
     @classmethod
-    async def refresh_views(cls) -> None:
+    async def refresh_views(cls, **kwargs: Any) -> None:
         await build_project_list()
 
     async def commit(self):
@@ -202,11 +337,20 @@ class ProjectEntity(TopLevelEntity):
 
     async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
-        async with Postgres.transaction():
-            try:
-                return await self._save()
-            finally:
-                await self.commit()
+        # commit() must not run inside a failed transaction: it would hit
+        # InFailedSQLTransactionError and mask the original exception.
+        try:
+            async with Postgres.transaction():
+                result = await self._save()
+        except Exception:
+            for namespace in ("project-anatomy", "project-data"):
+                try:
+                    await Redis.delete(namespace, self.name)
+                except Exception:
+                    pass
+            raise
+        await self.commit()
+        return result
 
     async def _save(self) -> bool:
         assert self.folder_types, "Project must have at least one folder type"

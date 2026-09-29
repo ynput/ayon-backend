@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
+from ayon_server.api.readiness import is_ready
 from ayon_server.api.system import restart_server
 from ayon_server.auth.session import Session
 from ayon_server.background.background_worker import BackgroundWorker
@@ -199,6 +200,10 @@ class Messaging(BackgroundWorker):
         if raw_message is None:
             await asyncio.sleep(0.01)
             if time.time() - self.last_msg > 5:
+                if not is_ready():
+                    # Don't emit heartbeats while the server is still
+                    # starting up (e.g. addons are still being initialized).
+                    return
                 message = {"topic": "heartbeat"}
                 self.last_msg = time.time()
             else:

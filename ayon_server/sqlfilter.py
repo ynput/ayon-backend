@@ -30,6 +30,7 @@ ValueType = (
 OperatorType = Literal[
     "eq",
     "like",
+    "re",
     "lt",
     "gt",
     "lte",
@@ -122,6 +123,23 @@ class QueryFilter(OPModel):
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
         return v.lower()
+
+
+def filter_columns(f: QueryFilter) -> set[str]:
+    """Return the set of columns a filter references.
+
+    Columns are returned in their snake_case form, without the path to
+    the key within JSON columns, so `attrib/fps` is reported as `attrib`.
+    Resolvers use this to find out which joins a filter needs.
+    """
+    result: set[str] = set()
+    for condition in f.conditions:
+        if isinstance(condition, QueryFilter):
+            result |= filter_columns(condition)
+        else:
+            key = condition.key.replace("/", ".").split(".")[0]
+            result.add(camel_to_snake(key.strip()))
+    return result
 
 
 JSON_FIELDS = [
@@ -240,13 +258,13 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator == "like":
+        if operator in ("like", "re"):
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{safe_value}'"
             else:
-                raise ValueError("Value must be a string for 'like' operator")
+                raise ValueError("Value must be a string for 'like' or 're' operators")
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -390,6 +408,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         # replace last -> with ->> to get text value
         column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
+    elif operator == "re":
+        # replace last -> with ->> to get text value
+        column = re.sub(r"->(?!.*->)", "->>", column)
+        return f"({column}) SIMILAR TO {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
     elif operator == "gt":
@@ -449,8 +471,10 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
             elif isinstance(c.value, list) and not c.value:
                 if c.operator in ("in", "any"):
                     result.append("FALSE")
+                    continue
                 elif c.operator == "notin":
                     result.append("TRUE")
+                    continue
                 elif c.operator not in ["eq", "ne"]:
                     # Empty list with other operators is invalid, just skip it
                     continue

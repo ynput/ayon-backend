@@ -22,14 +22,17 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages, create_project_file_record
-from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
+from ayon_server.helpers.preview import (
+    create_video_thumbnail,
+    get_file_preview_response,
+)
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
 from .router import router
-from .video import serve_video
 
 
 class CreateFileResponseModel(OPModel):
@@ -98,6 +101,23 @@ async def upload_project_file(
             file_size,
             file_id,
         )
+
+    if content_type.startswith("video"):
+        try:
+            media_info = await storage.extract_media_info(file_id)
+        except Exception as e:
+            logger.warning(f"Failed to extract media info for {file_id}: {e}")
+            media_info = {}
+        if media_info:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET data = data || $1::jsonb
+                WHERE id = $2
+                """,
+                {"mediaInfo": media_info},
+                file_id,
+            )
 
     return CreateFileResponseModel(id=file_id)
 
@@ -242,9 +262,6 @@ async def get_project_file_payload(
     await user.ensure_project_access(project_name)
     headers = await get_file_headers(project_name, file_id)
 
-    if headers["Content-Type"].startswith("video"):
-        return await serve_video(request, path, content_type=headers["Content-Type"])
-
     return FileResponse(path, headers=headers)
 
 
@@ -266,7 +283,7 @@ async def get_project_file_thumbnail(
 
     await user.ensure_project_access(project_name)
 
-    return await get_file_preview(project_name, file_id)
+    return await get_file_preview_response(project_name, file_id)
 
 
 @router.get(
@@ -302,9 +319,14 @@ async def get_project_file_still(
         # Should not happen, but just in case
         raise BadRequestException("File storage is not supported")
 
-    b = await create_video_thumbnail(path, None, timestamp)
-
-    if b == b"":
+    try:
+        content = await create_video_thumbnail(
+            path,
+            timestamp=timestamp,
+            thumbnail=False,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create video thumbnail: {e}")
         raise NotFoundException("No still frame available")
 
-    return Response(b, media_type="image/jpeg")
+    return Response(content, media_type="image/jpeg")

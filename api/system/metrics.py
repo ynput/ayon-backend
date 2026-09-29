@@ -1,3 +1,5 @@
+import tracemalloc
+
 from fastapi import Query
 from fastapi.responses import PlainTextResponse
 
@@ -58,6 +60,13 @@ async def get_system_metrics(
 
     # Get user requests count
 
+    try:
+        concurrent_requests = int(await Redis.get("concurrent-requests", "total"))
+    except Exception:
+        concurrent_requests = 0
+
+    result += f"ayon_concurrent_requests_total {concurrent_requests}\n"
+
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]
         requests = await Redis.get("user-requests", name)
@@ -66,7 +75,71 @@ async def get_system_metrics(
             result += f'ayon_user_requests{{name="{name}"}} {num_requests}\n'
 
     # Get system metrics
-
     result += await system_metrics.render_prometheus()
 
     return PlainTextResponse(result)
+
+
+#
+# Tracemalloc metrics
+#
+
+snapshot: tracemalloc.Snapshot | None = None
+
+
+@router.get("/metrics/tracemalloc", dependencies=[NoTraces])
+async def get_tracemalloc_metrics(
+    user: CurrentUserOptional,
+    api_key: ApiKey,
+) -> PlainTextResponse:
+    """Get tracemalloc metrics in Prometheus format"""
+
+    result = ""
+
+    if user is not None and not user.is_admin:
+        user = None
+
+    if user is None:
+        if api_key is None:
+            raise ForbiddenException("Access denied")
+        if api_key != ayonconfig.metrics_api_key:
+            raise ForbiddenException("Access denied")
+
+    global snapshot
+    if snapshot is None or not tracemalloc.is_tracing():
+        tracemalloc.start()
+        snapshot = tracemalloc.take_snapshot()
+    current_snapshot = tracemalloc.take_snapshot()
+    top_stats = current_snapshot.compare_to(snapshot, "lineno")
+
+    result += "# Tracemalloc metrics\n"
+    for stat in top_stats[:10]:
+        tb0 = stat.traceback[0]
+        filename = (
+            tb0.filename.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+        )
+        result += f'ayon_tracemalloc_size_diff_bytes{{file="{filename}", line="{tb0.lineno}"}} {stat.size_diff}\n'  # noqa: E501
+    return PlainTextResponse(result)
+
+
+@router.delete("/metrics/tracemalloc", dependencies=[NoTraces])
+async def stop_tracemalloc_metrics(
+    user: CurrentUserOptional,
+    api_key: ApiKey,
+) -> PlainTextResponse:
+    """Stop tracemalloc metrics collection"""
+
+    if user is not None and not user.is_admin:
+        user = None
+
+    if user is None:
+        if api_key is None:
+            raise ForbiddenException("Access denied")
+        if api_key != ayonconfig.metrics_api_key:
+            raise ForbiddenException("Access denied")
+
+    global snapshot
+    snapshot = None
+    tracemalloc.stop()
+
+    return PlainTextResponse("Tracemalloc metrics collection stopped")

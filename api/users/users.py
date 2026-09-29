@@ -11,7 +11,6 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
-from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
@@ -33,7 +32,12 @@ from .router import router
 #
 
 
-@router.get("/me", response_model_exclude_none=True, dependencies=[AllowGuests])
+@router.get(
+    "/me",
+    response_model_exclude_none=True,
+    dependencies=[AllowGuests],
+    deprecated=True,
+)
 async def get_current_user(
     user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
@@ -41,6 +45,9 @@ async def get_current_user(
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
     the user is still logged in.
+
+    This endpoint is deprecated and will be removed in a future version.
+    Use [GET] /api/profile instead, which returns the same information.
     """
 
     payload = user.payload
@@ -169,14 +176,15 @@ async def delete_user(
 
     target_user = await UserEntity.load(user_name)
 
+    entity_data = target_user.dict_simple()
+    entity_data["data"].pop("password", None)
+    entity_data["data"].pop("apiKey", None)
+
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
         "summary": {"entityName": user_name},
+        "payload": {"entityData": entity_data},
     }
-    if ayonconfig.audit_trail:
-        event["payload"] = {
-            "entityData": target_user.dict_simple(),
-        }
 
     await target_user.delete()
     await EventStream.dispatch("entity.user.deleted", **event)

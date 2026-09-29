@@ -3,6 +3,8 @@ import functools
 import inspect
 from typing import Any
 
+from pydantic.typing import AnyCallable
+
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
@@ -26,8 +28,8 @@ async def get_attrib_enum(
     return enum_values, enum_labels
 
 
-async def process_enum(
-    enum_resolver,
+async def process_functional_enum(
+    enum_resolver: AnyCallable,
     context: dict[str, Any] | None = None,
 ) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     if context is None:
@@ -137,13 +139,21 @@ async def postprocess_settings_schema(  # noqa
 
             elif enum_resolver := field.field_info.extra.get("enum_resolver"):
                 is_enum = True
-                try:
-                    enum_values, enum_labels = await process_enum(
-                        enum_resolver, context
+
+                if isinstance(enum_resolver, str):
+                    prop["x-enum-resolver"] = enum_resolver
+                    prop["x-enum-resolver-settings"] = field.field_info.extra.get(
+                        "enum_resolver_settings"
                     )
-                except AyonException as e:
-                    prop["placeholder"] = e.detail
-                    prop["disabled"] = True
+
+                else:
+                    try:
+                        enum_values, enum_labels = await process_functional_enum(
+                            enum_resolver, context
+                        )
+                    except AyonException as e:
+                        prop["placeholder"] = e.detail
+                        prop["disabled"] = True
 
             if is_enum:
                 if "items" in prop:

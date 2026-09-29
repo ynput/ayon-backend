@@ -42,14 +42,21 @@ class SessionModel(OPModel):
             exists=True,
         )
 
+    @property
+    def ttl(self) -> int:
+        return 600 if self.is_service else ayonconfig.session_ttl
+
+    @property
+    def is_expired(self) -> bool:
+        return time.time() - self.last_used > self.ttl
+
 
 class Session:
     ns = "session"
 
     @classmethod
     def is_expired(cls, session: SessionModel) -> bool:
-        ttl = 600 if session.is_service else ayonconfig.session_ttl
-        return time.time() - session.last_used > ttl
+        return session.is_expired
 
     @classmethod
     async def check(cls, token: str, request: Request | None) -> SessionModel | None:
@@ -73,25 +80,34 @@ class Session:
 
         session = SessionModel(**data)
 
-        if cls.is_expired(session):
+        if session.is_expired:
             await cls.delete(token, "Session expired")
             return None
 
         if request:
-            if (
-                not session.client_info
-                or session.client_info.site_id != request.headers.get("x-ayon-site-id")
-            ):
+            if not session.client_info:
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, session.json())
-            elif not ayonconfig.disable_check_session_ip:
-                real_ip = get_real_ip_from_request(request)
-                if not is_internal_ip(real_ip):
-                    if session.client_info.ip != real_ip:
-                        r = f"Stored: {session.client_info.ip}, current: {real_ip}"
-                        await cls.delete(token, f"Client IP mismatch: {r}")
-                        return None
+            else:
+                if not ayonconfig.disable_check_session_ip:
+                    real_ip = get_real_ip_from_request(request)
+                    if not is_internal_ip(real_ip):
+                        if session.client_info.ip != real_ip:
+                            r = f"Stored: {session.client_info.ip}, current: {real_ip}"
+                            await cls.delete(token, f"Client IP mismatch: {r}")
+                            return None
+
+                # Site ID change refreshes client metadata,
+                # but must never rebind the session to a new IP
+                site_id = request.headers.get("x-ayon-site-id")
+                if session.client_info.site_id != site_id:
+                    client_info = get_client_info(request)
+                    client_info.ip = session.client_info.ip
+                    client_info.location = session.client_info.location
+                    session.client_info = client_info
+                    session.last_used = time.time()
+                    await Redis.set(cls.ns, token, session.json())
 
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
@@ -105,7 +121,11 @@ class Session:
                 except UnauthorizedException as e:
                     await cls.delete(token, f"Session extension failed: {e}")
                     return None
-                await Redis.set(cls.ns, token, json_dumps(session.dict()))
+                await Redis.set(
+                    cls.ns,
+                    token,
+                    json_dumps(session.dict()),
+                )
 
         return session
 
@@ -131,6 +151,7 @@ class Session:
         token: str | None = None,
         message: str = "User logged in",
         event_payload: dict[str, Any] | None = None,
+        is_api_key: bool = False,
     ) -> SessionModel:
         """Create a new session for a given user."""
         is_service = bool(token)
@@ -147,6 +168,7 @@ class Session:
             created=time.time(),
             last_used=time.time(),
             is_service=is_service,
+            is_api_key=is_api_key,
             client_info=client_info,
         )
         event_summary = client_info.dict() if client_info else {}
@@ -199,7 +221,7 @@ class Session:
         data = await Redis.get(cls.ns, token)
         if data:
             session = SessionModel(**json_loads(data))
-            if not session.user.data.get("isService"):
+            if not session.is_api_key:
                 await EventStream.dispatch(
                     "auth.logout",
                     summary={"token": token},
@@ -212,7 +234,7 @@ class Session:
     async def list(
         cls,
         user_name: str | None = None,
-    ) -> AsyncGenerator[SessionModel, None]:
+    ) -> AsyncGenerator[SessionModel]:
         """List active sessions for all or given user
 
         Additionally, this function also removes expired sessions

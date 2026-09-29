@@ -1,9 +1,12 @@
-from typing import TYPE_CHECKING, Any
+import inspect
+from typing import TYPE_CHECKING, Annotated, Any
 
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
+from ayon_server.types import AttributeType, Field, OPModel
 
+from ..forms import SimpleFormField
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
 
@@ -11,28 +14,70 @@ if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
 
+class EnumResolverInfo(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            title="Resolver name",
+            example="statuses",
+        ),
+    ]
+    label: Annotated[
+        str,
+        Field(
+            title="Resolver label",
+            description="Optional human-readable label for the resolver",
+            example="Statuses",
+        ),
+    ]
+    description: Annotated[
+        str | None,
+        Field(
+            title="Resolver description",
+            description="Optional human-readable description for the resolver",
+            example="List of available statuses for tasks",
+        ),
+    ] = None
+    accepted_params: Annotated[
+        dict[str, AttributeType],
+        Field(
+            title="Accepted parameters",
+            description="Dictionary of accepted query parameters and their type names",
+            example={"project_name": "string", "include_root": "bool"},
+        ),
+    ]
+    settings_form: Annotated[
+        list[SimpleFormField] | None,
+        Field(
+            title="Settings form",
+            description="Optional form fields for resolver settings",
+        ),
+    ] = None
+
+
 class EnumRegistry:
     resolvers: dict[str, BaseEnumResolver] = {}
 
     @classmethod
-    def initialize(cls):
+    async def initialize(cls):
         module_path = "ayon_server/enum/resolvers"
         module = import_module(module_path, f"{module_path}/__init__.py")
         resolver_classes = classes_from_module(BaseEnumResolver, module)
 
         cls.resolvers = {}
         for resolver_class in resolver_classes:
-            cls.register(resolver_class)
+            await cls.register(resolver_class)
 
     @classmethod
-    def register(cls, resolver: type[BaseEnumResolver]) -> None:
+    async def register(cls, resolver: type[BaseEnumResolver]) -> None:
         if resolver.name in cls.resolvers:
             msg = f"Replaced enum resolver '{resolver.name}'"
         else:
             msg = f"Registered enum resolver '{resolver.name}'"
 
         try:
-            cls.resolvers[resolver.name] = resolver(cls)
+            resolver_instance = resolver(cls)
+            cls.resolvers[resolver.name] = resolver_instance
         except Exception as e:
             logger.warning(f"Failed to register enum resolver '{resolver.name}': {e}")
         else:
@@ -43,7 +88,7 @@ class EnumRegistry:
         cls.resolvers.pop(resolver_name, None)
 
     @classmethod
-    async def get_accepted_params(cls, enum_name: str) -> dict[str, type]:
+    async def get_accepted_params(cls, enum_name: str) -> dict[str, AttributeType]:
         key = enum_name.split(".")[0]
         try:
             resolver = cls.resolvers[key]
@@ -107,3 +152,27 @@ class EnumRegistry:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
 
         await resolver.create_item(item, project_name, **kwargs)
+
+    @classmethod
+    async def list_resolvers(cls) -> list[EnumResolverInfo]:
+        result = []
+        for name, resolver in cls.resolvers.items():
+            params = await resolver.get_accepted_params()
+            settings_form = await resolver.get_settings_form()
+
+            description = resolver.__doc__.strip() if resolver.__doc__ else None
+            if description is not None:
+                description = inspect.cleandoc(description)
+
+            result.append(
+                EnumResolverInfo(
+                    name=name,
+                    label=resolver.label or name,
+                    description=description,
+                    accepted_params=params,
+                    settings_form=list(settings_form)
+                    if settings_form is not None
+                    else None,
+                )
+            )
+        return sorted(result, key=lambda r: r.label.lower())

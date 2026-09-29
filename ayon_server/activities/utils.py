@@ -106,6 +106,9 @@ async def process_activity_files(
         if mime := data.get("mime"):
             file_info["mime"] = mime
 
+        if media_info := data.get("mediaInfo"):
+            file_info["mediaInfo"] = media_info
+
         result.append(file_info)
 
     return result
