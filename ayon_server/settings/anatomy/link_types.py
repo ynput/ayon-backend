@@ -51,3 +51,7 @@ default_link_types = [
         style="solid",
     ),
 ]
+
+# Default link types are required - they're backfilled on project load
+# and can't be deleted. Keyed by the canonical `link_type|input|output` name.
+default_link_type_names = frozenset(lt.name for lt in default_link_types)
