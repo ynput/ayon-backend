@@ -12,6 +12,7 @@ when the server is not available.
 import os
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -137,9 +138,9 @@ class TempProject:
         return self.api.get(url).status_code == 200
 
 
-@pytest.fixture(scope="module")
-def temp_project(api: httpx.Client) -> Iterator[TempProject]:
-    """A new project with the default anatomy (one per test module)."""
+@contextmanager
+def create_temp_project(api: httpx.Client) -> Iterator[TempProject]:
+    """Create a project with the default anatomy, delete it afterwards."""
     name = f"apitest_{uuid.uuid4().hex[:8]}"
     response = api.post("/api/projects", json={"name": name, "code": name[-8:]})
     assert response.status_code == 201, response.text
@@ -154,3 +155,10 @@ def temp_project(api: httpx.Client) -> Iterator[TempProject]:
         )
     finally:
         api.delete(f"/api/projects/{name}")
+
+
+@pytest.fixture(scope="module")
+def temp_project(api: httpx.Client) -> Iterator[TempProject]:
+    """A new project with the default anatomy (one per test module)."""
+    with create_temp_project(api) as project:
+        yield project

@@ -23,14 +23,6 @@ def apply_patch[ModelT: BaseModel](original: ModelT, patch: BaseModel) -> ModelT
             new_attrib.update(value)
             update_data[key] = new_attrib
 
-        elif isinstance(getattr(original, key), BaseModel):
-            # Patch a submodel (attrib)
-            ndata = apply_patch(
-                getattr(original, key),
-                getattr(original, key).__class__(**value),
-            )
-            update_data[key] = ndata
-
         elif isinstance(getattr(original, key), dict):
             # Patch arbitrary dict (one level only!)
             if isinstance(value, dict):
