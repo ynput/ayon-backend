@@ -9,7 +9,7 @@ from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import AllowGuests, CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
-from ayon_server.entities import UserEntity
+from ayon_server.entities.models.user import UserModel
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
@@ -78,7 +78,7 @@ class InfoResponseModel(OPModel):
     )
 
     password_recovery_available: bool | None = Field(None, title="Password recovery")
-    user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
+    user: UserModel | None = Field(None, title="User information")
     attributes: list[AttributeModel] | None = Field(
         None,
         title="List of attributes",
@@ -360,6 +360,6 @@ async def get_site_info(
     if current_user:
         user_payload = current_user.payload
         if not current_user.is_service:
-            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()  # type: ignore
+            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()
 
     return InfoResponseModel(user=user_payload, **additional_info)

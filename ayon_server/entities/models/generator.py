@@ -1,21 +1,19 @@
-"""Model generator.
+"""Attribute model generator.
 
-Warning! We need to use typing.List in the models,
-since Python 3.10 syntax does not work with Strawberry yet.
+Attributes are configured at runtime, so their models (used to validate
+attribute values) are generated from the attribute definitions.
 """
 
 import sys
 import time
-import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PydanticUserError, create_model
 from pydantic_core import SchemaError
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.logging import log_traceback, logger
-from ayon_server.models.attrib_values import AttribValues
 from ayon_server.types import AttributeType
 
 #
@@ -37,51 +35,16 @@ FIELD_TYPES: dict[AttributeType, type] = {
 }
 
 #
-# Factories
-#
-
-
-def new_id() -> str:
-    """Create a new entity ID."""
-    return str(uuid.uuid1()).replace("-", "")
-
-
-def current_time() -> datetime:
-    """Return current time."""
-    return datetime.now()
-
-
-FIELD_FACORIES = {
-    "list": list,
-    "dict": dict,
-    "now": current_time,
-    "uuid": new_id,
-}
-
-#
 # Field definition
 #
 
-# TODO: Implement this
-# 'exclude',
-# 'include',
-# 'const',
-# 'multiple_of',
-# 'allow_mutation',
-# 'repr',
-# 'extra',
-
 
 class FieldDefinition(BaseModel):
-    """Field definition model."""
+    """Attribute definition (see AttributeData)."""
 
-    # Required
     name: str = Field(title="Name of the field")
-    required: bool = Field(title="Required field", default=False)
-
     type: AttributeType = Field(default="string", title="Field data type")
-    submodel: Any | None = None
-    list_of_submodels: Any | None = None
+
     # Descriptive
     title: str | None = Field(None, title="Nice field title")
     description: str | None = Field(None, title="Field description")
@@ -89,11 +52,6 @@ class FieldDefinition(BaseModel):
 
     # Default value
     default: Any | None = Field(None, title="Field default value")
-    factory: Literal["list", "dict", "now", "uuid", "time"] | None = Field(
-        None,
-        title="Default factory",
-        description="Name of the function to be used to create default values",
-    )
 
     # Validation
     gt: int | float | None = Field(None, title="Greater than")
@@ -143,47 +101,9 @@ def attribute_field(fdef: FieldDefinition) -> tuple[Any, dict[str, Any]]:
     if extra:
         field["json_schema_extra"] = extra
 
-    #
-    # Default value
-    #
-
-    if fdef.submodel:
-        field["default_factory"] = fdef.submodel
-    elif fdef.type.startswith("list_of_") and fdef.required:
-        field["default_factory"] = list
-    elif fdef.factory:
-        field["default_factory"] = FIELD_FACORIES[fdef.factory]
-    elif fdef.default is not None:
-        field["default"] = fdef.default
-    elif fdef.required:
-        field["default"] = ...
-    else:
-        field["default"] = None
-
-    #
-    # Field type
-    #
-
-    if isinstance(fdef.submodel, AttribValues):
-        ftype = fdef.submodel.annotation
-    elif fdef.submodel:
-        ftype = fdef.submodel
-    elif fdef.list_of_submodels:
-        assert fdef.list_of_submodels
-        ftype = list[fdef.list_of_submodels]  # type: ignore
-    elif fdef.type in FIELD_TYPES:
-        if fdef.required:
-            ftype = FIELD_TYPES[fdef.type]
-        else:
-            ftype = FIELD_TYPES[fdef.type] | None
-    else:
-        ftype = Any
-
-    if "default" in field and "default_factory" in field:
-        logger.error(
-            f"Both default and default_factory provided for field '{fdef.name}'"
-        )
-        field.pop("default")
+    # Attributes are optional (None when not set)
+    field["default"] = fdef.default
+    ftype = FIELD_TYPES.get(fdef.type, Any) | None
 
     return ftype, field
 

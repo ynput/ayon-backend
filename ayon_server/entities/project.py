@@ -10,8 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 
-from ayon_server.entities.core import TopLevelEntity
+from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.project import (
+    ProjectModel,
+    ProjectPatchModel,
+    ProjectPostModel,
+)
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.entities.project_aux_tables import (
     FolderTypeDict,
@@ -148,7 +153,13 @@ async def ensure_required_project_link_types(
 
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
-    model: ModelSet = ModelSet("project", has_id=False)
+    model: ModelSet = ModelSet(
+        "project",
+        ProjectModel,
+        ProjectPostModel,
+        ProjectPatchModel,
+        dynamic_fields=["skeleton"],
+    )
     # Set per instance by _load(), used by _save() to detect attrib changes
     original_attributes: dict[str, Any] | None = None
 
@@ -386,8 +397,14 @@ class ProjectEntity(TopLevelEntity):
                 await rebuild_inherited_attributes(self.name, fields["attrib"])
 
         else:
-            # Create a project record
+            # Create a project record. The project stores the attribute
+            # defaults as its own values (changing a default later
+            # does not affect existing projects)
             fields = self.fields_to_save(NOT_STORED_FIELDS)
+            fields["attrib"] = {
+                **attribute_library.project_defaults,
+                **fields["attrib"],
+            }
             await Postgres.execute(*SQLTool.insert("projects", **fields))
             # Create a new schema for the project tablespace
             await Postgres.execute(f"CREATE SCHEMA project_{project_name}")

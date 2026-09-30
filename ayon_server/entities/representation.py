@@ -3,6 +3,11 @@ from typing import Any
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.representation import (
+    RepresentationModel,
+    RepresentationPatchModel,
+    RepresentationPostModel,
+)
 from ayon_server.types import ProjectLevelEntityType
 
 from .version import version_name
@@ -37,7 +42,13 @@ BASE_GET_QUERY = """
 
 class RepresentationEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "representation"
-    model = ModelSet("representation")
+    model = ModelSet(
+        "representation",
+        RepresentationModel,
+        RepresentationPostModel,
+        RepresentationPatchModel,
+        dynamic_fields=["path", "belongs_to_hero"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

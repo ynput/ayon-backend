@@ -3,6 +3,11 @@ from typing import Any
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.task import (
+    TaskModel,
+    TaskPatchModel,
+    TaskPostModel,
+)
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
@@ -40,7 +45,13 @@ BASE_GET_QUERY = """
 
 class TaskEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "task"
-    model = ModelSet("task")
+    model = ModelSet(
+        "task",
+        TaskModel,
+        TaskPostModel,
+        TaskPatchModel,
+        dynamic_fields=["path"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

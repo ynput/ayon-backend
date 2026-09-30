@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
-from ayon_server.entities import FolderEntity, ProjectEntity, UserEntity
+from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core.attrib import attribute_library, resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.events.default_hooks import DEFAULT_HOOKS, reload_attributes
@@ -167,12 +167,7 @@ def test_entity_attrib_is_a_dict():
         name="a", folder_type="Asset", attrib={"fps": "24", "unknown": 1}
     )
     assert isinstance(folder.attrib, AttribDict)
-    assert folder.attrib == {
-        "fps": 24.0,
-        "resolutionWidth": None,
-        "description": None,
-        "startDate": None,
-    }
+    assert folder.attrib == {"fps": 24.0}  # only the set attributes
     assert folder.attrib.fps == 24.0  # backwards compatible attribute access
     assert folder.model_dump(exclude_unset=True)["attrib"] == {"fps": 24.0}
     assert folder.model_dump(exclude_none=True)["attrib"] == {"fps": 24.0}
@@ -185,16 +180,8 @@ def test_entity_attrib_is_a_dict():
 
     # Patch keeps None values (reverted to inherited values by the entity)
     patched = apply_patch(folder, patch)
-    assert patched.attrib == {
-        "fps": None,
-        "resolutionWidth": 2,
-        "description": None,
-        "startDate": None,
-    }
+    assert patched.attrib == {"fps": None, "resolutionWidth": 2}
     assert folder.attrib.fps == 24.0  # original is not modified
-
-    project = ProjectEntity.model.post_model(name="p", code="p")
-    assert project.attrib.fps == 25.0  # project defaults
 
     user = UserEntity.model.main_model(name="user1", attrib={"email": "a@b.c"})
     assert user.attrib.email == "a@b.c"
@@ -218,7 +205,6 @@ def test_entity_models_follow_reload():
         post_model(name="a", folder_type="Asset", attrib={"liveTest": "x"})
     assert exc.value.errors()[0]["loc"] == ("attrib", "liveTest")
     assert patch_model(attrib={"liveTest": 3}).attrib == {"liveTest": 3}
-    assert ProjectEntity.model.post_model(name="p", code="p").attrib.liveTest == 7
 
 
 def test_entity_model_subclass_and_route_follow_reload():

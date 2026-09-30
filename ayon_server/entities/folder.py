@@ -4,6 +4,11 @@ from typing import Any
 from ayon_server.access.utils import ensure_entity_access, folder_access_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.folder import (
+    FolderModel,
+    FolderPatchModel,
+    FolderPostModel,
+)
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
@@ -73,7 +78,13 @@ BASE_GET_QUERY = """
 
 class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
-    model: ModelSet = ModelSet("folder")
+    model: ModelSet = ModelSet(
+        "folder",
+        FolderModel,
+        FolderPostModel,
+        FolderPatchModel,
+        dynamic_fields=["path", "has_versions"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod

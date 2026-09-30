@@ -14,6 +14,11 @@ from ayon_server.auth.utils import (
 from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.user import (
+    UserModel,
+    UserPatchModel,
+    UserPostModel,
+)
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
     ConstraintViolationException,
@@ -106,7 +111,14 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
-    model = ModelSet("user", has_id=False)
+    model = ModelSet(
+        "user",
+        UserModel,
+        UserPostModel,
+        UserPatchModel,
+        dynamic_fields=["ui_exposure_level"],
+    )
+    _payload: UserModel
     was_active: bool = False
     was_admin: bool = False
     was_manager: bool = False
@@ -118,6 +130,10 @@ class UserEntity(TopLevelEntity):
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
     _teams: set[str] | None = None
+
+    @property
+    def payload(self) -> UserModel:
+        return self._payload
 
     _original_email: str | None = None
     _original_avatar_url: str | None = None

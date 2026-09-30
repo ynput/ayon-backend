@@ -5,6 +5,11 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
+from ayon_server.entities.models.representation import (
+    RepresentationModel,
+    RepresentationPatchModel,
+    RepresentationPostModel,
+)
 from ayon_server.operations.project_level import ProjectLevelOperations
 
 from .router import router
@@ -22,7 +27,7 @@ async def get_representation(
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-) -> RepresentationEntity.model.main_model:  # type: ignore
+) -> RepresentationModel:
     """Retrieve a representation by its ID."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
@@ -37,7 +42,7 @@ async def get_representation(
 
 @router.post("/projects/{project_name}/representations", status_code=201)
 async def create_representation(
-    post_data: RepresentationEntity.model.post_model,  # type: ignore
+    post_data: RepresentationPostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -59,7 +64,7 @@ async def create_representation(
     "/projects/{project_name}/representations/{representation_id}", status_code=204
 )
 async def update_representation(
-    post_data: RepresentationEntity.model.patch_model,  # type: ignore
+    post_data: RepresentationPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
