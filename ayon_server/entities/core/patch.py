@@ -8,7 +8,7 @@ from ayon_server.logging import logger
 from ayon_server.models.attrib_values import AttribDict
 
 
-def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
+def apply_patch[ModelT: BaseModel](original: ModelT, patch: BaseModel) -> ModelT:
     """Patch (partial update) an entity using its patch model."""
     update_data: dict[str, Any] = {}
 

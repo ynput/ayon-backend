@@ -14,6 +14,7 @@ from ayon_server.entities.models.common import (
     UPDATED_AT,
     UPDATED_BY,
     EntityModel,
+    ProjectLevelEntityModel,
 )
 from ayon_server.entities.models.submodels import RepresentationFileModel
 from ayon_server.models.attrib_values import AttribDict
@@ -51,47 +52,43 @@ REPRESENTATION_PATH = Field(
 BELONGS_TO_HERO = Field(title="Belongs to HERO version", example=False)
 
 
-class RepresentationModel(EntityModel):
+class RepresentationModel(ProjectLevelEntityModel):
     entity_type: ClassVar[str] = "representation"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     name: Annotated[str, REPRESENTATION_NAME]
     version_id: Annotated[str, VERSION_ID]
-    files: Annotated[list[RepresentationFileModel] | None, FILES] = None
+    files: Annotated[list[RepresentationFileModel], FILES] = Field(default_factory=list)
     traits: Annotated[dict[str, Any] | None, TRAITS] = None
     path: Annotated[str | None, REPRESENTATION_PATH] = None
     belongs_to_hero: Annotated[bool | None, BELONGS_TO_HERO] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
-    own_attrib: Annotated[list[str] | None, OWN_ATTRIB] = None
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
+    own_attrib: Annotated[list[str], OWN_ATTRIB] = Field(default_factory=list)
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
-    created_at: Annotated[datetime | None, CREATED_AT] = Field(
-        default_factory=datetime.now
-    )
-    updated_at: Annotated[datetime | None, UPDATED_AT] = Field(
-        default_factory=datetime.now
-    )
+    created_at: Annotated[datetime, CREATED_AT] = Field(default_factory=datetime.now)
+    updated_at: Annotated[datetime, UPDATED_AT] = Field(default_factory=datetime.now)
 
 
 class RepresentationPostModel(EntityModel):
     entity_type: ClassVar[str] = "representation"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     name: Annotated[str, REPRESENTATION_NAME]
     version_id: Annotated[str, VERSION_ID]
-    files: Annotated[list[RepresentationFileModel] | None, FILES] = None
+    files: Annotated[list[RepresentationFileModel], FILES] = Field(default_factory=list)
     traits: Annotated[dict[str, Any] | None, TRAITS] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
 
 
 class RepresentationPatchModel(EntityModel):
@@ -102,9 +99,9 @@ class RepresentationPatchModel(EntityModel):
     files: Annotated[list[RepresentationFileModel] | None, FILES] = None
     traits: Annotated[dict[str, Any] | None, TRAITS] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str] | None, TAGS] = None
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any] | None, DATA] = None
+    active: Annotated[bool | None, ACTIVE] = None

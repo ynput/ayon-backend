@@ -16,6 +16,7 @@ from ayon_server.entities.models.common import (
     UPDATED_AT,
     UPDATED_BY,
     EntityModel,
+    ProjectLevelEntityModel,
 )
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import (
@@ -40,10 +41,10 @@ VERSION_PATH = Field(
 )
 
 
-class VersionModel(EntityModel):
+class VersionModel(ProjectLevelEntityModel):
     entity_type: ClassVar[str] = "version"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     version: Annotated[int, VERSION]
     product_id: Annotated[str, PRODUCT_ID]
     task_id: Annotated[str | None, TASK_ID] = None
@@ -51,37 +52,33 @@ class VersionModel(EntityModel):
     author: Annotated[str | None, AUTHOR] = None
     path: Annotated[str | None, VERSION_PATH] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
-    own_attrib: Annotated[list[str] | None, OWN_ATTRIB] = None
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
+    own_attrib: Annotated[list[str], OWN_ATTRIB] = Field(default_factory=list)
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
-    created_at: Annotated[datetime | None, CREATED_AT] = Field(
-        default_factory=datetime.now
-    )
-    updated_at: Annotated[datetime | None, UPDATED_AT] = Field(
-        default_factory=datetime.now
-    )
+    created_at: Annotated[datetime, CREATED_AT] = Field(default_factory=datetime.now)
+    updated_at: Annotated[datetime, UPDATED_AT] = Field(default_factory=datetime.now)
 
 
 class VersionPostModel(EntityModel):
     entity_type: ClassVar[str] = "version"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     version: Annotated[int, VERSION]
     product_id: Annotated[str, PRODUCT_ID]
     task_id: Annotated[str | None, TASK_ID] = None
     thumbnail_id: Annotated[str | None, THUMBNAIL_ID] = None
     author: Annotated[str | None, AUTHOR] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
 
 
 class VersionPatchModel(EntityModel):
@@ -93,9 +90,9 @@ class VersionPatchModel(EntityModel):
     thumbnail_id: Annotated[str | None, THUMBNAIL_ID] = None
     author: Annotated[str | None, AUTHOR] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str] | None, TAGS] = None
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any] | None, DATA] = None
+    active: Annotated[bool | None, ACTIVE] = None

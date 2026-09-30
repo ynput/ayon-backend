@@ -10,22 +10,35 @@ Attribute values (`attrib`) are validated against the current attribute
 definitions (see `attrib`), so the models do not depend on them.
 """
 
+from typing import Generic, TypeVar
+
 from pydantic import BaseModel
 
 from ayon_server.entities.models.attrib import AttribModelConfig, get_attrib_model
+from ayon_server.entities.models.common import EntityMainModel, EntityModel
 
 __all__ = ["AttribModelConfig", "ModelSet"]
 
+MainModelT = TypeVar(
+    "MainModelT", bound=EntityMainModel, default=EntityMainModel, covariant=True
+)
+PostModelT = TypeVar(
+    "PostModelT", bound=EntityModel, default=EntityModel, covariant=True
+)
+PatchModelT = TypeVar(
+    "PatchModelT", bound=EntityModel, default=EntityModel, covariant=True
+)
 
-class ModelSet:
+
+class ModelSet(Generic[MainModelT, PostModelT, PatchModelT]):
     """Models of an entity type (`Entity.model`)."""
 
     def __init__(
         self,
         entity_name: str,
-        main_model: type[BaseModel],
-        post_model: type[BaseModel],
-        patch_model: type[BaseModel],
+        main_model: type[MainModelT],
+        post_model: type[PostModelT],
+        patch_model: type[PatchModelT],
         *,
         dynamic_fields: list[str],
     ) -> None:

@@ -21,7 +21,7 @@ BASE_GET_QUERY = """
 """
 
 
-class ProductEntity(ProjectLevelEntity):
+class ProductEntity(ProjectLevelEntity[ProductModel]):
     entity_type: ProjectLevelEntityType = "product"
     model = ModelSet(
         "product",
@@ -89,11 +89,11 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def folder_id(self) -> str:
-        return self._payload.folder_id  # type: ignore
+        return self._payload.folder_id
 
     @folder_id.setter
     def folder_id(self, value: str):
-        self._payload.folder_id = value  # type: ignore
+        self._payload.folder_id = value
 
     @property
     def parent_id(self) -> str:
@@ -101,16 +101,16 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def product_type(self) -> str:
-        return self._payload.product_type  # type: ignore
+        return self._payload.product_type
 
     @product_type.setter
     def product_type(self, value: str):
-        self._payload.product_type = value  # type: ignore
+        self._payload.product_type = value
 
     @property
     def product_base_type(self) -> str | None:
-        return self._payload.product_base_type  # type: ignore
+        return self._payload.product_base_type
 
     @product_base_type.setter
     def product_base_type(self, value: str | None):
-        self._payload.product_base_type = value  # type: ignore
+        self._payload.product_base_type = value

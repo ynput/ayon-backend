@@ -15,6 +15,7 @@ from ayon_server.entities.models.common import (
     UPDATED_AT,
     UPDATED_BY,
     EntityModel,
+    ProjectLevelEntityModel,
 )
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import NAME_REGEX, Field
@@ -41,46 +42,42 @@ PRODUCT_BASE_TYPE = Field(
 PRODUCT_PATH = Field(title="Path", example="/assets/characters/xenomorph/modelMain")
 
 
-class ProductModel(EntityModel):
+class ProductModel(ProjectLevelEntityModel):
     entity_type: ClassVar[str] = "product"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     name: Annotated[str, PRODUCT_NAME]
     folder_id: Annotated[str, FOLDER_ID]
     product_type: Annotated[str, PRODUCT_TYPE]
     product_base_type: Annotated[str | None, PRODUCT_BASE_TYPE] = None
     path: Annotated[str | None, PRODUCT_PATH] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
-    own_attrib: Annotated[list[str] | None, OWN_ATTRIB] = None
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
+    own_attrib: Annotated[list[str], OWN_ATTRIB] = Field(default_factory=list)
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
-    created_at: Annotated[datetime | None, CREATED_AT] = Field(
-        default_factory=datetime.now
-    )
-    updated_at: Annotated[datetime | None, UPDATED_AT] = Field(
-        default_factory=datetime.now
-    )
+    created_at: Annotated[datetime, CREATED_AT] = Field(default_factory=datetime.now)
+    updated_at: Annotated[datetime, UPDATED_AT] = Field(default_factory=datetime.now)
 
 
 class ProductPostModel(EntityModel):
     entity_type: ClassVar[str] = "product"
 
-    id: Annotated[str | None, ENTITY_ID] = Field(default_factory=create_uuid)
+    id: Annotated[str, ENTITY_ID] = Field(default_factory=create_uuid)
     name: Annotated[str, PRODUCT_NAME]
     folder_id: Annotated[str, FOLDER_ID]
     product_type: Annotated[str, PRODUCT_TYPE]
     product_base_type: Annotated[str | None, PRODUCT_BASE_TYPE] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str], TAGS] = Field(default_factory=list)
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any], DATA] = Field(default_factory=dict)
+    active: Annotated[bool, ACTIVE] = True
 
 
 class ProductPatchModel(EntityModel):
@@ -91,9 +88,9 @@ class ProductPatchModel(EntityModel):
     product_type: Annotated[str | None, PRODUCT_TYPE] = None
     product_base_type: Annotated[str | None, PRODUCT_BASE_TYPE] = None
     status: Annotated[str | None, STATUS] = None
-    tags: Annotated[list[str] | None, TAGS] = Field(default_factory=list)
+    tags: Annotated[list[str] | None, TAGS] = None
     created_by: Annotated[str | None, CREATED_BY] = None
     updated_by: Annotated[str | None, UPDATED_BY] = None
     attrib: Annotated[AttribDict, ATTRIB] = Field(default_factory=AttribDict)
-    data: Annotated[dict[str, Any] | None, DATA] = Field(default_factory=dict)
-    active: Annotated[bool | None, ACTIVE] = True
+    data: Annotated[dict[str, Any] | None, DATA] = None
+    active: Annotated[bool | None, ACTIVE] = None

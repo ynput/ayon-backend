@@ -47,7 +47,7 @@ def version_name(version: int) -> str:
     return f"v{version:03d}"
 
 
-class VersionEntity(ProjectLevelEntity):
+class VersionEntity(ProjectLevelEntity[VersionModel]):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet(
         "version",
@@ -136,53 +136,53 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def version(self) -> int:
-        return self._payload.version  # type: ignore
+        return self._payload.version
 
     @version.setter
     def version(self, value: int) -> None:
-        self._payload.version = value  # type: ignore
+        self._payload.version = value
 
     @property
     def product_id(self) -> str:
-        return self._payload.product_id  # type: ignore
+        return self._payload.product_id
 
     @product_id.setter
     def product_id(self, value: str) -> None:
-        self._payload.product_id = value  # type: ignore
+        self._payload.product_id = value
 
     @property
     def parent_id(self) -> str:
         return self.product_id
 
     @property
-    def task_id(self) -> str:
-        return self._payload.task_id  # type: ignore
+    def task_id(self) -> str | None:
+        return self._payload.task_id
 
     @task_id.setter
-    def task_id(self, value: str) -> None:
-        self._payload.task_id = value  # type: ignore
+    def task_id(self, value: str | None) -> None:
+        self._payload.task_id = value
 
     @property
-    def thumbnail_id(self) -> str:
-        return self._payload.thumbnail_id  # type: ignore
+    def thumbnail_id(self) -> str | None:
+        return self._payload.thumbnail_id
 
     @thumbnail_id.setter
-    def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value  # type: ignore
+    def thumbnail_id(self, value: str | None) -> None:
+        self._payload.thumbnail_id = value
 
     @property
-    def author(self) -> str:
-        return self._payload.author  # type: ignore
+    def author(self) -> str | None:
+        return self._payload.author
 
     #
     # Read only properties
     #
 
     @property
-    def path(self) -> str:
-        return self._payload.path  # type: ignore
+    def path(self) -> str | None:
+        return self._payload.path
 
     def skip_patch_permissions_check(self) -> bool:
         """Checks if current entity is HERO version."""
 
-        return self.payload.version < 0  # type: ignore
+        return self.payload.version < 0

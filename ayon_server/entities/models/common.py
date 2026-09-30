@@ -10,11 +10,13 @@ by the models (and entities) are defined once, as `Field` objects used in
     name: Annotated[str | None, FOLDER_NAME] = None  # optional (patch)
 """
 
-from typing import Any, ClassVar
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities.models.attrib import validate_attrib
+from ayon_server.models.attrib_values import AttribDict
 from ayon_server.models.rest_model import RestModel
 from ayon_server.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, Field
 
@@ -32,6 +34,34 @@ class EntityModel(RestModel):
     @classmethod
     def validate_attrib_values(cls, value: Any, info: ValidationInfo) -> Any:
         return validate_attrib(cls.entity_type, value, info.context)
+
+
+class EntityMainModel(EntityModel):
+    """Base of the entity models (not of the post and patch models).
+
+    Declares the fields of all entities for type checkers (the entities
+    access them in their payload). Each model defines them itself,
+    in the order they are written.
+    """
+
+    if TYPE_CHECKING:
+        attrib: AttribDict
+        data: dict[str, Any]
+        active: bool
+        own_attrib: list[str]
+        created_at: datetime
+        updated_at: datetime
+
+
+class ProjectLevelEntityModel(EntityMainModel):
+    """Base of the project-level entity models (see EntityMainModel)."""
+
+    if TYPE_CHECKING:
+        id: str
+        status: str | None
+        tags: list[str]
+        created_by: str | None
+        updated_by: str | None
 
 
 #

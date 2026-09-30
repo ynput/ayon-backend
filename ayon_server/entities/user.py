@@ -109,7 +109,7 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
         user_data["defaultAccessGroups"] = default_access_groups
 
 
-class UserEntity(TopLevelEntity):
+class UserEntity(TopLevelEntity[UserModel]):
     entity_type: str = "user"
     model = ModelSet(
         "user",
@@ -118,7 +118,6 @@ class UserEntity(TopLevelEntity):
         UserPatchModel,
         dynamic_fields=["ui_exposure_level"],
     )
-    _payload: UserModel
     was_active: bool = False
     was_admin: bool = False
     was_manager: bool = False
@@ -130,10 +129,6 @@ class UserEntity(TopLevelEntity):
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
     _teams: set[str] | None = None
-
-    @property
-    def payload(self) -> UserModel:
-        return self._payload
 
     _original_email: str | None = None
     _original_avatar_url: str | None = None

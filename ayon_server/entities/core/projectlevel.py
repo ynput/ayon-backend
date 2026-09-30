@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
+from ayon_server.entities.models.common import ProjectLevelEntityModel
 from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
@@ -23,7 +24,15 @@ BASE_GET_QUERY = """
 """
 
 
-class ProjectLevelEntity(BaseEntity):
+ProjectLevelModelT = TypeVar(
+    "ProjectLevelModelT",
+    bound=ProjectLevelEntityModel,
+    default=ProjectLevelEntityModel,
+    covariant=True,
+)
+
+
+class ProjectLevelEntity(BaseEntity[ProjectLevelModelT]):
     entity_type: ProjectLevelEntityType
     project_name: str
     base_get_query: str = BASE_GET_QUERY
@@ -116,7 +125,7 @@ class ProjectLevelEntity(BaseEntity):
         if attr_perm.enabled:
             # Remove attributes the user cannot read from the payload,
             # so they are not included in the serialized output
-            attrib = result.attrib  # type: ignore[attr-defined]
+            attrib = result.attrib
             for key in tuple(attrib):
                 if key not in attr_perm.attributes:
                     attrib.pop(key)
@@ -325,12 +334,12 @@ class ProjectLevelEntity(BaseEntity):
     @property
     def id(self) -> str:
         """Return the entity id."""
-        return self._payload.id  # type: ignore
+        return self._payload.id
 
     @id.setter
     def id(self, value: str):
         """Set the entity id."""
-        self._payload.id = value  # type: ignore
+        self._payload.id = value
 
     @property
     def parent_id(self) -> str | None:
@@ -344,22 +353,22 @@ class ProjectLevelEntity(BaseEntity):
         raise NotImplementedError
 
     @property
-    def status(self) -> str:
+    def status(self) -> str | None:
         """Return the entity status."""
-        return self._payload.status  # type: ignore
+        return self._payload.status
 
     @status.setter
     def status(self, value: str):
         """Set the entity status."""
-        self._payload.status = value  # type: ignore
+        self._payload.status = value
 
     @property
     def tags(self) -> list[str]:
-        return self._payload.tags  # type: ignore
+        return self._payload.tags
 
     @tags.setter
     def tags(self, value: list[str]):
-        self._payload.tags = value  # type: ignore
+        self._payload.tags = value
 
     #
     # Read only properties
@@ -375,13 +384,13 @@ class ProjectLevelEntity(BaseEntity):
         return None
 
     @property
-    def path(self) -> str:
+    def path(self) -> str | None:
         return ""
 
     @property
     def created_by(self) -> str | None:
-        return self._payload.created_by  # type: ignore
+        return self._payload.created_by
 
     @property
     def updated_by(self) -> str | None:
-        return self._payload.updated_by  # type: ignore
+        return self._payload.updated_by

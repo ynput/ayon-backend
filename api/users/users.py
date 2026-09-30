@@ -134,8 +134,6 @@ async def create_user(
     if not user.is_manager:
         raise ForbiddenException
 
-    if put_data.data is None:
-        put_data.data = {}
     validate_user_data(put_data.data)
 
     try:

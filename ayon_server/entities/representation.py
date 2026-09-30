@@ -40,7 +40,7 @@ BASE_GET_QUERY = """
 """
 
 
-class RepresentationEntity(ProjectLevelEntity):
+class RepresentationEntity(ProjectLevelEntity[RepresentationModel]):
     entity_type: ProjectLevelEntityType = "representation"
     model = ModelSet(
         "representation",
@@ -93,11 +93,11 @@ class RepresentationEntity(ProjectLevelEntity):
 
     @property
     def version_id(self) -> str:
-        return self._payload.version_id  # type: ignore
+        return self._payload.version_id
 
     @version_id.setter
     def version_id(self, value: str):
-        self._payload.version_id = value  # type: ignore
+        self._payload.version_id = value
 
     @property
     def parent_id(self) -> str:
