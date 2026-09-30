@@ -4,6 +4,7 @@ from typing import Annotated, Any
 
 from pydantic import Field, root_validator
 
+from ayon_server.exceptions import BadRequestException
 from ayon_server.types import NAME_REGEX, OPModel
 from ayon_server.utils import EntityID, slugify
 
@@ -102,8 +103,8 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
             ``"subtaskSyncID"`` entries.
 
     Raises:
-        ValueError: If any subtask is invalid according to :class:`Subtask`
-            validation, or if there are duplicate subtask IDs or names.
+        ValidationError: If any subtask is invalid according to :class:`Subtask`.
+        BadRequestException: If there are duplicate subtask IDs or names.
     """
     if "data" not in payload_dict:
         # nothing in data, so neither subtasks or subtaskSyncId
@@ -119,16 +120,22 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         result = []
         for subtask in subtasks:
             _subtask_obj = Subtask(**subtask)
-            result.append(_subtask_obj.dict(exclude_none=True, exclude_unset=True))
+            result.append(
+                {
+                    # the ID is generated when not provided (it is not "set")
+                    "id": _subtask_obj.id,
+                    **_subtask_obj.dict(exclude_none=True, exclude_unset=True),
+                }
+            )
 
         # ensure unique IDs and names
         ids = set()
         names = set()
         for subtask in result:
             if subtask["id"] in ids:
-                raise ValueError(f"Duplicate subtask ID {subtask['id']}")
+                raise BadRequestException(f"Duplicate subtask ID {subtask['id']}")
             if subtask["name"] in names:
-                raise ValueError(f"Duplicate subtask name {subtask['name']}")
+                raise BadRequestException(f"Duplicate subtask name {subtask['name']}")
             ids.add(subtask["id"])
             names.add(subtask["name"])
 
