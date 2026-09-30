@@ -4,12 +4,23 @@ from typing import NoReturn
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.workfile import (
+    WorkfileModel,
+    WorkfilePatchModel,
+    WorkfilePostModel,
+)
 from ayon_server.types import ProjectLevelEntityType
 
 
-class WorkfileEntity(ProjectLevelEntity):
+class WorkfileEntity(ProjectLevelEntity[WorkfileModel]):
     entity_type: ProjectLevelEntityType = "workfile"
-    model = ModelSet("workfile")
+    model = ModelSet(
+        "workfile",
+        WorkfileModel,
+        WorkfilePostModel,
+        WorkfilePatchModel,
+        dynamic_fields=[],
+    )
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
@@ -37,28 +48,28 @@ class WorkfileEntity(ProjectLevelEntity):
 
     @property
     def path(self) -> str:
-        return self._payload.path  # type: ignore
+        return self._payload.path
 
     @path.setter
     def path(self, value: str) -> None:
-        self._payload.path = value  # type: ignore
+        self._payload.path = value
 
     @property
     def task_id(self) -> str:
-        return self._payload.task_id  # type: ignore
+        return self._payload.task_id
 
     @task_id.setter
     def task_id(self, value: str) -> None:
-        self._payload.task_id = value  # type: ignore
+        self._payload.task_id = value
 
     @property
     def parent_id(self) -> str:
         return self.task_id
 
     @property
-    def thumbnail_id(self) -> str:
-        return self._payload.thumbnail_id  # type: ignore
+    def thumbnail_id(self) -> str | None:
+        return self._payload.thumbnail_id
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value  # type: ignore
+        self._payload.thumbnail_id = value

@@ -14,6 +14,11 @@ from ayon_server.auth.utils import (
 from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.user import (
+    UserModel,
+    UserPatchModel,
+    UserPostModel,
+)
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
     ConstraintViolationException,
@@ -104,9 +109,15 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
         user_data["defaultAccessGroups"] = default_access_groups
 
 
-class UserEntity(TopLevelEntity):
+class UserEntity(TopLevelEntity[UserModel]):
     entity_type: str = "user"
-    model = ModelSet("user", has_id=False)
+    model = ModelSet(
+        "user",
+        UserModel,
+        UserPostModel,
+        UserPatchModel,
+        dynamic_fields=["ui_exposure_level"],
+    )
     was_active: bool = False
     was_admin: bool = False
     was_manager: bool = False

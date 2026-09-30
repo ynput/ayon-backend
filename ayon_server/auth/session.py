@@ -11,6 +11,7 @@ from fastapi import Request
 from ayon_server.api.clientinfo import ClientInfo, get_client_info
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.entities.models.user import UserModel
 from ayon_server.events import EventStream
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
@@ -27,7 +28,7 @@ def is_local_ip(ip: str) -> bool:
 
 
 class SessionModel(OPModel):
-    user: UserEntity.model.main_model  # type: ignore
+    user: UserModel
     token: str
     created: float = 0
     last_used: float = 0

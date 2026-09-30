@@ -3,6 +3,11 @@ from typing import Any
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.product import (
+    ProductModel,
+    ProductPatchModel,
+    ProductPostModel,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
@@ -16,9 +21,15 @@ BASE_GET_QUERY = """
 """
 
 
-class ProductEntity(ProjectLevelEntity):
+class ProductEntity(ProjectLevelEntity[ProductModel]):
     entity_type: ProjectLevelEntityType = "product"
-    model = ModelSet("product")
+    model = ModelSet(
+        "product",
+        ProductModel,
+        ProductPostModel,
+        ProductPatchModel,
+        dynamic_fields=["path"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod
@@ -78,11 +89,11 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def folder_id(self) -> str:
-        return self._payload.folder_id  # type: ignore
+        return self._payload.folder_id
 
     @folder_id.setter
     def folder_id(self, value: str):
-        self._payload.folder_id = value  # type: ignore
+        self._payload.folder_id = value
 
     @property
     def parent_id(self) -> str:
@@ -90,16 +101,16 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def product_type(self) -> str:
-        return self._payload.product_type  # type: ignore
+        return self._payload.product_type
 
     @product_type.setter
     def product_type(self, value: str):
-        self._payload.product_type = value  # type: ignore
+        self._payload.product_type = value
 
     @property
     def product_base_type(self) -> str | None:
-        return self._payload.product_base_type  # type: ignore
+        return self._payload.product_base_type
 
     @product_base_type.setter
     def product_base_type(self, value: str | None):
-        self._payload.product_base_type = value  # type: ignore
+        self._payload.product_base_type = value

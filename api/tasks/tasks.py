@@ -7,6 +7,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import TaskEntity
+from ayon_server.entities.models.task import TaskModel, TaskPatchModel, TaskPostModel
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -27,7 +28,7 @@ async def get_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-) -> TaskEntity.model.main_model:  # type: ignore
+) -> TaskModel:
     """Retrieve a task by its ID."""
 
     task = await TaskEntity.load(project_name, task_id)
@@ -42,7 +43,7 @@ async def get_task(
 
 @router.post("/projects/{project_name}/tasks", status_code=201)
 async def create_task(
-    post_data: TaskEntity.model.post_model,  # type: ignore
+    post_data: TaskPostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -65,7 +66,7 @@ async def create_task(
 
 @router.patch("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def update_task(
-    post_data: TaskEntity.model.patch_model,  # type: ignore
+    post_data: TaskPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,

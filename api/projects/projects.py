@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import (
     ProjectName,
 )
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.models import project as project_models
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
 from ayon_server.exceptions import (
@@ -54,21 +55,21 @@ TAGS_FIELD = Annotated[
 ]
 
 
-class ProjectModel(ProjectEntity.model.main_model):  # type: ignore
+class ProjectModel(project_models.ProjectModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPostModel(ProjectEntity.model.post_model):  # type: ignore
+class ProjectPostModel(project_models.ProjectPostModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
+class ProjectPatchModel(project_models.ProjectPatchModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD

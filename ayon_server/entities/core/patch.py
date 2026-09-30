@@ -8,7 +8,7 @@ from ayon_server.logging import logger
 from ayon_server.models.attrib_values import AttribDict
 
 
-def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
+def apply_patch[ModelT: BaseModel](original: ModelT, patch: BaseModel) -> ModelT:
     """Patch (partial update) an entity using its patch model."""
     update_data: dict[str, Any] = {}
 
@@ -22,14 +22,6 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
             new_attrib = copy.deepcopy(getattr(original, key))
             new_attrib.update(value)
             update_data[key] = new_attrib
-
-        elif isinstance(getattr(original, key), BaseModel):
-            # Patch a submodel (attrib)
-            ndata = apply_patch(
-                getattr(original, key),
-                getattr(original, key).__class__(**value),
-            )
-            update_data[key] = ndata
 
         elif isinstance(getattr(original, key), dict):
             # Patch arbitrary dict (one level only!)

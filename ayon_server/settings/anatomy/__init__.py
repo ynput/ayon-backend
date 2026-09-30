@@ -15,7 +15,10 @@ from typing import Any
 from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.entities.models.attrib import validate_attrib
 from ayon_server.logging import logger
+from ayon_server.models.attrib_values import AttribDict
 from ayon_server.settings.anatomy.entity_naming import EntityNaming
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
@@ -62,7 +65,8 @@ class Anatomy(BaseSettingsModel):
     # Project attributes are configured at runtime, so they are not part
     # of the model schema (see the anatomy schema endpoint)
     attributes: dict[str, Any] = SettingsField(
-        default_factory=ProjectEntity.model.attrib_type,
+        default_factory=dict,
+        validate_default=True,
         title="Attributes",
         description="Attributes configuration",
     )
@@ -110,7 +114,15 @@ class Anatomy(BaseSettingsModel):
     @field_validator("attributes")
     @classmethod
     def validate_attributes(cls, value: dict[str, Any]) -> dict[str, Any]:
-        return ProjectEntity.model.attrib_type.validate(value)
+        # The anatomy lists all project attributes (with the defaults).
+        # A new project stores them as its own values.
+        return AttribDict(
+            {
+                **dict.fromkeys(a["name"] for a in attribute_library["project"]),
+                **attribute_library.project_defaults,
+                **validate_attrib("project", value),
+            }
+        )
 
     @field_validator("roots", "folder_types", "task_types", "statuses", "tags")
     @classmethod

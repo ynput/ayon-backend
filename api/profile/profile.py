@@ -6,6 +6,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
+from ayon_server.entities.models.user import UserModel, UserPatchModel
 from ayon_server.exceptions import (
     BadRequestException,
 )
@@ -22,7 +23,7 @@ from .router import router
 @router.get("", dependencies=[AllowGuests])
 async def get_current_user_profile(
     user: CurrentUser,
-) -> UserEntity.model.main_model:  # type: ignore
+) -> UserModel:
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -30,8 +31,9 @@ async def get_current_user_profile(
     """
 
     payload = user.payload
-    payload.ui_exposure_level = await user.get_ui_exposure_level()  # type: ignore
-    payload.data.pop("supportToken", None)  # type: ignore
+    payload.ui_exposure_level = await user.get_ui_exposure_level()
+    if payload.data:
+        payload.data.pop("supportToken", None)
     return payload
 
 
@@ -54,7 +56,7 @@ async def update_guest_attrib(
 
 @router.patch("", dependencies=[AllowGuests])
 async def update_current_user_profile(
-    payload: UserEntity.model.patch_model,  # type: ignore
+    payload: UserPatchModel,
     user: CurrentUser,
 ) -> None:
 

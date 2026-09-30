@@ -1,11 +1,14 @@
 import builtins
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
 from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.attrib import validate_attrib
+from ayon_server.entities.models.common import EntityMainModel
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
 from ayon_server.utils import dict_exclude
@@ -17,14 +20,20 @@ ALWAYS_WRITABLE_ATTRS: list[str] = []
 ALWAYS_WRITABLE_FIELDS: list[str] = ["thumbnail_id"]
 
 
-class BaseEntity:
+# Entity model (payload) of the entity type
+ModelT = TypeVar(
+    "ModelT", bound=EntityMainModel, default=EntityMainModel, covariant=True
+)
+
+
+class BaseEntity(Generic[ModelT]):
     entity_type: str
-    model: ModelSet
+    model: ModelSet[ModelT, Any, Any]
     exists: bool = False
     project_name: str | None = None
     own_attrib: list[str] = []
     inherited_attrib: dict[str, Any] = {}
-    _payload: BaseModel
+    _payload: ModelT
 
     def __repr__(self):
         return f"<{self.entity_type} {self.name}>"
@@ -43,7 +52,7 @@ class BaseEntity:
         are dropped.
         """
         try:
-            return builtins.dict(self.model.attrib_patch_type.validate(values))
+            return builtins.dict(validate_attrib(self.entity_type, values))
         except ValidationError as e:
             details = "; ".join(
                 f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
@@ -209,10 +218,10 @@ class BaseEntity:
             # Revert the attrib value to the value inherited from parent
             # (if available)
             if attr in self.inherited_attrib:
-                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])  # type: ignore
+                self._payload.attrib[attr] = self.inherited_attrib[attr]
 
     @property
-    def payload(self) -> BaseModel:
+    def payload(self) -> ModelT:
         return self._payload
 
     #
@@ -239,48 +248,49 @@ class BaseEntity:
 
     @property
     def name(self) -> str:
-        return self._payload.name  # type: ignore
+        # All entities have a name except workfiles, which override it
+        return self._payload.name  # type: ignore[attr-defined]
 
     @name.setter
     def name(self, value: str) -> None:
-        self._payload.name = value  # type: ignore
+        self._payload.name = value  # type: ignore[attr-defined]
 
     @property
     def attrib(self):
         """Return the entity attributes."""
-        return self._payload.attrib  # type: ignore
+        return self._payload.attrib
 
     @property
     def data(self) -> builtins.dict[str, Any]:
-        return self._payload.data  # type: ignore
+        return self._payload.data
 
     @data.setter
     def data(self, value: builtins.dict[str, Any]) -> None:
-        self._payload.data = value  # type: ignore
+        self._payload.data = value
 
     @property
     def active(self) -> bool:
-        return self._payload.active  # type: ignore
+        return self._payload.active
 
     @active.setter
     def active(self, value) -> None:
-        self._payload.active = value  # type: ignore
+        self._payload.active = value
 
     @property
-    def created_at(self) -> float:
-        return self._payload.created_at  # type: ignore
+    def created_at(self) -> datetime:
+        return self._payload.created_at
 
     @created_at.setter
-    def created_at(self, value: float) -> None:
-        self._payload.created_at = value  # type: ignore
+    def created_at(self, value: datetime) -> None:
+        self._payload.created_at = value
 
     @property
-    def updated_at(self) -> float:
-        return self._payload.updated_at  # type: ignore
+    def updated_at(self) -> datetime:
+        return self._payload.updated_at
 
     @updated_at.setter
-    def updated_at(self, value: float) -> None:
-        self._payload.updated_at = value  # type: ignore
+    def updated_at(self, value: datetime) -> None:
+        self._payload.updated_at = value
 
     def skip_patch_permissions_check(self) -> bool:
         """Return whether patch permission check should be skipped for this entity."""

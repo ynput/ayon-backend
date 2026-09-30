@@ -3,6 +3,11 @@ from typing import Any
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.task import (
+    TaskModel,
+    TaskPatchModel,
+    TaskPostModel,
+)
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
@@ -38,9 +43,15 @@ BASE_GET_QUERY = """
 """
 
 
-class TaskEntity(ProjectLevelEntity):
+class TaskEntity(ProjectLevelEntity[TaskModel]):
     entity_type: ProjectLevelEntityType = "task"
-    model = ModelSet("task")
+    model = ModelSet(
+        "task",
+        TaskModel,
+        TaskPostModel,
+        TaskPatchModel,
+        dynamic_fields=["path"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod
@@ -97,40 +108,40 @@ class TaskEntity(ProjectLevelEntity):
     @property
     def label(self) -> str | None:
         """Return the label of the task."""
-        return self._payload.label  # type: ignore
+        return self._payload.label
 
     @label.setter
     def label(self, value: str) -> None:
         """Set the label of the task."""
-        self._payload.label = value  # type: ignore
+        self._payload.label = value
 
     @property
-    def folder_id(self) -> str:
-        return self._payload.folder_id  # type: ignore
+    def folder_id(self) -> str | None:
+        return self._payload.folder_id
 
     @folder_id.setter
     def folder_id(self, value: str) -> None:
-        self._payload.folder_id = value  # type: ignore
+        self._payload.folder_id = value
 
     @property
-    def parent_id(self) -> str:
+    def parent_id(self) -> str | None:
         return self.folder_id
 
     @property
     def task_type(self) -> str:
-        return self._payload.task_type  # type: ignore
+        return self._payload.task_type
 
     @task_type.setter
     def task_type(self, value: str) -> None:
-        self._payload.task_type = value  # type: ignore
+        self._payload.task_type = value
 
     @property
     def assignees(self) -> list[str]:
-        return self._payload.assignees  # type: ignore
+        return self._payload.assignees
 
     @assignees.setter
     def assignees(self, value: list[str]) -> None:
-        self._payload.assignees = value  # type: ignore
+        self._payload.assignees = value
 
     @property
     def entity_subtype(self) -> str:
@@ -138,16 +149,16 @@ class TaskEntity(ProjectLevelEntity):
 
     @property
     def thumbnail_id(self) -> str | None:
-        return self._payload.thumbnail_id  # type: ignore
+        return self._payload.thumbnail_id
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value  # type: ignore
+        self._payload.thumbnail_id = value
 
     #
     # Read only properties
     #
 
     @property
-    def path(self) -> str:
-        return self._payload.path  # type: ignore
+    def path(self) -> str | None:
+        return self._payload.path

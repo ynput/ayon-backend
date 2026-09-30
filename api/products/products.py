@@ -3,6 +3,11 @@ from fastapi import APIRouter
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import ProductEntity
+from ayon_server.entities.models.product import (
+    ProductModel,
+    ProductPatchModel,
+    ProductPostModel,
+)
 from ayon_server.operations.project_level import ProjectLevelOperations
 
 router = APIRouter(tags=["Products"])
@@ -19,7 +24,7 @@ async def get_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
-) -> ProductEntity.model.main_model:  # type: ignore
+) -> ProductModel:
     """Retrieve a product by its ID."""
 
     product = await ProductEntity.load(project_name, product_id)
@@ -34,7 +39,7 @@ async def get_product(
 
 @router.post("/projects/{project_name}/products", status_code=201)
 async def create_product(
-    post_data: ProductEntity.model.post_model,  # type: ignore
+    post_data: ProductPostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -55,7 +60,7 @@ async def create_product(
 
 @router.patch("/projects/{project_name}/products/{product_id}", status_code=204)
 async def update_product(
-    post_data: ProductEntity.model.patch_model,  # type: ignore
+    post_data: ProductPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,

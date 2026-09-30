@@ -2,10 +2,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ayon_server.entities.core.base import BaseEntity
+from ayon_server.entities.core.base import BaseEntity, ModelT
 
 
-class TopLevelEntity(BaseEntity):
+class TopLevelEntity(BaseEntity[ModelT]):
     def __init__(
         self,
         payload: dict[str, Any],
@@ -47,19 +47,19 @@ class TopLevelEntity(BaseEntity):
 
     @property
     def created_by(self) -> str | None:
-        return self._payload.data.get("createdBy")  # type: ignore
+        return self._payload.data.get("createdBy")
 
     @created_by.setter
     def created_by(self, value: str) -> None:
-        self._payload.data["createdBy"] = value  # type: ignore
+        self._payload.data["createdBy"] = value
 
     @property
     def updated_by(self) -> str | None:
-        return self._payload.data.get("updatedBy")  # type: ignore
+        return self._payload.data.get("updatedBy")
 
     @updated_by.setter
     def updated_by(self, value: str) -> None:
-        self._payload.data["updatedBy"] = value  # type: ignore
+        self._payload.data["updatedBy"] = value
 
     async def commit(self):
         """Post-update commit."""

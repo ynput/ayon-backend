@@ -3,6 +3,11 @@ from fastapi import APIRouter
 from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import WorkfileEntity
+from ayon_server.entities.models.workfile import (
+    WorkfileModel,
+    WorkfilePatchModel,
+    WorkfilePostModel,
+)
 from ayon_server.operations.project_level import ProjectLevelOperations
 
 router = APIRouter(tags=["Workfiles"])
@@ -20,7 +25,7 @@ async def get_workfile(
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-) -> WorkfileEntity.model.main_model:  # type: ignore
+) -> WorkfileModel:
     """Retrieve a version by its ID."""
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -35,7 +40,7 @@ async def get_workfile(
 
 @router.post("/projects/{project_name}/workfiles", status_code=201)
 async def create_workfile(
-    post_data: WorkfileEntity.model.post_model,  # type: ignore
+    post_data: WorkfilePostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -64,7 +69,7 @@ async def create_workfile(
 
 @router.patch("/projects/{project_name}/workfiles/{workfile_id}", status_code=204)
 async def update_workfile(
-    post_data: WorkfileEntity.model.patch_model,  # type: ignore
+    post_data: WorkfilePatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
