@@ -111,7 +111,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "link_types": link_types,
         "statuses": statuses,
         "tags": tags,
-        "attrib": anatomy.attributes.model_dump(),
+        "attrib": dict(anatomy.attributes),
         "config": config,
     }
 

@@ -35,7 +35,7 @@ from ayon_server.graphql.nodes.common import (
 )
 from ayon_server.graphql.utils import attrib_to_json
 from ayon_server.models.attrib_values import AttribDict
-from ayon_server.settings.anatomy import Anatomy, get_project_attrib_model
+from ayon_server.settings.anatomy import Anatomy
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "api"))
 
@@ -244,9 +244,8 @@ def test_entity_model_subclass_and_route_follow_reload():
     assert res.status_code == 422
     assert res.json()["detail"][0]["loc"] == ["body", "attrib", "liveTest"]
 
-    attrib_schema = app.openapi()["components"]["schemas"]["FolderAttribModel"]
-    assert "liveTest" in attrib_schema["properties"]
-    assert attrib_schema["properties"]["fps"]["title"] == "Frames per second"
+    # Attributes are configured at runtime, OpenAPI describes a plain object
+    assert "FolderAttribModel" not in app.openapi()["components"]["schemas"]
 
 
 #
@@ -255,17 +254,23 @@ def test_entity_model_subclass_and_route_follow_reload():
 
 
 def test_anatomy_follows_reload():
-    assert (
-        "liveTest"
-        not in Anatomy.schema()["definitions"]["ProjectAttribModel"]["properties"]
-    )
-    settings_model = get_project_attrib_model()
+    from anatomy import get_anatomy_schema  # api/anatomy
+
+    def attribute_form() -> dict[str, Any]:
+        schema = asyncio.run(get_anatomy_schema(None))  # type: ignore[arg-type]
+        ref = schema["properties"]["attributes"]["allOf"][0]["$ref"]
+        assert ref == "#/definitions/ProjectAttribModel"
+        return schema["definitions"]["ProjectAttribModel"]["properties"]
+
+    assert "liveTest" not in attribute_form()
+    anatomy_schema = Anatomy.model_json_schema()
 
     load_attributes(with_live_attribute())
 
-    assert get_project_attrib_model() is not settings_model
-    properties = Anatomy.schema()["definitions"]["ProjectAttribModel"]["properties"]
+    assert Anatomy.model_json_schema() == anatomy_schema  # static
+    properties = attribute_form()
     assert "liveTest" in properties
+    assert properties["liveTest"]["x-enum-resolver"] == "attrib.liveTest"
     assert "resolutionWidth" not in properties
     assert Anatomy().attributes.liveTest == 7
     assert Anatomy(attributes={"liveTest": "1"}).attributes.liveTest == 1

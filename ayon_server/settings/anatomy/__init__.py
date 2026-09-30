@@ -10,14 +10,12 @@ __all__ = [
     "ProductBaseTypes",
 ]
 
-from typing import Any, cast
+from typing import Any
 
-from pydantic import ValidationInfo, create_model, field_validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.logging import logger
-from ayon_server.models.attrib_values import AttribValues
 from ayon_server.settings.anatomy.entity_naming import EntityNaming
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
@@ -31,40 +29,12 @@ from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, ensure_unique_property
 
-# The settings model of the project attributes and the attribute library
-# revision it was created for (see AttributeLibrary)
-_project_attrib_model: tuple[int, type[BaseSettingsModel]] | None = None
-
-
-def get_project_attrib_model() -> type[BaseSettingsModel]:
-    """Return the settings model of the project attributes.
-
-    It is based on the project attribute model, which changes
-    when the attributes are modified, so it is created on demand.
-    """
-    global _project_attrib_model
-    revision = attribute_library.revision
-    if _project_attrib_model is None or _project_attrib_model[0] != revision:
-        settings_model = cast(
-            type[BaseSettingsModel],
-            create_model(
-                "ProjectAttribModel",
-                __base__=(ProjectEntity.model.attrib_model, BaseSettingsModel),
-                __module__=__name__,
-            ),
-        )
-        _project_attrib_model = (revision, settings_model)
-    return _project_attrib_model[1]
-
 
 def __getattr__(name: str) -> Any:
     # Backwards compatibility: ProjectAttribModel used to be a module-level class
     if name == "ProjectAttribModel":
-        return get_project_attrib_model()
+        return ProjectEntity.model.attrib_model
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-project_attrib_type = AttribValues(get_project_attrib_model)
 
 
 class Anatomy(BaseSettingsModel):
@@ -89,8 +59,10 @@ class Anatomy(BaseSettingsModel):
         description="Path templates configuration",
     )
 
-    attributes: project_attrib_type.annotation = SettingsField(  # type: ignore
-        default_factory=project_attrib_type,
+    # Project attributes are configured at runtime, so they are not part
+    # of the model schema (see the anatomy schema endpoint)
+    attributes: dict[str, Any] = SettingsField(
+        default_factory=ProjectEntity.model.attrib_type,
         title="Attributes",
         description="Attributes configuration",
     )
@@ -135,6 +107,11 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: ProductBaseTypes(),  # type: ignore
     )
 
+    @field_validator("attributes")
+    @classmethod
+    def validate_attributes(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return ProjectEntity.model.attrib_type.validate(value)
+
     @field_validator("roots", "folder_types", "task_types", "statuses", "tags")
     @classmethod
     def ensure_unique_names(cls, value, info: ValidationInfo):
@@ -150,11 +127,3 @@ class Anatomy(BaseSettingsModel):
         except Exception:
             logger.warning(f"Duplicate shortName found in project anatomy {field_name}")
         return value
-
-
-def _clear_anatomy_schema_cache() -> None:
-    # Anatomy JSON schema contains the project attributes
-    Anatomy.__dict__.get("__ayon_schema_cache__", {}).clear()
-
-
-attribute_library.on_reload(_clear_anatomy_schema_cache)

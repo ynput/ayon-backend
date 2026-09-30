@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -11,6 +12,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
+from ayon_server.settings.json_schema import SettingsJsonSchemaGenerator
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.types import Field, OPModel
 
@@ -46,6 +48,19 @@ async def get_anatomy_schema(user: CurrentUser) -> dict[str, Any]:
 
     schema = Anatomy.model_json_schema()
     await postprocess_settings_schema(schema, Anatomy)
+
+    # Project attributes are configured at runtime, so their form
+    # is created from the current project attribute model
+    attrib_model = ProjectEntity.model.attrib_model
+    attrib_schema = attrib_model.model_json_schema(
+        schema_generator=SettingsJsonSchemaGenerator
+    )
+    await postprocess_settings_schema(attrib_schema, attrib_model, is_top_level=False)
+    schema["definitions"]["ProjectAttribModel"] = attrib_schema
+    prop = schema["properties"]["attributes"]
+    prop.pop("type", None)
+    prop.pop("additionalProperties", None)
+    prop["allOf"] = [{"$ref": "#/definitions/ProjectAttribModel"}]
     return schema
 
 

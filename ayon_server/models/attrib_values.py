@@ -14,9 +14,7 @@ attribute models (pydantic models), which were used before.
 from collections.abc import Callable, Iterable
 from typing import Annotated, Any
 
-from pydantic import BaseModel, GetCoreSchemaHandler, GetJsonSchemaHandler
-from pydantic.fields import FieldInfo
-from pydantic.json_schema import JsonSchemaValue
+from pydantic import BaseModel, GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
 # Validation context of entities loaded from the database. Their attribute
@@ -240,46 +238,17 @@ class AttribValues:
                 result = {k: v for k, v in result.items() if k not in info.exclude}
             return result
 
+        # Attributes are configured at runtime, so schemas (OpenAPI) describe
+        # them as a plain object. Their definitions are provided by the API.
+        dict_schema = core_schema.dict_schema(
+            core_schema.str_schema(), core_schema.any_schema()
+        )
         return core_schema.with_info_plain_validator_function(
             validate,
+            json_schema_input_schema=dict_schema,
             serialization=core_schema.plain_serializer_function_ser_schema(
                 serialize,
                 info_arg=True,
+                return_schema=dict_schema,
             ),
         )
-
-    def __get_pydantic_json_schema__(
-        self,
-        schema: CoreSchema,
-        handler: GetJsonSchemaHandler,
-    ) -> JsonSchemaValue:
-        # The schema documents the current attributes. Wrapping the model
-        # core schema in a definitions schema makes the generator store
-        # the model in the schema definitions and return a reference to it
-        # - the same result as for a regular model field.
-        model_schema = self.resolve().__pydantic_core_schema__
-        if "ref" not in model_schema:
-            return handler(model_schema)
-        return handler(
-            core_schema.definitions_schema(
-                core_schema.definition_reference_schema(model_schema["ref"]),
-                [model_schema],
-            )
-        )
-
-
-def get_attrib_values(annotation_or_field: Any) -> AttribValues | None:
-    """Return the AttribValues marker of an annotation or a field, if any.
-
-    Accepts an `Annotated` annotation or a pydantic `FieldInfo`
-    (pydantic moves the `Annotated` metadata to `FieldInfo.metadata`)
-    """
-    metadata: Iterable[Any]
-    if isinstance(annotation_or_field, FieldInfo):
-        metadata = annotation_or_field.metadata
-    else:
-        metadata = getattr(annotation_or_field, "__metadata__", ())
-    for meta in metadata:
-        if isinstance(meta, AttribValues):
-            return meta
-    return None

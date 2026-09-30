@@ -4,11 +4,12 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import BaseModel
+
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
 from ayon_server.logging import logger
 from ayon_server.models.field_info import (
-    get_field_annotation,
     get_field_extra,
     get_inner_type,
     iter_annotation_types,
@@ -67,7 +68,7 @@ async def process_functional_enum(
 
 async def postprocess_settings_schema(  # noqa
     schema: dict[str, Any],
-    model: type["BaseSettingsModel"],
+    model: type[BaseModel],
     is_top_level: bool = True,
     context: dict[str, Any] | None = None,
 ) -> None:
@@ -88,7 +89,8 @@ async def postprocess_settings_schema(  # noqa
     if context is None:
         context = {}
 
-    is_group = model.__private_attributes__["_isGroup"].default
+    # Plain models (e.g. the project attributes) are not groups
+    is_group = getattr(model.__private_attributes__.get("_isGroup"), "default", False)
     schema["isgroup"] = is_group
     if "title" in schema:
         del schema["title"]
@@ -218,7 +220,7 @@ async def postprocess_settings_schema(  # noqa
         return
 
     submodels: dict[str, type[BaseSettingsModel]] = {}
-    submodels_deque: collections.deque[type[BaseSettingsModel]] = collections.deque()
+    submodels_deque: collections.deque[Any] = collections.deque()
     submodels_deque.append(model)
     while submodels_deque:
         parent = submodels_deque.popleft()
@@ -240,7 +242,7 @@ async def postprocess_settings_schema(  # noqa
         submodels[parent.__name__] = parent
 
         for field in parent.model_fields.values():
-            submodels_deque.extend(iter_annotation_types(get_field_annotation(field)))
+            submodels_deque.extend(iter_annotation_types(field.annotation))
 
     for definition_name, definition in schema.get("definitions", {}).items():
         if definition_name not in submodels:

@@ -6,8 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
-from ayon_server.models.attrib_values import AttribDict, AttribValues, get_attrib_values
-from ayon_server.models.field_info import get_field_annotation, strip_optional
+from ayon_server.models.attrib_values import AttribDict, AttribValues
 
 
 def make_attrib_model(**fields: type) -> type[BaseModel]:
@@ -152,13 +151,15 @@ def test_revalidation_keeps_fields_set(registry, models):
     assert copied.attrib.model_fields_set == {"fps"}
 
 
-def test_json_schema_documents_current_attributes(registry, models):
+def test_json_schema_does_not_depend_on_attributes(registry, models):
+    # Attributes are configured at runtime, schemas describe a plain object
     ThingModel, _ = models
-    registry.model = make_attrib_model(fps=float, resX=int)
-
     schema = ThingModel.model_json_schema()
-    assert schema["properties"]["attrib"]["$ref"] == "#/$defs/ThingAttribModel"
-    assert set(schema["$defs"]["ThingAttribModel"]["properties"]) == {"fps", "resX"}
+    registry.model = make_attrib_model(fps=float, resX=int)
+    assert ThingModel.model_json_schema() == schema
+    attrib_schema = schema["properties"]["attrib"]
+    assert attrib_schema["type"] == "object"
+    assert attrib_schema["additionalProperties"] is True
 
 
 def test_fastapi_route(registry, models):
@@ -180,19 +181,6 @@ def test_fastapi_route(registry, models):
     res = client.post("/thing", json={"name": "a", "attrib": {"resX": "x"}})
     assert res.status_code == 422
     assert res.json()["detail"][0]["loc"] == ["body", "attrib", "resX"]
-    schemas = app.openapi()["components"]["schemas"]
-    assert "resX" in schemas["ThingAttribModel"]["properties"]
-
-
-def test_marker_helpers(registry, models):
-    ThingModel, _ = models
-    field = ThingModel.model_fields["attrib"]
-    marker = get_attrib_values(field)
-    assert marker is not None
-    assert get_attrib_values(ThingModel.model_fields["name"]) is None
-    assert copy.deepcopy(marker) is marker
-    assert get_field_annotation(field) is registry.model
-    assert strip_optional(marker.annotation) is registry.model
 
 
 def test_validate_does_not_modify_the_source_model(models):
