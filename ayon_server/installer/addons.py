@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import shutil
+import tarfile
 import tempfile
 import time
 import zipfile
@@ -90,8 +91,69 @@ def get_addon_info_from_package_yaml(manifest_data: str) -> AddonZipInfo:
     )
 
 
+class AddonArchive:
+    """Read-only access to an addon archive (zip or tar, optionally compressed)
+
+    The format is detected from the file content, not from the extension,
+    because uploaded and downloaded archives are stored without one.
+    """
+
+    def __init__(self, path: str):
+        self._zip: zipfile.ZipFile | None = None
+        self._tar: tarfile.TarFile | None = None
+        if zipfile.is_zipfile(path):
+            self._zip = zipfile.ZipFile(path, "r")
+        elif tarfile.is_tarfile(path):
+            self._tar = tarfile.open(path, "r:*")
+        else:
+            raise UnsupportedAddonException(
+                "Unsupported archive format. Use zip or tar (gz, bz2, xz)"
+            )
+
+    def __enter__(self) -> "AddonArchive":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        if self._zip is not None:
+            self._zip.close()
+        if self._tar is not None:
+            self._tar.close()
+
+    def read(self, name: str) -> bytes | None:
+        """Return the content of a top-level file, or None if it does not exist"""
+        if self._zip is not None:
+            if name not in self._zip.namelist():
+                return None
+            return self._zip.read(name)
+
+        if self._tar is None:
+            return None
+        # tar archives created with `tar -cf x.tar .` prefix members with "./"
+        for member in self._tar.getmembers():
+            if member.isfile() and member.name.removeprefix("./") == name:
+                fileobj = self._tar.extractfile(member)
+                return fileobj.read() if fileobj else None
+        return None
+
+    def extract_all(self, target_dir: str) -> None:
+        if self._zip is not None:
+            for member in self._zip.infolist():
+                extracted_path = self._zip.extract(member, target_dir)
+
+                # Preserve the file permissions
+                original_mode = member.external_attr >> 16
+                if original_mode:
+                    os.chmod(extracted_path, original_mode)
+            return
+
+        assert self._tar is not None
+        # "data" filter rejects absolute paths, path traversal, links pointing
+        # outside the target and special files, while keeping file permissions
+        self._tar.extractall(target_dir, filter="data")
+
+
 def get_addon_zip_info(path: str) -> AddonZipInfo:
-    """Returns the addon name and version from the zip file"""
+    """Returns the addon name and version from the addon archive"""
     zip_info: AddonZipInfo | None = None
     PARSERS = [
         ("manifest.json", get_addon_info_from_manifest),
@@ -99,15 +161,12 @@ def get_addon_zip_info(path: str) -> AddonZipInfo:
         ("package.yml", get_addon_info_from_package_yaml),
         ("package.py", get_addon_info_from_package_py),
     ]
-    with zipfile.ZipFile(path, "r") as zip_ref:
-        names = zip_ref.namelist()
-
+    with AddonArchive(path) as archive:
         for manifest_name, parser in PARSERS:
-            if manifest_name in names:
-                with zip_ref.open(manifest_name) as manifest_file:
-                    manifest = manifest_file.read().decode("utf-8")
-                    zip_info = parser(manifest)
-                    break
+            manifest_data = archive.read(manifest_name)
+            if manifest_data is not None:
+                zip_info = parser(manifest_data.decode("utf-8"))
+                break
 
     # If no manifest was found, raise an exception
 
@@ -137,14 +196,8 @@ def unpack_addon_sync(zip_info: AddonZipInfo) -> None:
     target_dir = os.path.join(addon_root_dir, zip_info.name, zip_info.version)
 
     with tempfile.TemporaryDirectory(dir=addon_root_dir) as tmpdirname:
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            for member in zip_ref.infolist():
-                extracted_path = zip_ref.extract(member, tmpdirname)
-
-                # Preserve the file permissions
-                original_mode = member.external_attr >> 16
-                if original_mode:
-                    os.chmod(extracted_path, original_mode)
+        with AddonArchive(zip_path) as archive:
+            archive.extract_all(tmpdirname)
 
         if os.path.isdir(target_dir):
             logger.info(f"Removing existing addon {zip_info.name} {zip_info.version}")
