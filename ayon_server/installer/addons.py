@@ -129,7 +129,7 @@ class AddonArchive:
         if self._tar is None:
             return None
         # tar archives created with `tar -cf x.tar .` prefix members with "./"
-        for member in self._tar.getmembers():
+        for member in reversed(self._tar.getmembers()):
             if member.isfile() and member.name.removeprefix("./") == name:
                 fileobj = self._tar.extractfile(member)
                 return fileobj.read() if fileobj else None
