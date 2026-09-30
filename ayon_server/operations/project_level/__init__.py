@@ -478,11 +478,12 @@ class ProjectLevelOperations:
                             raise_on_error=raise_on_error,
                             progress_handler=progress_handler,
                         )
-                    if not response.success:
-                        events = []
-                        # Raise rollback exception to roll back the transaction
-                        # but silence it so the response is returned
-                        raise RollbackException()
+                        if not response.success:
+                            events = []
+                            # Raise rollback exception to roll back the
+                            # transaction (it must be raised inside it),
+                            # but silence it so the response is returned
+                            raise RollbackException()
 
                 except RollbackException:
                     logger.debug("[OPS] Operations rolled back")

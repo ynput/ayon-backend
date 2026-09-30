@@ -13,12 +13,12 @@ from ayon_server.entities.models.common import (
 )
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.models.attrib_values import AttribDict
-from ayon_server.types import LABEL_REGEX, NAME_REGEX, PROJECT_NAME_REGEX, Field
+from ayon_server.types import LABEL_REGEX, PROJECT_NAME_REGEX, Field
 
 PROJECT_NAME = Field(
     title="Project name",
     description="Unique name of the project",
-    pattern=NAME_REGEX,
+    pattern=PROJECT_NAME_REGEX,
     example="awesome_project",
 )
 PROJECT_CODE = Field(title="Project code", pattern=PROJECT_NAME_REGEX, example="prj")
