@@ -124,18 +124,35 @@ def test_execution(query: str, variables: dict | None, expected: str):
 
 
 def test_get_sort_keys():
-    get_sort_keys = pagination.get_sort_keys
+    get_sort_keys, SortKey = pagination.get_sort_keys, pagination.SortKey
     assert get_sort_keys(None) == []
     assert get_sort_keys([]) == []
-    assert get_sort_keys("name") == ["name"]
-    assert get_sort_keys(["status", "name", "status"]) == ["status", "name"]
+    assert get_sort_keys("name") == [SortKey("name")]
+    assert get_sort_keys("-name") == [SortKey("name", descending=True)]
+    assert get_sort_keys(["status", "name", "status"]) == [
+        SortKey("status"),
+        SortKey("name"),
+    ]
+    assert get_sort_keys(["-status", "+name", "attrib.fps"]) == [
+        SortKey("status", descending=True),
+        SortKey("name"),
+        SortKey("attrib.fps"),
+    ]
+    # The first occurrence of a key wins
+    assert get_sort_keys(["-status", "status"]) == [SortKey("status", True)]
+
+
+@pytest.mark.parametrize("sort_by", [["-"], ["+"], ["name", "-"]])
+def test_get_sort_keys_invalid(sort_by: list[str]):
+    with pytest.raises(BadRequestException):
+        pagination.get_sort_keys(sort_by)
 
 
 def test_get_sort_keys_limit():
     with pytest.raises(BadRequestException):
         pagination.get_sort_keys(["a", "b", "c", "d", "e", "f"])
     # Duplicates don't count towards the limit
-    assert len(pagination.get_sort_keys(["a", "b", "c", "d", "e", "a"])) == 5
+    assert len(pagination.get_sort_keys(["a", "b", "c", "d", "e", "-a"])) == 5
 
 
 def test_with_tiebreakers():
@@ -143,3 +160,6 @@ def test_with_tiebreakers():
     assert with_tiebreakers(["a"], "path", "name") == ["a", "path", "name"]
     assert with_tiebreakers(["path", "name"], "path", "name") == ["path", "name"]
     assert with_tiebreakers(["name", "a"], "path", "name") == ["name", "a", "path"]
+    # A column sorted in descending order is not added again
+    desc_name = pagination.SortColumn("name", descending=True)
+    assert with_tiebreakers([desc_name], "path", "name") == [desc_name, "path"]

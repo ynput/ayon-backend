@@ -25,8 +25,10 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from ayon_server.graphql.types import Info
@@ -610,7 +612,7 @@ async def get_products(
     if (
         use_folder_query
         or "folder" in fields
-        or any(key in sort_keys for key in ["folderName", "folderType"])
+        or not {key.name for key in sort_keys}.isdisjoint(["folderName", "folderType"])
     ):
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "products.folder_id", sql_joins=sql_joins
@@ -622,14 +624,15 @@ async def get_products(
     # Pagination
     #
 
-    order_by = []
-    for sort_key in sort_keys:
+    order_by: OrderBy = []
+    for sort_key, descending in sort_keys:
+        columns: list[str] = []
         if sort_key == "status":
             status_type_case = get_status_sort_case(project, "products.status")
-            order_by.append(status_type_case)
+            columns.append(status_type_case)
 
         elif sort_key == "path":
-            order_by.extend(["folder_ex.path", "products.name"])
+            columns.extend(["folder_ex.path", "products.name"])
 
         elif sort_key == "version":
             # count by product version count
@@ -651,21 +654,23 @@ async def get_products(
                 ON pvc.product_id = products.id
                 """
             )
-            order_by.append("COALESCE(pvc.version_count, 0)")
+            columns.append("COALESCE(pvc.version_count, 0)")
 
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.append(attr_case)
+            columns.append(attr_case)
 
         elif sort_key in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_key])
+            columns.append(SORT_OPTIONS[sort_key])
 
         elif sort_key.startswith("task"):
             pass  # this is not supported - not easily solvable
 
         else:
             raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     order_by = with_tiebreakers(order_by, "products.creation_order")
 

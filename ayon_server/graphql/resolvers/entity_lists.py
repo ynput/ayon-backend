@@ -16,8 +16,10 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from ayon_server.graphql.types import Info
@@ -114,14 +116,17 @@ async def get_entity_lists(
     # Pagination and sorting
     #
 
-    order_by = []
-    for sort_key in get_sort_keys(sort_by):
+    order_by: OrderBy = []
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
         if sort_key in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_key])
+            columns.append(SORT_OPTIONS[sort_key])
         elif sort_key == "path":
-            order_by.extend(["hierarchy.path", "tasks.name"])
+            columns.extend(["hierarchy.path", "tasks.name"])
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     order_by = with_tiebreakers(order_by, "creation_order")
 

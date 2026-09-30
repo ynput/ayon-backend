@@ -26,8 +26,10 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from ayon_server.graphql.types import Info
@@ -936,22 +938,25 @@ async def get_versions(
     # Pagination
     #
 
-    order_by = []
-    for sort_key in get_sort_keys(sort_by):
+    order_by: OrderBy = []
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
         joins.for_sort(*SORT_JOINS.get(sort_key, ()))
         if sort_key == "status":
             status_type_case = get_status_sort_case(project, "versions.status")
-            order_by.append(status_type_case)
+            columns.append(status_type_case)
         elif sort_key == "path":
-            order_by.extend(["folder_ex.path", "products.name", "versions.version"])
+            columns.extend(["folder_ex.path", "products.name", "versions.version"])
         elif sort_key in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_key])
+            columns.append(SORT_OPTIONS[sort_key])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "versions.attrib")
-            order_by.append(attr_case)
+            columns.append(attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     order_by = with_tiebreakers(order_by, "versions.creation_order")
 

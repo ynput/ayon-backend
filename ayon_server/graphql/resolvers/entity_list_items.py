@@ -46,8 +46,10 @@ from .field_stats import (
     generate_stats_columns,
 )
 from .pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from .sorting import get_attrib_sort_case
@@ -488,22 +490,23 @@ async def get_entity_list_items(
     # Sorting
     #
 
-    order_by = []
+    order_by: OrderBy = []
 
-    for sort_key in get_sort_keys(sort_by):
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
         if item_sort_by := ITEM_SORT_OPTIONS.get(sort_key):
-            order_by.append(item_sort_by)
+            columns.append(item_sort_by)
 
         elif sort_key in ITEM_SORT_OPTIONS.values():
-            order_by.append(sort_key)
+            columns.append(sort_key)
 
         elif entity_sort_by := ENTITY_SORT_OPTIONS.get(entity_type, {}).get(sort_key):
-            order_by.append(entity_sort_by)
+            columns.append(entity_sort_by)
 
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
-            order_by.append(f"({attr_case})")
+            columns.append(f"({attr_case})")
 
         elif sort_key.startswith("entity"):
             s = camel_to_snake(sort_key)
@@ -513,7 +516,7 @@ async def get_entity_list_items(
                     f"Invalid entity sort key {sort_key}. "
                     f"Available are: {', '.join(cols)}"
                 )
-            order_by.append(f"_entity_{s}")
+            columns.append(f"_entity_{s}")
 
         elif sort_key.startswith("parent"):
             s = camel_to_snake(sort_key)
@@ -523,11 +526,13 @@ async def get_entity_list_items(
                     f"Invalid parent sort key {s}. "
                     f"Available are: {', '.join(allowed_parent_keys)}"
                 )
-            order_by.append(f"_parent_{s}")
+            columns.append(f"_parent_{s}")
 
         else:
             # This is not a valid sort key
             raise BadRequestException(f"Invalid sort key {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     # secondary sorting for duplicate values
     # unless we're already sorting by position

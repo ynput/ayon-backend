@@ -52,8 +52,10 @@ from .field_stats import (
     generate_stats_columns,
 )
 from .pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from .sorting import (
@@ -512,7 +514,8 @@ async def get_tasks(
 
     # Do we need the parent folder data?
     sort_keys = get_sort_keys(sort_by)
-    if use_folder_query or "folder" in fields or "folderName" in sort_keys:
+    sort_key_names = {key.name for key in sort_keys}
+    if use_folder_query or "folder" in fields or "folderName" in sort_key_names:
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "tasks.folder_id", is_inner=False, sql_joins=sql_joins
         )
@@ -523,25 +526,28 @@ async def get_tasks(
     # Pagination
     #
 
-    order_by = []
-    for sort_key in sort_keys:
+    order_by: OrderBy = []
+    for sort_key, descending in sort_keys:
+        columns: list[str] = []
         if sort_key == "taskType":
             task_type_case = get_task_types_sort_case(project)
-            order_by.append(task_type_case)
+            columns.append(task_type_case)
         elif sort_key == "status":
             status_type_case = get_status_sort_case(project, "tasks.status")
-            order_by.append(status_type_case)
+            columns.append(status_type_case)
         elif sort_key in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_key])
+            columns.append(SORT_OPTIONS[sort_key])
         elif sort_key == "path":
-            order_by.extend(["hierarchy.path", "tasks.name"])
+            columns.extend(["hierarchy.path", "tasks.name"])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             exp = "(f_ex.attrib || tasks.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
-            order_by.append(attr_case)
+            columns.append(attr_case)
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     if not order_by:
         # If no sorting specified, use creation order to have stable sorting

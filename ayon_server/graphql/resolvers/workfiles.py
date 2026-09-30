@@ -20,8 +20,10 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
     create_pagination,
     get_sort_keys,
+    sort_columns,
     with_tiebreakers,
 )
 from ayon_server.graphql.types import Info
@@ -187,15 +189,18 @@ async def get_workfiles(
     # Pagination
     #
 
-    order_by = []
+    order_by: OrderBy = []
 
-    for sort_key in get_sort_keys(sort_by):
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
         if sort_key in SORT_OPTIONS:
-            order_by.append(SORT_OPTIONS[sort_key])
+            columns.append(SORT_OPTIONS[sort_key])
         elif sort_key.startswith("attrib."):
-            order_by.append(f"workfiles.attrib->>'{sort_key[7:]}'")
+            columns.append(f"workfiles.attrib->>'{sort_key[7:]}'")
         else:
             raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
 
     order_by = with_tiebreakers(order_by, "workfiles.creation_order")
 
