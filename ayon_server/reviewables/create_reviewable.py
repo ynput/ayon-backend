@@ -8,8 +8,6 @@ from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.helpers.filmstrip import schedule_filmstrip_creation
 from ayon_server.helpers.mimetypes import is_video_mime_type
 from ayon_server.helpers.preview import obtain_file_preview
-from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
 from ayon_server.utils.hashing import create_uuid
@@ -142,20 +140,8 @@ async def create_reviewable(
             f"for version {version.id}"
         )
 
-    # Entity thumbnails and filmstrips fall back to the latest reviewable.
-    # Drop the cached lookups, so the new reviewable is used right away.
-
-    res = await Postgres.fetchrow(
-        f"""
-        SELECT folder_id FROM project_{project_name}.products
-        WHERE id = $1
-        """,
-        version.product_id,
-    )
-    for entity_id in (version.id, version.task_id, res and res["folder_id"]):
-        if entity_id:
-            await Redis.delete("thumbnail-info", f"{project_name}:{entity_id}")
-
+    # The thumbnail info of the version, its task and folder is invalidated
+    # once the filmstrip is created
     if is_video_mime_type(content_type):
         schedule_filmstrip_creation(project_name, file_id)
 

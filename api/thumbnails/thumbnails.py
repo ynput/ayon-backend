@@ -25,7 +25,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.filmstrip import get_entity_filmstrip, get_filmstrip_response
+from ayon_server.helpers.filmstrip import FilmstripModel, get_entity_filmstrip
 from ayon_server.helpers.project_list import get_project_info
 from ayon_server.helpers.thumbnails import (
     PlaceholderOption,
@@ -74,13 +74,14 @@ FILMSTRIP_CACHE_CONTROL = "private, max-age=300"
 
 
 async def _get_entity_filmstrip_response(
+    response: Response,
     project_name: str,
     entity_type: str,
     entity_id: str,
     *,
     user: UserEntity,
     placeholder: PlaceholderOption,
-) -> Response:
+) -> FilmstripModel | Response:
     try:
         filmstrip = await get_entity_filmstrip(
             project_name,
@@ -95,17 +96,17 @@ async def _get_entity_filmstrip_response(
                 headers={"Cache-Control": FILMSTRIP_CACHE_CONTROL},
             )
         raise
-    return get_filmstrip_response(filmstrip, cache_control=FILMSTRIP_CACHE_CONTROL)
+    response.headers["Cache-Control"] = FILMSTRIP_CACHE_CONTROL
+    return filmstrip
 
 
 FILMSTRIP_DESCRIPTION = """
-Returns an AVIF image with frames sampled evenly from the latest video
-reviewable of the entity, placed in a grid (left to right, top to bottom).
+Returns the filmstrip of the latest video reviewable of the entity:
+an URL of an AVIF image with frames sampled evenly from the video,
+placed in a grid (left to right, top to bottom), and its layout.
 
 Frame `i` is taken from the middle of the i-th of N equally long segments
-of the video. The number of frames and the size of a single frame are
-provided in `X-Filmstrip-Frames`, `X-Filmstrip-Columns`,
-`X-Filmstrip-Frame-Width` and `X-Filmstrip-Frame-Height` headers.
+of the video. The filmstrip is created on the first request.
 
 If there is no video reviewable, the endpoint returns 204 No Content
 (or 404 Not Found when `placeholder` is set to `none`).
@@ -316,17 +317,19 @@ async def get_folder_thumbnail(
 @router.get(
     "/projects/{project_name}/folders/{folder_id}/filmstrip",
     dependencies=[NoTraces, AllowGuests],
-    response_class=Response,
+    response_model=FilmstripModel,
     description=FILMSTRIP_DESCRIPTION,
 )
 async def get_folder_filmstrip(
+    response: Response,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
     placeholder: PlaceholderOption = Query("empty"),
-) -> Response:
+) -> FilmstripModel | Response:
     """Get a hover-scrub filmstrip of the folder"""
     return await _get_entity_filmstrip_response(
+        response,
         project_name,
         "folder",
         folder_id,
@@ -391,17 +394,19 @@ async def get_version_thumbnail(
 @router.get(
     "/projects/{project_name}/versions/{version_id}/filmstrip",
     dependencies=[NoTraces, AllowGuests],
-    response_class=Response,
+    response_model=FilmstripModel,
     description=FILMSTRIP_DESCRIPTION,
 )
 async def get_version_filmstrip(
+    response: Response,
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
     placeholder: PlaceholderOption = Query("empty"),
-) -> Response:
+) -> FilmstripModel | Response:
     """Get a hover-scrub filmstrip of the version"""
     return await _get_entity_filmstrip_response(
+        response,
         project_name,
         "version",
         version_id,
@@ -518,17 +523,19 @@ async def get_task_thumbnail(
 @router.get(
     "/projects/{project_name}/tasks/{task_id}/filmstrip",
     dependencies=[NoTraces, AllowGuests],
-    response_class=Response,
+    response_model=FilmstripModel,
     description=FILMSTRIP_DESCRIPTION,
 )
 async def get_task_filmstrip(
+    response: Response,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
     placeholder: PlaceholderOption = Query("empty"),
-) -> Response:
+) -> FilmstripModel | Response:
     """Get a hover-scrub filmstrip of the task"""
     return await _get_entity_filmstrip_response(
+        response,
         project_name,
         "task",
         task_id,

@@ -22,7 +22,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages, create_project_file_record
-from ayon_server.helpers.filmstrip import get_file_filmstrip, get_filmstrip_response
+from ayon_server.helpers.filmstrip import (
+    FilmstripModel,
+    get_file_filmstrip,
+    get_filmstrip_payload_response,
+)
 from ayon_server.helpers.preview import (
     create_video_thumbnail,
     get_file_preview_response,
@@ -290,22 +294,21 @@ async def get_project_file_thumbnail(
 
 @router.get(
     "/{file_id}/filmstrip",
-    response_model=None,
+    response_model=FilmstripModel,
     dependencies=[AllowGuests, NoTraces],
 )
 async def get_project_file_filmstrip(
+    response: Response,
     project_name: ProjectName,
     file_id: FileID,
     user: CurrentUser,
     placeholder: PlaceholderOption = Query("empty"),
-) -> Response:
+) -> FilmstripModel | Response:
     """Get a hover-scrub filmstrip of a video file.
 
-    Returns an AVIF image with frames sampled evenly from the video,
-    placed in a grid (left to right, top to bottom). The number of frames,
-    grid columns and the size of a single frame are provided in
-    `X-Filmstrip-Frames`, `X-Filmstrip-Columns`, `X-Filmstrip-Frame-Width`
-    and `X-Filmstrip-Frame-Height` headers.
+    Returns an URL of an AVIF image with frames sampled evenly from
+    the video, placed in a grid (left to right, top to bottom), and its
+    layout. The filmstrip is created on the first request.
 
     If the file is not a video, the endpoint returns 204 No Content
     (or 404 Not Found when `placeholder` is set to `none`).
@@ -313,15 +316,32 @@ async def get_project_file_filmstrip(
 
     await user.ensure_project_access(project_name)
 
-    # File content never changes, so its filmstrip does not either
-    cache_control = "private, max-age=86400"
+    # Signed URLs of S3 storages are valid for an hour
+    cache_control = "private, max-age=300"
     try:
         filmstrip = await get_file_filmstrip(project_name, file_id)
     except NotFoundException:
         if placeholder == "empty":
             return Response(status_code=204, headers={"Cache-Control": cache_control})
         raise
-    return get_filmstrip_response(filmstrip, cache_control=cache_control)
+    response.headers["Cache-Control"] = cache_control
+    return filmstrip
+
+
+@router.get(
+    "/{file_id}/filmstrip/payload",
+    response_model=None,
+    dependencies=[AllowGuests, NoTraces],
+)
+async def get_project_file_filmstrip_payload(
+    project_name: ProjectName,
+    file_id: FileID,
+    user: CurrentUser,
+) -> Response:
+    """Get the filmstrip image of a video file."""
+
+    await user.ensure_project_access(project_name)
+    return await get_filmstrip_payload_response(project_name, file_id)
 
 
 @router.get(
