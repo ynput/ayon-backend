@@ -45,7 +45,8 @@ class CheckBundleResponseModel(OPModel):
             return "Bundle is valid"
         for issue in self.issues:
             if issue.severity == "error":
-                msg = f"{issue.addon}: {issue.message}"
+                prefix = f"{issue.addon}: " if issue.addon else ""
+                msg = f"{prefix}{issue.message}"
         return f"Failed to validate bundle: {msg}"
 
 
