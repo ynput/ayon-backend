@@ -12,7 +12,7 @@ from ayon_server.auth.utils import (
     validate_password,
 )
 from ayon_server.constraints import Constraints
-from ayon_server.entities.core import TopLevelEntity, attribute_library
+from ayon_server.entities.core import TopLevelEntity
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
@@ -27,7 +27,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import AccessType
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import SQLTool
 from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
@@ -106,7 +106,7 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
-    model = ModelSet("user", attribute_library["user"], has_id=False)
+    model = ModelSet("user", has_id=False)
     was_active: bool = False
     was_admin: bool = False
     was_manager: bool = False
@@ -245,9 +245,7 @@ class UserEntity(TopLevelEntity):
                         )
 
             if self.exists:
-                data = dict_exclude(
-                    self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
-                )
+                data = self.fields_to_save(["ctime", "name"])
                 await Postgres.execute(
                     *SQLTool.update(
                         "public.users",
@@ -256,12 +254,8 @@ class UserEntity(TopLevelEntity):
                     )
                 )
             else:
-                await Postgres.execute(
-                    *SQLTool.insert(
-                        "users",
-                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
-                    )
-                )
+                data = self.fields_to_save([])
+                await Postgres.execute(*SQLTool.insert("users", **data))
                 self.exists = True
 
             if (

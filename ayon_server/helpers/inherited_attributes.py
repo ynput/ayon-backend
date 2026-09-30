@@ -117,12 +117,12 @@ async def rebuild_inherited_attributes(
         else:
             project_attrib = pattr.copy()
 
-        # Filter out non-inheritable and non-folder attributes
-        for attr_type in attribute_library["folder"]:
-            if attr_type["name"] not in project_attrib:
-                continue
-            if not attr_type.get("inherit", True):
-                del project_attrib[attr_type["name"]]
+        # Only inheritable attributes are inherited
+        project_attrib = {
+            name: value
+            for name, value in project_attrib.items()
+            if name in attribute_library.inheritable
+        }
 
         await _rebuild_from(project_name, project_attrib)
 

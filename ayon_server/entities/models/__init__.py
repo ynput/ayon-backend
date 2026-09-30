@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
@@ -17,6 +18,7 @@ from ayon_server.entities.models.fields import (
     workfile_fields,
 )
 from ayon_server.entities.models.generator import generate_model
+from ayon_server.models.attrib_values import AttribValues
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
     ENTITY_ID_REGEX,
@@ -57,36 +59,49 @@ class ModelSet:
     - EntityPatchModel
     - EntityAttributeModel
 
+    Attribute values (`attrib` field of the entity models) are plain dicts
+    (`AttribDict`) validated using the attribute model. Attributes may change
+    at runtime (see `AttributeLibrary.reload`): the attribute model is then
+    regenerated, while the entity models stay the same.
     """
 
-    def __init__(
-        self,
-        entity_name: str,
-        attributes: list[dict[str, Any]] | None = None,
-        has_id: bool = True,
-    ):
-        """Initialize the model set."""
+    def __init__(self, entity_name: str, has_id: bool = True):
+        """Initialize the model set.
+
+        Attributes of the entity type are taken from the attribute library
+        and the attribute model follows the changes of the library.
+        """
         self.entity_name = entity_name
         self.fields: list[Any] = FIELD_LISTS[entity_name]
-
-        self.attributes = attributes or []
         self.has_id = has_id
 
         self._model: type[BaseModel] | None = None
         self._post_model: type[BaseModel] | None = None
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
+        self._attrib_model_revision: int | None = None
+
+        # Types of the `attrib` field of the entity models
+        self.attrib_type = AttribValues(lambda: self.attrib_model)
+        self.attrib_patch_type = AttribValues(lambda: self.attrib_model, partial=True)
 
     @property
     def attrib_model(self) -> type[BaseModel]:
-        """Return the attribute model."""
-        if self._attrib_model is None:
+        """Return the attribute model.
+
+        The model is used to validate attribute values and to describe them
+        in JSON schemas. It is regenerated when the attribute library
+        is reloaded. This is called on every validation of an entity model,
+        so it should stay cheap.
+        """
+        revision = attribute_library.revision
+        if self._attrib_model_revision != revision or self._attrib_model is None:
             self._attrib_model = generate_model(
                 f"{self.entity_name.capitalize()}AttribModel",
-                self.attributes,
+                attribute_library[self.entity_name],
                 AttribModelConfig,
             )
-        assert self._attrib_model is not None
+            self._attrib_model_revision = revision
         return self._attrib_model
 
     @property
@@ -130,7 +145,7 @@ class ModelSet:
         return [
             {
                 "name": "attrib",
-                "submodel": self.attrib_model,
+                "submodel": self.attrib_type,
                 "required": False,
                 "title": f"{self.entity_name.capitalize()} attributes",
             },
@@ -292,5 +307,8 @@ class ModelSet:
                 continue
             field = copy.deepcopy(original_field)
             field["required"] = False
+            if field["name"] == "attrib":
+                # Keep only the attributes provided in the patch
+                field["submodel"] = self.attrib_patch_type
             fields.append(field)
         return generate_model(model_name, fields, EntityModelConfig)

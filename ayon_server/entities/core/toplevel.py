@@ -3,7 +3,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.entities.core.base import BaseEntity
-from ayon_server.utils import dict_exclude
 
 
 class TopLevelEntity(BaseEntity):
@@ -15,16 +14,7 @@ class TopLevelEntity(BaseEntity):
     ) -> None:
         """Return a new entity instance from given data."""
 
-        attrib_dict = payload.get("attrib", {})
-        if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.model_dump()
-        self.own_attrib = list(attrib_dict.keys())
-
-        self._payload = self.model.main_model(
-            **dict_exclude(payload, ["own_attrib"]),
-            own_attrib=self.own_attrib,
-        )
-        self.exists = exists
+        self._init_payload(payload, exists=exists)
 
     @classmethod
     def from_record(

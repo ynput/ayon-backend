@@ -237,6 +237,13 @@ async def get_attributes() -> list[AttributeModel]:
     return attr_list
 
 
+async def _clear_attributes_cache() -> None:
+    await get_attributes.cache.clear()
+
+
+attribute_library.on_reload(_clear_attributes_cache)
+
+
 async def get_additional_info(
     user_name: str,
     is_admin: bool,

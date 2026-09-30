@@ -4,6 +4,7 @@ from typing import Annotated, Any
 import strawberry
 
 from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
@@ -51,32 +52,29 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self, info: Info) -> str:
         """All attributes field is a JSON string."""
-        if self._entity is None:
+        if (entity := self._entity) is None:
             return "{}"
 
-        own_attrib: dict[str, Any] = {}
-        inherited_attrib: dict[str, Any] = {}
-        project_attrib: dict[str, Any] = {}
-
-        if self._entity:
-            if hasattr(self._entity, "_project_attrib"):
-                project_attrib = self._entity._project_attrib or {}
-            if hasattr(self._entity, "_inherited_attrib"):
-                inherited_attrib = self._entity._inherited_attrib or {}
-            if hasattr(self._entity, "_attrib"):
-                own_attrib = self._entity._attrib or {}
-
-        own_attrib.update(self._attrib or {})
-
+        list_attributes = info.context.get("list_attributes") or {}
+        # Attributes of the list item override the entity's own ones.
+        # List attributes (list_attributes) are not entity attributes.
+        own = {**(getattr(entity, "_attrib", None) or {}), **(self._attrib or {})}
+        resolved = resolve_attrib(
+            self.entity_type,
+            {k: v for k, v in own.items() if k not in list_attributes},
+            inherited=getattr(entity, "_inherited_attrib", None),
+            project=getattr(entity, "_project_attrib", None),
+        )
+        values = {
+            **resolved.values,
+            **{k: v for k, v in own.items() if k in list_attributes},
+        }
         return json_dumps(
             process_attrib_data(
-                self.entity_type,
-                own_attrib,
+                values,
                 user=self._user,
                 project_name=self.project_name,
-                inherited_attrib=inherited_attrib,
-                project_attrib=project_attrib,
-                list_attribute_config=info.context.get("list_attributes"),
+                list_attribute_config=list_attributes,
             )
         )
 

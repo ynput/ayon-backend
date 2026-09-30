@@ -1,21 +1,21 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.api.system import require_server_restart
+from ayon_server.attributes.fix_attribute_values import fix_attribute_values
 from ayon_server.attributes.models import (
     AttributeModel,
     AttributePatchModel,
     AttributePutModel,
 )
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
-from ayon_server.entities import ProjectEntity
+from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.models.field_info import get_field_extra
 from ayon_server.types import OPModel
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
@@ -40,8 +40,8 @@ class SetAttributeListModel(GetAttributeListModel):
 async def save_attribute(attribute: AttributeModel) -> None:
     """Save attribute configuration to the database.
 
-    Additionally performs validation of the attribute data and updates
-    the enumerator in the running instance.
+    Additionally performs validation of the attribute data.
+    Call `apply_attribute_changes` after saving to apply the changes.
     """
     query = """
     INSERT INTO attributes
@@ -61,24 +61,29 @@ async def save_attribute(attribute: AttributeModel) -> None:
         attribute.data.model_dump(exclude_none=True),
     )
 
-    # TODO: The following code does not support horizontal scaling!!
-    # Notify other instances instead and reload the attribute library
 
-    if (enum := attribute.data.enum) is not None:
-        for name, field in ProjectEntity.model.attrib_model.model_fields.items():
-            if name != attribute.name:
-                continue
+async def apply_attribute_changes(
+    user_name: str,
+    background_tasks: BackgroundTasks | None = None,
+) -> None:
+    """Apply the changed attribute configuration.
 
-            field_enum = get_field_extra(field).get("enum")
-            if field_enum is None:
-                continue
-            field_enum.clear()
-            field_enum.extend(enum)
+    The attribute library is reloaded on this instance immediately,
+    so the changes are available when the request is finished.
+    `server.attributes_updated` event then triggers the reload
+    on all other instances (the reload is a no-op on this one).
 
-        for name, field in ProjectEntity.model.attrib_model.model_fields.items():
-            if name != attribute.name:
-                continue
-            field_enum = get_field_extra(field).get("enum")
+    Stored values of the attributes, whose definitions changed, are fixed
+    in the background (see `fix_attribute_values`).
+    """
+    changed = await attribute_library.reload()
+    if changed and background_tasks is not None:
+        background_tasks.add_task(fix_attribute_values, attribute_names=sorted(changed))
+    await EventStream.dispatch(
+        "server.attributes_updated",
+        description="Attribute configuration changed",
+        user=user_name,
+    )
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
@@ -129,6 +134,7 @@ async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
 async def set_attribute_list(
     payload: SetAttributeListModel,
     user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """
     Set the attribute configuration for all (or ao of) attributes
@@ -154,7 +160,7 @@ async def set_attribute_list(
     for attr in new_attributes:
         await save_attribute(attr)
 
-    await require_server_restart()
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 
@@ -175,21 +181,23 @@ async def set_attribute_config(
     payload: AttributePutModel,
     user: CurrentUser,
     attribute_name: AttributeName,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Update attribute configuration"""
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.model_dump())
     await save_attribute(attribute)
-    await require_server_restart(
-        None, "Restart the server to apply the attribute changes."
-    )
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 
 @router.patch("/{attribute_name}", status_code=204)
 async def patch_attribute_config(
-    payload: AttributePatchModel, user: CurrentUser, attribute_name: AttributeName
+    payload: AttributePatchModel,
+    user: CurrentUser,
+    attribute_name: AttributeName,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Partially update attribute configuration"""
 
@@ -197,8 +205,6 @@ async def patch_attribute_config(
 
     patch_payload = payload.model_dump(exclude_unset=True)
     patch_data = patch_payload.pop("data", {})
-
-    requires_restart = False
 
     if "scope" in patch_payload or any(
         k in patch_data
@@ -219,8 +225,6 @@ async def patch_attribute_config(
             "widget_settings",
         )
     ):
-        requires_restart = True
-
         if not user.is_admin:
             raise ForbiddenException(
                 "Only administrators are allowed to modify attribute configuration"
@@ -238,11 +242,7 @@ async def patch_attribute_config(
         setattr(attribute.data, key, value)
 
     await save_attribute(attribute)
-
-    if requires_restart:
-        await require_server_restart(
-            None, "Restart the server to apply the attribute changes."
-        )
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
 
 
@@ -254,7 +254,5 @@ async def delete_attribute(
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     await remove_attribute(attribute_name)
-    await require_server_restart(
-        None, "Restart the server to apply the attribute changes."
-    )
+    await apply_attribute_changes(user.name)
     return EmptyResponse()
