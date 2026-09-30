@@ -136,10 +136,10 @@ def attribute_field(fdef: FieldDefinition) -> tuple[Any, dict[str, Any]]:
     if fdef.max_items is not None:
         field["max_length"] = fdef.max_items
 
-    # Enum
+    # Enum values are resolved by the attribute enum resolver
+    # (always current, with labels, icons and colors)
     if fdef.enum:
-        extra["_attrib_enum"] = True
-        extra["enum"] = [e.value for e in fdef.enum]
+        extra["enum_resolver"] = f"attrib.{fdef.name}"
     if extra:
         field["json_schema_extra"] = extra
 

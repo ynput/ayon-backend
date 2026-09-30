@@ -6,7 +6,6 @@ from typing import Any
 
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
-from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.models.field_info import (
     get_field_annotation,
@@ -16,21 +15,6 @@ from ayon_server.models.field_info import (
 )
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import SimpleValue, camelize
-
-
-async def get_attrib_enum(
-    name: str,
-) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
-    enum_values = []
-    enum_labels = {}
-
-    res = await Postgres.fetch("SELECT data FROM public.attributes WHERE name=$1", name)
-    if res:
-        for item in res[0]["data"].get("enum", []):
-            enum_values.append(item["value"])
-            enum_labels[item["value"]] = item["label"]
-
-    return enum_values, enum_labels
 
 
 async def process_functional_enum(
@@ -127,21 +111,18 @@ async def postprocess_settings_schema(  # noqa
             if enum := field_extra.get("enum"):
                 is_enum = True
 
-                if field_extra.get("_attrib_enum"):
-                    enum_values, enum_labels = await get_attrib_enum(name)
-                else:
-                    for item in enum:
-                        if isinstance(item, EnumItem):
-                            enum_values.append(item.value)
-                            enum_labels[item.value] = item.label
-                        elif isinstance(item, str):
-                            enum_values.append(item)
-                        elif isinstance(item, dict):
-                            if "value" not in item or "label" not in item:
-                                logger.warning(f"Invalid enumerator item: {item}")
-                                continue
-                            enum_values.append(item["value"])
-                            enum_labels[item["value"]] = item["label"]
+                for item in enum:
+                    if isinstance(item, EnumItem):
+                        enum_values.append(item.value)
+                        enum_labels[item.value] = item.label
+                    elif isinstance(item, str):
+                        enum_values.append(item)
+                    elif isinstance(item, dict):
+                        if "value" not in item or "label" not in item:
+                            logger.warning(f"Invalid enumerator item: {item}")
+                            continue
+                        enum_values.append(item["value"])
+                        enum_labels[item["value"]] = item["label"]
 
             elif enum_resolver := field_extra.get("enum_resolver"):
                 is_enum = True

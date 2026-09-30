@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import Field, ValidationError
 
@@ -16,6 +14,7 @@ from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import log_traceback
 from ayon_server.types import OPModel
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
@@ -86,29 +85,18 @@ async def apply_attribute_changes(
     )
 
 
-async def list_raw_attributes() -> list[dict[str, Any]]:
-    """Return a list of attributes as they are stored in the DB"""
-
-    query = "SELECT * FROM attributes ORDER BY position"
-    attributes = []
-    async for row in Postgres.iterate(query):
-        attributes.append(dict(row))
-    return attributes
-
-
-async def list_attributes() -> list[AttributeModel]:
+def list_attributes() -> list[AttributeModel]:
     """Return a list of attributes and their configuration.
 
-    Skip attributes with invalid configuration.
+    The attribute library holds the current attributes (it is reloaded
+    whenever they change). Attributes with invalid configuration are skipped.
     """
-
-    attr_list = await list_raw_attributes()
     result = []
-    for attr in attr_list:
+    for row in attribute_library.info_data:
         try:
-            result.append(AttributeModel(**attr))
+            result.append(AttributeModel(**row))
         except ValidationError:
-            pass
+            log_traceback(f"Invalid attribute configuration: {row.get('name')}")
     return result
 
 
@@ -126,7 +114,7 @@ async def remove_attribute(name: str):
 async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
     """Return a list of attributes and their configuration."""
 
-    attributes = await list_attributes()
+    attributes = list_attributes()
     return GetAttributeListModel(attributes=attributes)
 
 
