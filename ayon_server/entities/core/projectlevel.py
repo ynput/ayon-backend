@@ -227,6 +227,9 @@ class ProjectLevelEntity(BaseEntity):
             self.status = await self.get_default_status()
 
         async with Postgres.transaction():
+            # pre_save may modify the attributes, so it must run first
+            await self.pre_save(not self.exists)
+
             attrib = {}
             for key in self.own_attrib:
                 with suppress(AttributeError):
@@ -234,7 +237,6 @@ class ProjectLevelEntity(BaseEntity):
                         attrib[key] = value
 
             if self.exists:
-                await self.pre_save(False)
                 # Update existing entity
                 fields = dict_exclude(
                     self.dict(),
@@ -253,7 +255,6 @@ class ProjectLevelEntity(BaseEntity):
                 )
 
             else:
-                await self.pre_save(True)
                 # Create a new entity
                 fields = dict_exclude(
                     self.dict(exclude_none=True),

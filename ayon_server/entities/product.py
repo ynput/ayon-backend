@@ -15,6 +15,32 @@ BASE_GET_QUERY = """
         ON entity.folder_id = hierarchy.id
 """
 
+# Product group used to live in `data.productGroup`. It is now a product
+# attribute, but for backwards compatibility both are kept in sync.
+PRODUCT_GROUP_KEY = "productGroup"
+
+
+def sync_product_group_patch(patch: dict[str, Any]) -> None:
+    """Mirror productGroup between attrib and data in a partial update (in place).
+
+    When the attribute is patched, it is mirrored to data. Otherwise, when
+    only data is patched, it is mirrored to the attribute. `None` means
+    removal in both cases.
+    """
+    attrib = patch.get("attrib")
+    data = patch.get("data")
+
+    if isinstance(attrib, dict) and PRODUCT_GROUP_KEY in attrib:
+        if data is None or isinstance(data, dict):
+            value = attrib[PRODUCT_GROUP_KEY]
+            patch["data"] = {**(data or {}), PRODUCT_GROUP_KEY: value}
+
+    elif isinstance(data, dict) and PRODUCT_GROUP_KEY in data:
+        value = data[PRODUCT_GROUP_KEY]
+        if value is not None and not isinstance(value, str):
+            return
+        patch["attrib"] = {**(attrib or {}), PRODUCT_GROUP_KEY: value}
+
 
 class ProductEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "product"
@@ -39,6 +65,8 @@ class ProductEntity(ProjectLevelEntity):
         if self.product_base_type is None:
             self.product_base_type = self.product_type
 
+        self.sync_product_group()
+
         await Postgres.execute(
             """
             INSERT INTO public.product_types (name)
@@ -47,6 +75,27 @@ class ProductEntity(ProjectLevelEntity):
             """,
             self.product_type,
         )
+
+    def sync_product_group(self) -> None:
+        """Keep attrib.productGroup and data.productGroup in sync.
+
+        The attribute takes precedence. Partial updates are reconciled
+        beforehand by `sync_product_group_patch`, so at this point a conflict
+        only happens when a full payload sets both to different values.
+        """
+        data = self._payload.data  # type: ignore
+        if data is None:
+            data = self._payload.data = {}  # type: ignore
+
+        attr_value = getattr(self.attrib, PRODUCT_GROUP_KEY, None)
+        data_value = data.get(PRODUCT_GROUP_KEY)
+
+        if attr_value is not None:
+            data[PRODUCT_GROUP_KEY] = attr_value
+        elif isinstance(data_value, str):
+            setattr(self.attrib, PRODUCT_GROUP_KEY, data_value)
+            if PRODUCT_GROUP_KEY not in self.own_attrib:
+                self.own_attrib.append(PRODUCT_GROUP_KEY)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:

@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.entities.product import sync_product_group_patch
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -109,6 +110,9 @@ async def update_project_level_entity(
 ) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for update"
     assert operation.entity_id is not None, "entity_id is required for update"
+
+    if operation.entity_type == "product":
+        sync_product_group_patch(operation.data)
 
     # We use slightly different ACL logic if only the thumbnail_id is being updated.
     thumbnail_only = len(operation.data) == 1 and (
