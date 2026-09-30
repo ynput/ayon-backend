@@ -279,10 +279,9 @@ async def _validate_python_package_compatibility(
         severity="error",
         addon=None,
         message=(
-            f"Dependency package '{package_filename}' "
+            f"Dependency package '{package_filename}' on '{platform_name}'"
             f"requires Python {package_python_version}, "
-            f"but installer '{installer.filename}' uses {installer_python_version} "
-            f"on platform '{platform_name}'."
+            f"but installer '{installer.filename}' uses {installer_python_version}."
         ),
         required_addon=None,
     )
