@@ -21,7 +21,8 @@ class DeployProjectRequestModel(OPModel):
         Field(
             title="Project name",
             example="example_project",
-            regex=PROJECT_NAME_REGEX,
+regex=PROJECT_NAME_REGEX,
+            min_length=1,
         ),
     ]
     code: Annotated[
