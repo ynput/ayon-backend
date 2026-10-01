@@ -1,6 +1,7 @@
 __all__ = ["OPModel", "Field", "camelize"]
 
 import re
+from collections.abc import Iterable
 from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, GetCoreSchemaHandler
@@ -13,7 +14,7 @@ from ayon_server.models import (
 from ayon_server.models import (
     RestModel as OPModel,  # backwards compatibility
 )
-from ayon_server.utils import camelize  # backwards compatibilitycamelize
+from ayon_server.utils import camelize  # backwards compatibility
 
 #
 # Common constants and types used everywhere
@@ -78,10 +79,8 @@ TYPE_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{0,64}[a-zA-Z0-9_]$"
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 # project name cannot contain - / . (sql hard limit for schema names)
-PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]+$"
 ATTRIBUTE_NAME_REGEX = "^[a-zA-Z0-9]{2,64}$"
-
-# TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 
 # api key can contain alphanumeric characters and hyphens
@@ -114,34 +113,34 @@ def validate_email(email: str) -> str:
     return email
 
 
-def validate_email_list(emails: list[str]) -> list[str]:
+def validate_email_list(emails: Iterable[str]) -> list[str]:
     """Validate list of emails."""
     return [validate_email(email) for email in emails]
 
 
-def validate_name_list(names: list[str], regex: str = NAME_REGEX) -> list[str]:
+def validate_name_list(names: Iterable[str], regex: str = NAME_REGEX) -> list[str]:
     """Validate list of names."""
     return [validate_name(name, regex) for name in names]
 
 
-def validate_status_list(statuses: list[str]) -> list[str]:
+def validate_status_list(statuses: Iterable[str]) -> list[str]:
     """Validate list of statuses."""
     regex = STATUS_REGEX
     return [validate_name(status, regex) for status in statuses]
 
 
-def validate_type_name_list(type_names: list[str]) -> list[str]:
+def validate_type_name_list(type_names: Iterable[str]) -> list[str]:
     """Validate list of type names."""
     regex = TYPE_NAME_REGEX
     return [validate_name(type_name, regex) for type_name in type_names]
 
 
-def validate_user_name_list(names: list[str]) -> list[str]:
+def validate_user_name_list(names: Iterable[str]) -> list[str]:
     """Validate list of user names."""
     return [validate_user_name(name) for name in names]
 
 
-def validate_topic_list(topics: list[str]) -> list[str]:
+def validate_topic_list(topics: Iterable[str]) -> list[str]:
     """Validate list of topics."""
     result = []
     for topic in topics:
@@ -153,7 +152,7 @@ def validate_topic_list(topics: list[str]) -> list[str]:
     return result
 
 
-def sanitize_string_list(strings: list[str]) -> list[str]:
+def sanitize_string_list(strings: Iterable[str]) -> list[str]:
     """Make list of strings safe to use in SQL queries."""
     return [s.replace("'", "''") for s in strings]
 
