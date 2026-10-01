@@ -526,6 +526,7 @@ async def get_folders(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
+            links_project_name=project_name,
             column_map={
                 "attrib": "(pr.attrib || coalesce(ex.attrib, '{}'::jsonb ) || folders.attrib)",  # noqa: E501
             },
@@ -559,6 +560,7 @@ async def get_folders(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="tasks",
+                links_project_name=project_name,
                 column_map={
                     "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
                 },

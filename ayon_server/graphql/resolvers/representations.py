@@ -218,6 +218,7 @@ async def get_representations(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="representations",
+            links_project_name=project_name,
         ):
             sql_conditions.append(fcond)
 
