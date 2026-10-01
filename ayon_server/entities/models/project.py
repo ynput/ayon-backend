@@ -15,26 +15,40 @@ from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import LABEL_REGEX, PROJECT_NAME_REGEX, Field
 
+#
+# Project specific fields
+#
+
 PROJECT_NAME = Field(
     title="Project name",
     description="Unique name of the project",
     pattern=PROJECT_NAME_REGEX,
-    example="awesome_project",
+    examples=["awesome_project"],
 )
-PROJECT_CODE = Field(title="Project code", pattern=PROJECT_NAME_REGEX, example="prj")
+
+PROJECT_CODE = Field(
+    title="Project code",
+    pattern=PROJECT_NAME_REGEX,
+    examples=["prj"],
+)
+
 PROJECT_LABEL = Field(
     title="Project label",
     pattern=LABEL_REGEX,
-    example="My awesome project",
+    examples=["My awesome project"],
 )
+
 FOLDER_TYPES = Field(
     title="Folder types",
-    example=[
-        {"name": "Folder", "icon": "folder"},
-        {"name": "Asset", "icon": "folder"},
-        {"name": "Shot", "icon": "folder"},
+    examples=[
+        [
+            {"name": "Folder", "icon": "folder"},
+            {"name": "Asset", "icon": "folder"},
+            {"name": "Shot", "icon": "folder"},
+        ]
     ],
 )
+
 TASK_TYPES = Field(
     title="Task types",
     example=[
@@ -42,6 +56,7 @@ TASK_TYPES = Field(
         {"name": "Modeling", "icon": "model"},
     ],
 )
+
 LINK_TYPES = Field(
     title="Link types",
     example=[
@@ -54,14 +69,30 @@ LINK_TYPES = Field(
         },
     ],
 )
-STATUSES = Field(title="Statuses", example=[{"name": "Unknown"}])
+
+STATUSES = Field(
+    title="Statuses",
+    examples=[[{"name": "Unknown"}]],
+)
+
 PROJECT_TAGS = Field(
     title="Tags",
     description="List of tags available to set on entities.",
-    example=[{"name": "Unknown"}],
+    examples=[[{"name": "Unknown"}]],
 )
-PROJECT_CONFIG = Field(title="Project config")
-SKELETON = Field(title="Skeleton project", example=True)
+
+PROJECT_CONFIG = Field(
+    title="Project config",
+)
+
+SKELETON = Field(
+    title="Skeleton project",
+    example=True,
+)
+
+#
+# Project models
+#
 
 
 class ProjectModel(EntityMainModel):

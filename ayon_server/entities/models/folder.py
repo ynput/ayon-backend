@@ -27,17 +27,49 @@ from ayon_server.types import (
 )
 from ayon_server.utils import create_uuid
 
-FOLDER_NAME = Field(title="Folder name", pattern=NAME_REGEX, example="bush")
-FOLDER_LABEL = Field(title="Folder label", pattern=LABEL_REGEX, example="bush")
-FOLDER_TYPE = Field(title="Folder type", example="Asset")
+#
+# Folder specific fields
+#
+
+FOLDER_NAME = Field(
+    title="Folder name",
+    pattern=NAME_REGEX,
+    examples=["bush"],
+)
+
+FOLDER_LABEL = Field(
+    title="Folder label",
+    pattern=LABEL_REGEX,
+    examples=["Bush"],
+)
+
+FOLDER_TYPE = Field(
+    title="Folder type",
+    example="Asset",
+)
+
 PARENT_ID = Field(
     title="Parent ID",
     description="Parent folder ID in the hierarchy",
     pattern=ENTITY_ID_REGEX,
-    example=ENTITY_ID_EXAMPLE,
+    examples=[ENTITY_ID_EXAMPLE],
 )
-FOLDER_PATH = Field(title="Path", example="/assets/characters/xenomorph")
-HAS_VERSIONS = Field(title="Has versions", example=True)
+
+FOLDER_PATH = Field(
+    title="Path",
+    description="Resolved folder path in the project hierarchy",
+    examples=["/assets/characters/xenomorph"],
+)
+
+HAS_VERSIONS = Field(
+    title="Has versions",
+    examples=[True],
+)
+
+
+#
+# Folder models
+#
 
 
 class FolderModel(ProjectLevelEntityModel):

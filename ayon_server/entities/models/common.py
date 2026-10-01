@@ -75,15 +75,26 @@ ENTITY_ID = Field(
     example=ENTITY_ID_EXAMPLE,
 )
 
-ATTRIB = Field(title="Attributes")
+ATTRIB = Field(
+    title="Attributes",
+    description="Attribute values of the entity",
+    examples=[{"priority": "normal"}],
+)
 
-DATA = Field(title="Auxiliary data")
+DATA = Field(
+    title="Auxiliary data",
+)
 
-ACTIVE = Field(title="Active", description="Whether the entity is active")
+ACTIVE = Field(
+    title="Active",
+    description="Whether the entity is active",
+)
 
 OWN_ATTRIB = Field(
     title="Own attributes",
-    description="Attributes set on the entity itself (not inherited)",
+    description=(
+        "List of attributes explicitly set on the entity itself (not inherited)"
+    ),
     example=["frameStart", "frameEnd"],
 )
 

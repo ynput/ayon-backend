@@ -14,13 +14,25 @@ from ayon_server.entities.models.common import (
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import USER_NAME_REGEX, Field
 
+#
+# User specific fields
+#
+
 USER_NAME = Field(
     title="User name",
     description="Unique name of the user",
     pattern=USER_NAME_REGEX,
-    example="awesome_user",
+    examples=["awesome.user"],
 )
-UI_EXPOSURE_LEVEL = Field(title="UI Exposure Level", example=100)
+
+UI_EXPOSURE_LEVEL = Field(
+    title="UI Exposure Level",
+    examples=[100],
+)
+
+#
+# User models
+#
 
 
 class UserModel(EntityMainModel):

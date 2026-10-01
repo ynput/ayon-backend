@@ -27,18 +27,37 @@ from ayon_server.types import (
 )
 from ayon_server.utils import create_uuid
 
-VERSION = Field(title="Version", description="Version number", example=1)
+#
+# Version specific fields
+#
+
+VERSION = Field(
+    title="Version",
+    description="Version number",
+    examples=[1],
+)
+
 PRODUCT_ID = Field(
     title="Product ID",
     description="ID of the parent product",
     pattern=ENTITY_ID_REGEX,
-    example=ENTITY_ID_EXAMPLE,
+    examples=[ENTITY_ID_EXAMPLE],
 )
-AUTHOR = Field(title="Author", pattern=USER_NAME_REGEX, example="john_doe")
+
+AUTHOR = Field(
+    title="Author",
+    pattern=USER_NAME_REGEX,
+    examples=["john.doe"],
+)
+
 VERSION_PATH = Field(
     title="Path",
-    example="/assets/characters/xenomorph/modelMain/v003",
+    examples=["/assets/characters/xenomorph/modelMain/v003"],
 )
+
+#
+# Version models
+#
 
 
 class VersionModel(ProjectLevelEntityModel):

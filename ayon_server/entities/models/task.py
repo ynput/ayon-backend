@@ -22,19 +22,40 @@ from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import LABEL_REGEX, NAME_REGEX, Field
 from ayon_server.utils import create_uuid
 
-TASK_NAME = Field(title="Task name", pattern=NAME_REGEX, example="modeling")
+#
+# Task specific fields
+#
+
+TASK_NAME = Field(
+    title="Task name",
+    pattern=NAME_REGEX,
+    examples=["modeling"],
+)
+
 TASK_LABEL = Field(
     title="Task label",
     pattern=LABEL_REGEX,
-    example="Modeling of a model",
+    examples=["Modeling of a model"],
 )
-TASK_TYPE = Field(title="Task type", example="Modeling")
+TASK_TYPE = Field(
+    title="Task type",
+    examples=["Modeling"],
+)
+
 ASSIGNEES = Field(
     title="Assignees",
     description="List of users assigned to the task",
-    example=["john_doe", "jane_doe"],
+    examples=[["john.doe", "jane.doe"]],
 )
-TASK_PATH = Field(title="Path", example="/assets/characters/xenomorph/modeling")
+
+TASK_PATH = Field(
+    title="Path",
+    examples=["/assets/characters/xenomorph/modeling"],
+)
+
+#
+# Task models
+#
 
 
 class TaskModel(ProjectLevelEntityModel):

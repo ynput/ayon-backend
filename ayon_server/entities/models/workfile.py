@@ -22,11 +22,19 @@ from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import Field
 from ayon_server.utils import create_uuid
 
+#
+# Workfile specific fields
+#
+
 WORKFILE_PATH = Field(
     title="Path",
     description="Path to the workfile",
-    example="{root['work']}/Project/workfiles/ma/modelMain_v001.ma",
+    examples=["{root['work']}/Project/workfiles/ma/modelMain_v001.ma"],
 )
+
+#
+# Workfile models
+#
 
 
 class WorkfileModel(ProjectLevelEntityModel):

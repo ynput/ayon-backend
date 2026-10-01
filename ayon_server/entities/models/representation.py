@@ -21,35 +21,56 @@ from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX, Field
 from ayon_server.utils import create_uuid
 
+#
+# Representation specific fields
+#
+
 REPRESENTATION_NAME = Field(
     title="Name",
     description="The name of the representation",
     pattern=NAME_REGEX,
-    example="ma",
+    examples=["ma"],
 )
+
 VERSION_ID = Field(
     title="Version ID",
     description="ID of the parent version",
     pattern=ENTITY_ID_REGEX,
-    example=ENTITY_ID_EXAMPLE,
+    examples=[ENTITY_ID_EXAMPLE],
 )
-FILES = Field(title="Files", description="List of files")
+
+FILES = Field(
+    title="Files",
+    description="List of files",
+)
+
 TRAITS = Field(
     title="Traits",
     description="Dict of traits",
-    example={
-        "ayon.2d.PixelBased.v1": {
-            "display_window_width": 1920,
-            "display_window_height": 1080,
-        },
-        "ayon.2d.Image.v1": {},
-    },
+    examples=[
+        {
+            "ayon.2d.PixelBased.v1": {
+                "display_window_width": 1920,
+                "display_window_height": 1080,
+            },
+            "ayon.2d.Image.v1": {},
+        }
+    ],
 )
+
 REPRESENTATION_PATH = Field(
     title="Path",
-    example="/assets/characters/xenomorph/modelMain/v003/ma",
+    examples=["/assets/characters/xenomorph/modelMain/v003/ma"],
 )
-BELONGS_TO_HERO = Field(title="Belongs to HERO version", example=False)
+
+BELONGS_TO_HERO = Field(
+    title="Belongs to HERO version",
+    examples=[False],
+)
+
+#
+# Representation models
+#
 
 
 class RepresentationModel(ProjectLevelEntityModel):

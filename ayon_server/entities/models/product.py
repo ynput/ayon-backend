@@ -21,25 +21,40 @@ from ayon_server.models.attrib_values import AttribDict
 from ayon_server.types import NAME_REGEX, Field
 from ayon_server.utils import create_uuid
 
+#
+# Product specific fields
+#
+
 PRODUCT_NAME = Field(
     title="Product name",
     description="Name of the product",
     pattern=NAME_REGEX,
-    example="modelMain",
+    examples=["modelMain"],
 )
+
 PRODUCT_TYPE = Field(
     title="Product type",
     description="Product type",
     pattern=NAME_REGEX,
-    example="modelMain",
+    examples=["modelMain"],
 )
+
 PRODUCT_BASE_TYPE = Field(
     title="Product base type",
     description="Product base type",
     pattern=NAME_REGEX,
-    example="model",
+    examples=["model"],
 )
-PRODUCT_PATH = Field(title="Path", example="/assets/characters/xenomorph/modelMain")
+
+PRODUCT_PATH = Field(
+    title="Path",
+    examples=["/assets/characters/xenomorph/modelMain"],
+)
+
+
+#
+# Product models
+#
 
 
 class ProductModel(ProjectLevelEntityModel):
