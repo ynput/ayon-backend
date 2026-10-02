@@ -216,7 +216,11 @@ def _normalize_value(raw_key: str, value: Any) -> Any:
     if not value.is_finite():
         logger.warning(f"Field stats: non-finite value {value!r} in {raw_key}")
         return None
-    return float(value)
+    normalized = float(value)
+    if normalized in (float("inf"), float("-inf")):
+        logger.warning(f"Field stats: non-finite value {value!r} in {raw_key}")
+        return None
+    return normalized
 
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
