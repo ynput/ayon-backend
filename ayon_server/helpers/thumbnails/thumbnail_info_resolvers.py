@@ -7,6 +7,20 @@ from .common import ThumbnailInfo
 THUMBNAIL_INFO_TTL = 3600
 
 
+def _latest_version_wins(res) -> bool:
+    """Whether the latest version thumbnail is newer than the latest reviewable.
+
+    Folders and tasks inherit thumbnails from their versions. Versions
+    with reviewables are preferred, unless a version with a thumbnail
+    was created after the latest reviewable was uploaded.
+    """
+    if not res["latest_version_thumbnail_id"]:
+        return False
+    if not res["reviewable_created_at"]:
+        return True
+    return res["latest_version_created_at"] > res["reviewable_created_at"]
+
+
 @Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
 async def resolve_folder_thumbnail_info(
     project_name: str,
@@ -39,6 +53,9 @@ async def resolve_folder_thumbnail_info(
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
             r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
+            r.reviewable_created_at AS reviewable_created_at,
+            lv.thumbnail_id AS latest_version_thumbnail_id,
+            lv.created_at AS latest_version_created_at,
             entity.thumbnail_id AS thumbnail_id,
             hierarchy.path AS path
         FROM project_{project_name}.folders entity
@@ -46,6 +63,16 @@ async def resolve_folder_thumbnail_info(
             ON entity.id = hierarchy.id
         LEFT JOIN reviewables r
             ON r.folder_id = entity.id
+        LEFT JOIN LATERAL (
+            SELECT v.thumbnail_id, v.created_at
+            FROM project_{project_name}.products p
+            JOIN project_{project_name}.versions v
+                ON v.product_id = p.id
+            WHERE p.folder_id = entity.id
+            AND v.thumbnail_id IS NOT NULL
+            ORDER BY v.created_at DESC
+            LIMIT 1
+        ) lv ON TRUE
         WHERE entity.id = $1
         ORDER BY r.reviewable_created_at DESC LIMIT 1;
     """
@@ -57,12 +84,18 @@ async def resolve_folder_thumbnail_info(
     if res["thumbnail_id"]:
         thumbnail_source = "folder"
         thumbnail_id = res["thumbnail_id"]
+    elif _latest_version_wins(res):
+        thumbnail_source = "version"
+        thumbnail_id = res["latest_version_thumbnail_id"]
     elif res["version_thumbnail_id"]:
         thumbnail_source = "version"
         thumbnail_id = res["version_thumbnail_id"]
     elif res["reviewable_thumbnail_id"]:
         thumbnail_source = "reviewable"
         thumbnail_id = res["reviewable_thumbnail_id"]
+    elif res["latest_version_thumbnail_id"]:
+        thumbnail_source = "version"
+        thumbnail_id = res["latest_version_thumbnail_id"]
     else:
         thumbnail_source = None
         thumbnail_id = None
@@ -107,6 +140,9 @@ async def resolve_task_thumbnail_info(
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
             r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
+            r.reviewable_created_at AS reviewable_created_at,
+            lv.thumbnail_id AS latest_version_thumbnail_id,
+            lv.created_at AS latest_version_created_at,
             hierarchy.path AS folder_path
         FROM project_{project_name}.tasks entity
 
@@ -115,6 +151,15 @@ async def resolve_task_thumbnail_info(
 
         LEFT JOIN reviewables r
             ON r.task_id = entity.id
+
+        LEFT JOIN LATERAL (
+            SELECT v.thumbnail_id, v.created_at
+            FROM project_{project_name}.versions v
+            WHERE v.task_id = entity.id
+            AND v.thumbnail_id IS NOT NULL
+            ORDER BY v.created_at DESC
+            LIMIT 1
+        ) lv ON TRUE
         WHERE entity.id = $1
         ORDER BY r.reviewable_created_at DESC LIMIT 1;
     """
@@ -126,12 +171,18 @@ async def resolve_task_thumbnail_info(
     if res["thumbnail_id"]:
         thumbnail_source = "task"
         thumbnail_id = res["thumbnail_id"]
+    elif _latest_version_wins(res):
+        thumbnail_source = "version"
+        thumbnail_id = res["latest_version_thumbnail_id"]
     elif res["version_thumbnail_id"]:
         thumbnail_source = "version"
         thumbnail_id = res["version_thumbnail_id"]
     elif res["reviewable_thumbnail_id"]:
         thumbnail_source = "reviewable"
         thumbnail_id = res["reviewable_thumbnail_id"]
+    elif res["latest_version_thumbnail_id"]:
+        thumbnail_source = "version"
+        thumbnail_id = res["latest_version_thumbnail_id"]
     else:
         thumbnail_source = None
         thumbnail_id = None
