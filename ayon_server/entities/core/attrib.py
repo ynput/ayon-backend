@@ -57,6 +57,7 @@ class AttributeLibrary:
 
         self._fingerprint: str | None = None
         self._inheritable: frozenset[str] = frozenset()
+        self._datetime_attributes: frozenset[str] = frozenset()
         self._project_defaults: dict[str, Any] = {}
         self._inherited_defaults: dict[str, Any] = {}
         self._by_name: dict[str, dict[str, Any]] = {}
@@ -177,6 +178,9 @@ class AttributeLibrary:
         self.data = data
         self.info_data = rows
         self._inheritable = frozenset(inheritable)
+        self._datetime_attributes = frozenset(
+            row["name"] for row in rows if row["data"].get("type") == "datetime"
+        )
         self._project_defaults = project_defaults
         self._inherited_defaults = {
             name: value
@@ -253,6 +257,11 @@ class AttributeLibrary:
     def inheritable(self) -> frozenset[str]:
         """Names of the inheritable attributes."""
         return self._inheritable
+
+    @property
+    def datetime_attributes(self) -> frozenset[str]:
+        """Names of the datetime attributes (stored as ISO strings)."""
+        return self._datetime_attributes
 
     def by_name(self, name: str) -> dict[str, Any]:
         """Return attribute definition by name."""

@@ -6,6 +6,8 @@ the attribute model of the entity type, which is generated from the current
 attribute definitions (and regenerated when they change).
 """
 
+import contextlib
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -13,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.models.generator import generate_model
 from ayon_server.models.attrib_values import STORED_VALUES, AttribDict
+from ayon_server.utils import as_utc
 
 AttribModelConfig = ConfigDict(coerce_numbers_to_str=True)
 
@@ -44,7 +47,9 @@ def validate_attrib(entity_type: str, value: Any, context: Any = None) -> Any:
 
     Returns the given attributes converted to their types. Attributes without
     a definition are dropped. Values loaded from the database (see
-    `STORED_VALUES`) are not validated again.
+    `STORED_VALUES`) are not validated again, only datetimes (stored as ISO
+    strings) are converted, so entities provide the same types as when
+    they are created. Datetimes are timezone-aware (naive ones are UTC).
 
     Raises pydantic ValidationError when a value is not valid.
     """
@@ -53,10 +58,19 @@ def validate_attrib(entity_type: str, value: Any, context: Any = None) -> Any:
     if not isinstance(value, dict):
         return value  # rejected by the field type
     if isinstance(context, dict) and context.get(STORED_VALUES):
-        return AttribDict(value)
+        values = AttribDict(value)
+        for name in values.keys() & attribute_library.datetime_attributes:
+            if isinstance(values[name], str):
+                with contextlib.suppress(ValueError):  # keep invalid values
+                    values[name] = as_utc(datetime.fromisoformat(values[name]))
+        return values
 
     model = get_attrib_model(entity_type)
     # Attribute models are flat, so the validated values can be used
     # directly (faster than model_dump)
     validated = model.__pydantic_validator__.validate_python(value).__dict__
-    return AttribDict({key: validated[key] for key in value if key in validated})
+    result = AttribDict({key: validated[key] for key in value if key in validated})
+    for name in result.keys() & attribute_library.datetime_attributes:
+        if isinstance(result[name], datetime):
+            result[name] = as_utc(result[name])
+    return result

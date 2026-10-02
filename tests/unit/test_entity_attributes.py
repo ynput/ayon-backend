@@ -5,6 +5,7 @@ Uses the default attributes (see conftest.py), e.g. `fps` (float) and
 """
 
 import asyncio
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -93,6 +94,33 @@ class TestLoading:
         assert version.attrib.resolutionWidth == 2048
         assert version.own_attrib == ["resolutionWidth"]
 
+    def test_stored_datetimes_are_converted(self):
+        # Datetimes are stored as ISO strings, entities provide datetimes
+        # (the same types as when they are created)
+        payload = {
+            **FOLDER,
+            "attrib": {"startDate": "2024-01-01T10:00:00+00:00", "fps": 25.0},
+        }
+        folder = FolderEntity(
+            "project",
+            payload,
+            exists=True,
+            project_attrib={"endDate": "2024-02-01T10:00:00+00:00"},
+        )
+        assert folder.attrib.startDate == datetime(2024, 1, 1, 10, tzinfo=UTC)
+        assert folder.attrib.endDate == datetime(2024, 2, 1, 10, tzinfo=UTC)
+        assert folder.attrib.fps == 25.0
+
+    def test_naive_stored_datetimes_are_utc(self):
+        payload = {**FOLDER, "attrib": {"startDate": "2024-01-01T10:00:00"}}
+        folder = FolderEntity("project", payload, exists=True)
+        assert folder.attrib.startDate == datetime(2024, 1, 1, 10, tzinfo=UTC)
+
+    def test_invalid_stored_datetimes_are_kept(self):
+        payload = {**FOLDER, "attrib": {"startDate": "not a date"}}
+        folder = FolderEntity("project", payload, exists=True)
+        assert folder.attrib.startDate == "not a date"
+
     def test_project_defaults(self):
         payload = {"name": "test", "code": "tst", "attrib": {"fps": 30.0}}
         project = ProjectEntity(payload, exists=True)
@@ -173,6 +201,11 @@ class TestSaving:
             FolderEntity("project", {**FOLDER, "attrib": {"fps": "abc"}})
         with pytest.raises(ValidationError):
             FolderEntity.model.post_model(**FOLDER, attrib={"resolutionWidth": -5})
+
+    def test_datetimes_are_timezone_aware(self):
+        folder = FolderEntity("project", {**FOLDER, "attrib": {}})
+        values = folder.validated_attrib({"endDate": "2024-03-01"})
+        assert values["endDate"] == datetime(2024, 3, 1, tzinfo=UTC)
 
     def test_valid_values_are_converted(self):
         folder = FolderEntity("project", {**FOLDER, "attrib": {}})

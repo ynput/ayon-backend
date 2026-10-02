@@ -5,6 +5,7 @@ Project-level entities are covered by test_operations.py.
 
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -58,6 +59,35 @@ class TestProjects:
         data = self.get(project)["data"]
         assert "a" not in data
         assert data["b"] == 2 and data["c"] == 3
+
+    def test_datetime_attributes(self, project: TempProject):
+        # with and without a timezone (naive datetimes are UTC)
+        dates = {"startDate": "2024-01-01T10:00:00+00:00", "endDate": "2024-03-01"}
+        assert self.patch(project, {"attrib": dates}).status_code == 204
+        attrib = self.get(project)["attrib"]
+        assert datetime.fromisoformat(attrib["startDate"]) == datetime(
+            2024, 1, 1, 10, tzinfo=UTC
+        )
+        assert datetime.fromisoformat(attrib["endDate"]) == datetime(
+            2024, 3, 1, tzinfo=UTC
+        )
+        # Entities provide datetimes (e.g. the project duration of the metrics)
+        assert project.api.get("/api/metrics").status_code == 200
+
+    def test_dashboard_with_task_end_dates(self, project: TempProject):
+        folder_id = project.create(
+            "folder", name="dashboard", folderType=project.folder_types[0]
+        )
+        for end_date in ("2024-03-01T10:00:00+00:00", "2099-03-01"):
+            project.create(
+                "task",
+                name=f"t{end_date[:4]}",
+                taskType=project.task_types[0],
+                folderId=folder_id,
+                attrib={"endDate": end_date},
+            )
+        response = project.api.get(f"/api/projects/{project.name}/dashboard/health")
+        assert response.status_code == 200, response.text
 
     def test_anatomy_attributes(self, project: TempProject):
         url = f"/api/projects/{project.name}/anatomy"
