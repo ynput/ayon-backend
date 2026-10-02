@@ -413,8 +413,11 @@ def get_has_links_conds(
         return [f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)"]
     if filter == HasLinksFilter.ANY:
         return [
-            f"({id_field} IN (SELECT input_id FROM project_{project_name}.links) OR "
-            f"{id_field} IN (SELECT output_id FROM project_{project_name}.links))",
+            f"""
+            (
+            {id_field} IN (SELECT input_id FROM project_{project_name}.links) OR
+            {id_field} IN (SELECT output_id FROM project_{project_name}.links)
+            )"""
         ]
     if filter == HasLinksFilter.BOTH:
         return [
