@@ -20,6 +20,7 @@ from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_exception, log_traceback, logger
+from ayon_server.mcp import mcp_tunnels
 from ayon_server.utils import slugify
 from maintenance.scheduler import MaintenanceScheduler
 
@@ -379,5 +380,6 @@ async def lifespan(app: "FastAPI"):
 
     await background_workers.shutdown()
     await messaging.shutdown()
+    await mcp_tunnels.shutdown()
     await Postgres.shutdown()
     logger.info("Server stopped", nodb=True)
