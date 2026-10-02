@@ -13,7 +13,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
-from .pagination import encode_cursor
+from .pagination import OrderBySequence, encode_cursor
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -62,7 +62,12 @@ def argdesc(description: str) -> StrawberryArgumentAnnotation:
 
 def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
     """Return a textual description for sorting argument"""
-    description = f"Sort by one of {', '.join(sort_options.keys())}"
+    description = (
+        f"Sort by one or more of {', '.join(sort_options.keys())}. "
+        "Multiple keys are applied in order of precedence. "
+        "Prefix a key with '-' to sort it in descending order. "
+        "A single string is accepted as well."
+    )
     return strawberry.argument(description=description)
 
 
@@ -322,7 +327,7 @@ async def resolve[R](
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
-    order_by: list[str] | None = None,
+    order_by: OrderBySequence | None = None,
 ) -> R:
     """Return a connection object from a query."""
 
