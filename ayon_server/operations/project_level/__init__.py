@@ -380,7 +380,7 @@ class ProjectLevelOperations:
         entity_id: str,
         *,
         as_user: str | UserEntity | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Update a project level entity."""
         self.add(

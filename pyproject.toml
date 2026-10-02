@@ -108,15 +108,30 @@ plugins = [
 
 check_untyped_defs = true
 disallow_any_generics = true
+disallow_any_unimported = true
+disallow_subclassing_any = true
 exclude = "tests/|venv/|tool/|test_"
 explicit_package_bases = true
+extra_checks = true
 no_implicit_reexport = true
+strict_equality = true
 strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-# follow_imports = "silent"
-# strict = true
-# disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+
+# Fully typed packages (extend the list when a package is typed)
+[[tool.mypy.overrides]]
+module = [
+  "ayon_server.attributes.*",
+  "ayon_server.models.*",
+  "ayon_server.operations.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
 
 [[tool.mypy.overrides]]
 module = [

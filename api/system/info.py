@@ -2,11 +2,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 import aiocache
-from attributes.attributes import AttributeModel, list_attributes  # type: ignore
+from attributes.attributes import list_attributes  # type: ignore
 from fastapi import Query, Request
 
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import AllowGuests, CurrentUserOptional, NoTraces
+from ayon_server.attributes.models import AttributeModel
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities.models.user import UserModel

@@ -41,8 +41,8 @@ class TopLevelEntity(BaseEntity[ModelT]):
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
-        self._payload = self.model.main_model(
-            name=self.name, **replace_data.model_dump()
+        self._payload = self.model.main_model.model_validate(
+            {"name": self.name, **replace_data.model_dump()}
         )
 
     @property

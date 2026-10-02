@@ -79,7 +79,7 @@ class AyonModelMetaclass(ModelMetaclass):
         bases: tuple[type, ...],
         namespace: dict[str, Any],
         **kwargs: Any,
-    ):
+    ) -> type:
         annotations = namespace.setdefault("__annotations__", {})
 
         # Non-annotated fields
@@ -141,7 +141,8 @@ def _with_default(field_info: FieldInfo, default: Any) -> FieldInfo:
 def _field_coercions(model: type[BaseModel]) -> dict[str, str]:
     """Return names/aliases of fields needing Pydantic 1 style input coercion"""
     try:
-        return model.__dict__["__ayon_field_coercions__"]
+        cached: dict[str, str] = model.__dict__["__ayon_field_coercions__"]
+        return cached
     except KeyError:
         pass
 
