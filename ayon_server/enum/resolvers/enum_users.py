@@ -32,15 +32,21 @@ def should_list_user(
     Excluded users won't be returned at all opposed to being returned as hidden
 
     Rules:
+    - Service accounts are never shown
     - Admins and managers are always shown
     - If project_name is set, do not show users that have no access to the project
     - If ayonconfig.limit_user_visibility is enabled,
       do not show users that don't share access groups with the current user
-    - Support users are only shown to support users
 
+    Support users are not excluded here, but hidden for non-support users
+    (see should_hide_user)
     """
 
     _ = context, current_user  # unused for now
+
+    if udata.get("isService", False):
+        # service accounts are never listed
+        return False
 
     candidate_is_admin = udata.get("isAdmin", False)
     candidate_is_manager = udata.get("isManager", False)
@@ -129,12 +135,12 @@ class UsersEnumResolver(BaseEnumResolver):
             # that has access to all users.
             has_all_user_access = True
         elif current_user.is_manager:
-            # Managers have access to all users within their project
+            # Managers have access to all users
             has_all_user_access = True
         else:
             # Normal users requesting a list of users must either:
-            # - has studio-wide access to all users,
-            # - has access to the project
+            # - have studio-wide access to all users,
+            # - have access to the project
             # - if limit_user_visibility is enabled, they can only see users that share
             #   access groups with them
             try:
