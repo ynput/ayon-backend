@@ -989,8 +989,8 @@ async def _resolve_entity_id(
             break
         identifier = (*identifier, str(val))
 
-    if identifier in existing_identifiers:
-        return identifier[0]  # Return the identifier
+    if identifier and identifier in existing_identifiers:
+        return identifier[0]
 
     # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:
