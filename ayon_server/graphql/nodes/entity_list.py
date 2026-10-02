@@ -291,7 +291,10 @@ async def get_activity_categories(
     if user.is_guest:
         # Guests comment in the category set for them on the list
         # (the same rules as when they comment, see get_guest_activity_category)
-        return [await get_guest_activity_category(user, project, record.get("id"))]
+        category = await get_guest_activity_category(
+            user, project, record.get("id"), entity_list=record
+        )
+        return [category]
 
     return await ActivityCategories.get_accessible_categories(
         user,

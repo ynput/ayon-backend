@@ -9,13 +9,11 @@ _background_tasks: set[asyncio.Task[Any]] = set()
 
 def _on_task_done(task: asyncio.Task[Any]) -> None:
     _background_tasks.discard(task)
-    if task.cancelled() or task.exception() is None:
+    if task.cancelled() or (exc := task.exception()) is None:
         return
-    from ayon_server.logging import logger  # logging imports utils
+    from ayon_server.logging import log_exception  # logging imports utils
 
-    logger.opt(exception=task.exception()).error(
-        f"Background task {task.get_name()} failed"
-    )
+    log_exception(exc, message=f"Background task {task.get_name()} failed")
 
 
 def create_background_task(
