@@ -2,8 +2,13 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access, folder_access_list
-from ayon_server.entities.core import ProjectLevelEntity, attribute_library
+from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.folder import (
+    FolderModel,
+    FolderPatchModel,
+    FolderPostModel,
+)
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
@@ -71,9 +76,15 @@ BASE_GET_QUERY = """
 """
 
 
-class FolderEntity(ProjectLevelEntity):
+class FolderEntity(ProjectLevelEntity[FolderModel]):
     entity_type: ProjectLevelEntityType = "folder"
-    model: ModelSet = ModelSet("folder", attribute_library["folder"])
+    model = ModelSet(
+        "folder",
+        FolderModel,
+        FolderPostModel,
+        FolderPatchModel,
+        dynamic_fields=["path", "has_versions"],
+    )
     base_get_query = BASE_GET_QUERY
 
     @staticmethod
@@ -82,27 +93,15 @@ class FolderEntity(ProjectLevelEntity):
         if path is not None:
             # ensure path starts with / but does not end with /
             record["path"] = f"/{path.strip('/')}"
-        attrib: dict[str, Any] = {}
-        inherited_attrib: dict[str, Any] = {}
-
-        for key, value in record.get("project_attrib", {}).items():
-            if key in attribute_library.inheritable_attributes():
-                attrib[key] = value
-                inherited_attrib[key] = value
-
-        if (ia := record["inherited_attrib"]) is not None:
-            for key, value in ia.items():
-                if key in attribute_library.inheritable_attributes():
-                    attrib[key] = value
-                    inherited_attrib[key] = value
-
-        elif record["parent_id"] is not None:
+        # `attrib` holds the own values, `inherited_attrib` the exported
+        # attributes of the parent and `project_attrib` the project values.
+        # The attribute values are resolved from them (see resolve_attrib)
+        if record["inherited_attrib"] is None and record["parent_id"] is not None:
             logger.warning(
                 f"Folder {record['path']} does not have inherited attributes."
                 "this shouldn't happen"
             )
-        attrib.update(record["attrib"])
-        return {**record, "attrib": attrib, "inherited_attrib": inherited_attrib}
+        return record
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
@@ -120,12 +119,7 @@ class FolderEntity(ProjectLevelEntity):
                     raise AyonException("No folder types defined")
                 self.folder_type = res[0]["name"]
 
-            attrib = {}
-            for key in self.own_attrib:
-                if not hasattr(self.attrib, key):
-                    continue
-                if (value := getattr(self.attrib, key)) is not None:
-                    attrib[key] = value
+            attrib = self.own_attrib_to_save()
 
             if self.exists:
                 # Update existing entity
@@ -208,7 +202,7 @@ class FolderEntity(ProjectLevelEntity):
                         OR path LIKE $1 || '/%'
                     ) RETURNING name
                     """,
-                    self.path.lstrip("/"),
+                    (self.path or "").lstrip("/"),
                 )
             return await super().delete(*args, auto_commit=auto_commit, **kwargs)
 
@@ -330,50 +324,50 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def label(self) -> str | None:
         """Return the label of the folder."""
-        return self._payload.label  # type: ignore
+        return self._payload.label
 
     @label.setter
     def label(self, value):
         """Set the label of the folder."""
-        self._payload.label = value  # type: ignore
+        self._payload.label = value
 
     @property
     def parent_id(self) -> str | None:
-        return self._payload.parent_id  # type: ignore
+        return self._payload.parent_id
 
     @parent_id.setter
     def parent_id(self, value: str) -> None:
-        self._payload.parent_id = value  # type: ignore
+        self._payload.parent_id = value
 
     @property
     def folder_type(self) -> str | None:
-        return self._payload.folder_type  # type: ignore
+        return self._payload.folder_type
 
     @folder_type.setter
     def folder_type(self, value: str) -> None:
-        self._payload.folder_type = value  # type: ignore
+        self._payload.folder_type = value
 
     @property
     def thumbnail_id(self) -> str | None:
-        return self._payload.thumbnail_id  # type: ignore
+        return self._payload.thumbnail_id
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value  # type: ignore
+        self._payload.thumbnail_id = value
 
     #
     # Read only properties
     #
 
     @property
-    def path(self) -> str:
-        return self._payload.path  # type: ignore
+    def path(self) -> str | None:
+        return self._payload.path
 
     @property
     def entity_subtype(self) -> str | None:
         return self.folder_type
 
     @property
-    def has_versions(self) -> bool:
+    def has_versions(self) -> bool | None:
         """Check if the folder has any versions."""
-        return self._payload.has_versions  # type: ignore
+        return self._payload.has_versions

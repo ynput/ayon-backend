@@ -48,7 +48,7 @@ def _get_s3_client(storage: "ProjectStorage"):
         if storage.s3_config is None:
             cfg = {}
         else:
-            cfg = storage.s3_config.dict(exclude_none=True)
+            cfg = storage.s3_config.model_dump(exclude_none=True)
         storage._s3_client = boto3.client("s3", **cfg)
     return storage._s3_client
 

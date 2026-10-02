@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from ayon_server.entities import ProjectEntity
@@ -115,7 +116,8 @@ async def get_project_metrics(
 
     start_date = project.attrib.startDate
     end_date = project.attrib.endDate
-    if start_date and end_date:
+    # invalid stored values are kept (as strings)
+    if isinstance(start_date, datetime) and isinstance(end_date, datetime):
         result["duration"] = (end_date - start_date).days
 
     if system:

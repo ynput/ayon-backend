@@ -81,7 +81,6 @@ async def get_studio_settings_overrides(
             continue
         results.append(
             SettingsOverrides(
-                project_name=None,
                 addon_name=addon_name,
                 addon_version=addon_version,
                 paths=paths,

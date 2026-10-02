@@ -142,7 +142,7 @@ async def user_from_request(request: Request) -> UserEntity:
         # Sessions stored before is_api_key was persisted lack the flag
         if not session_data.is_api_key:
             session_data.is_api_key = True
-            await Redis.set(Session.ns, api_key, session_data.json())
+            await Redis.set(Session.ns, api_key, session_data.model_dump_json())
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)
@@ -159,7 +159,7 @@ async def user_from_request(request: Request) -> UserEntity:
         raise UnauthorizedException(reason)
 
     await Redis.incr("user-requests", session_data.user.name)
-    user = UserEntity.from_record(session_data.user.dict())
+    user = UserEntity.from_record(session_data.user.model_dump())
     user.add_session(session_data)
 
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.types import Field, OPModel
 
@@ -56,10 +56,11 @@ class VersionSuggestionItem(SuggestionItem):
     id: str = Field(..., example="af3e4b3e-1b1b-4b3b-8b3b-3b3b3b3b3b3b")
     version: int = Field(..., example=1)
     parent: ProductSuggestionItem | None = Field(None)
-    name: str | None = Field(None)
+    name: str | None = Field(None, validate_default=True)
 
-    @validator("name", pre=True, always=True)
-    def set_name(cls, v, values):
+    @field_validator("name", mode="before")
+    @classmethod
+    def set_name(cls, v, info: ValidationInfo):
         """Auto-populate the name field
 
         Sets the value of the 'name' field based
@@ -68,6 +69,7 @@ class VersionSuggestionItem(SuggestionItem):
 
         if v:
             return v
+        values = info.data
         if values["version"] < 0:
             return "HERO"
         return f"v{values['version']:03d}"

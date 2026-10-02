@@ -11,6 +11,7 @@ from fastapi import Request
 from ayon_server.api.clientinfo import ClientInfo, get_client_info
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.entities.models.user import UserModel
 from ayon_server.events import EventStream
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
@@ -27,7 +28,7 @@ def is_local_ip(ip: str) -> bool:
 
 
 class SessionModel(OPModel):
-    user: UserEntity.model.main_model  # type: ignore
+    user: UserModel
     token: str
     created: float = 0
     last_used: float = 0
@@ -38,7 +39,7 @@ class SessionModel(OPModel):
     @property
     def user_entity(self) -> UserEntity:
         return UserEntity(
-            payload=self.user.dict(),
+            payload=self.user.model_dump(),
             exists=True,
         )
 
@@ -88,7 +89,7 @@ class Session:
             if not session.client_info:
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()
-                await Redis.set(cls.ns, token, session.json())
+                await Redis.set(cls.ns, token, session.model_dump_json())
             else:
                 if not ayonconfig.disable_check_session_ip:
                     real_ip = get_real_ip_from_request(request)
@@ -107,7 +108,7 @@ class Session:
                     client_info.location = session.client_info.location
                     session.client_info = client_info
                     session.last_used = time.time()
-                    await Redis.set(cls.ns, token, session.json())
+                    await Redis.set(cls.ns, token, session.model_dump_json())
 
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
@@ -124,7 +125,7 @@ class Session:
                 await Redis.set(
                     cls.ns,
                     token,
-                    json_dumps(session.dict()),
+                    json_dumps(session.model_dump()),
                 )
 
         return session
@@ -171,8 +172,8 @@ class Session:
             is_api_key=is_api_key,
             client_info=client_info,
         )
-        event_summary = client_info.dict() if client_info else {}
-        await Redis.set(cls.ns, token, session.json())
+        event_summary = client_info.model_dump() if client_info else {}
+        await Redis.set(cls.ns, token, session.model_dump_json())
         if not user.is_service:
             await EventStream.dispatch(
                 "auth.login",
@@ -210,11 +211,11 @@ class Session:
             return None
 
         session = SessionModel(**json_loads(data))
-        session.user = user._payload.copy()
+        session.user = user._payload.model_copy()
         if client_info is not None:
             session.client_info = client_info
         session.last_used = time.time()
-        await Redis.set(cls.ns, token, session.json())
+        await Redis.set(cls.ns, token, session.model_dump_json())
 
     @classmethod
     async def delete(cls, token: str, message: str = "User logged out") -> None:

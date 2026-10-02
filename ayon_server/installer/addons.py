@@ -274,7 +274,7 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
             event_id,
             description=f"Installing addon {zip_info.name} {zip_info.version}",
             status="in_progress",
-            summary=zip_info.dict(exclude_none=True),
+            summary=zip_info.model_dump(exclude_none=True),
             progress=50,
             sender="background-installer",
             sender_type="system",
