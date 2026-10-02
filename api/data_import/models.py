@@ -979,7 +979,7 @@ class EntityListExportImportModel(EntityExportImport):
             List of entity dictionaries or CSV rows (including header)
         """
         if field_names is None:
-            fields = await cls.fields()
+            fields = await cls.fields(project_name=project_name)
             field_names = [field.key for field in fields]
 
         where = ""
