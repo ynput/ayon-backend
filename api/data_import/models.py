@@ -999,7 +999,7 @@ class EntityListExportImportModel(EntityExportImport):
             "ON li.entity_id = t.id "
             f"{where}"
         )
-        rows = await Postgres.fetch(query)
+        rows = await Postgres.fetch(query, *(entity_ids[1] if entity_ids else []))
 
         return await cls._return_items(as_csv, field_names, rows)
 
