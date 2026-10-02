@@ -460,8 +460,11 @@ async def import_data(
 
     if not preview and operations is not None:
         # Reset the counts for the second round (actual write)
-        import_status.created = 0
-        import_status.updated = 0
+        # user and entity_list_item do not have operations, so we skip
+        # resetting counts for them
+        if import_type not in ["user", "entity_list_item"]:
+            import_status.created = 0
+            import_status.updated = 0
 
         start_time = time.perf_counter()
         try:
