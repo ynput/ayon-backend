@@ -989,7 +989,7 @@ class EntityListExportImportModel(EntityExportImport):
             where = f"WHERE  li.entity_list_id IN ({placeholders})"
 
         query = (
-            "SELECT li.entity_id, li.entity_list_id, "
+            "SELECT li.entity_id, li.entity_list_id, li.attrib, "
             "CASE "
             "WHEN t.id IS NOT NULL THEN li.folder_path || '/' || t.name "
             "ELSE li.folder_path "
