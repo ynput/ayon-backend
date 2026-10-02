@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
@@ -90,24 +91,36 @@ def _get_stats_for_column(
         ]
     if data_type == "string":
         return [
-            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
-            f"NULL AND {column_expr} != '') AS \"{column_name}_filled\"",
-            f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
-            f"{column_expr} = '') AS \"{column_name}_not_filled\"",
+            f"""
+            COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT NULL
+            AND {column_expr} != '') AS \"{column_name}_filled\"
+            """,
+            f"""
+            COUNT(*) FILTER (WHERE {column_expr} IS NULL
+            OR {column_expr} = '') AS \"{column_name}_not_filled\"
+            """,
         ]
     if data_type == "uuid":
         return [
-            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
-            f'NULL) AS "{column_name}_filled"',
-            f"COUNT(*) FILTER (WHERE {column_expr} IS NULL) "
-            f'AS "{column_name}_not_filled"',
+            f"""
+            COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT NULL)
+            AS "{column_name}_filled"
+            """,
+            f"""
+            COUNT(*) FILTER (WHERE {column_expr} IS NULL)
+            AS "{column_name}_not_filled"
+            """,
         ]
     if data_type == "bool":
         return [
-            f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
-            f'AS "{column_name}_true"',
-            f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
-            f'{column_expr} IS NULL) AS "{column_name}_false"',
+            f"""
+            COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE)
+            AS "{column_name}_true"
+            """,
+            f"""
+            COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE
+            OR {column_expr} IS NULL) AS "{column_name}_false"
+            """,
         ]
     return []
 
@@ -204,6 +217,24 @@ def generate_specific_stats_columns(
     return ",\n    ".join(list(stats_fields))
 
 
+def _normalize_value(raw_key: str, value: Any) -> Any:
+    """Convert numeric results to float, dropping non-finite values.
+
+    Postgres numeric aggregates come back as Decimal. GraphQL Float
+    rejects NaN/Infinity, which would fail the whole query.
+    """
+    if not isinstance(value, Decimal):
+        return value
+    if not value.is_finite():
+        logger.warning(f"Field stats: non-finite value {value!r} in {raw_key}")
+        return None
+    normalized = float(value)
+    if normalized in (float("inf"), float("-inf")):
+        logger.warning(f"Field stats: non-finite value {value!r} in {raw_key}")
+        return None
+    return normalized
+
+
 async def generate_field_stats(query: str) -> list[ColumnStats]:
     """Calculates field stats from prepared query."""
     grouped_data: dict[str, dict[str, Any]] = {}
@@ -220,7 +251,9 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         for suffix, target_key in SUFFIX_MAP.items():
             if raw_key.endswith(suffix):
                 col_name = raw_key.removesuffix(suffix)
-                grouped_data.setdefault(col_name, {})[target_key] = value
+                grouped_data.setdefault(col_name, {})[target_key] = _normalize_value(
+                    raw_key, value
+                )
                 break
 
     stats_list = []
