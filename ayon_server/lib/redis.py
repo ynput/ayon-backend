@@ -1,5 +1,6 @@
 import inspect
 import json
+import uuid
 from collections.abc import Awaitable, Callable, Coroutine
 from functools import wraps
 from typing import Any, Literal, TypeVar, cast
@@ -28,6 +29,15 @@ repeat
 until cursor == "0"
 
 return total_size
+"""
+
+# Delete the lock only if it is still held by the caller. It may have expired
+# and been acquired by another instance in the meantime.
+RELEASE_LOCK_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+end
+return 0
 """
 
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
@@ -159,6 +169,31 @@ class Redis:
         if not cls.connected:
             await cls.connect()
         await cls.redis_pool.delete(f"{cls.prefix}{namespace}-{key}")
+
+    @classmethod
+    async def acquire_lock(cls, namespace: str, key: str, ttl: int) -> str | None:
+        """Acquire a lock shared by all server instances
+
+        Returns a token needed to release the lock, or None if the lock
+        is held by someone else. The lock expires after `ttl` seconds,
+        so a crashed holder cannot keep it forever.
+        """
+        if not cls.connected:
+            await cls.connect()
+        token = uuid.uuid4().hex
+        acquired = await cls.redis_pool.set(
+            f"{cls.prefix}{namespace}-{key}", token, nx=True, ex=ttl
+        )
+        return token if acquired else None
+
+    @classmethod
+    async def release_lock(cls, namespace: str, key: str, token: str) -> None:
+        """Release a lock acquired with `acquire_lock`"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.eval(
+            RELEASE_LOCK_SCRIPT, 1, f"{cls.prefix}{namespace}-{key}", token
+        )
 
     @classmethod
     async def incr(cls, namespace: str, key: str, *, ttl: int = 0) -> int:

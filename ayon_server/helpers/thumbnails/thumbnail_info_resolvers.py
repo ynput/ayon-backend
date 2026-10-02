@@ -18,6 +18,7 @@ async def resolve_folder_thumbnail_info(
                 p.folder_id AS folder_id,
                 f.id AS reviewable_id,
                 f.thumbnail_id AS reviewable_thumbnail_id,
+                f.data->'filmstrip' AS reviewable_filmstrip,
                 a.created_at AS reviewable_created_at,
                 v.thumbnail_id AS version_thumbnail_id
             FROM project_{project_name}.folders entity
@@ -39,6 +40,7 @@ async def resolve_folder_thumbnail_info(
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
             r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
+            r.reviewable_filmstrip AS reviewable_filmstrip,
             entity.thumbnail_id AS thumbnail_id,
             hierarchy.path AS path
         FROM project_{project_name}.folders entity
@@ -73,6 +75,7 @@ async def resolve_folder_thumbnail_info(
         "thumbnail_id": thumbnail_id,
         "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
+        "filmstrip": res["reviewable_filmstrip"],
     }
 
 
@@ -88,6 +91,7 @@ async def resolve_task_thumbnail_info(
                 v.thumbnail_id AS version_thumbnail_id,
                 f.id AS reviewable_id,
                 f.thumbnail_id AS reviewable_thumbnail_id,
+                f.data->'filmstrip' AS reviewable_filmstrip,
                 a.created_at AS reviewable_created_at
             FROM project_{project_name}.tasks entity
             JOIN project_{project_name}.versions v
@@ -107,6 +111,7 @@ async def resolve_task_thumbnail_info(
             r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id,
             r.reviewable_thumbnail_id AS reviewable_thumbnail_id,
+            r.reviewable_filmstrip AS reviewable_filmstrip,
             hierarchy.path AS folder_path
         FROM project_{project_name}.tasks entity
 
@@ -142,6 +147,7 @@ async def resolve_task_thumbnail_info(
         "thumbnail_id": thumbnail_id,
         "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
+        "filmstrip": res["reviewable_filmstrip"],
     }
 
 
@@ -155,7 +161,8 @@ async def resolve_version_thumbnail_info(
             SELECT DISTINCT ON (a.entity_id)
             a.entity_id AS version_id,
             f.id AS reviewable_id,
-            f.thumbnail_id AS reviewable_thumbnail_id
+            f.thumbnail_id AS reviewable_thumbnail_id,
+            f.data->'filmstrip' AS reviewable_filmstrip
             FROM project_{project_name}.files f
             JOIN project_{project_name}.activity_feed a
             ON a.activity_id = f.activity_id
@@ -168,7 +175,8 @@ async def resolve_version_thumbnail_info(
             h.path,
             v.thumbnail_id,
             r.reviewable_thumbnail_id,
-            r.reviewable_id
+            r.reviewable_id,
+            r.reviewable_filmstrip
         FROM project_{project_name}.versions v
 
         JOIN project_{project_name}.products p
@@ -203,6 +211,7 @@ async def resolve_version_thumbnail_info(
         "thumbnail_id": thumbnail_id,
         "thumbnail_source": thumbnail_source,
         "file_id": res["reviewable_id"],
+        "filmstrip": res["reviewable_filmstrip"],
     }
 
 
