@@ -188,6 +188,9 @@ async def import_data(
         # for folder/task imports, but we check anyway
         raise ForbiddenException("You must be a manager to import data")
 
+    if import_type == "entity_list_item" and project_name is None:
+        raise BadRequestException("Project name is required for list item imports")
+
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
         raise BadRequestException(f"No file {file_id} found.")
