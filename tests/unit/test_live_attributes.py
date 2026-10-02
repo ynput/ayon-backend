@@ -306,8 +306,10 @@ def test_attrib_to_json():
         ),
         (
             "{ a { attrib{__typename, rate : fps} allAttrib ownAttrib } }",
-            '{ a { attrib(legacySelection: "__typename rate:fps") '
-            "allAttrib ownAttrib } }",
+            (
+                '{ a { attrib(legacySelection: "__typename rate:fps") '
+                "allAttrib ownAttrib } }"
+            ),
         ),
         ("{ a { attrib allAttrib } }", "{ a { attrib allAttrib } }"),
         ('{ a { attrib(names: ["fps"]) } }', '{ a { attrib(names: ["fps"]) } }'),
@@ -389,8 +391,10 @@ class JsonQuery:
 @pytest.mark.parametrize(
     "query",
     [
-        "query FoldersQuery {\n  folders {\n    name\n    attrib {\n"
-        "      resolutionWidth\n      fps\n      startDate\n    }\n  }\n}",
+        (
+            "query FoldersQuery {\n  folders {\n    name\n    attrib {\n"
+            "      resolutionWidth\n      fps\n      startDate\n    }\n  }\n}"
+        ),
         "{ folders { attrib { fps description } name } }",
         "{ folders { attrib { __typename rate: fps } } }",
         "{ folders { a: attrib { fps } b: attrib { resolutionWidth } } }",

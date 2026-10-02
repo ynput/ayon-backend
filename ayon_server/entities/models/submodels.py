@@ -27,8 +27,10 @@ class RepresentationFileModel(OPModel):
             title="File path",
             description="Path to the file",
             examples=[
-                "{root}/demo_Commercial/shots/sh010/workfile/"
-                "workfileCompositing/v001/sh010_workfile Compositing_v001.ma"
+                (
+                    "{root}/demo_Commercial/shots/sh010/workfile/"
+                    "workfileCompositing/v001/sh010_workfile Compositing_v001.ma"
+                )
             ],
         ),
     ]
