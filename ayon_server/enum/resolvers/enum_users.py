@@ -30,11 +30,22 @@ def should_list_user(
     """
     Exclude users that the current user has no access to.
     Excluded users won't be returned at all opposed to being returned as hidden
-    """
-    is_admin = udata.get("isAdmin", False)
-    is_manager = udata.get("isManager", False)
 
-    if is_admin or is_manager:
+    Rules:
+    - Admins and managers are always shown
+    - If project_name is set, do not show users that have no access to the project
+    - If ayonconfig.limit_user_visibility is enabled,
+      do not show users that don't share access groups with the current user
+    - Support users are only shown to support users
+
+    """
+
+    _ = context, current_user  # unused for now
+
+    candidate_is_admin = udata.get("isAdmin", False)
+    candidate_is_manager = udata.get("isManager", False)
+
+    if candidate_is_admin or candidate_is_manager:
         # we always show admins and managers
         return True
 
@@ -43,14 +54,15 @@ def should_list_user(
 
     # now we are in project scope
 
-    ags = udata.get("accessGroups", {}).get(project_name, [])
-    if not ags:
+    candidate_user_ags = udata.get("accessGroups", {}).get(project_name, [])
+    if not candidate_user_ags:
+        # Candidate user has no access to this project, so we don't show them
         return False
 
-    if not skip_if_not_ag:
+    if skip_if_not_ag is None:
         return True
 
-    return bool(set(ags).intersection(set(skip_if_not_ag)))
+    return bool(set(candidate_user_ags).intersection(set(skip_if_not_ag)))
 
 
 def should_hide_user(
@@ -116,7 +128,15 @@ class UsersEnumResolver(BaseEnumResolver):
             # If there is no current user, we assume this is a system process
             # that has access to all users.
             has_all_user_access = True
+        elif current_user.is_manager:
+            # Managers have access to all users within their project
+            has_all_user_access = True
         else:
+            # Normal users requesting a list of users must either:
+            # - has studio-wide access to all users,
+            # - has access to the project
+            # - if limit_user_visibility is enabled, they can only see users that share
+            #   access groups with them
             try:
                 current_user.check_permissions("studio.list_all_users")
             except ForbiddenException:
