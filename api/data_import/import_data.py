@@ -154,6 +154,8 @@ async def import_data(
 
     Parses the CSV file and creates/updates entities based on the data.
     Supports importing users, folders, tasks, or hierarchies (combined).
+    For new entity list items, mapped `attrib.<name>` values are stored on the
+    list item rather than modifying the referenced entity.
 
     Args:
         import_type: Type of entity to import (user, folder, task, hierarchy)
