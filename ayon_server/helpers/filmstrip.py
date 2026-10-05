@@ -13,9 +13,11 @@ They are stored in the project storage under the ID of the source file
 and described in the `filmstrip` key of the file record data, which is also
 part of the (cached) thumbnail info of entities using the reviewable.
 
-The API returns the filmstrip description with an URL of the image
-(a signed URL for S3 storages), so serving a filmstrip never needs
-to access the storage and the image bytes are not cached by the server.
+The API returns the filmstrip description with an URL of the image,
+so describing a filmstrip never needs to access the storage. The image URL
+only changes when the filmstrip is re-created with other settings, so browsers
+keep the image (for any storage type) and the server reads it from the storage
+only once per browser. The image bytes are not cached by the server.
 """
 
 import asyncio
@@ -28,7 +30,7 @@ from typing import Any, TypedDict, TypeGuard
 import aiofiles
 import aiofiles.tempfile
 from fastapi import Response
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
@@ -76,9 +78,6 @@ FRAME_TIMEOUT = 30
 SINGLE_PASS_TIMEOUT = 120
 
 FAILURE_CACHE_TTL = 3600
-
-# Validity of signed S3 URLs. Must be longer than the API response cache time.
-FILMSTRIP_URL_TTL = 3600
 
 # Bump when the image layout or encoding changes to regenerate stored filmstrips
 FILMSTRIP_VERSION = 1
@@ -376,26 +375,17 @@ def _is_current(info: Any) -> TypeGuard[FilmstripInfo]:
     )
 
 
-async def _get_filmstrip_model(
+def _get_filmstrip_model(
     project_name: str,
     file_id: str,
     info: FilmstripInfo,
 ) -> FilmstripModel:
-    storage = await Storages.project(project_name)
-    if storage.storage_type == "s3":
-        # Signing is done locally, it does not access S3
-        url = await storage.get_signed_url(
-            file_id,
-            file_group="filmstrips",
-            ttl=FILMSTRIP_URL_TTL,
-            content_type=info["mime"],
-        )
-    else:
-        # Changes when the filmstrip is re-created with other settings,
-        # so browsers may cache the payload
-        version = f"{info['version']}.{info['frames']}.{info['frameSize']}"
-        url = f"/api/projects/{project_name}/files/{file_id}/filmstrip/payload"
-        url += f"?v={version}"
+    # Changes when the filmstrip is re-created with other settings,
+    # so browsers may cache the payload for good. Unlike signed S3 URLs,
+    # it stays the same between requests.
+    version = f"{info['version']}.{info['frames']}.{info['frameSize']}"
+    url = f"/api/projects/{project_name}/files/{file_id}/filmstrip/payload"
+    url += f"?v={version}"
 
     return FilmstripModel(
         file_id=file_id,
@@ -575,30 +565,46 @@ async def get_file_filmstrip(project_name: str, file_id: str) -> FilmstripModel:
     file_id = file_id.replace("-", "")
     data = await _get_file_data(project_name, file_id)
     info = await _ensure_file_filmstrip(project_name, file_id, data)
-    return await _get_filmstrip_model(project_name, file_id, info)
+    return _get_filmstrip_model(project_name, file_id, info)
+
+
+# The payload URL changes when the filmstrip is re-created
+FILMSTRIP_PAYLOAD_CACHE_CONTROL = "private, max-age=31536000, immutable"
+
+
+async def _retrieve_filmstrip(project_name: str, file_id: str) -> bytes:
+    storage = await Storages.project(project_name)
+    return await storage.get_filmstrip(file_id)
 
 
 async def get_filmstrip_payload_response(project_name: str, file_id: str) -> Response:
-    """Serve the filmstrip image (used for local storages)"""
+    """Serve the filmstrip image"""
 
+    file_id = file_id.replace("-", "")
     storage = await Storages.project(project_name)
     if storage.storage_type == "s3":
-        url = await storage.get_signed_url(
-            file_id,
-            file_group="filmstrips",
-            ttl=FILMSTRIP_URL_TTL,
-            content_type=FILMSTRIP_MIME,
+        # Browsers keep the image, so this is read once per browser
+        try:
+            payload = await RequestCoalescer()(
+                _retrieve_filmstrip,
+                project_name,
+                file_id,
+            )
+        except FileNotFoundError:
+            raise NotFoundException("Filmstrip not found") from None
+        return Response(
+            content=payload,
+            media_type=FILMSTRIP_MIME,
+            headers={"Cache-Control": FILMSTRIP_PAYLOAD_CACHE_CONTROL},
         )
-        return RedirectResponse(url=url, status_code=302)
 
     path = await storage.get_path(file_id, file_group="filmstrips")
     if not os.path.isfile(path):
         raise NotFoundException("Filmstrip not found")
-    # the URL changes when the filmstrip is re-created
     return FileResponse(
         path,
         media_type=FILMSTRIP_MIME,
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        headers={"Cache-Control": FILMSTRIP_PAYLOAD_CACHE_CONTROL},
     )
 
 
@@ -637,7 +643,7 @@ async def get_entity_filmstrip(
     info = thumbnail_info.get("filmstrip")
     if _is_current(info):
         # Usually served just from the cached thumbnail info
-        return await _get_filmstrip_model(project_name, file_id, info)
+        return _get_filmstrip_model(project_name, file_id, info)
     return await get_file_filmstrip(project_name, file_id)
 
 

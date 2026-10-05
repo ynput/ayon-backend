@@ -488,7 +488,7 @@ class ProjectStorage:
     # Filmstrip methods
     # Filmstrips are sprite sheets of evenly sampled frames of a video file,
     # used for hover-scrub previews. They are stored under the ID of
-    # the source file and served directly (local) or by a signed URL (S3).
+    # the source file and served by the server, which browsers cache.
 
     async def store_filmstrip(self, file_id: str, payload: bytes) -> None:
         """Store the filmstrip image of a file in the storage."""
@@ -508,6 +508,24 @@ class ProjectStorage:
                 raise AyonException(f"Failed to write file: {e}") from e
         elif self.storage_type == "s3":
             return await store_s3_file(self, path, payload)
+
+    async def get_filmstrip(self, file_id: str) -> bytes:
+        """Retrieve the filmstrip image of a file from the storage.
+
+        Raises `FileNotFoundError` if the filmstrip is not found.
+        """
+        path = await self.get_path(file_id, file_group="filmstrips")
+        if self.storage_type == "local":
+            try:
+                async with aiofiles.open(path, "rb") as f:
+                    return await f.read()
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f"Filmstrip of {file_id} not found on {self}"
+                ) from e
+            except Exception as e:
+                raise AyonException(f"Failed to read file: {e}") from e
+        return await retrieve_s3_file(self, path)
 
     async def delete_filmstrip(self, file_id: str) -> None:
         """Delete the filmstrip image of a file from the storage.
