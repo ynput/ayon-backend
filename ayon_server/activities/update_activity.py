@@ -128,6 +128,8 @@ async def update_activity(
             if ref.reference_type == "mention":
                 if ref not in mentions:
                     refs_to_delete.append(ref.id)
+        # removed mentions are deleted below, they must not be inserted again
+        references = {ref for ref in references if ref.id not in refs_to_delete}
         references.update(mentions)
 
         # Update files
