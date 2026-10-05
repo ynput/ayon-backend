@@ -64,6 +64,35 @@ class ServiceListModel(OPModel):
 #
 
 
+def get_service_defaults(service_def: dict[str, Any]) -> dict[str, Any]:
+    """Return default service config defined in addon package.py
+
+    Supports docker-compose style definitions: `environment` may be
+    either a dict or a list of `KEY=VALUE` strings, `ports` a list
+    of `host:container` strings (or plain port numbers).
+    """
+    defaults: dict[str, Any] = {}
+
+    environment = service_def.get("environment")
+    if isinstance(environment, dict):
+        defaults["env"] = {
+            str(k): "" if v is None else str(v) for k, v in environment.items()
+        }
+    elif isinstance(environment, list):
+        env: dict[str, str] = {}
+        for item in environment:
+            key, _, value = str(item).partition("=")
+            if key.strip():
+                env[key.strip()] = value
+        defaults["env"] = env
+
+    ports = service_def.get("ports")
+    if isinstance(ports, list):
+        defaults["ports"] = [str(p) for p in ports]
+
+    return defaults
+
+
 async def validate_data(
     addon_name: str,
     addon_version: str,
@@ -168,12 +197,18 @@ async def spawn_service(
         # TODO: be more verbose
         raise NotFoundException("This addon does not have this service")
 
-    image = addon.services[payload.service].get("image")
+    service_def = addon.services[payload.service]
+    image = service_def.get("image")
     if image is None:
         raise BadRequestException("This service does not have an image")
 
     data = payload.config.dict()
     data["image"] = image
+
+    # Use environment and ports from package.py unless explicitly provided
+    for key, value in get_service_defaults(service_def).items():
+        if key not in payload.config.__fields_set__:
+            data[key] = value
 
     await validate_data(
         addon_name=payload.addon_name,
