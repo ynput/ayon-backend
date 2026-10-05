@@ -1,3 +1,5 @@
+import functools
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +9,43 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
+
+#
+# Some queries (inbox, kanban) list the projects and then read tables in every
+# project schema. If a project is deleted or renamed in between, they fail with
+# 'relation "project_x...." does not exist', or deadlock with the DROP SCHEMA.
+# Deleting/renaming a project takes this advisory lock exclusively, such queries
+# take it shared, both until the end of their transaction. Readers never block
+# each other.
+#
+
+PROJECT_SCHEMA_LOCK = 0x41594F4E  # arbitrary, unique key ("AYON")
+
+
+async def lock_project_schemas() -> None:
+    """Wait for running cross-project queries and keep new ones out until commit.
+
+    Call inside the transaction that drops or renames a project schema,
+    before touching it.
+    """
+    assert await Postgres.is_in_transaction(), "must be called in a transaction"
+    await Postgres.execute("SELECT pg_advisory_xact_lock($1)", PROJECT_SCHEMA_LOCK)
+
+
+def reads_all_projects[**P, R](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Run a query over many project schemas without racing project deletion."""
+
+    @functools.wraps(func)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        async with Postgres.transaction():
+            await Postgres.execute(
+                "SELECT pg_advisory_xact_lock_shared($1)", PROJECT_SCHEMA_LOCK
+            )
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 class ProjectListItem(OPModel):

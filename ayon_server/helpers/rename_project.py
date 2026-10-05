@@ -1,7 +1,7 @@
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
-from ayon_server.helpers.project_list import build_project_list
+from ayon_server.helpers.project_list import build_project_list, lock_project_schemas
 from ayon_server.lib.postgres import Postgres
 
 
@@ -87,6 +87,7 @@ async def rename_project(
             old_schema_name = f"project_{old_name}"
             new_schema_name = f"project_{new_name}"
 
+            await lock_project_schemas()
             query = f"ALTER SCHEMA {old_schema_name} RENAME TO {new_schema_name}"
             await Postgres.execute(query)
 
