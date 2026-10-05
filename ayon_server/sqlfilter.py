@@ -322,14 +322,17 @@ def build_link_condition(
 def build_condition(c: QueryCondition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
 
-    links_project_name = kwargs.get("links_project_name")
-    if links_project_name and is_link_key(c.key):
+    # The project the filtered table belongs to. Conditions on columns
+    # don't need it (the caller's query already names the table), but
+    # the ones that query another table of the project do, e.g. links.
+    project_name = kwargs.get("project_name")
+    if project_name and is_link_key(c.key):
         table_prefix = kwargs.get("table_prefix")
         if not table_prefix:
             raise ValueError("Link conditions require table_prefix")
         return build_link_condition(
             c,
-            project_name=links_project_name,
+            project_name=project_name,
             id_column=f"{table_prefix}.id",
         )
 

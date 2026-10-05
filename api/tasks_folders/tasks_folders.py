@@ -72,7 +72,7 @@ async def query_tasks_folders(
             filter = build_filter(
                 request.filter,
                 table_prefix="tasks",
-                links_project_name=project_name,
+                project_name=project_name,
                 column_whitelist=ALLOWED_KEYS,
                 column_map={
                     "attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"
