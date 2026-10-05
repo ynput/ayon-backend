@@ -95,14 +95,17 @@ def build_pl_entity_change_events(
     parent_id = original_entity.parent_id
 
     result: list[EventData] = []
-    common_data = {
-        "project": original_entity.project_name,
-        "summary": {
-            "entityId": original_entity.id,
-            "parentId": parent_id,
-            "entityPath": original_entity.path,
-        },
-    }
+
+    def common_data() -> dict[str, Any]:
+        # a new summary for every event: some of them add their own "value" to it
+        return {
+            "project": original_entity.project_name,
+            "summary": {
+                "entityId": original_entity.id,
+                "parentId": parent_id,
+                "entityPath": original_entity.path,
+            },
+        }
 
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
@@ -113,7 +116,7 @@ def build_pl_entity_change_events(
                 {
                     "topic": f"entity.{entity_type}.renamed",
                     "description": description,
-                    **common_data,
+                    **common_data(),
                 }
             )
             result[-1]["summary"]["value"] = new_name
@@ -131,7 +134,7 @@ def build_pl_entity_change_events(
                 {
                     "topic": f"entity.{entity_type}.status_changed",
                     "description": description,
-                    **common_data,
+                    **common_data(),
                 }
             )
             result[-1]["summary"]["value"] = new_status
@@ -152,7 +155,7 @@ def build_pl_entity_change_events(
                     {
                         "topic": f"entity.{entity_type}.tags_changed",
                         "description": description,
-                        **common_data,
+                        **common_data(),
                     }
                 )
                 result[-1]["summary"]["value"] = new_tags
@@ -164,7 +167,7 @@ def build_pl_entity_change_events(
     if new_attributes := patch_data.get("attrib", {}):
         evt = {
             "topic": f"entity.{entity_type}.attrib_changed",
-            **common_data,
+            **common_data(),
         }
 
         old_attributes = {
@@ -230,7 +233,7 @@ def build_pl_entity_change_events(
             {
                 "topic": f"entity.{entity_type}.{topic_name}",
                 "description": description,
-                **common_data,
+                **common_data(),
             }
         )
 
