@@ -11,7 +11,9 @@ Not included in OpenAPI schema: it carries the MCP protocol not REST API.
 
 __all__ = ["router"]
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import RedirectResponse
 
 from ayon_server.addons.library import AddonLibrary
@@ -24,17 +26,31 @@ router = APIRouter(prefix="/mcp", tags=["MCP"], include_in_schema=False)
 
 
 @router.api_route("", methods=["GET", "POST", "DELETE"])
-async def mcp_endpoint(request: Request, user: CurrentUser) -> RedirectResponse:
+async def mcp_endpoint(
+    request: Request,
+    user: CurrentUser,
+    variant: Annotated[str, Query(title="Variant")] = "production") -> RedirectResponse:
     """Redirect to the MCP endpoint of the production MCP addon.
 
     307 keeps the method and body, so MCP clients follow it with POST.
+
+    Args:
+        request: The incoming HTTP request.
+        user: The current authenticated user.
+        variant: The variant of the MCP addon to redirect to (default is "production").
+
+    Returns:
+        A RedirectResponse to the MCP endpoint of the specified addon variant.
+
     """
     try:
-        addon = await AddonLibrary.getinstance().get_production_addon(MCP_ADDON_NAME)
+        addon = await AddonLibrary.getinstance().get_addon_by_variant(
+            MCP_ADDON_NAME, variant=variant)
     except KeyError:
-        addon = None  # in the bundle, but not installed
+        addon = None
     if addon is None:
-        raise NotFoundException("MCP addon is not in the production bundle")
+        msg = f"MCP addon ({MCP_ADDON_NAME}) with variant '{variant}' is not available"
+        raise NotFoundException(msg)
     url = f"/api/addons/{addon.name}/{addon.version}/mcp"
     if request.url.query:
         url = f"{url}?{request.url.query}"
