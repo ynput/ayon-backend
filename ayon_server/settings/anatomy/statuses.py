@@ -53,7 +53,9 @@ class Status(BaseAuxModel):
         example="#3498db",
     )
     scope: list[str] | None = SettingsField(
-        default_factory=get_default_scopes,
+        # not default_factory: the default must be in the schema, so that statuses
+        # added in the settings UI start with every scope instead of none
+        list(get_default_scopes()),
         example=get_default_scopes(),
         enum_resolver=scope_enum,
         description="Limit the status to specific entity types.",
