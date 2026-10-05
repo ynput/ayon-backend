@@ -204,43 +204,30 @@ async def enroll(
         )
     except Exception:
         # something went wrong, remove the cache
+        # (the exception is returned to the client)
         await Redis.delete("enroll", request_hash)
-        raise  # re-raise the exception
+        raise
 
-    finally:
-        try:
-            # Don't cache the result if an exception occurred
-            # during the processing. EmptyResponse is here just
-            # to make mypy happy. Actual response (triggered by
-            # the exception) has already been sent to the client.
-            _ = res
-        except UnboundLocalError:
-            return EmptyResponse()
+    sloth()
+    sloth(f"Enroll request {request_hash} completed")
+    if await request.is_disconnected():
+        sloth(f"({payload.sender}) is disconnected. Caching the result.")
+        await Redis.set_json(
+            "enroll",
+            request_hash,
+            {
+                "status": "done",
+                "result": res.dict() if res is not None else None,
+                "timestamp": time.time(),
+            },
+            ttl=60,
+        )
+        # no point of returning the result to the client
+        # as nobody is waiting for it
+        return EmptyResponse()
 
-        sloth()
-        sloth(f"Enroll request {request_hash} completed")
-        if await request.is_disconnected():
-            sloth(f"({payload.sender}) is disconnected. Caching the result.")
-            if res is None:
-                r = None
-            else:
-                r = res.dict()
-
-            await Redis.set_json(
-                "enroll",
-                request_hash,
-                {"status": "done", "result": r, "timestamp": time.time()},
-                ttl=60,
-            )
-
-            # no point of returning the result to the client
-            # as nobody is waiting for it
-            return EmptyResponse()
-
-        else:
-            sloth("Client is still connected. Returning the result and purging cache.")
-            await Redis.delete("enroll", request_hash)
-
-            if res is None:
-                return EmptyResponse()
-            return res
+    sloth("Client is still connected. Returning the result and purging cache.")
+    await Redis.delete("enroll", request_hash)
+    if res is None:
+        return EmptyResponse()
+    return res
