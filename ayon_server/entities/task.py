@@ -83,7 +83,7 @@ class TaskEntity(ProjectLevelEntity[TaskModel]):
                 if not res:
                     raise AyonException("No task types defined")
                 self.task_type = res[0]["name"]
-            await super().save(auto_commit=auto_commit)
+            await super().save(*args, auto_commit=auto_commit, **kwargs)
 
     @classmethod
     async def refresh_views(cls, project_name: str, **kwargs: Any) -> None:

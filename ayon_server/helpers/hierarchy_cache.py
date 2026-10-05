@@ -52,6 +52,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             f.data->>'thumbnailHash' AS thumbnail_hash,
             f.created_at,
             f.updated_at,
+            f.created_by,
+            f.updated_by,
             ea.attrib as all_attrib,
             ea.path as path,
             ea.active as visible,
@@ -117,6 +119,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "visible": row["visible"],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
+                    "created_by": row["created_by"],
+                    "updated_by": row["updated_by"],
                 }
             )
             if row["parent_id"] is not None:

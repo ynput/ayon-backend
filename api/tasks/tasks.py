@@ -149,7 +149,7 @@ async def assign_users_to_task(
         return EmptyResponse()
 
     task.assignees = list(assignees)
-    await task.save()
+    await task.save(user_name=user.name)
 
     event_payload: dict[str, Any] = {
         "description": f"Changed task {task.name} assignees",
