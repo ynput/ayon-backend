@@ -18,7 +18,7 @@ from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils import create_background_task, json_dumps, json_loads
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 
 
@@ -187,8 +187,7 @@ class Session:
         # as a background task
 
         if not user.is_service:
-            task = asyncio.create_task(cls.invalidate_least_used(user.name))
-            task.add_done_callback(lambda _: None)
+            create_background_task(cls.invalidate_least_used(user.name))
 
         if user.data.get("inviteRequest"):
             del user.data["inviteRequest"]

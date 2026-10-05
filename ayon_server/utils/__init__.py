@@ -21,6 +21,7 @@ __all__ = [
     "dict_remove_path",
     "dict_patch",
     "batched",
+    "create_background_task",
     "run_blocking_coro",
     "server_url_from_request",
     "now",
@@ -28,6 +29,7 @@ __all__ = [
 ]
 
 
+from .background_tasks import create_background_task
 from .entity_id import EntityID
 from .hashing import create_hash, create_uuid, hash_data
 from .json import json_dumps, json_loads, json_print
