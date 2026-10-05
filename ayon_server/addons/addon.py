@@ -630,7 +630,13 @@ class BaseServerAddon:
         Override this method to return the default settings for the addon.
         By default it returns defaults from the addon's settings model, but
         if you need to use a complex model or force required fields, you should
-        do something like: `return self.get_settings_model(**YOUR_ADDON_DEFAULTS)`.
+        do something like:
+
+        ```python
+                async def get_default_settings(self):
+                    settings_model_cls = self.get_settings_model()
+                    return settings_model_cls(**YOUR_ADDON_DEFAULTS)
+        ```
         """
 
         if (model := self.get_settings_model()) is None:
