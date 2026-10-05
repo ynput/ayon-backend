@@ -31,6 +31,7 @@ _spec.loader.exec_module(pagination)
 create_pagination = pagination.create_pagination
 decode_cursor = pagination.decode_cursor
 encode_cursor = pagination.encode_cursor
+SortColumn = pagination.SortColumn
 
 
 ATTRIB = "(folders.attrib->>'fps')"
@@ -148,6 +149,79 @@ def test_invalid_timestamp():
 
 
 #
+# Sort direction per column
+#
+
+NAME_DESC = SortColumn("folders.name", descending=True)
+
+
+def test_descending_column_ordering():
+    ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], first=10)
+    assert ordering == (
+        "ORDER BY folders.name DESC NULLS FIRST, folders.id ASC NULLS LAST LIMIT 20"
+    )
+
+    # `last` reverses every column
+    ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], last=10)
+    assert ordering == (
+        "ORDER BY folders.name ASC NULLS LAST, folders.id DESC NULLS FIRST LIMIT 20"
+    )
+
+
+def test_all_descending_uses_row_comparison():
+    after = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, SortColumn("folders.id", True)], first=10, after=after
+    )
+    assert conditions == "(folders.name, folders.id) < ('foo'::text, '0123'::text)"
+
+
+def test_mixed_directions_expand_the_comparison():
+    after = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, "folders.id"], first=10, after=after
+    )
+    assert conditions == (
+        "((folders.name < 'foo'::text)"
+        " OR (folders.name = 'foo'::text AND folders.id > '0123'::text))"
+    )
+
+    before = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, "folders.id"], last=10, before=before
+    )
+    assert conditions == (
+        "((folders.name > 'foo'::text)"
+        " OR (folders.name = 'foo'::text AND folders.id < '0123'::text))"
+    )
+
+
+def test_descending_nullable_after_value():
+    """In descending order NULLs come first, so they are never after a value"""
+    after = encode_cursor(["25", "/a"])
+    _, conditions, _ = create_pagination(
+        [SortColumn(ATTRIB, True), "hierarchy.path"], first=10, after=after
+    )
+    key = f"({ATTRIB})::text"
+    assert conditions == (
+        f"(({key} < '25'::text)"
+        f" OR ({key} = '25'::text AND hierarchy.path > '/a'::text))"
+    )
+
+
+def test_descending_nullable_after_null():
+    """In descending order all values are after NULL"""
+    after = encode_cursor([None, "/a"])
+    _, conditions, _ = create_pagination(
+        [SortColumn(ATTRIB, True), "hierarchy.path"], first=10, after=after
+    )
+    assert conditions == (
+        f"((({ATTRIB}) IS NOT NULL)"
+        f" OR (({ATTRIB}) IS NULL AND hierarchy.path > '/a'::text))"
+    )
+
+
+#
 # Paging through rows with NULL sort values in Postgres
 # returns every row exactly once
 #
@@ -177,6 +251,13 @@ def database():
     return connect
 
 
+def _sorting_id(order_by: list) -> str:
+    return ",".join(
+        f"-{c.expression}" if isinstance(c, SortColumn) and c.descending else str(c)
+        for c in order_by
+    )
+
+
 # id, label, num, data
 ROWS = [
     ("01", "b", 2, '{"fps": "25"}'),
@@ -198,10 +279,14 @@ SORTINGS = [
     ["(t.data->>'fps')", "t.id"],
     ["t.label", "t.num", "t.id"],
     ["t.num", "t.label", "t.id"],
+    [SortColumn("t.label", True), "t.id"],
+    [SortColumn("t.num", True), "t.label", "t.id"],
+    ["t.num", SortColumn("t.label", True), "t.id"],
+    [SortColumn("(t.data->>'fps')", True), SortColumn("t.id", True)],
 ]
 
 
-def _query(order_by: list[str], **kwargs: Any) -> str:
+def _query(order_by: list, **kwargs: Any) -> str:
     ordering, conditions, cursor = create_pagination(order_by, **kwargs)
     values = ", ".join(
         "('{}', {}, {}, '{}'::jsonb)".format(
@@ -221,7 +306,7 @@ def _query(order_by: list[str], **kwargs: Any) -> str:
 
 
 async def _walk(
-    conn: Any, order_by: list[str], page_size: int, backwards: bool
+    conn: Any, order_by: list, page_size: int, backwards: bool
 ) -> list[str]:
     result: list[str] = []
     cursor: str | None = None
@@ -239,12 +324,12 @@ async def _walk(
     raise AssertionError("Paging did not finish")
 
 
-async def _all(conn: Any, order_by: list[str], backwards: bool) -> list[str]:
+async def _all(conn: Any, order_by: list, backwards: bool) -> list[str]:
     kwargs = {"last": len(ROWS)} if backwards else {"first": len(ROWS)}
     return [row["id"] for row in await conn.fetch(_query(order_by, **kwargs))]
 
 
-@pytest.mark.parametrize("order_by", SORTINGS, ids=lambda s: ",".join(s))
+@pytest.mark.parametrize("order_by", SORTINGS, ids=_sorting_id)
 @pytest.mark.parametrize("backwards", [False, True], ids=["forward", "backward"])
 @pytest.mark.parametrize("page_size", [1, 2, 3])
 def test_paging_returns_every_row_once(database, order_by, backwards, page_size):
