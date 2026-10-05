@@ -1,6 +1,5 @@
 __all__ = ["migrate_settings"]
 
-import asyncio
 from typing import Any
 
 from ayon_server.addons.library import AddonLibrary
@@ -10,6 +9,7 @@ from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import create_background_task
 
 AddonVersionsDict = dict[str, str]
 
@@ -131,7 +131,7 @@ async def migrate_settings(
             )
 
     if events:
-        asyncio.create_task(_dispatch_events(events, user_name))
+        create_background_task(_dispatch_events(events, user_name))
 
 
 async def migrate_server_addon_settings(
@@ -162,4 +162,4 @@ async def migrate_server_addon_settings(
     )
     if events:
         user_name = user.name if user else None
-        asyncio.create_task(_dispatch_events(events, user_name))
+        create_background_task(_dispatch_events(events, user_name))

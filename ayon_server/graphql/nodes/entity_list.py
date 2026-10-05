@@ -4,6 +4,7 @@ from typing import Annotated, Any
 import strawberry
 
 from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.activities.guest_access import get_guest_activity_category
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
@@ -287,36 +288,23 @@ async def get_activity_categories(
     user: UserEntity,
     record: dict[str, Any],
 ) -> list[str]:
-
-    if user.is_guest:
-        if guest_access := user.get_guest_access(
-            project_name=project.name,
-            type="entityList",
-            id=record.get("id"),
-        ):
-            cat = guest_access.get("activityCategory")
-            if not cat:
-                raise ForbiddenException(
-                    "Guest has no comment category [no category defined]"
-                )
-            return cat
-
-        if user.attrib.email not in project.data.get("guestUsers", {}):
-            raise ForbiddenException("You are not allowed to access this project")
-        #
-        # map guest email to category, in which the guest can comment
-        list_guest_categories = record["data"].get("guestActivityCategories", {})
-        list_guest_category = list_guest_categories.get(user.attrib.email)
-        if not list_guest_category:
-            raise ForbiddenException(
-                "Guest has no comment category [no category defined]"
-            )
-
-    return await ActivityCategories.get_accessible_categories(
+    writable_categories = await ActivityCategories.get_accessible_categories(
         user,
         project=project,
         level=EntityAccessHelper.UPDATE,
     )
+
+    if user.is_guest:
+        # Guests comment in the category set for them on the list
+        # (the same rules as when they comment, see post_project_activity)
+        category = await get_guest_activity_category(
+            user, project, record.get("id"), entity_list=record
+        )
+        if category not in writable_categories:
+            return []
+        return [category]
+
+    return writable_categories
 
 
 async def entity_list_from_record(

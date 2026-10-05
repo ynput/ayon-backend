@@ -27,7 +27,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.utils import create_background_task, create_uuid
 
 from ..common import OperationType, RollbackException
 from .entity_create import create_project_level_entity
@@ -524,7 +524,7 @@ class ProjectLevelOperations:
                 # Otherwise, we create a task to process the events
                 # in the background and return the response immediately.
                 logger.trace("[OPS] Dispatching events in the background")
-                task = asyncio.create_task(
+                task = create_background_task(
                     _process_events(
                         events,
                         sender=self.sender,

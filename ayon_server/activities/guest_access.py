@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.helpers.entity_access import EntityAccessHelper
@@ -8,7 +10,14 @@ async def get_guest_activity_category(
     user: UserEntity,
     project: ProjectEntity,
     entity_list_id: str | None,
+    *,
+    entity_list: dict[str, Any] | None = None,
 ) -> str:
+    """Return the activity category, in which a guest can comment on a list.
+
+    `entity_list` is the entity list record (its `data` and `access`),
+    when it is already loaded.
+    """
     if entity_list_id is None:
         raise ForbiddenException("Guest has no comment category [no list selected]")
 
@@ -19,7 +28,7 @@ async def get_guest_activity_category(
         type="entityList",
         id=entity_list_id,
     ):
-        cat = guest_access.get("activityCategory")
+        cat = (guest_access.get("activityCategory") or "").strip()
         if not cat:
             raise ForbiddenException(
                 "Guest has no comment category [no category defined]"
@@ -33,28 +42,27 @@ async def get_guest_activity_category(
 
     # Get the entity list to check whether the guest has access to it
     # and to get the guest category
-    res = await Postgres.fetchrow(
-        f"""
-        SELECT data, access FROM project_{project.name}.entity_lists
-        WHERE id = $1
-        """,
-        entity_list_id,
-    )
+    if entity_list is None:
+        entity_list = await Postgres.fetchrow(
+            f"""
+            SELECT data, access FROM project_{project.name}.entity_lists
+            WHERE id = $1
+            """,
+            entity_list_id,
+        )
+        if not entity_list:
+            raise NotFoundException("Entity list not found")
 
-    if not res:
-        raise NotFoundException("Entity list not found")
-
-    access = res["access"]
     await EntityAccessHelper.check(
         user,
-        access=access,
+        access=entity_list["access"],
         level=EntityAccessHelper.READ,  # Read is enough to comment
         project=project,
     )
 
     # map guest email to category, in which the guest can comment
-    list_guest_categories = res["data"].get("guestActivityCategories", {})
-    list_guest_category = list_guest_categories.get(user.attrib.email)
+    list_guest_categories = entity_list["data"].get("guestActivityCategories", {})
+    list_guest_category = (list_guest_categories.get(user.attrib.email) or "").strip()
     if not list_guest_category:
         raise ForbiddenException("Guest has no comment category [no category defined]")
 
