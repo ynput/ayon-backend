@@ -28,7 +28,7 @@ async def get_guest_activity_category(
         type="entityList",
         id=entity_list_id,
     ):
-        cat = guest_access.get("activityCategory")
+        cat = (guest_access.get("activityCategory") or "").strip()
         if not cat:
             raise ForbiddenException(
                 "Guest has no comment category [no category defined]"
@@ -62,7 +62,7 @@ async def get_guest_activity_category(
 
     # map guest email to category, in which the guest can comment
     list_guest_categories = entity_list["data"].get("guestActivityCategories", {})
-    list_guest_category = list_guest_categories.get(user.attrib.email)
+    list_guest_category = (list_guest_categories.get(user.attrib.email) or "").strip()
     if not list_guest_category:
         raise ForbiddenException("Guest has no comment category [no category defined]")
 

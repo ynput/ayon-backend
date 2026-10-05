@@ -288,19 +288,23 @@ async def get_activity_categories(
     user: UserEntity,
     record: dict[str, Any],
 ) -> list[str]:
-    if user.is_guest:
-        # Guests comment in the category set for them on the list
-        # (the same rules as when they comment, see get_guest_activity_category)
-        category = await get_guest_activity_category(
-            user, project, record.get("id"), entity_list=record
-        )
-        return [category]
-
-    return await ActivityCategories.get_accessible_categories(
+    writable_categories = await ActivityCategories.get_accessible_categories(
         user,
         project=project,
         level=EntityAccessHelper.UPDATE,
     )
+
+    if user.is_guest:
+        # Guests comment in the category set for them on the list
+        # (the same rules as when they comment, see post_project_activity)
+        category = await get_guest_activity_category(
+            user, project, record.get("id"), entity_list=record
+        )
+        if category not in writable_categories:
+            return []
+        return [category]
+
+    return writable_categories
 
 
 async def entity_list_from_record(
