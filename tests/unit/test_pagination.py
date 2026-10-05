@@ -8,6 +8,7 @@ import pytest
 
 from ayon_server.exceptions import BadRequestException
 from ayon_server.graphql.resolvers.pagination import (
+    SortColumn,
     create_pagination,
     decode_cursor,
     encode_cursor,
@@ -125,3 +126,76 @@ def test_invalid_timestamp():
     after = encode_cursor(["yesterday"])
     with pytest.raises(BadRequestException):
         create_pagination(["events.created_at"], first=10, after=after)
+
+
+#
+# Sort direction per column
+#
+
+NAME_DESC = SortColumn("folders.name", descending=True)
+
+
+def test_descending_column_ordering():
+    ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], first=10)
+    assert ordering == (
+        "ORDER BY folders.name DESC NULLS FIRST, folders.id ASC NULLS LAST LIMIT 20"
+    )
+
+    # `last` reverses every column
+    ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], last=10)
+    assert ordering == (
+        "ORDER BY folders.name ASC NULLS LAST, folders.id DESC NULLS FIRST LIMIT 20"
+    )
+
+
+def test_all_descending_uses_row_comparison():
+    after = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, SortColumn("folders.id", True)], first=10, after=after
+    )
+    assert conditions == "(folders.name, folders.id) < ('foo'::text, '0123'::text)"
+
+
+def test_mixed_directions_expand_the_comparison():
+    after = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, "folders.id"], first=10, after=after
+    )
+    assert conditions == (
+        "((folders.name < 'foo'::text)"
+        " OR (folders.name = 'foo'::text AND folders.id > '0123'::text))"
+    )
+
+    before = encode_cursor(["foo", "0123"])
+    _, conditions, _ = create_pagination(
+        [NAME_DESC, "folders.id"], last=10, before=before
+    )
+    assert conditions == (
+        "((folders.name > 'foo'::text)"
+        " OR (folders.name = 'foo'::text AND folders.id < '0123'::text))"
+    )
+
+
+def test_descending_nullable_after_value():
+    """In descending order NULLs come first, so they are never after a value"""
+    after = encode_cursor(["25", "/a"])
+    _, conditions, _ = create_pagination(
+        [SortColumn(ATTRIB, True), "hierarchy.path"], first=10, after=after
+    )
+    key = f"({ATTRIB})::text"
+    assert conditions == (
+        f"(({key} < '25'::text)"
+        f" OR ({key} = '25'::text AND hierarchy.path > '/a'::text))"
+    )
+
+
+def test_descending_nullable_after_null():
+    """In descending order all values are after NULL"""
+    after = encode_cursor([None, "/a"])
+    _, conditions, _ = create_pagination(
+        [SortColumn(ATTRIB, True), "hierarchy.path"], first=10, after=after
+    )
+    assert conditions == (
+        f"((({ATTRIB}) IS NOT NULL)"
+        f" OR (({ATTRIB}) IS NULL AND hierarchy.path > '/a'::text))"
+    )

@@ -32,14 +32,22 @@ SORTINGS = [
     ["(t.data->>'fps')", "t.id"],
     ["t.label", "t.num", "t.id"],
     ["t.num", "t.label", "t.id"],
+    # "-" prefix: descending order
+    ["-t.label", "t.id"],
+    ["-t.num", "t.label", "t.id"],
+    ["t.num", "-t.label", "t.id"],
+    ["-(t.data->>'fps')", "-t.id"],
 ]
 
 
 def _query(order_by: list[str], **kwargs: Any) -> str:
     # imports ayon_server.entities (see conftest)
-    from ayon_server.graphql.resolvers.pagination import create_pagination
+    from ayon_server.graphql.resolvers.pagination import SortColumn, create_pagination
 
-    ordering, conditions, cursor = create_pagination(order_by, **kwargs)
+    columns = [
+        SortColumn(c[1:], descending=True) if c.startswith("-") else c for c in order_by
+    ]
+    ordering, conditions, cursor = create_pagination(columns, **kwargs)
     values = ", ".join(
         "('{}', {}, {}, '{}'::jsonb)".format(
             id,
