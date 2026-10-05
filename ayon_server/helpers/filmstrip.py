@@ -16,8 +16,9 @@ part of the (cached) thumbnail info of entities using the reviewable.
 The API returns the filmstrip description with an URL of the image,
 so describing a filmstrip never needs to access the storage. The image URL
 only changes when the filmstrip is re-created with other settings, so browsers
-keep the image (for any storage type) and the server reads it from the storage
-only once per browser. The image bytes are not cached by the server.
+keep the image (for any storage type). With a CDN, the image URL redirects to
+a signed CDN link; otherwise the server reads the image from the storage,
+once per browser. The image bytes are not cached by the server.
 """
 
 import asyncio
@@ -466,7 +467,7 @@ async def _generate_file_filmstrip(
         frame_rate=media_info.get("frameRate"),
     )
 
-    await storage.store_filmstrip(file_id, payload)
+    await storage.store_filmstrip(file_id, payload, content_type=FILMSTRIP_MIME)
     await Postgres.execute(
         f"""
         UPDATE project_{project_name}.files
@@ -571,6 +572,10 @@ async def get_file_filmstrip(project_name: str, file_id: str) -> FilmstripModel:
 # The payload URL changes when the filmstrip is re-created
 FILMSTRIP_PAYLOAD_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
+# CDN links are valid for a day after signing (and cached by the server for two
+# minutes), so browsers may reuse a redirect to one for half of that
+FILMSTRIP_REDIRECT_CACHE_CONTROL = "private, max-age=43200"
+
 
 async def _retrieve_filmstrip(project_name: str, file_id: str) -> bytes:
     storage = await Storages.project(project_name)
@@ -583,6 +588,20 @@ async def get_filmstrip_payload_response(project_name: str, file_id: str) -> Res
     file_id = file_id.replace("-", "")
     storage = await Storages.project(project_name)
     if storage.storage_type == "s3":
+        if storage.cdn_resolver:
+            try:
+                response = await storage.get_cdn_link(
+                    file_id,
+                    file_group="filmstrips",
+                )
+            except NotImplementedError as e:
+                logger.debug(f"Serving filmstrip without CDN: {e}")
+            except AyonException as e:
+                logger.warning(f"Serving filmstrip without CDN: {e}")
+            else:
+                response.headers["Cache-Control"] = FILMSTRIP_REDIRECT_CACHE_CONTROL
+                return response
+
         # Browsers keep the image, so this is read once per browser
         try:
             payload = await RequestCoalescer()(
