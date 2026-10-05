@@ -333,6 +333,9 @@ class ProjectEntity(TopLevelEntity):
         """Post-update commit."""
         await Redis.delete("project-anatomy", self.name)
         await Redis.delete("project-data", self.name)
+        # cached folder list (rebuilt on demand): inherited attributes and renamed
+        # statuses or folder types may have changed on the folders
+        await Redis.delete("project-folders", self.name)
         await self.refresh_views()
 
     async def save(self, *args, **kwargs) -> bool:
