@@ -63,6 +63,8 @@ async def rename_project(
         - Non-skeleton projects cannot be renamed if they contain files.
     """
     async with Postgres.transaction():
+        # first, so rename and delete take their locks in the same order
+        await lock_project_schemas()
         project = await ProjectEntity.load(old_name)
         etype = "project_skeleton" if project.skeleton else "project"
 
@@ -87,7 +89,6 @@ async def rename_project(
             old_schema_name = f"project_{old_name}"
             new_schema_name = f"project_{new_name}"
 
-            await lock_project_schemas()
             query = f"ALTER SCHEMA {old_schema_name} RENAME TO {new_schema_name}"
             await Postgres.execute(query)
 
