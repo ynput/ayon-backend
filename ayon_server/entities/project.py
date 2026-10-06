@@ -333,11 +333,13 @@ class ProjectEntity(TopLevelEntity):
         """Post-update commit."""
         await Redis.delete("project-anatomy", self.name)
         await Redis.delete("project-data", self.name)
-        await Redis.delete("project-folders", self.name)
         await self.refresh_views()
 
     async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
+        attrib_changed = self.exists and self.original_attributes != self.dict(
+            exclude_none=True
+        ).get("attrib")
         # commit() must not run inside a failed transaction: it would hit
         # InFailedSQLTransactionError and mask the original exception.
         try:
@@ -351,6 +353,8 @@ class ProjectEntity(TopLevelEntity):
                     pass
             raise
         await self.commit()
+        if attrib_changed:
+            await Redis.delete("project-folders", self.name)
         return result
 
     async def _save(self) -> bool:
