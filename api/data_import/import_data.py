@@ -14,8 +14,11 @@ from typing import Annotated, Any, cast
 
 from fastapi import Body, Request
 
+from ayon_server.activities import create_activity
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.activities.utils import MAX_BODY_LENGTH
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
+from ayon_server.entities import FolderEntity, ProjectEntity, TaskEntity, UserEntity
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.enum.enum_registry import EnumRegistry
@@ -26,6 +29,7 @@ from ayon_server.exceptions import (
     ImportRowErrorException,
     NotFoundException,
 )
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
@@ -39,16 +43,21 @@ from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import (
+    SENDER_TYPE,
     ImportEntityType,
     ProjectNameQuery,
     get_entity_id_by_path,
 )
 from .models import (
+    COMMENT_CATEGORY_COLUMN,
+    COMMENT_COLUMN,
     HIERARCHY_UNIFIED_COLUMN,
     ColumnMapping,
     ColumnValueMapping,
+    DuplicateItemStrategy,
     EntityExportImport,
     EntityListExportImportModel,
+    EntityListItemsImport,
     ExistingItemStrategy,
     FolderExportImportModel,
     FolderTaskExportImportModel,
@@ -150,6 +159,7 @@ async def import_data(
     column_mapping: list[ColumnMapping],
     existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
     missing_strategy: MissingItemStrategy = MissingItemStrategy.CREATE,
+    duplicate_strategy: DuplicateItemStrategy = DuplicateItemStrategy.SKIP,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
@@ -168,6 +178,8 @@ async def import_data(
         missing_strategy: How to handle rows matching no existing item
             (create, skip). With skip, folders and tasks are matched by path,
             or by name when there is no path, and entity type is optional.
+        duplicate_strategy: With missing_strategy skip, what to do when a name
+            matches several folders or tasks (skip the row, update all of them)
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -196,8 +208,7 @@ async def import_data(
         raise ForbiddenException("You must be a manager to import data")
 
     update_only = missing_strategy == MissingItemStrategy.SKIP
-    if update_only and import_type == "entity_list_item":
-        raise BadRequestException("List items can only be added, not updated")
+    update_all_duplicates = duplicate_strategy == DuplicateItemStrategy.ALL
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
@@ -228,10 +239,16 @@ async def import_data(
     hierarchy_existing_identifiers: dict[str, set[tuple[str, ...]]] = {}
 
     # For non-hierarchy types, get fields and existing identifiers upfront
-    fields = await model_cls.fields(project_name=project_name)
+    fields = await model_cls.fields(project_name=project_name, parent_id=folder_id)
     # required fields are needed to create entities, updates only need a match
     required_fields = [] if update_only else [f.key for f in fields if f.required]
-    if import_type != "hierarchy":
+    existing_identifiers: set[tuple[str, ...]] = set()
+    list_items: EntityListItemsImport | None = None
+    if import_type == "entity_list_item":
+        if not project_name:
+            raise BadRequestException("Project name is required to import list items")
+        list_items = EntityListItemsImport(project_name, user)
+    elif import_type != "hierarchy":
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
@@ -250,6 +267,11 @@ async def import_data(
     originals_and_new: dict[str, Any] = {}
     path_to_ids: dict[str, Any] = {}
     existing_hierarchy = _ExistingHierarchy(project_name)
+    comment_checker = _CommentChecker(project_name, user)
+    # updates are merged per entity, operations reject two updates of one entity
+    pending_updates: dict[tuple[str, str], dict[str, Any]] = {}
+    pending_comments: list[tuple[str, str, str, str | None]] = []
+    queued_creates = 0
     unprocessed = len(filtered_rows)
     row_number = 0
 
@@ -266,7 +288,7 @@ async def import_data(
     initial_model_cls = IMPORTABLE_ENTITIES[import_type]
     if initial_model_cls not in fields_cache:
         fields_cache[initial_model_cls] = await initial_model_cls.fields(
-            project_name=project_name
+            project_name=project_name, parent_id=folder_id
         )
     initial_fields = fields_cache[initial_model_cls]
     entity_type_importable_column_by_key = {ic.key: ic for ic in initial_fields}
@@ -298,7 +320,7 @@ async def import_data(
         identifier = None
         path = None
         entity_type: str = import_type  # Initialize for non-hierarchy types
-        matched_id: str | None = None
+        matched_ids: list[str] = []
         try:
             if import_type == "entity_list_item":
                 entity_cls: type[Any] = EntityListItemModel
@@ -323,8 +345,8 @@ async def import_data(
                         entity_type_importable_column_by_key,
                         entity_type_value_mapping_by_key,
                     )
-                    entity_type, matched_id = await existing_hierarchy.match(
-                        None, match_path, match_name
+                    entity_type, matched_ids = await existing_hierarchy.match(
+                        None, match_path, match_name, update_all_duplicates
                     )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
@@ -343,11 +365,54 @@ async def import_data(
             await _remap_row(
                 project_name, header, import_entity_data, row, fields, column_mapping
             )
+            comment = import_entity_data.pop(COMMENT_COLUMN, None)
+            comment_category = import_entity_data.pop(COMMENT_CATEGORY_COLUMN, None)
+            if comment:
+                comment_category = await comment_checker.check(
+                    comment, comment_category
+                )
+            row_values = dict(import_entity_data)
+
+            if list_items is not None:
+                entity_list = await list_items.get_list(
+                    folder_id or import_entity_data.get("entity_list_id")
+                )
+                entity_type = entity_list.entity_type
+                listed_id = await list_items.get_entity_id(
+                    entity_list,
+                    import_entity_data.get("entity_id"),
+                    import_entity_data.get("folder_path"),
+                )
+                attrib = _json_ready(import_entity_data.get("attrib") or {})
+                item_id = list_items.get_item_id(entity_list, listed_id)
+                if item_id:
+                    if existing_strategy != ExistingItemStrategy.UPDATE:
+                        raise BadRequestException("Item is already in the list")
+                    if attrib:
+                        await list_items.update(entity_list, item_id, attrib)
+                        import_status.updated += 1
+                    elif not comment:
+                        raise RowSkippedException("Already in the list")
+                elif update_only:
+                    raise RowSkippedException(f"The {entity_type} is not in the list")
+                else:
+                    await list_items.add(entity_list, listed_id, attrib)
+                    import_status.created += 1
+
+                if comment:
+                    pending_comments.append(
+                        (entity_type, listed_id, comment, comment_category)
+                    )
+                    import_status.comments += 1
+                unprocessed -= 1
+                continue
 
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
 
-            entity_id = matched_id or await _resolve_entity_id(
+            entity_id = (
+                matched_ids[0] if matched_ids else None
+            ) or await _resolve_entity_id(
                 row=import_entity_data,
                 path_to_ids=path_to_ids,
                 existing_identifiers=existing_identifiers,
@@ -358,12 +423,16 @@ async def import_data(
 
             if not entity_id and update_only:
                 if import_type == "hierarchy":
-                    _, entity_id = await existing_hierarchy.match(
-                        entity_type, path, import_entity_data.get("name")
+                    _, matched_ids = await existing_hierarchy.match(
+                        entity_type,
+                        path,
+                        import_entity_data.get("name"),
+                        update_all_duplicates,
                     )
+                    entity_id = matched_ids[0]
                 else:
                     label = path or import_entity_data.get("name")
-                    raise RowNotMatchedException(
+                    raise RowSkippedException(
                         f"No existing {entity_type} '{label}'"
                         if label
                         else f"No existing {entity_type} matches this row"
@@ -411,18 +480,28 @@ async def import_data(
             #     f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             # )
 
+            target_ids = matched_ids or ([entity_id] if entity_id else [])
             if entity_id:
-                # mark that model has custom update
-                custom_updated = await model_cls.update(
-                    user=user, preview=preview, **import_entity_data
+                has_changes = _has_changes(
+                    row_values,
+                    locators={*model_cls.unique_fields(), "path", "entity_type"},
+                    path=path,
+                    matched_by_name=bool(matched_ids) and not path,
                 )
-                if not custom_updated and operations is not None:
-                    operations.update(
-                        cast(ProjectLevelEntityType, entity_type),
-                        entity_id,
-                        **import_entity_data,
+                if not has_changes and not comment:
+                    raise RowSkippedException("Nothing to update")
+                for target_id in target_ids if has_changes else []:
+                    # mark that model has custom update
+                    custom_updated = await model_cls.update(
+                        user=user, preview=preview, **import_entity_data
                     )
-                import_status.updated += 1
+                    if custom_updated:
+                        import_status.updated += 1
+                    elif operations is not None:
+                        _merge_update(
+                            pending_updates.setdefault((entity_type, target_id), {}),
+                            import_entity_data,
+                        )
             else:
                 await _provide_default_values(
                     entity_cls, import_entity_data, cast("str", default_task_type)
@@ -433,12 +512,21 @@ async def import_data(
                 )
                 if not entity_id and operations is not None:
                     entity_id = create_uuid()
+                    queued_creates += 1
                     operations.create(
                         cast(ProjectLevelEntityType, entity_type),
                         entity_id=entity_id,
                         **import_entity_data,
                     )
                 import_status.created += 1
+                target_ids = [entity_id]
+
+            if comment:
+                for target_id in target_ids:
+                    pending_comments.append(
+                        (entity_type, target_id, comment, comment_category)
+                    )
+                import_status.comments += len(target_ids)
 
             if original_id and entity_id:
                 originals_and_new[original_id] = entity_id
@@ -447,7 +535,7 @@ async def import_data(
 
             unprocessed -= 1
 
-        except RowNotMatchedException as exp:
+        except RowSkippedException as exp:
             import_status.skipped_items[f"{row_number}"] = str(exp)
             import_status.skipped += 1
             unprocessed -= 1
@@ -479,6 +567,13 @@ async def import_data(
             import_status.skipped += 1
             continue
 
+    import_status.updated += len(pending_updates)
+    if operations is not None:
+        for (update_type, update_id), payload in pending_updates.items():
+            operations.update(
+                cast(ProjectLevelEntityType, update_type), update_id, **payload
+            )
+
     async def handle_progress(progress: OperationsProgress):
         if progress.operation.type == "create":
             import_status.created += 1
@@ -502,10 +597,13 @@ async def import_data(
                 store=True,
             )
 
+    committed = preview or operations is None
     if not preview and operations is not None:
-        # Reset the counts for the second round (actual write)
-        import_status.created = 0
-        import_status.updated = 0
+        # Operations count their creates and updates again while committing,
+        # the ones done by the models themselves (users, lists) stay
+        import_status.created -= queued_creates
+        import_status.updated -= len(pending_updates)
+        own_created, own_updated = import_status.created, import_status.updated
 
         start_time = time.perf_counter()
         try:
@@ -514,6 +612,7 @@ async def import_data(
             )
             if not response.success:
                 log_traceback("Failed to import data")
+            committed = response.success
         except Exception as exp:
             log_traceback(f"Exception during import operations processing: {exp}")
             import_status.failed_items["global"] = (
@@ -521,8 +620,8 @@ async def import_data(
             )
             import_status.failed = len(rows)
             # transaction rollback
-            import_status.created = 0
-            import_status.updated = 0
+            import_status.created = own_created
+            import_status.updated = own_updated
             status_str = "with rolled back updates"
 
         duration = time.perf_counter() - start_time
@@ -534,6 +633,60 @@ async def import_data(
             f"Average time per operation: {avg_time_per_op:.4f} seconds "
             f"(Total rows: {processed_rows})."
         )
+
+    if not preview and list_items is not None and committed:
+        try:
+            await list_items.save()
+        except Exception as exp:
+            log_traceback(f"Failed to save imported list items: {exp}")
+            import_status.failed_items["list"] = f"Saving the list failed: {exp}"
+            import_status.created = import_status.updated = 0
+            status_str = "with errors"
+            committed = False
+
+    if not preview and pending_comments and project_name:
+        # comments go to entities that exist now, so only after a commit
+        import_status.comments = 0
+        if not committed:
+            import_status.failed_items["comments"] = (
+                "Comments were not added because the import failed"
+            )
+        for index, (comment_type, comment_entity_id, body, category) in enumerate(
+            pending_comments if committed else [], start=1
+        ):
+            try:
+                entity = await get_entity_class(comment_type).load(
+                    project_name, comment_entity_id
+                )
+                await create_activity(
+                    entity=entity,
+                    activity_type="comment",
+                    body=body,
+                    user=user,
+                    data={"category": category} if category else None,
+                    sender_type=SENDER_TYPE,
+                    bump_entity_updated_at=True,
+                )
+                import_status.comments += 1
+            except Exception as exp:
+                status_str = "with errors"
+                import_status.failed_items[f"comment {index}"] = (
+                    f"Comment on {comment_type} {comment_entity_id} failed: {exp}"
+                )
+
+            current_progress, trigger_update = _trigger_status_update(
+                index, len(pending_comments)
+            )
+            if trigger_update:
+                await EventStream.update(
+                    event_id,
+                    project=project_name,
+                    description=f"Adding comment {index}/{len(pending_comments)}",
+                    summary=await _prepare_status_summary(import_status),
+                    status="in_progress",
+                    progress=current_progress,
+                    store=False,
+                )
 
     logger.debug(f"Import completed:{import_status}")
     await EventStream.update(
@@ -619,8 +772,88 @@ async def _get_match_keys(
     return keys.get("path") or None, keys.get("name") or None
 
 
-class RowNotMatchedException(Exception):
-    """An update-only row matches no existing entity, so it is skipped."""
+class RowSkippedException(Exception):
+    """A row is skipped on purpose, e.g. update-only and no match."""
+
+
+def _has_changes(
+    values: dict[str, Any],
+    locators: set[str],
+    path: str | None,
+    matched_by_name: bool,
+) -> bool:
+    """Whether a row sets anything beyond the values that locate its entity."""
+    for key, value in values.items():
+        if key in locators:
+            continue
+        if key == "name" and (
+            matched_by_name or (path and value == path.rsplit("/", 1)[-1])
+        ):
+            continue
+        return True
+    return False
+
+
+def _json_ready(values: dict[str, Any]) -> dict[str, Any]:
+    """Make imported values storable in JSON, e.g. list item attributes."""
+    return {
+        key: value.isoformat() if isinstance(value, datetime) else value
+        for key, value in values.items()
+    }
+
+
+def _merge_update(target: dict[str, Any], update: dict[str, Any]) -> None:
+    """Merge one row's update into an entity's pending update, later rows win."""
+    for key, value in update.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            target[key] = {**target[key], **value}
+        else:
+            target[key] = value
+
+
+class _CommentChecker:
+    """Validates imported comments and their categories.
+
+    Categories come live from the project settings, so they are loaded
+    once per import and matched case-insensitively.
+    """
+
+    def __init__(self, project_name: str | None, user: UserEntity):
+        self.project_name = project_name
+        self.user = user
+        self._categories: dict[str, str] | None = None
+        self._writable: set[str] | None = None
+
+    async def _load(self) -> None:
+        if self._categories is not None or not self.project_name:
+            return
+        categories = await ActivityCategories.get_activity_categories(self.project_name)
+        self._categories = {
+            category["name"].lower(): category["name"] for category in categories
+        }
+        if not self.user.is_manager:
+            project = await ProjectEntity.load(self.project_name)
+            self._writable = set(
+                await ActivityCategories.get_accessible_categories(
+                    self.user, project=project, level=EntityAccessHelper.UPDATE
+                )
+            )
+
+    async def check(self, body: str, category: str | None) -> str | None:
+        """Raise if the comment can't be added, return the category to use."""
+        if len(body) > MAX_BODY_LENGTH:
+            raise BadRequestException(
+                f"Comment is longer than {MAX_BODY_LENGTH} characters"
+            )
+        if not category:
+            return None
+        await self._load()
+        name = (self._categories or {}).get(str(category).strip().lower())
+        if name is None:
+            raise BadRequestException(f"Unknown comment category '{category}'")
+        if self._writable is not None and name not in self._writable:
+            raise ForbiddenException(f"You cannot use comment category '{name}'")
+        return name
 
 
 class _ExistingHierarchy:
@@ -646,11 +879,14 @@ class _ExistingHierarchy:
         entity_type: str | None,
         path: str | None,
         name: str | None,
-    ) -> tuple[str, str]:
-        """Return entity type and id of the one folder or task matching the row.
+        allow_many: bool = False,
+    ) -> tuple[str, list[str]]:
+        """Return entity type and ids of the folders or tasks matching the row.
 
         Matches by path, or by name when there is no path. Without an entity
-        type both folders and tasks are searched.
+        type both folders and tasks are searched. A name matching several
+        entities is an error unless allow_many is set; matches of both
+        folders and tasks always are, as one row cannot update both.
         """
         entity_types = [entity_type] if entity_type else list(HIERARCHY_MODEL_CLASSES)
         label = " or ".join(entity_types)
@@ -668,16 +904,16 @@ class _ExistingHierarchy:
                     continue
                 matches.append((candidate_type, entity_id))
             if not matches:
-                raise RowNotMatchedException(f"No {label} with path '{path}'")
+                raise RowSkippedException(f"No {label} with path '{path}'")
             if len(matches) > 1:
                 raise BadRequestException(
                     f"Path '{path}' matches both a folder and a task, "
                     "map an Entity type column to pick one"
                 )
-            return matches[0]
+            return matches[0][0], [matches[0][1]]
 
         if not name:
-            raise RowNotMatchedException(f"No path or name to match a {label}")
+            raise RowSkippedException(f"No path or name to match a {label}")
 
         ids_by_name = await self._get_ids_by_name()
         for candidate_type in entity_types:
@@ -686,17 +922,22 @@ class _ExistingHierarchy:
                 for entity_id in ids_by_name[candidate_type].get(name, [])
             )
         if not matches:
-            raise RowNotMatchedException(f"No {label} named '{name}'")
-        if len(matches) > 1:
-            counts = Counter(candidate_type for candidate_type, _ in matches)
-            found = " and ".join(
-                f"{count} {candidate_type}{'s' if count > 1 else ''}"
-                for candidate_type, count in counts.items()
-            )
+            raise RowSkippedException(f"No {label} named '{name}'")
+        counts = Counter(candidate_type for candidate_type, _ in matches)
+        found = " and ".join(
+            f"{count} {candidate_type}{'s' if count > 1 else ''}"
+            for candidate_type, count in counts.items()
+        )
+        if len(counts) > 1:
             raise BadRequestException(
-                f"Name '{name}' matches {found}, map a Path column to pick one"
+                f"Name '{name}' matches {found}, map an Entity type column to pick one"
             )
-        return matches[0]
+        if len(matches) > 1 and not allow_many:
+            raise BadRequestException(
+                f"Name '{name}' matches {found}, "
+                "map a Path column to pick one or choose to update all matches"
+            )
+        return matches[0][0], [entity_id for _, entity_id in matches]
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
@@ -1284,6 +1525,7 @@ async def _prepare_status_summary(
         "phase": import_status.phase,
         "failedItems": import_status.failed_items,
         "skippedItems": import_status.skipped_items,
+        "comments": import_status.comments,
     }
 
 

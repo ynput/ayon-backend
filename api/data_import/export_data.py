@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.entity_lists import EntityList
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.project_list import normalize_project_name
 
@@ -17,13 +18,16 @@ from .router import router
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
     entity_type: ImportEntityType,
+    user: CurrentUser,
     project_name: ProjectNameQuery = None,
+    folder_id: str | None = None,
 ) -> list[ImportableColumn] | None:
     """Get exportable fields for an entity type.
 
     Args:
         entity_type: The type of entity (user, folder, task, hierarchy)
         project_name: Project name for resolving project-specific enums.
+        folder_id: The entity list for list items, adds its attribute columns
     """
 
     # Validate entity type exists
@@ -35,8 +39,14 @@ async def export_fields(
     if project_name is not None:
         project_name = await normalize_project_name(project_name)
 
+    if entity_type == "entity_list_item" and project_name and folder_id:
+        entity_list = await EntityList.load(project_name, folder_id, user=user)
+        await entity_list.ensure_can_read()
+    else:
+        folder_id = None
+
     model = EXPORTABLE_ENTITIES[entity_type]
-    return await model.fields(project_name=project_name)
+    return await model.fields(project_name=project_name, parent_id=folder_id)
 
 
 @router.post("/export/{entity_type}")
