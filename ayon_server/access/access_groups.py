@@ -133,8 +133,7 @@ class AccessGroups:
 
                     if isinstance(value, AttributeWriteAccessList):
                         result[perm_name]["fields"] = list(
-                            set(result[perm_name].get("can_create", []))
-                            | set(value.fields)
+                            set(result[perm_name].get("fields", [])) | set(value.fields)
                         )
 
                 elif perm_name == "endpoints":
