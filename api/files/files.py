@@ -338,6 +338,7 @@ async def get_project_file_filmstrip_payload(
     project_name: ProjectName,
     file_id: FileID,
     user: CurrentUser,
+    v: str | None = Query(None, title="Filmstrip version from its URL"),
 ) -> Response:
     """Get the filmstrip image of a video file."""
 
@@ -347,6 +348,7 @@ async def get_project_file_filmstrip_payload(
         get_filmstrip_payload_response,
         project_name,
         file_id,
+        v,
     )
 
 

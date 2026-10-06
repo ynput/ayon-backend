@@ -20,6 +20,7 @@ keep the image (for any storage type).
 """
 
 import asyncio
+import functools
 import io
 import math
 import os
@@ -75,7 +76,12 @@ FRAME_CONCURRENCY = 4
 FRAME_TIMEOUT = 30
 SINGLE_PASS_TIMEOUT = 120
 
+# Don't retry videos which cannot be processed for this long (seconds)
 FAILURE_CACHE_TTL = 3600
+
+# Other failures (storage, database, overloaded host) may not repeat,
+# retry them sooner
+RETRY_DELAY = 60
 
 # Bump when the image layout or encoding changes to regenerate stored filmstrips
 FILMSTRIP_VERSION = 1
@@ -100,6 +106,10 @@ class FilmstripInfo(TypedDict):
     frameWidth: int
     frameHeight: int
     frameSize: int  # max frame size the filmstrip was created with
+
+
+class FilmstripError(AyonException):
+    """The video cannot be processed (no duration, no decodable frames...)"""
 
 
 #
@@ -233,8 +243,10 @@ async def _extract_frames_by_seeking(
     """Seek to the middle of each segment. Returns BMP bytes for each sample."""
 
     frame_semaphore = asyncio.Semaphore(FRAME_CONCURRENCY)
+    timed_out = False
 
     async def extract(index: int) -> bytes | None:
+        nonlocal timed_out
         timestamp = (index + 0.5) * duration / frames
         async with frame_semaphore:
             try:
@@ -246,11 +258,19 @@ async def _extract_frames_by_seeking(
                 )
             except asyncio.CancelledError:
                 raise
+            except TimeoutError:
+                timed_out = True
+                logger.debug(f"Timed out extracting filmstrip frame at {timestamp}")
+                return None
             except Exception as e:
                 logger.debug(f"Unable to extract filmstrip frame at {timestamp}: {e}")
                 return None
 
-    return await asyncio.gather(*(extract(i) for i in range(frames)))
+    results = await asyncio.gather(*(extract(i) for i in range(frames)))
+    if timed_out and not any(results):
+        # Likely an overloaded host or slow storage, not a broken file
+        raise TimeoutError("Timed out extracting filmstrip frames")
+    return results
 
 
 def get_filmstrip_columns(frames: int) -> int:
@@ -297,7 +317,7 @@ async def create_filmstrip(
     """
 
     if duration <= 0:
-        raise AyonException("Cannot create a filmstrip of a video without duration")
+        raise FilmstripError("Cannot create a filmstrip of a video without duration")
 
     kwargs: dict[str, Any] = {
         "duration": duration,
@@ -323,7 +343,7 @@ async def create_filmstrip(
 
     first_found = next((r for r in results if r), None)
     if first_found is None:
-        raise AyonException("Unable to extract any frame")
+        raise FilmstripError("Unable to extract any frame")
 
     filled: list[bytes] = []
     last = first_found
@@ -333,9 +353,12 @@ async def create_filmstrip(
         filled.append(last)
 
     columns = get_filmstrip_columns(frames)
-    payload, frame_width, frame_height = await run_in_threadpool(
-        _compose_filmstrip, filled, columns
-    )
+    try:
+        payload, frame_width, frame_height = await run_in_threadpool(
+            _compose_filmstrip, filled, columns
+        )
+    except Exception as e:
+        raise FilmstripError(f"Unable to compose the filmstrip: {e}") from e
     info: FilmstripInfo = {
         "version": FILMSTRIP_VERSION,
         "mime": FILMSTRIP_MIME,
@@ -373,17 +396,19 @@ def _is_current(info: Any) -> TypeGuard[FilmstripInfo]:
     )
 
 
+def _get_filmstrip_version(info: FilmstripInfo) -> str:
+    """Changes when the filmstrip is re-created with other settings"""
+    return f"{info['version']}.{info['frames']}.{info['frameSize']}"
+
+
 def _get_filmstrip_model(
     project_name: str,
     file_id: str,
     info: FilmstripInfo,
 ) -> FilmstripModel:
-    # Changes when the filmstrip is re-created with other settings,
-    # so browsers may cache the payload for good. Unlike signed S3 URLs,
-    # it stays the same between requests.
-    version = f"{info['version']}.{info['frames']}.{info['frameSize']}"
+    # Browsers may cache the payload of a version for good
     url = f"/api/projects/{project_name}/files/{file_id}/filmstrip/payload"
-    url += f"?v={version}"
+    url += f"?v={_get_filmstrip_version(info)}"
 
     return FilmstripModel(
         file_id=file_id,
@@ -465,6 +490,16 @@ async def _generate_file_filmstrip(
         frame_rate=media_info.get("frameRate"),
     )
 
+    # Until the new info is stored, no version matches the stored image,
+    # so the payload endpoint doesn't let browsers cache it under an old URL
+    await Postgres.execute(
+        f"""
+        UPDATE project_{project_name}.files
+        SET data = data - 'filmstrip'
+        WHERE id = $1
+        """,
+        file_id,
+    )
     await storage.store_filmstrip(file_id, payload, content_type=FILMSTRIP_MIME)
     await Postgres.execute(
         f"""
@@ -481,6 +516,14 @@ async def _generate_file_filmstrip(
         f"Filmstrip of {project_name}/{file_id} created in {end_time - start_time:.1f}s"
     )
     return info
+
+
+async def _check_failures(key: str) -> None:
+    """Raise if a recent attempt to create the filmstrip failed"""
+    if await Redis.get("filmstrip-failed", key):
+        raise NotFoundException("Filmstrip is not available for this file")
+    if await Redis.get("filmstrip-retry", key):
+        raise ServiceUnavailableException("Filmstrip creation failed, retry later")
 
 
 async def _create_file_filmstrip(
@@ -513,10 +556,50 @@ async def _create_file_filmstrip(
         info = (await _get_file_data(project_name, file_id)).get("filmstrip")
         if _is_current(info):
             return info
-        if await Redis.get("filmstrip-failed", lock_key):
-            raise NotFoundException("Filmstrip is not available for this file")
+        await _check_failures(lock_key)
         if time.monotonic() > deadline:
             raise ServiceUnavailableException("Filmstrip is being created")
+
+
+async def _build_file_filmstrip(
+    project_name: str,
+    file_id: str,
+    media_info: dict[str, Any],
+) -> FilmstripInfo:
+    """Create a filmstrip and remember failures"""
+
+    key = f"{project_name}:{file_id}"
+    try:
+        return await _create_file_filmstrip(project_name, file_id, media_info)
+    except (NotFoundException, ServiceUnavailableException):
+        raise
+    except FilmstripError as e:
+        logger.warning(f"Unable to create filmstrip of {project_name}/{file_id}: {e}")
+        await Redis.set("filmstrip-failed", key, "1", ttl=FAILURE_CACHE_TTL)
+        raise NotFoundException("Filmstrip is not available for this file") from e
+    except Exception as e:
+        logger.warning(
+            f"Unable to create filmstrip of {project_name}/{file_id}, "
+            f"retrying in {RETRY_DELAY}s: {e}"
+        )
+        await Redis.set("filmstrip-retry", key, "1", ttl=RETRY_DELAY)
+        raise ServiceUnavailableException(
+            "Filmstrip creation failed, retry later"
+        ) from e
+
+
+# Filmstrips being created by this server instance. Requests wait for them
+# shielded, so an aborted request (e.g. a short hover) doesn't cancel
+# the creation for other requests.
+_builds: dict[str, asyncio.Task[FilmstripInfo]] = {}
+
+
+def _on_build_done(key: str, task: asyncio.Task[FilmstripInfo]) -> None:
+    if _builds.get(key) is task:
+        del _builds[key]
+    if not task.cancelled():
+        # Mark the exception retrieved, all waiters may be gone
+        task.exception()
 
 
 async def _ensure_file_filmstrip(
@@ -543,23 +626,16 @@ async def _ensure_file_filmstrip(
     if _is_current(info):
         return info
 
-    failure_key = f"{project_name}:{file_id}"
-    if await Redis.get("filmstrip-failed", failure_key):
-        raise NotFoundException("Filmstrip is not available for this file")
+    key = f"{project_name}:{file_id}"
+    await _check_failures(key)
 
-    try:
-        return await RequestCoalescer()(
-            _create_file_filmstrip,
-            project_name,
-            file_id,
-            media_info,
+    if (task := _builds.get(key)) is None:
+        task = asyncio.create_task(
+            _build_file_filmstrip(project_name, file_id, media_info)
         )
-    except (NotFoundException, ServiceUnavailableException):
-        raise
-    except Exception as e:
-        logger.warning(f"Unable to create filmstrip of {project_name}/{file_id}: {e}")
-        await Redis.set("filmstrip-failed", failure_key, "1", ttl=FAILURE_CACHE_TTL)
-        raise NotFoundException("Filmstrip is not available for this file") from e
+        _builds[key] = task
+        task.add_done_callback(functools.partial(_on_build_done, key))
+    return await asyncio.shield(task)
 
 
 async def get_file_filmstrip(project_name: str, file_id: str) -> FilmstripModel:
@@ -575,7 +651,11 @@ async def get_file_filmstrip(project_name: str, file_id: str) -> FilmstripModel:
 FILMSTRIP_PAYLOAD_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
 
-async def get_filmstrip_payload_response(project_name: str, file_id: str) -> Response:
+async def get_filmstrip_payload_response(
+    project_name: str,
+    file_id: str,
+    version: str | None = None,
+) -> Response:
     """Serve the filmstrip image"""
 
     file_id = file_id.replace("-", "")
@@ -585,10 +665,19 @@ async def get_filmstrip_payload_response(project_name: str, file_id: str) -> Res
     except FileNotFoundError:
         raise NotFoundException("Filmstrip not found")
 
+    # Only the requested version may be cached for good. Read the info after
+    # the image: while a filmstrip is re-created, the info is removed before
+    # the new image is stored, so a stale version never matches the new image.
+    info = (await _get_file_data(project_name, file_id)).get("filmstrip")
+    if info and version == _get_filmstrip_version(info):
+        cache_control = FILMSTRIP_PAYLOAD_CACHE_CONTROL
+    else:
+        cache_control = "private, no-cache"
+
     return Response(
         content=payload,
         media_type=FILMSTRIP_MIME,
-        headers={"Cache-Control": FILMSTRIP_PAYLOAD_CACHE_CONTROL},
+        headers={"Cache-Control": cache_control},
     )
 
 

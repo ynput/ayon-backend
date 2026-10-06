@@ -523,10 +523,17 @@ class ProjectStorage:
             except Exception as e:
                 raise AyonException(f"Failed to create directory: {e}") from e
 
+            # Write atomically, so the image is never served incomplete
+            temp_path = f"{path}.{os.getpid()}.{time.monotonic_ns()}.tmp"
             try:
-                async with aiofiles.open(path, "wb") as f:
+                async with aiofiles.open(temp_path, "wb") as f:
                     await f.write(payload)
+                os.replace(temp_path, path)
             except Exception as e:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
                 raise AyonException(f"Failed to write file: {e}") from e
         elif self.storage_type == "s3":
             return await store_s3_file(
