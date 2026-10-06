@@ -1,10 +1,3 @@
-"""Which tasks a user with restricted read access may see.
-
-With "show sibling tasks" disabled, a task is visible only when the user has read
-access to its folder path, or when the read access is "assigned" and the user is
-assigned to the task. Shared by the tasks GraphQL resolver and the REST endpoints.
-"""
-
 from typing import TYPE_CHECKING
 
 from ayon_server.access.access_groups import AccessGroups
@@ -68,11 +61,7 @@ async def ensure_task_read_access(
     folder_id: str,
     assignees: list[str],
 ) -> None:
-    """Apply the "show sibling tasks" setting to reading a single task.
-
-    Folder access is checked separately (ensure_entity_access); this only
-    narrows it down to the tasks the tasks resolver would list.
-    """
+    """Apply the "show sibling tasks" setting to reading a single task."""
     if user.is_manager:
         return
     if user.permissions(project_name).advanced.show_sibling_tasks:
