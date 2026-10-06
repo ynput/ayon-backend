@@ -10,24 +10,12 @@ from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
-#
-# Some queries (inbox, kanban) list the projects and then read tables in every
-# project schema. If a project is deleted or renamed in between, they fail with
-# 'relation "project_x...." does not exist', or deadlock with the DROP SCHEMA.
-# Deleting/renaming a project takes this advisory lock exclusively, such queries
-# take it shared, both until the end of their transaction. Readers never block
-# each other.
-#
-
-PROJECT_SCHEMA_LOCK = 0x41594F4E  # arbitrary, unique key ("AYON")
+# Project delete/rename hold it exclusively, queries over all project schemas shared
+PROJECT_SCHEMA_LOCK = 0x41594F4E
 
 
 async def lock_project_schemas() -> None:
-    """Wait for running cross-project queries and keep new ones out until commit.
-
-    Call inside the transaction that drops or renames a project schema,
-    before touching it.
-    """
+    """Wait for running cross-project queries and keep new ones out until commit."""
     assert await Postgres.is_in_transaction(), "must be called in a transaction"
     await Postgres.execute("SELECT pg_advisory_xact_lock($1)", PROJECT_SCHEMA_LOCK)
 
