@@ -8,6 +8,7 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import time
+from collections import Counter
 from datetime import datetime
 from typing import Annotated, Any, cast
 
@@ -27,6 +28,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.project_list import normalize_project_name
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.operations.project_level import (
@@ -53,6 +55,7 @@ from .models import (
     ImportableColumn,
     ImportStatus,
     ImportUpload,
+    MissingItemStrategy,
     TaskExportImportModel,
     UserExportImportModel,
 )
@@ -146,6 +149,7 @@ async def import_data(
     file_id: str,  # pointer to file stored in Redis
     column_mapping: list[ColumnMapping],
     existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
+    missing_strategy: MissingItemStrategy = MissingItemStrategy.CREATE,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
@@ -161,6 +165,9 @@ async def import_data(
         file_id: ID of the uploaded CSV file in Redis
         column_mapping: List of column mappings (source -> target)
         existing_strategy: How to handle existing items (skip, update, fail)
+        missing_strategy: How to handle rows matching no existing item
+            (create, skip). With skip, folders and tasks are matched by path,
+            or by name when there is no path, and entity type is optional.
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -187,6 +194,10 @@ async def import_data(
         # This technically should not happen as project_name is required
         # for folder/task imports, but we check anyway
         raise ForbiddenException("You must be a manager to import data")
+
+    update_only = missing_strategy == MissingItemStrategy.SKIP
+    if update_only and import_type == "entity_list_item":
+        raise BadRequestException("List items can only be added, not updated")
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
@@ -218,7 +229,8 @@ async def import_data(
 
     # For non-hierarchy types, get fields and existing identifiers upfront
     fields = await model_cls.fields(project_name=project_name)
-    required_fields = [f.key for f in fields if f.required]
+    # required fields are needed to create entities, updates only need a match
+    required_fields = [] if update_only else [f.key for f in fields if f.required]
     if import_type != "hierarchy":
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
@@ -237,6 +249,7 @@ async def import_data(
 
     originals_and_new: dict[str, Any] = {}
     path_to_ids: dict[str, Any] = {}
+    existing_hierarchy = _ExistingHierarchy(project_name)
     unprocessed = len(filtered_rows)
     row_number = 0
 
@@ -285,17 +298,34 @@ async def import_data(
         identifier = None
         path = None
         entity_type: str = import_type  # Initialize for non-hierarchy types
+        matched_id: str | None = None
         try:
             if import_type == "entity_list_item":
                 entity_cls: type[Any] = EntityListItemModel
             elif import_type == "hierarchy":
-                entity_type = await _get_entity_type(
+                row_entity_type = await _get_entity_type(
                     project_name,
                     row,
                     column_mapping,
                     entity_type_importable_column_by_key,
                     entity_type_value_mapping_by_key,
+                    required=not update_only,
                 )
+                if row_entity_type:
+                    entity_type = row_entity_type
+                else:
+                    # update-only rows may leave out the entity type,
+                    # it comes from the folder or task they match
+                    match_path, match_name = await _get_match_keys(
+                        project_name,
+                        row,
+                        column_mapping,
+                        entity_type_importable_column_by_key,
+                        entity_type_value_mapping_by_key,
+                    )
+                    entity_type, matched_id = await existing_hierarchy.match(
+                        None, match_path, match_name
+                    )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
                     raise BadRequestException(error_msg)
@@ -317,7 +347,7 @@ async def import_data(
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
 
-            entity_id = await _resolve_entity_id(
+            entity_id = matched_id or await _resolve_entity_id(
                 row=import_entity_data,
                 path_to_ids=path_to_ids,
                 existing_identifiers=existing_identifiers,
@@ -325,6 +355,19 @@ async def import_data(
                 entity_cls=entity_cls,
                 project_name=project_name,
             )
+
+            if not entity_id and update_only:
+                if import_type == "hierarchy":
+                    _, entity_id = await existing_hierarchy.match(
+                        entity_type, path, import_entity_data.get("name")
+                    )
+                else:
+                    label = path or import_entity_data.get("name")
+                    raise RowNotMatchedException(
+                        f"No existing {entity_type} '{label}'"
+                        if label
+                        else f"No existing {entity_type} matches this row"
+                    )
 
             if entity_id:
                 if existing_strategy != ExistingItemStrategy.UPDATE:
@@ -403,6 +446,12 @@ async def import_data(
                 path_to_ids[path] = entity_id
 
             unprocessed -= 1
+
+        except RowNotMatchedException as exp:
+            import_status.skipped_items[f"{row_number}"] = str(exp)
+            import_status.skipped += 1
+            unprocessed -= 1
+            continue
 
         except Exception as exp:
             logger.trace("Error processing row {} - {}", row_number, exp)
@@ -505,7 +554,8 @@ async def _get_entity_type(
     column_mapping: list[ColumnMapping],
     importable_column_by_key: dict[str, ImportableColumn],
     value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]],
-) -> str:
+    required: bool = True,
+) -> str | None:
     """Extract the entity type from column mapping for hierarchy imports.
 
     Args:
@@ -514,10 +564,18 @@ async def _get_entity_type(
         column_mapping: List of ColumnMapping objects provided by the user
         importable_column_by_key: Pre-built lookup of field key to ImportableColumn
         value_mapping_by_key: Pre-built value mapping dicts per target key
+        required: Raise if the entity type is not mapped or empty,
+            otherwise return None
     """
-    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    target_mapping_by_key = {
+        mapping.target_key: mapping
+        for mapping in column_mapping
+        if mapping.action != "skip"
+    }
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
+        if not required:
+            return None
         raise BadRequestException(
             "Missing column mapping for 'entity_type' in hierarchy import"
         )
@@ -532,7 +590,113 @@ async def _get_entity_type(
         importable_column_by_key=importable_column_by_key,
         value_mapping=value_mapping_by_key.get("entity_type"),
     )
-    return import_entity_data["entity_type"]
+    entity_type = import_entity_data.get("entity_type")
+    if not entity_type and required:
+        raise BadRequestException("Missing entity type")
+    return entity_type
+
+
+async def _get_match_keys(
+    project_name: str | None,
+    row: dict[str, Any],
+    column_mapping: list[ColumnMapping],
+    importable_column_by_key: dict[str, ImportableColumn],
+    value_mapping_by_key: dict[str, dict[str, ColumnValueMapping]],
+) -> tuple[str | None, str | None]:
+    """Return the path and name of a hierarchy row, before its entity type is known."""
+    keys: dict[str, Any] = {}
+    for mapping in column_mapping:
+        if mapping.action == "skip" or mapping.target_key not in ("path", "name"):
+            continue
+        await _remap_single_column(
+            project_name=project_name,
+            mapping=mapping,
+            row=row,
+            import_entity_data=keys,
+            importable_column_by_key=importable_column_by_key,
+            value_mapping=value_mapping_by_key.get(mapping.target_key),
+        )
+    return keys.get("path") or None, keys.get("name") or None
+
+
+class RowNotMatchedException(Exception):
+    """An update-only row matches no existing entity, so it is skipped."""
+
+
+class _ExistingHierarchy:
+    """Finds existing folders and tasks for update-only hierarchy imports."""
+
+    def __init__(self, project_name: str | None):
+        self.project_name = project_name
+        self._ids_by_name: dict[str, dict[str, list[str]]] | None = None
+
+    async def _get_ids_by_name(self) -> dict[str, dict[str, list[str]]]:
+        if self._ids_by_name is None:
+            self._ids_by_name = {}
+            for entity_type in HIERARCHY_MODEL_CLASSES:
+                index: dict[str, list[str]] = {}
+                table = f"project_{self.project_name}.{entity_type}s"
+                for record in await Postgres.fetch(f"SELECT id, name FROM {table}"):
+                    index.setdefault(record["name"], []).append(record["id"])
+                self._ids_by_name[entity_type] = index
+        return self._ids_by_name
+
+    async def match(
+        self,
+        entity_type: str | None,
+        path: str | None,
+        name: str | None,
+    ) -> tuple[str, str]:
+        """Return entity type and id of the one folder or task matching the row.
+
+        Matches by path, or by name when there is no path. Without an entity
+        type both folders and tasks are searched.
+        """
+        entity_types = [entity_type] if entity_type else list(HIERARCHY_MODEL_CLASSES)
+        label = " or ".join(entity_types)
+        matches: list[tuple[str, str]] = []
+
+        if path:
+            for candidate_type in entity_types:
+                if candidate_type == "task" and "/" not in path.strip("/"):
+                    continue
+                try:
+                    entity_id = await get_entity_id_by_path(
+                        self.project_name, path, candidate_type == "task"
+                    )
+                except NotFoundException:
+                    continue
+                matches.append((candidate_type, entity_id))
+            if not matches:
+                raise RowNotMatchedException(f"No {label} with path '{path}'")
+            if len(matches) > 1:
+                raise BadRequestException(
+                    f"Path '{path}' matches both a folder and a task, "
+                    "map an Entity type column to pick one"
+                )
+            return matches[0]
+
+        if not name:
+            raise RowNotMatchedException(f"No path or name to match a {label}")
+
+        ids_by_name = await self._get_ids_by_name()
+        for candidate_type in entity_types:
+            matches.extend(
+                (candidate_type, entity_id)
+                for entity_id in ids_by_name[candidate_type].get(name, [])
+            )
+        if not matches:
+            raise RowNotMatchedException(f"No {label} named '{name}'")
+        if len(matches) > 1:
+            counts = Counter(candidate_type for candidate_type, _ in matches)
+            found = " and ".join(
+                f"{count} {candidate_type}{'s' if count > 1 else ''}"
+                for candidate_type, count in counts.items()
+            )
+            raise BadRequestException(
+                f"Name '{name}' matches {found}, map a Path column to pick one"
+            )
+        return matches[0]
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
@@ -1119,6 +1283,7 @@ async def _prepare_status_summary(
         "failed": import_status.failed,
         "phase": import_status.phase,
         "failedItems": import_status.failed_items,
+        "skippedItems": import_status.skipped_items,
     }
 
 

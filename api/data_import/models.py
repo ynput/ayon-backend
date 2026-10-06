@@ -46,6 +46,14 @@ class ExistingItemStrategy(StrEnum):
 # Type alias for existing strategy values
 ExistingStrategyType = Literal["skip", "update", "fail"]
 
+
+class MissingItemStrategy(StrEnum):
+    """Strategy for rows that match no existing item during import."""
+
+    CREATE = "create"
+    SKIP = "skip"
+
+
 # How to handle errors when importing data for this column.
 # - "skip": skip the row if there is an error in this column.
 # - "abort": abort the entire import if there is an error in this column.
@@ -215,6 +223,9 @@ class ImportStatus(OPModel):
     failed_items: dict[str, Any] = Field(
         default_factory=dict
     )  # Dict of items that failed with error details (name -> error message)
+    skipped_items: dict[str, Any] = Field(
+        default_factory=dict
+    )  # Rows skipped because they match no existing item (row -> reason)
     preview: bool = False  # if import was run in regular or dry run mode
     phase: Literal["validating", "importing"] = "validating"
 
