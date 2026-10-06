@@ -113,14 +113,17 @@ class Anatomy(BaseSettingsModel):
 
     @field_validator("attributes")
     @classmethod
-    def validate_attributes(cls, value: dict[str, Any]) -> dict[str, Any]:
+    def validate_attributes(
+        cls, value: dict[str, Any], info: ValidationInfo
+    ) -> dict[str, Any]:
         # The anatomy lists all project attributes (with the defaults).
         # A new project stores them as its own values.
+        # Stored values (STORED_VALUES_CONTEXT) are not validated again.
         return AttribDict(
             {
                 **dict.fromkeys(a["name"] for a in attribute_library["project"]),
                 **attribute_library.project_defaults,
-                **validate_attrib("project", value),
+                **validate_attrib("project", value, info.context),
             }
         )
 
