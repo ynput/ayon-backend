@@ -1,7 +1,11 @@
 from typing import Annotated
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.graphql.connections import EntityListsConnection
 from ayon_server.graphql.edges import EntityListEdge
 from ayon_server.graphql.nodes.entity_list import EntityListNode
@@ -165,6 +169,69 @@ async def get_entity_lists(
         context=info.context,
         order_by=order_by,
     )
+
+
+async def get_entity_lists_by_entity(
+    root,
+    info: Info,
+    active: bool | None = None,
+    entity_list_types: list[str] | None = None,
+) -> list[EntityListNode]:
+    project_name = root.project_name
+
+    project = info.context.get("project")
+    if project is None or project.name != project_name:
+        project = await ProjectEntity.load(project_name)
+        info.context["project"] = project
+
+    user = info.context["user"]
+    guest_list_ids: set[str] | None = None
+    if user.is_guest and (guest_access := user.data.get("guestAccess")):
+        guest_list_ids = {
+            ga["id"]
+            for ga in guest_access
+            if ga.get("projectName") == project_name
+            and ga.get("type") == "entityList"
+            and ga.get("id")
+        }
+
+    loader = info.context["entity_lists_by_entity_loader"]
+    records = await loader.load((project_name, root.id))
+
+    nodes: dict[tuple[str, str], EntityListNode | None]
+    nodes = info.context.setdefault("entity_lists_by_entity_nodes", {})
+
+    result: list[EntityListNode] = []
+    for record in records:
+        if active is not None and record["active"] != active:
+            continue
+        if entity_list_types and record["entity_list_type"] not in entity_list_types:
+            continue
+
+        list_id = str(record["id"])
+        if guest_list_ids is not None:
+            if list_id not in guest_list_ids:
+                continue
+        elif user.is_guest:
+            access = record.get("access") or {}
+            if (
+                access.get(f"guest:{user.attrib.email}") is None
+                and int(access.get("__guests__") or 0) <= 0
+            ):
+                continue
+
+        key = (project_name, list_id)
+        if key not in nodes:
+            try:
+                nodes[key] = await info.context["entity_list_from_record"](
+                    project_name, record, info.context
+                )
+            except ForbiddenException:
+                nodes[key] = None
+
+        if node := nodes[key]:
+            result.append(node)
+    return result
 
 
 async def get_entity_list(root, info: Info, id: str) -> EntityListNode:

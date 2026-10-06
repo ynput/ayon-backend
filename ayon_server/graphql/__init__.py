@@ -20,6 +20,7 @@ from ayon_server.graphql.connections import (
     UsersConnection,
 )
 from ayon_server.graphql.dataloaders import (
+    entity_lists_by_entity_loader,
     folder_loader,
     latest_version_loader,
     product_loader,
@@ -42,6 +43,7 @@ from ayon_server.graphql.nodes.version import version_from_record
 from ayon_server.graphql.nodes.workfile import workfile_from_record
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.entity_list_items import get_entity_list_items
+from ayon_server.graphql.resolvers.entity_lists import get_entity_lists_by_entity
 from ayon_server.graphql.resolvers.events import get_events
 from ayon_server.graphql.resolvers.inbox import get_inbox
 from ayon_server.graphql.resolvers.kanban import get_kanban
@@ -79,10 +81,14 @@ async def graphql_get_context(request: Request, user: CurrentUser) -> dict[str, 
         "user_loader": DataLoader(load_fn=user_loader),
         "workfile_loader": DataLoader(load_fn=workfile_loader),
         "representation_loader": DataLoader(load_fn=representation_loader),
+        "entity_lists_by_entity_loader": DataLoader(
+            load_fn=entity_lists_by_entity_loader
+        ),
         # Other
         "activities_resolver": get_activities,
         "links_resolver": get_links,
         "entity_list_items_resolver": get_entity_list_items,
+        "entity_lists_by_entity_resolver": get_entity_lists_by_entity,
     }
 
 

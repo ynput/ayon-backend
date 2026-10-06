@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 import strawberry
 from strawberry.scalars import JSON
@@ -11,6 +11,9 @@ from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
+
+if TYPE_CHECKING:
+    from ayon_server.graphql.nodes.entity_list import EntityListNode
 
 
 @strawberry.type
@@ -211,6 +214,21 @@ class BaseNode:
             name_ex=name_ex,
             first=first,
             after=after,
+        )
+
+    @strawberry.field(description="Entity lists containing this entity")
+    async def entity_lists(
+        self,
+        info: Info,
+        active: bool | None = None,
+        entity_list_types: list[str] | None = None,
+    ) -> list[Annotated["EntityListNode", strawberry.lazy(".entity_list")]]:
+        resolver = info.context["entity_lists_by_entity_resolver"]
+        return await resolver(
+            root=self,
+            info=info,
+            active=active,
+            entity_list_types=entity_list_types,
         )
 
     @strawberry.field
