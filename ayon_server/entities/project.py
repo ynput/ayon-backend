@@ -27,7 +27,14 @@ from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
+from ayon_server.utils import (
+    RequestCoalescer,
+    SQLTool,
+    dict_exclude,
+    get_nickname,
+    json_dumps,
+    json_loads,
+)
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
@@ -139,8 +146,8 @@ class ProjectEntity(TopLevelEntity):
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
     # Set per instance by _load(), used by _save() to detect attrib changes
     original_attributes: dict[str, Any] | None = None
-    # Set by _save() when a folder type or status rename cascaded to folders
-    folder_refs_renamed: bool = False
+    # Set by _save() when folders changed in a way the cached folder list shows
+    folder_cache_stale: bool = False
 
     #
     # Load
@@ -335,14 +342,14 @@ class ProjectEntity(TopLevelEntity):
         """Post-update commit."""
         await Redis.delete("project-anatomy", self.name)
         await Redis.delete("project-data", self.name)
+        if self.folder_cache_stale:
+            await Redis.delete("project-folders", self.name)
+            self.folder_cache_stale = False
         await self.refresh_views()
 
     async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
-        attrib_changed = self.exists and self.original_attributes != self.dict(
-            exclude_none=True
-        ).get("attrib")
-        self.folder_refs_renamed = False
+        self.folder_cache_stale = False
         # commit() must not run inside a failed transaction: it would hit
         # InFailedSQLTransactionError and mask the original exception.
         try:
@@ -356,8 +363,9 @@ class ProjectEntity(TopLevelEntity):
                     pass
             raise
         await self.commit()
-        if attrib_changed or self.folder_refs_renamed:
-            await Redis.delete("project-folders", self.name)
+        self.original_attributes = json_loads(
+            json_dumps(self.attrib.dict(exclude_none=True))
+        )
         return result
 
     async def _save(self) -> bool:
@@ -392,8 +400,10 @@ class ProjectEntity(TopLevelEntity):
                 )
             )
 
-            if self.original_attributes != fields["attrib"]:
+            # Compare in JSON form, as loaded from the DB (dates are strings there)
+            if self.original_attributes != json_loads(json_dumps(fields["attrib"])):
                 await rebuild_inherited_attributes(self.name, fields["attrib"])
+                self.folder_cache_stale = True
 
         else:
             # Create a project record
@@ -428,10 +438,10 @@ class ProjectEntity(TopLevelEntity):
         # Save aux tables
         #
         if await aux_table_update(project_name, "folder_types", self.folder_types):
-            self.folder_refs_renamed = True
+            self.folder_cache_stale = True
         await aux_table_update(project_name, "task_types", self.task_types)
         if await aux_table_update(project_name, "statuses", self.statuses):
-            self.folder_refs_renamed = True
+            self.folder_cache_stale = True
         await aux_table_update(project_name, "tags", self.tags)
         await link_types_update(project_name, "link_types", self.link_types)
         return True
