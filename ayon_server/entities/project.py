@@ -139,6 +139,8 @@ class ProjectEntity(TopLevelEntity):
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
     # Set per instance by _load(), used by _save() to detect attrib changes
     original_attributes: dict[str, Any] | None = None
+    # Set by _save() when a folder type or status rename cascaded to folders
+    folder_refs_renamed: bool = False
 
     #
     # Load
@@ -340,6 +342,7 @@ class ProjectEntity(TopLevelEntity):
         attrib_changed = self.exists and self.original_attributes != self.dict(
             exclude_none=True
         ).get("attrib")
+        self.folder_refs_renamed = False
         # commit() must not run inside a failed transaction: it would hit
         # InFailedSQLTransactionError and mask the original exception.
         try:
@@ -353,7 +356,7 @@ class ProjectEntity(TopLevelEntity):
                     pass
             raise
         await self.commit()
-        if attrib_changed:
+        if attrib_changed or self.folder_refs_renamed:
             await Redis.delete("project-folders", self.name)
         return result
 
@@ -424,9 +427,11 @@ class ProjectEntity(TopLevelEntity):
         #
         # Save aux tables
         #
-        await aux_table_update(project_name, "folder_types", self.folder_types)
+        if await aux_table_update(project_name, "folder_types", self.folder_types):
+            self.folder_refs_renamed = True
         await aux_table_update(project_name, "task_types", self.task_types)
-        await aux_table_update(project_name, "statuses", self.statuses)
+        if await aux_table_update(project_name, "statuses", self.statuses):
+            self.folder_refs_renamed = True
         await aux_table_update(project_name, "tags", self.tags)
         await link_types_update(project_name, "link_types", self.link_types)
         return True

@@ -50,7 +50,7 @@ async def aux_table_update(
     project_name: str,
     table: FolderTypesLiteral,
     update_data: Sequence[FolderTypeDict],
-) -> None: ...
+) -> bool: ...
 
 
 @overload
@@ -58,7 +58,7 @@ async def aux_table_update(
     project_name: str,
     table: TaskTypesLiteral,
     update_data: Sequence[TaskTypeDict],
-) -> None: ...
+) -> bool: ...
 
 
 @overload
@@ -66,19 +66,19 @@ async def aux_table_update(
     project_name: str,
     table: StatusesLiteral,
     update_data: Sequence[StatusTypeDict],
-) -> None: ...
+) -> bool: ...
 
 
 @overload
 async def aux_table_update(
     project_name: str, table: TagsLiteral, update_data: Sequence[TagTypeDict]
-) -> None: ...
+) -> bool: ...
 
 
 async def aux_table_update(
     project_name: str, table: str, update_data: Sequence[AuxTableType]
-) -> None:
-    """Update auxiliary table."""
+) -> bool:
+    """Update auxiliary table. Return True if any item was renamed."""
 
     # Fetch the current data first
     old_data = {}
@@ -87,6 +87,7 @@ async def aux_table_update(
     ):
         old_data[row["name"]] = row["data"]
 
+    renamed = False
     position = 0
     for data in update_data:
         position += 1
@@ -108,6 +109,7 @@ async def aux_table_update(
             )
 
             del old_data[original_name]
+            renamed = True
             continue
 
         # Upsert
@@ -133,6 +135,8 @@ async def aux_table_update(
         old_keys = list(old_data.keys())
         query = f"DELETE FROM project_{project_name}.{table} WHERE name = ANY($1)"
         await Postgres.execute(query, old_keys)
+
+    return renamed
 
 
 async def link_types_update(
