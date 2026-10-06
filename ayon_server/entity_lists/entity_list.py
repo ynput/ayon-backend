@@ -284,7 +284,8 @@ class EntityList:
         item = EntityListItemModel(
             id=id or create_uuid(),
             entity_id=entity_id,
-            position=position or 99999999,
+            # 0 is a position too (the first place)
+            position=position if position is not None else 99999999,
             label=label,
             attrib=attrib or {},
             data=data or {},
