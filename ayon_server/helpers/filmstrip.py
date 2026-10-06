@@ -16,9 +16,7 @@ part of the (cached) thumbnail info of entities using the reviewable.
 The API returns the filmstrip description with an URL of the image,
 so describing a filmstrip never needs to access the storage. The image URL
 only changes when the filmstrip is re-created with other settings, so browsers
-keep the image (for any storage type). With a CDN, the image URL redirects to
-a signed CDN link; otherwise the server reads the image from the storage,
-once per browser. The image bytes are not cached by the server.
+keep the image (for any storage type).
 """
 
 import asyncio
@@ -440,6 +438,7 @@ async def _generate_file_filmstrip(
     file_id: str,
     media_info: dict[str, Any],
 ) -> FilmstripInfo:
+    start_time = time.monotonic()
     storage = await Storages.project(project_name)
     if storage.storage_type == "local":
         path = await storage.get_path(file_id)
@@ -477,6 +476,10 @@ async def _generate_file_filmstrip(
         {"filmstrip": info},
     )
     await _invalidate_thumbnail_info(project_name, file_id)
+    end_time = time.monotonic()
+    logger.debug(
+        f"Filmstrip of {project_name}/{file_id} created in {end_time - start_time:.1f}s"
+    )
     return info
 
 
