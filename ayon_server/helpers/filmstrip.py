@@ -74,6 +74,7 @@ FRAME_CONCURRENCY = 4
 
 # Max time to extract frames (seconds)
 FRAME_TIMEOUT = 30
+PROBE_TIMEOUT = 30
 SINGLE_PASS_TIMEOUT = 120
 
 # Don't retry videos which cannot be processed for this long (seconds)
@@ -477,7 +478,7 @@ async def _generate_file_filmstrip(
     duration = float(media_info.get("duration") or 0)
     if duration <= 0:
         # Stream duration is not always available (e.g. mkv, webm)
-        probe = await ffprobe(path)
+        probe = await ffprobe(path, timeout=PROBE_TIMEOUT)
         duration = float(probe.get("format", {}).get("duration") or 0)
 
     logger.debug(f"Creating filmstrip of {project_name}/{file_id}")
