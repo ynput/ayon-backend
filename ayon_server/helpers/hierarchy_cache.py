@@ -9,8 +9,15 @@ from ayon_server.utils import json_dumps
 AYON_INTERNAL_FOLDER_NAME = "__ayon_internal__"
 
 
+async def invalidate_hierarchy_cache(project_name: str) -> None:
+    """Drop the cached folder list, also one a running rebuild is about to write."""
+    await Redis.incr("project-folders-gen", project_name, ttl=86400)
+    await Redis.delete("project-folders", project_name)
+
+
 async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     start_time = time.monotonic()
+    generation = await Redis.get("project-folders-gen", project_name)
     query = f"""
         WITH RECURSIVE reviewables AS (
             SELECT p.folder_id AS folder_id
@@ -130,6 +137,9 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
         folder["has_children"] = folder["id"] in ids_with_children
 
     await Redis.set("project-folders", project_name, json_dumps(result), 3600)
+    # invalidated while we were reading: what we just wrote may be stale
+    if await Redis.get("project-folders-gen", project_name) != generation:
+        await Redis.delete("project-folders", project_name)
     elapsed_time = time.monotonic() - start_time
     logger.trace(
         f"Rebuilt hierarchy cache for {project_name} "

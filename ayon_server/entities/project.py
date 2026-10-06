@@ -22,6 +22,7 @@ from ayon_server.entities.project_aux_tables import (
     link_types_update,
 )
 from ayon_server.exceptions import NotFoundException, ServiceUnavailableException
+from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
@@ -343,7 +344,7 @@ class ProjectEntity(TopLevelEntity):
         await Redis.delete("project-anatomy", self.name)
         await Redis.delete("project-data", self.name)
         if self.folder_cache_stale:
-            await Redis.delete("project-folders", self.name)
+            await invalidate_hierarchy_cache(self.name)
             self.folder_cache_stale = False
         await self.refresh_views()
 
