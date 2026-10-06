@@ -317,7 +317,7 @@ async def get_project_file_filmstrip(
 
     await user.ensure_project_access(project_name)
 
-    # Signed URLs of S3 storages are valid for an hour
+    # Short, the filmstrip may be created or re-created meanwhile
     cache_control = "private, max-age=300"
     try:
         filmstrip = await get_file_filmstrip(project_name, file_id)

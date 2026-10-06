@@ -39,11 +39,6 @@ from ayon_server.utils.request_coalescer import RequestCoalescer
 from .common import FileGroup, StorageType
 from .utils import list_local_files
 
-# Stored with S3 filmstrips and used when the CDN serves them. Browsers get
-# a new signed CDN link at least twice a day (see helpers/filmstrip.py), and
-# a filmstrip only changes when it is re-created with other settings.
-FILMSTRIP_CDN_CACHE_CONTROL = "public, max-age=86400"
-
 
 class ProjectStorage:
     storage_type: StorageType = "local"
@@ -168,13 +163,10 @@ class ProjectStorage:
         file_id: str,
         *,
         ynput_shared: bool = False,
-        file_group: FileGroup = "uploads",
     ) -> RedirectResponse:
         """Return a signed URL to access the file on the CDN over HTTP
 
         This method is only supported for CDN-enabled storages.
-        Raises `NotImplementedError` when the CDN resolver does not support
-        the requested file group (other than uploads).
         """
         if self.cdn_resolver is None:
             raise AyonException("CDN is not enabled for this project")
@@ -192,15 +184,7 @@ class ProjectStorage:
             project_timestamp,
             file_id,
             ynput_shared=ynput_shared,
-            file_group=file_group,
         )
-
-        # Resolvers supporting file groups echo the group. Older ones ignore
-        # it and would return a link to the uploaded file instead.
-        if file_group != "uploads" and data.get("fileGroup") != file_group:
-            raise NotImplementedError(
-                f"CDN resolver does not support the {file_group} file group"
-            )
 
         url = data["url"]
         cookies = data.get("cookies", {})
@@ -504,7 +488,7 @@ class ProjectStorage:
     # Filmstrip methods
     # Filmstrips are sprite sheets of evenly sampled frames of a video file,
     # used for hover-scrub previews. They are stored under the ID of
-    # the source file and served by the server or the CDN, which browsers cache.
+    # the source file and always served by the server, which browsers cache.
 
     async def store_filmstrip(
         self,
@@ -541,7 +525,6 @@ class ProjectStorage:
                 path,
                 payload,
                 content_type=content_type,
-                cache_control=FILMSTRIP_CDN_CACHE_CONTROL,
             )
 
     async def get_filmstrip(self, file_id: str) -> bytes:
@@ -650,7 +633,7 @@ async def _get_default_project_storage(project_name: str) -> "ProjectStorage":
 
 @Redis.cached(
     "cdn-link",
-    "{project_name}:{project_timestamp}:{file_id}:{ynput_shared}:{file_group}",
+    "{project_name}:{project_timestamp}:{file_id}:{ynput_shared}",
     ttl=120,
 )
 async def _get_cdn_link(
@@ -659,14 +642,12 @@ async def _get_cdn_link(
     project_timestamp,
     file_id,
     ynput_shared=False,
-    file_group="uploads",
 ) -> dict[str, Any]:
     payload = {
         "projectName": project_name,
         "projectTimestamp": project_timestamp,
         "fileId": file_id,
         "ynputShared": ynput_shared,
-        "fileGroup": file_group,
     }
 
     headers = await CloudUtils.get_api_headers()

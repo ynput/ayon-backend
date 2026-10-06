@@ -107,14 +107,11 @@ def _store_s3_file(
     key: str,
     data: bytes,
     content_type: str | None = None,
-    cache_control: str | None = None,
 ) -> None:
     client = _get_s3_client(storage)
     extra: dict[str, str] = {}
     if content_type:
         extra["ContentType"] = content_type
-    if cache_control:
-        extra["CacheControl"] = cache_control
     client.put_object(Bucket=storage.bucket_name, Key=key, Body=data, **extra)
 
 
@@ -124,12 +121,11 @@ async def store_s3_file(
     data: bytes,
     *,
     content_type: str | None = None,
-    cache_control: str | None = None,
 ) -> None:
     """Store bytes in S3.
 
-    `content_type` and `cache_control` are stored with the object and used
-    when it is served directly (signed URL or CDN).
+    `content_type` is stored with the object and used when it is served
+    directly (signed URL or CDN).
     """
     await run_in_threadpool(
         _store_s3_file,
@@ -137,7 +133,6 @@ async def store_s3_file(
         key,
         data,
         content_type,
-        cache_control,
     )
 
 
