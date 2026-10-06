@@ -59,9 +59,16 @@ async def get_attrib_sort_case(attr: str, exp: str) -> str:
         raise BadRequestException("Invalid attribute name")
     try:
         attr_data = attribute_library.by_name(attr)
-        enum = attr_data.get("enum", [])
     except KeyError:
-        enum = []
+        return f"{exp}->>'{attr}'"
+
+    attr_type = attr_data.get("type")
+    if attr_type == "integer":
+        return f"({exp}->>'{attr}')::bigint"
+    if attr_type == "float":
+        return f"({exp}->>'{attr}')::double precision"
+
+    enum = attr_data.get("enum", [])
     if not enum:
         return f"{exp}->>'{attr}'"
     case = "CASE"
