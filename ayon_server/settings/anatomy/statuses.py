@@ -53,8 +53,7 @@ class Status(BaseAuxModel):
         example="#3498db",
     )
     scope: list[str] | None = SettingsField(
-        # not default_factory: the default must be in the schema, so that statuses
-        # added in the settings UI start with every scope instead of none
+        # not default_factory: pydantic v1 leaves that out of the schema the UI uses
         list(get_default_scopes()),
         example=get_default_scopes(),
         enum_resolver=scope_enum,
