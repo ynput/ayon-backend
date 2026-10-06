@@ -8,7 +8,7 @@ from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
-PROJECT_LIST_REBUILD_LOCK = 0x41594F50  # arbitrary, unique key
+PROJECT_LIST_REBUILD_LOCK = 0x41594F50
 
 
 class ProjectListItem(OPModel):
@@ -38,10 +38,7 @@ async def build_project_list() -> list[ProjectListItem]:
     result: list[dict[str, Any]] = []
     try:
         async with Postgres.transaction():
-            # One rebuild at a time, holding the lock from the read until the cache
-            # is written: otherwise a rebuild that read the table before a project was
-            # created could overwrite the cache after the creating request's rebuild,
-            # and the new project would stay "not found" until the next rebuild.
+            # held until the cache is written, so a stale rebuild can never write last
             await Postgres.execute(
                 "SELECT pg_advisory_xact_lock($1)", PROJECT_LIST_REBUILD_LOCK
             )
