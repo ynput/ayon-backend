@@ -17,6 +17,7 @@ from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
 from ayon_server.types import OPModel
 from ayon_server.utils import create_background_task, json_dumps, json_loads
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
@@ -79,7 +80,9 @@ class Session:
             await asyncio.sleep(0.2)
             raise UnauthorizedException("Invalid session")
 
-        session = SessionModel(**data)
+        # Cached user attributes are not validated again: they may not match
+        # changed attribute definitions until the session is refreshed
+        session = SessionModel.model_validate(data, context=STORED_VALUES_CONTEXT)
 
         if session.is_expired:
             await cls.delete(token, "Session expired")
