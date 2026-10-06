@@ -134,19 +134,25 @@ async def set_attribute_list(
     new_attributes = payload.attributes
     new_names = [attribute.name for attribute in new_attributes]
 
-    # Delete deleted
-    if payload.delete_missing:
-        await Postgres.execute(
-            """
-            DELETE FROM attributes
-            WHERE builtin IS NOT TRUE
-            AND NOT name = ANY($1)
-            """,
-            new_names,
-        )
-
+    # Validate all attributes before changing anything,
+    # and save them at once, so a failure does not leave partial changes
     for attr in new_attributes:
-        await save_attribute(attr)
+        validate_attribute_data(attr.name, attr.data)
+
+    async with Postgres.transaction():
+        # Delete deleted
+        if payload.delete_missing:
+            await Postgres.execute(
+                """
+                DELETE FROM attributes
+                WHERE builtin IS NOT TRUE
+                AND NOT name = ANY($1)
+                """,
+                new_names,
+            )
+
+        for attr in new_attributes:
+            await save_attribute(attr)
 
     await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()
