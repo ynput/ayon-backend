@@ -31,7 +31,6 @@ from typing import Any, TypedDict, TypeGuard
 import aiofiles
 import aiofiles.tempfile
 from fastapi import Response
-from fastapi.responses import FileResponse
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
@@ -572,56 +571,19 @@ async def get_file_filmstrip(project_name: str, file_id: str) -> FilmstripModel:
 # The payload URL changes when the filmstrip is re-created
 FILMSTRIP_PAYLOAD_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
-# CDN links are valid for a day after signing (and cached by the server for two
-# minutes), so browsers may reuse a redirect to one for half of that
-FILMSTRIP_REDIRECT_CACHE_CONTROL = "private, max-age=43200"
-
-
-async def _retrieve_filmstrip(project_name: str, file_id: str) -> bytes:
-    storage = await Storages.project(project_name)
-    return await storage.get_filmstrip(file_id)
-
 
 async def get_filmstrip_payload_response(project_name: str, file_id: str) -> Response:
     """Serve the filmstrip image"""
 
     file_id = file_id.replace("-", "")
     storage = await Storages.project(project_name)
-    if storage.storage_type == "s3":
-        if storage.cdn_resolver:
-            try:
-                response = await storage.get_cdn_link(
-                    file_id,
-                    file_group="filmstrips",
-                )
-            except NotImplementedError as e:
-                logger.debug(f"Serving filmstrip without CDN: {e}")
-            except AyonException as e:
-                logger.warning(f"Serving filmstrip without CDN: {e}")
-            else:
-                response.headers["Cache-Control"] = FILMSTRIP_REDIRECT_CACHE_CONTROL
-                return response
-
-        # Browsers keep the image, so this is read once per browser
-        try:
-            payload = await RequestCoalescer()(
-                _retrieve_filmstrip,
-                project_name,
-                file_id,
-            )
-        except FileNotFoundError:
-            raise NotFoundException("Filmstrip not found") from None
-        return Response(
-            content=payload,
-            media_type=FILMSTRIP_MIME,
-            headers={"Cache-Control": FILMSTRIP_PAYLOAD_CACHE_CONTROL},
-        )
-
-    path = await storage.get_path(file_id, file_group="filmstrips")
-    if not os.path.isfile(path):
+    try:
+        payload = await storage.get_filmstrip(file_id)
+    except FileNotFoundError:
         raise NotFoundException("Filmstrip not found")
-    return FileResponse(
-        path,
+
+    return Response(
+        content=payload,
         media_type=FILMSTRIP_MIME,
         headers={"Cache-Control": FILMSTRIP_PAYLOAD_CACHE_CONTROL},
     )

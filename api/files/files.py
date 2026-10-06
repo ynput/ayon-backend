@@ -37,6 +37,7 @@ from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
 
@@ -341,7 +342,12 @@ async def get_project_file_filmstrip_payload(
     """Get the filmstrip image of a video file."""
 
     await user.ensure_project_access(project_name)
-    return await get_filmstrip_payload_response(project_name, file_id)
+    coalesce = RequestCoalescer()
+    return await coalesce(
+        get_filmstrip_payload_response,
+        project_name,
+        file_id,
+    )
 
 
 @router.get(
