@@ -8,6 +8,8 @@ from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
+PROJECT_LIST_REBUILD_LOCK = 0x41594F50
+
 
 class ProjectListItem(OPModel):
     name: str
@@ -36,6 +38,10 @@ async def build_project_list() -> list[ProjectListItem]:
     result: list[dict[str, Any]] = []
     try:
         async with Postgres.transaction():
+            # held until the cache is written, so a stale rebuild can never write last
+            await Postgres.execute(
+                "SELECT pg_advisory_xact_lock($1)", PROJECT_LIST_REBUILD_LOCK
+            )
             stmt = await Postgres.prepare(q)
             async for row in stmt.cursor():
                 result.append(
@@ -52,10 +58,10 @@ async def build_project_list() -> list[ProjectListItem]:
                         "skeleton": row["skeleton"] == "true",
                     }
                 )
+            await Redis.set_json("global", "project-list", result)
     except Postgres.UndefinedTableError:
         # No projects table, return an empty list
-        pass
-    await Redis.set_json("global", "project-list", result)
+        await Redis.set_json("global", "project-list", result)
     return [ProjectListItem(**item) for item in result]
 
 
