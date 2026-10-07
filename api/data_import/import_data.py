@@ -10,7 +10,7 @@ import io
 import re
 import time
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, cast
 
 from fastapi import Body, Query, Request
@@ -1237,8 +1237,16 @@ def _parse_datetime(value: str) -> datetime:
     order per column), this is the fallback for other clients: year first,
     or day first, except with slashes, which are month first (10/1/2026 is
     October 1) unless the first number can only be a day.
+
+    Values without a timezone are UTC, which is how AYON keeps dates: the
+    date picker saves UTC midnight and the UI shows the UTC day. A naive
+    midnight read as local time would show the day before east of UTC.
     """
-    value = value.strip()
+    parsed = _parse_naive_datetime(value.strip())
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _parse_naive_datetime(value: str) -> datetime:
     try:
         return datetime.fromisoformat(value)
     except ValueError:
