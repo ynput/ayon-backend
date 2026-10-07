@@ -16,7 +16,6 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 
-from api.data_import.common import SENDER_TYPE, get_entity_id_by_path
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.attributes.models import AttributeData
 from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
@@ -27,7 +26,13 @@ from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import AttributeType, Field, OPModel
+from ayon_server.types import AttributeType, Field, OPModel, ProjectLevelEntityType
+
+from .common import (
+    SENDER_TYPE,
+    RowSkippedException,
+    get_entity_id_by_path,
+)
 
 # Create reverse mapping: Python type -> AttributeType string
 # This inverts FIELD_TYPES which maps AttributeType -> Python type
@@ -286,6 +291,7 @@ class ImportStatus(OPModel):
         default_factory=dict
     )  # Rows skipped on purpose, e.g. matching no existing item (row -> reason)
     comments: int = 0  # Comments added to imported folders and tasks
+    entity_list_id: str | None = None  # The list created by a new-list import
     preview: bool = False  # if import was run in regular or dry run mode
     phase: Literal["validating", "importing"] = "validating"
 
@@ -1034,6 +1040,17 @@ class EntityListExportImportModel(EntityExportImport):
             )
         )
 
+        result.append(
+            ImportableColumn(
+                key="name",
+                label="Entity name",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["skip"],
+            )
+        )
+
         if project_name and parent_id:
             result.extend(await get_list_attribute_columns(project_name, parent_id))
         if project_name:
@@ -1062,7 +1079,11 @@ class EntityListExportImportModel(EntityExportImport):
         """
         if field_names is None:
             fields = await cls.fields()
-            field_names = [field.key for field in fields]
+            field_names = [
+                field.key
+                for field in fields
+                if field.key not in IMPORT_ONLY_COLUMNS | {"name"}
+            ]
 
         where = ""
         if entity_ids:
@@ -1120,11 +1141,15 @@ async def get_list_attribute_columns(
     return columns
 
 
+# list entity types whose entities have a name to match rows by
+NAME_MATCHED_LIST_TYPES = ("folder", "task", "product")
+
+
 class EntityListItemsImport:
     """Adds entities to lists and sets item attributes during one import.
 
-    Lists are loaded once and changed in memory, save() writes each
-    changed list once, so a preview never touches the database.
+    Lists are loaded (or created) once and changed in memory, save() writes
+    each changed list once, so a preview never touches the database.
     """
 
     def __init__(self, project_name: str, user: UserEntity):
@@ -1133,6 +1158,8 @@ class EntityListItemsImport:
         self._lists: dict[str, EntityList] = {}
         self._item_ids: dict[str, dict[str, str]] = {}
         self._changed: set[str] = set()
+        self._ids_by_name: dict[str, dict[str, list[str]]] = {}
+        self.created_list_id: str | None = None
 
     async def get_list(self, entity_list_id: str | None) -> EntityList:
         if not entity_list_id:
@@ -1148,18 +1175,32 @@ class EntityListItemsImport:
             }
         return self._lists[entity_list_id]
 
-    async def get_entity_id(
+    async def create_list(
+        self, label: str, entity_type: ProjectLevelEntityType
+    ) -> EntityList:
+        """Start a new list, save() stores it if it got any items."""
+        entity_list = await EntityList.construct(
+            self.project_name, entity_type, label, user=self.user
+        )
+        self._lists[entity_list.id] = entity_list
+        self._item_ids[entity_list.id] = {}
+        self.created_list_id = entity_list.id
+        return entity_list
+
+    async def get_entity_ids(
         self,
         entity_list: EntityList,
         entity_id: str | None,
         folder_path: str | None,
-    ) -> str:
-        """Return the id of the entity a row lists, given its id or path."""
-        if not entity_id:
-            if not folder_path:
-                raise BadRequestException(
-                    "At least one of 'entity_id', or 'folder_path' must be provided."
-                )
+        name: str | None,
+        allow_many: bool = False,
+    ) -> list[str]:
+        """Return the ids of the entities a row lists, by id, path or name.
+
+        A name matching several entities is an error unless allow_many is set.
+        """
+        list_type = entity_list.entity_type
+        if not entity_id and folder_path:
             # folder paths might be folders or tasks
             try:
                 entity_id = await get_entity_id_by_path(
@@ -1173,18 +1214,42 @@ class EntityListItemsImport:
                         self.project_name, folder_path, is_task=True
                     )
                 except NotFoundException:
-                    raise NotFoundException(
+                    raise RowSkippedException(
                         f"No folder or task with path '{folder_path}'"
                     ) from None
 
-        list_type = entity_list.entity_type
-        try:
-            await get_entity_class(list_type).load(self.project_name, entity_id)
-        except NotFoundException:
-            raise NotFoundException(
-                f"Entity with id '{entity_id}' not found for type '{list_type}'"
+        if entity_id:
+            try:
+                await get_entity_class(list_type).load(self.project_name, entity_id)
+            except NotFoundException:
+                raise NotFoundException(
+                    f"Entity with id '{entity_id}' not found for type '{list_type}'"
+                )
+            return [entity_id]
+
+        if not name:
+            raise BadRequestException("No entity path, name or id to find the entity")
+        if list_type not in NAME_MATCHED_LIST_TYPES:
+            raise BadRequestException(
+                f"{list_type.capitalize()}s can't be matched by name, "
+                "map an Entity Id column"
             )
-        return entity_id
+        if list_type not in self._ids_by_name:
+            index: dict[str, list[str]] = {}
+            table = f"project_{self.project_name}.{list_type}s"
+            for record in await Postgres.fetch(f"SELECT id, name FROM {table}"):
+                index.setdefault(record["name"], []).append(record["id"])
+            self._ids_by_name[list_type] = index
+
+        ids = self._ids_by_name[list_type].get(name, [])
+        if not ids:
+            raise RowSkippedException(f"No {list_type} named '{name}'")
+        if len(ids) > 1 and not allow_many:
+            raise BadRequestException(
+                f"Name '{name}' matches {len(ids)} {list_type}s, "
+                "map an Entity path column or choose to add all of them"
+            )
+        return ids
 
     def get_item_id(self, entity_list: EntityList, entity_id: str) -> str | None:
         return self._item_ids[entity_list.id].get(entity_id)
@@ -1205,6 +1270,9 @@ class EntityListItemsImport:
         self._changed.add(entity_list.id)
 
     async def save(self) -> None:
+        if self.created_list_id not in self._changed:
+            # nothing was added to the new list, so it isn't created
+            self.created_list_id = None
         for entity_list_id in self._changed:
             entity_list = self._lists[entity_list_id]
             entity_list.normalize_positions()

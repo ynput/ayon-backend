@@ -20,6 +20,7 @@ from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.utils import MAX_BODY_LENGTH
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import FolderEntity, ProjectEntity, TaskEntity, UserEntity
+from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.enum.enum_registry import EnumRegistry
@@ -47,6 +48,7 @@ from .common import (
     SENDER_TYPE,
     ImportEntityType,
     ProjectNameQuery,
+    RowSkippedException,
     get_entity_id_by_path,
 )
 from .models import (
@@ -165,6 +167,8 @@ async def import_data(
         Literal["folder", "task"] | None,
         Query(alias="entity_type"),
     ] = None,
+    new_list_label: str | None = None,
+    new_list_entity_type: ProjectLevelEntityType | None = None,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
@@ -187,6 +191,8 @@ async def import_data(
             matches several folders or tasks (skip the row, update all of them)
         rows_entity_type: For hierarchy imports, every row is a folder or a task
             and no entity type column is needed
+        new_list_label: For list items, create a new list with this label and
+            import into it (with new_list_entity_type) instead of folder_id
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -253,10 +259,21 @@ async def import_data(
         required_fields = [key for key in required_fields if key != "entity_type"]
     existing_identifiers: set[tuple[str, ...]] = set()
     list_items: EntityListItemsImport | None = None
+    new_list: EntityList | None = None
     if import_type == "entity_list_item":
         if not project_name:
             raise BadRequestException("Project name is required to import list items")
         list_items = EntityListItemsImport(project_name, user)
+        if new_list_label:
+            if folder_id:
+                raise BadRequestException("Import into a list or a new list, not both")
+            if not new_list_entity_type:
+                raise BadRequestException("The new list needs an entity type")
+            if update_only:
+                raise BadRequestException("A new list can only get new items")
+            new_list = await list_items.create_list(
+                new_list_label.strip(), new_list_entity_type
+            )
     elif import_type != "hierarchy":
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
@@ -389,36 +406,47 @@ async def import_data(
             row_values = dict(import_entity_data)
 
             if list_items is not None:
-                entity_list = await list_items.get_list(
+                entity_list = new_list or await list_items.get_list(
                     folder_id or import_entity_data.get("entity_list_id")
                 )
                 entity_type = entity_list.entity_type
-                listed_id = await list_items.get_entity_id(
+                listed_ids = await list_items.get_entity_ids(
                     entity_list,
                     import_entity_data.get("entity_id"),
                     import_entity_data.get("folder_path"),
+                    import_entity_data.get("name"),
+                    update_all_duplicates,
                 )
                 attrib = _json_ready(import_entity_data.get("attrib") or {})
-                item_id = list_items.get_item_id(entity_list, listed_id)
-                if item_id:
-                    if existing_strategy != ExistingItemStrategy.UPDATE:
-                        raise BadRequestException("Item is already in the list")
-                    if attrib:
-                        await list_items.update(entity_list, item_id, attrib)
-                        import_status.updated += 1
-                    elif not comment:
-                        raise RowSkippedException("Already in the list")
-                elif update_only:
-                    raise RowSkippedException(f"The {entity_type} is not in the list")
-                else:
-                    await list_items.add(entity_list, listed_id, attrib)
-                    import_status.created += 1
+                added = updated = commented = 0
+                for listed_id in listed_ids:
+                    item_id = list_items.get_item_id(entity_list, listed_id)
+                    if item_id:
+                        if existing_strategy != ExistingItemStrategy.UPDATE:
+                            raise BadRequestException("Item is already in the list")
+                        if attrib:
+                            await list_items.update(entity_list, item_id, attrib)
+                            updated += 1
+                    elif update_only:
+                        continue
+                    else:
+                        await list_items.add(entity_list, listed_id, attrib)
+                        added += 1
+                    if comment:
+                        pending_comments.append(
+                            (entity_type, listed_id, comment, comment_category)
+                        )
+                        commented += 1
 
-                if comment:
-                    pending_comments.append(
-                        (entity_type, listed_id, comment, comment_category)
+                if not (added or updated or commented):
+                    raise RowSkippedException(
+                        f"The {entity_type} is not in the list"
+                        if update_only
+                        else "Already in the list"
                     )
-                    import_status.comments += 1
+                import_status.created += added
+                import_status.updated += updated
+                import_status.comments += commented
                 unprocessed -= 1
                 continue
 
@@ -652,6 +680,7 @@ async def import_data(
     if not preview and list_items is not None and committed:
         try:
             await list_items.save()
+            import_status.entity_list_id = list_items.created_list_id
         except Exception as exp:
             log_traceback(f"Failed to save imported list items: {exp}")
             import_status.failed_items["list"] = f"Saving the list failed: {exp}"
@@ -785,10 +814,6 @@ async def _get_match_keys(
             value_mapping=value_mapping_by_key.get(mapping.target_key),
         )
     return keys.get("path") or None, keys.get("name") or None
-
-
-class RowSkippedException(Exception):
-    """A row is skipped on purpose, e.g. update-only and no match."""
 
 
 def _has_changes(
@@ -1588,7 +1613,7 @@ def _to_bool(value: Any) -> bool:
 
 async def _prepare_status_summary(
     import_status: ImportStatus,
-) -> dict[str, int | str | dict[str, Any]]:
+) -> dict[str, int | str | dict[str, Any] | None]:
     """Returns field from model as dictionary."""
     return {
         "created": import_status.created,
@@ -1598,6 +1623,7 @@ async def _prepare_status_summary(
         "phase": import_status.phase,
         "failedItems": import_status.failed_items,
         "skippedItems": import_status.skipped_items,
+        "entityListId": import_status.entity_list_id,
         "comments": import_status.comments,
     }
 
