@@ -130,6 +130,8 @@ async def _create_new_bundle(
         )
 
     data = bundle.to_data().model_dump(by_alias=False)
+    if data["description"] is None:
+        data.pop("description")
 
     query = """
         INSERT INTO bundles
@@ -446,6 +448,8 @@ async def update_bundle(
             bundle.description = patch.description
 
         data = bundle.to_data(stored_data).model_dump(by_alias=False)
+        if data["description"] is None:
+            data.pop("description")
 
         if patch.is_archived is not None:
             bundle.is_archived = patch.is_archived
