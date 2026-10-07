@@ -171,6 +171,7 @@ async def import_data(
     ] = None,
     new_list_label: str | None = None,
     new_list_entity_type: ProjectLevelEntityType | None = None,
+    update_listed_entities: bool = False,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
@@ -179,8 +180,9 @@ async def import_data(
 
     Parses the CSV file and creates/updates entities based on the data.
     Supports importing users, folders, tasks, or hierarchies (combined).
-    For new entity list items, mapped `attrib.<name>` values are stored on the
-    list item rather than modifying the referenced entity.
+    For list items, attribute values are stored on the list items (shown only
+    in the list) unless update_listed_entities is set, which updates the
+    listed entities themselves like a hierarchy import does.
 
     Args:
         import_type: Type of entity to import (user, folder, task, hierarchy)
@@ -197,6 +199,9 @@ async def import_data(
             and no entity type column is needed
         new_list_label: For list items, create a new list with this label and
             import into it (with new_list_entity_type) instead of folder_id
+        update_listed_entities: For list items, set the values (status,
+            attributes, ...) on the listed entities. Otherwise attribute values
+            are stored on the list items and other entity values are ignored.
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -438,25 +443,31 @@ async def import_data(
                     update_all_duplicates,
                 )
                 row_attrib = import_entity_data.get("attrib") or {}
-                attrib = _json_ready(
-                    {
+                entity_changes: dict[str, Any] = {}
+                if update_listed_entities:
+                    # list attributes go to the item, the rest to the entity
+                    attrib = _json_ready(
+                        {
+                            key: value
+                            for key, value in row_attrib.items()
+                            if f"attrib.{key}" in list_attribute_keys
+                        }
+                    )
+                    entity_changes = {
+                        key: value
+                        for key, value in import_entity_data.items()
+                        if key in LISTED_ENTITY_FIELDS
+                    }
+                    entity_attrib = {
                         key: value
                         for key, value in row_attrib.items()
-                        if f"attrib.{key}" in list_attribute_keys
+                        if f"attrib.{key}" not in list_attribute_keys
                     }
-                )
-                entity_changes: dict[str, Any] = {
-                    key: value
-                    for key, value in import_entity_data.items()
-                    if key in LISTED_ENTITY_FIELDS
-                }
-                entity_attrib = {
-                    key: value
-                    for key, value in row_attrib.items()
-                    if f"attrib.{key}" not in list_attribute_keys
-                }
-                if entity_attrib:
-                    entity_changes["attrib"] = entity_attrib
+                    if entity_attrib:
+                        entity_changes["attrib"] = entity_attrib
+                else:
+                    # every attribute is stored on the item, shown only in the list
+                    attrib = _json_ready(row_attrib)
 
                 # entity updates are counted per entity once merged, see below
                 added = updated = commented = entities_changed = 0
