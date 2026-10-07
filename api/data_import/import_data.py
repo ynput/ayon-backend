@@ -7,6 +7,7 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 
 import csv
 import io
+import re
 import time
 from collections import Counter
 from datetime import datetime
@@ -1211,7 +1212,7 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
 
     # Convert value based on column type
     if importable_column.value_type == "datetime":
-        return datetime.fromisoformat(value)
+        return _parse_datetime(value)
     elif importable_column.value_type == "float":
         return float(value)
     elif importable_column.value_type == "integer":
@@ -1221,6 +1222,51 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
     else:
         # Handle string or None value_type - return value as-is
         return value
+
+
+_DATE_RE = re.compile(
+    r"^(\d{1,4})[./-](\d{1,2})[./-](\d{1,4})"
+    r"(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$"
+)
+
+
+def _parse_datetime(value: str) -> datetime:
+    """Parse an imported date: ISO, or numbers separated by dots, slashes or dashes.
+
+    The import dialog converts dates to ISO itself (it detects the day/month
+    order per column), this is the fallback for other clients: year first,
+    or day first, except with slashes, which are month first (10/1/2026 is
+    October 1) unless the first number can only be a day.
+    """
+    value = value.strip()
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        pass
+
+    match = _DATE_RE.match(value)
+    if not match:
+        raise BadRequestException(f"Invalid date '{value}'")
+    first, middle, last, hours, minutes, seconds = match.groups()
+    if len(first) == 4:
+        year, month, day = int(first), int(middle), int(last)
+    elif len(first) <= 2 and len(last) in (2, 4):
+        year = int(last) if len(last) == 4 else 2000 + int(last)
+        if len(last) == 2 and int(last) >= 70:
+            year -= 100
+        month_first = "/" in value and int(first) <= 12
+        month, day = int(first), int(middle)
+        if not month_first:
+            month, day = day, month
+    else:
+        raise BadRequestException(f"Invalid date '{value}'")
+
+    try:
+        return datetime(
+            year, month, day, int(hours or 0), int(minutes or 0), int(seconds or 0)
+        )
+    except ValueError:
+        raise BadRequestException(f"Invalid date '{value}'") from None
 
 
 async def _validate_enum_value(
