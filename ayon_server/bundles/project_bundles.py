@@ -176,7 +176,8 @@ async def freeze_project_bundle(
             is_production = FALSE,
             is_staging = FALSE,
             is_dev = FALSE,
-            data = bundles.data || EXCLUDED.data
+            data = bundles.data || EXCLUDED.data,
+            updated_at = NOW()
     """
 
     events = []

@@ -113,12 +113,19 @@ async def _create_new_bundle(
 
     # Clear constrained values if they are being updated
     if bundle.is_production:
-        await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+        await Postgres.execute(
+            "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+            " WHERE is_production = TRUE"
+        )
     if bundle.is_staging:
-        await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+        await Postgres.execute(
+            "UPDATE bundles SET is_staging = FALSE, updated_at = NOW()"
+            " WHERE is_staging = TRUE"
+        )
     if bundle.active_user:
         await Postgres.execute(
-            "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+            "UPDATE bundles SET active_user = NULL, updated_at = NOW()"
+            " WHERE active_user = $1",
             bundle.active_user,
         )
 
@@ -348,7 +355,8 @@ async def update_bundle(
             logger.debug(f"Updating dev bundle {bundle.name}")
             if "active_user" in patch.model_dump(exclude_unset=True, by_alias=False):
                 await Postgres.execute(
-                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+                    "UPDATE bundles SET active_user = NULL, updated_at = NOW()"
+                    " WHERE active_user = $1",
                     patch.active_user,
                 )
                 bundle.active_user = patch.active_user
@@ -447,12 +455,18 @@ async def update_bundle(
 
         if patch.is_production is not None:
             if patch.is_production:
-                await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+                await Postgres.execute(
+                    "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+                    " WHERE is_production = TRUE"
+                )
             bundle.is_production = patch.is_production
 
         if patch.is_staging is not None:
             if patch.is_staging:
-                await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+                await Postgres.execute(
+                    "UPDATE bundles SET is_staging = FALSE, updated_at = NOW()"
+                    " WHERE is_staging = TRUE"
+                )
             bundle.is_staging = patch.is_staging
 
         # Update the bundle
@@ -466,7 +480,8 @@ async def update_bundle(
                 is_staging = $3,
                 is_dev = $4,
                 active_user = $5,
-                is_archived = $6
+                is_archived = $6,
+                updated_at = NOW()
             WHERE name = $7
             """,
             data,
