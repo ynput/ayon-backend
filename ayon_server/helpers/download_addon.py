@@ -24,7 +24,7 @@ async def download_addon(
             if not any(url.startswith(prefix) for prefix in allowed_prefixes):
                 raise ForbiddenException("Custom addons uploads are not allowed")
 
-    hash = hashlib.sha256(f"addon_install_{url}".encode()).hexdigest()
+    hash = hashlib.sha256(f"addon_install_{url.split('?')[0]}".encode()).hexdigest()
 
     query = """
         SELECT id FROM public.events
