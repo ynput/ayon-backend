@@ -19,6 +19,7 @@ def process_attrib_data(
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
+    apply_inheritance: bool = True,
 ) -> dict[str, Any]:
     attr_limit: list[str] | Literal["all"] = []
 
@@ -47,8 +48,9 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    data = own_attrib or {}
-    if entity_type in {"folder", "task"}:
+    # Copy, so the caller's dict (often a node's own attributes) stays as it was
+    data = dict(own_attrib or {})
+    if apply_inheritance and entity_type in {"folder", "task"}:
         # Apply inherited and project attributes for folders and tasks
         # (other entities do not inherit attributes)
         if inherited_attrib is not None:

@@ -31,7 +31,6 @@ class EntityListItemEdge(BaseEdge):
     entity_id: str = strawberry.field()
     position: int = strawberry.field(default=0)
 
-    attrib: str = strawberry.field(default="{}")
     folder_path: str = strawberry.field(default="")
 
     tags: list[str] = strawberry.field(default_factory=list)
@@ -47,11 +46,30 @@ class EntityListItemEdge(BaseEdge):
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+    _list_attributes: strawberry.Private[dict[str, str]]  # list attribute types
     _user: strawberry.Private[UserEntity]
 
     @strawberry.field()
-    def all_attrib(self, info: Info) -> str:
-        """All attributes field is a JSON string."""
+    def attrib(self) -> str:
+        """Values set on the list item itself, without the entity's values.
+
+        JSON string. Contains the list's own attributes and values of
+        the entity's attributes that the list overrides.
+        """
+        return json_dumps(
+            process_attrib_data(
+                self.entity_type,
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                list_attribute_config=self._list_attributes,
+                apply_inheritance=False,
+            )
+        )
+
+    @strawberry.field()
+    def all_attrib(self) -> str:
+        """Entity attributes with the list item values over them (JSON string)."""
         if self._entity is None:
             return "{}"
 
@@ -67,25 +85,22 @@ class EntityListItemEdge(BaseEdge):
             if hasattr(self._entity, "_attrib"):
                 own_attrib = self._entity._attrib or {}
 
-        own_attrib.update(self._attrib or {})
-
         return json_dumps(
             process_attrib_data(
                 self.entity_type,
-                own_attrib,
+                {**own_attrib, **(self._attrib or {})},
                 user=self._user,
                 project_name=self.project_name,
                 inherited_attrib=inherited_attrib,
                 project_attrib=project_attrib,
-                list_attribute_config=info.context.get("list_attributes"),
+                list_attribute_config=self._list_attributes,
             )
         )
 
     @strawberry.field()
-    def own_attrib(self, info: Info) -> list[str]:
-        """Own attributes field is a JSON string."""
-        configured_keys = info.context.get("list_attributes") or {}
-        return [key for key in self._attrib.keys() if key in configured_keys]
+    def own_attrib(self) -> list[str]:
+        """Names of the list's own attributes set on this item."""
+        return [key for key in self._attrib.keys() if key in self._list_attributes]
 
     @strawberry.field()
     def data(self) -> str:
@@ -160,6 +175,9 @@ class EntityListItemEdge(BaseEdge):
             cursor=record["cursor"],
             _data=record["data"],
             _attrib=record["attrib"],
+            _list_attributes=context.get("list_attributes", {}).get(
+                record["entity_list_id"], {}
+            ),
             _entity=entity,
             _forbidden=node_access_forbidden,
             _user=context["user"],
