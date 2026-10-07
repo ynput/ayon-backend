@@ -179,6 +179,8 @@ async def import_data(
 
     Parses the CSV file and creates/updates entities based on the data.
     Supports importing users, folders, tasks, or hierarchies (combined).
+    For new entity list items, mapped `attrib.<name>` values are stored on the
+    list item rather than modifying the referenced entity.
 
     Args:
         import_type: Type of entity to import (user, folder, task, hierarchy)
@@ -221,6 +223,9 @@ async def import_data(
         # This technically should not happen as project_name is required
         # for folder/task imports, but we check anyway
         raise ForbiddenException("You must be a manager to import data")
+
+    if import_type == "entity_list_item" and project_name is None:
+        raise BadRequestException("Project name is required for list item imports")
 
     update_only = missing_strategy == MissingItemStrategy.SKIP
     update_all_duplicates = duplicate_strategy == DuplicateItemStrategy.ALL
@@ -1534,8 +1539,8 @@ async def _resolve_entity_id(
             break
         identifier = (*identifier, str(val))
 
-    if identifier in existing_identifiers:
-        return identifier[0]  # Return the identifier
+    if identifier and identifier in existing_identifiers:
+        return identifier[0]
 
     # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:
