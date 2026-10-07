@@ -18,7 +18,13 @@ from pydantic.fields import FieldInfo, ModelField
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.attributes.models import AttributeData
-from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
+from ayon_server.entities import (
+    FolderEntity,
+    ProductEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
+)
 from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
@@ -406,6 +412,7 @@ class EntityExportImport:
         cls,
         project_name: str | None = None,
         parent_id: str | None = None,
+        list_entity_type: str | None = None,
     ) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
@@ -722,6 +729,24 @@ class TaskExportImportModel(EntityExportImport):
     _comment_columns = True
 
 
+class ProductExportImportModel(EntityExportImport):
+    """Fields of products, for importing their values through a list."""
+
+    _entity_model = ProductEntity
+    _table_name = "project_{project_name}.products"
+    _unique_fields = ["id"]
+    _parent_column_name = "folder_id"
+
+
+class VersionExportImportModel(EntityExportImport):
+    """Fields of versions, for importing their values through a list."""
+
+    _entity_model = VersionEntity
+    _table_name = "project_{project_name}.versions"
+    _unique_fields = ["id"]
+    _parent_column_name = "product_id"
+
+
 class FolderTaskExportImportModel(EntityExportImport):
     """Model for exporting tasks with folder path information.
 
@@ -743,6 +768,7 @@ class FolderTaskExportImportModel(EntityExportImport):
         cls,
         project_name: str | None = None,
         parent_id: str | None = None,
+        list_entity_type: str | None = None,
     ) -> list[ImportableColumn]:
         """Return task fields including folder_path.
 
@@ -999,6 +1025,7 @@ class EntityListExportImportModel(EntityExportImport):
         cls,
         project_name: str | None = None,
         parent_id: str | None = None,
+        list_entity_type: str | None = None,
     ) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
@@ -1051,8 +1078,23 @@ class EntityListExportImportModel(EntityExportImport):
             )
         )
 
+        entity_type = list_entity_type
         if project_name and parent_id:
+            list_record = await Postgres.fetchrow(
+                f"SELECT entity_type FROM project_{project_name}.entity_lists "
+                "WHERE id = $1",
+                parent_id,
+            )
+            if list_record:
+                entity_type = list_record["entity_type"]
             result.extend(await get_list_attribute_columns(project_name, parent_id))
+        if project_name and entity_type:
+            known = {column.key for column in result}
+            result.extend(
+                column
+                for column in await get_listed_entity_columns(project_name, entity_type)
+                if column.key not in known
+            )
         if project_name:
             result.extend(await get_comment_columns(project_name))
 
@@ -1143,6 +1185,39 @@ async def get_list_attribute_columns(
 
 # list entity types whose entities have a name to match rows by
 NAME_MATCHED_LIST_TYPES = ("folder", "task", "product")
+
+# Fields a list import sets on the listed entities themselves, besides their
+# attributes. Names, parents and version numbers are not changed by a list.
+LISTED_ENTITY_FIELDS = {
+    "label",
+    "status",
+    "tags",
+    "assignees",
+    "active",
+    "folder_type",
+    "task_type",
+    "product_type",
+}
+
+
+async def get_listed_entity_columns(
+    project_name: str, entity_type: str
+) -> list[ImportableColumn]:
+    """Columns for the values of the entities a list holds."""
+    models: dict[str, type[EntityExportImport]] = {
+        "folder": FolderExportImportModel,
+        "task": TaskExportImportModel,
+        "product": ProductExportImportModel,
+        "version": VersionExportImportModel,
+    }
+    model = models.get(entity_type)
+    if model is None:
+        return []
+    return [
+        column.copy(update={"required": False})
+        for column in await model.fields(project_name=project_name)
+        if column.key in LISTED_ENTITY_FIELDS or column.key.startswith("attrib.")
+    ]
 
 
 class EntityListItemsImport:

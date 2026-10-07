@@ -55,6 +55,7 @@ from .models import (
     COMMENT_CATEGORY_COLUMN,
     COMMENT_COLUMN,
     HIERARCHY_UNIFIED_COLUMN,
+    LISTED_ENTITY_FIELDS,
     ColumnMapping,
     ColumnValueMapping,
     DuplicateItemStrategy,
@@ -70,6 +71,7 @@ from .models import (
     MissingItemStrategy,
     TaskExportImportModel,
     UserExportImportModel,
+    get_list_attribute_columns,
 )
 from .router import router
 
@@ -252,7 +254,11 @@ async def import_data(
     hierarchy_existing_identifiers: dict[str, set[tuple[str, ...]]] = {}
 
     # For non-hierarchy types, get fields and existing identifiers upfront
-    fields = await model_cls.fields(project_name=project_name, parent_id=folder_id)
+    fields = await model_cls.fields(
+        project_name=project_name,
+        parent_id=folder_id,
+        list_entity_type=new_list_entity_type,
+    )
     # required fields are needed to create entities, updates only need a match
     required_fields = [] if update_only else [f.key for f in fields if f.required]
     if rows_entity_type:
@@ -260,6 +266,8 @@ async def import_data(
     existing_identifiers: set[tuple[str, ...]] = set()
     list_items: EntityListItemsImport | None = None
     new_list: EntityList | None = None
+    # list attributes go to the list items, other values to the listed entities
+    list_attribute_keys: set[str] = set()
     if import_type == "entity_list_item":
         if not project_name:
             raise BadRequestException("Project name is required to import list items")
@@ -274,6 +282,11 @@ async def import_data(
             new_list = await list_items.create_list(
                 new_list_label.strip(), new_list_entity_type
             )
+        elif folder_id:
+            list_attribute_keys = {
+                column.key
+                for column in await get_list_attribute_columns(project_name, folder_id)
+            }
     elif import_type != "hierarchy":
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
@@ -314,7 +327,9 @@ async def import_data(
     initial_model_cls = IMPORTABLE_ENTITIES[import_type]
     if initial_model_cls not in fields_cache:
         fields_cache[initial_model_cls] = await initial_model_cls.fields(
-            project_name=project_name, parent_id=folder_id
+            project_name=project_name,
+            parent_id=folder_id,
+            list_entity_type=new_list_entity_type,
         )
     initial_fields = fields_cache[initial_model_cls]
     entity_type_importable_column_by_key = {ic.key: ic for ic in initial_fields}
@@ -417,8 +432,29 @@ async def import_data(
                     import_entity_data.get("name"),
                     update_all_duplicates,
                 )
-                attrib = _json_ready(import_entity_data.get("attrib") or {})
-                added = updated = commented = 0
+                row_attrib = import_entity_data.get("attrib") or {}
+                attrib = _json_ready(
+                    {
+                        key: value
+                        for key, value in row_attrib.items()
+                        if f"attrib.{key}" in list_attribute_keys
+                    }
+                )
+                entity_changes: dict[str, Any] = {
+                    key: value
+                    for key, value in import_entity_data.items()
+                    if key in LISTED_ENTITY_FIELDS
+                }
+                entity_attrib = {
+                    key: value
+                    for key, value in row_attrib.items()
+                    if f"attrib.{key}" not in list_attribute_keys
+                }
+                if entity_attrib:
+                    entity_changes["attrib"] = entity_attrib
+
+                # entity updates are counted per entity once merged, see below
+                added = updated = commented = entities_changed = 0
                 for listed_id in listed_ids:
                     item_id = list_items.get_item_id(entity_list, listed_id)
                     if item_id:
@@ -432,13 +468,19 @@ async def import_data(
                     else:
                         await list_items.add(entity_list, listed_id, attrib)
                         added += 1
+                    if entity_changes and operations is not None:
+                        _merge_update(
+                            pending_updates.setdefault((entity_type, listed_id), {}),
+                            entity_changes,
+                        )
+                        entities_changed += 1
                     if comment:
                         pending_comments.append(
                             (entity_type, listed_id, comment, comment_category)
                         )
                         commented += 1
 
-                if not (added or updated or commented):
+                if not (added or updated or commented or entities_changed):
                     raise RowSkippedException(
                         f"The {entity_type} is not in the list"
                         if update_only
