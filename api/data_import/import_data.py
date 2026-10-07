@@ -10,9 +10,9 @@ import io
 import time
 from collections import Counter
 from datetime import datetime
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
-from fastapi import Body, Request
+from fastapi import Body, Query, Request
 
 from ayon_server.activities import create_activity
 from ayon_server.activities.activity_categories import ActivityCategories
@@ -160,6 +160,10 @@ async def import_data(
     existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
     missing_strategy: MissingItemStrategy = MissingItemStrategy.CREATE,
     duplicate_strategy: DuplicateItemStrategy = DuplicateItemStrategy.SKIP,
+    rows_entity_type: Annotated[
+        Literal["folder", "task"] | None,
+        Query(alias="entity_type"),
+    ] = None,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
@@ -180,6 +184,8 @@ async def import_data(
             or by name when there is no path, and entity type is optional.
         duplicate_strategy: With missing_strategy skip, what to do when a name
             matches several folders or tasks (skip the row, update all of them)
+        rows_entity_type: For hierarchy imports, every row is a folder or a task
+            and no entity type column is needed
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -242,6 +248,8 @@ async def import_data(
     fields = await model_cls.fields(project_name=project_name, parent_id=folder_id)
     # required fields are needed to create entities, updates only need a match
     required_fields = [] if update_only else [f.key for f in fields if f.required]
+    if rows_entity_type:
+        required_fields = [key for key in required_fields if key != "entity_type"]
     existing_identifiers: set[tuple[str, ...]] = set()
     list_items: EntityListItemsImport | None = None
     if import_type == "entity_list_item":
@@ -325,7 +333,7 @@ async def import_data(
             if import_type == "entity_list_item":
                 entity_cls: type[Any] = EntityListItemModel
             elif import_type == "hierarchy":
-                row_entity_type = await _get_entity_type(
+                row_entity_type = rows_entity_type or await _get_entity_type(
                     project_name,
                     row,
                     column_mapping,
@@ -363,7 +371,13 @@ async def import_data(
                 )
             fields = fields_cache[model_cls]
             await _remap_row(
-                project_name, header, import_entity_data, row, fields, column_mapping
+                project_name,
+                header,
+                import_entity_data,
+                row,
+                fields,
+                column_mapping,
+                entity_type=entity_type if import_type == "hierarchy" else None,
             )
             comment = import_entity_data.pop(COMMENT_COLUMN, None)
             comment_category = import_entity_data.pop(COMMENT_CATEGORY_COLUMN, None)
@@ -1097,6 +1111,7 @@ async def _remap_row(
     row: dict[str, Any],
     fields: list[ImportableColumn],
     column_mapping: list[ColumnMapping],
+    entity_type: str | None = None,
 ) -> None:
     """Remap CSV row data to match target schema based on column mapping.
 
@@ -1106,6 +1121,8 @@ async def _remap_row(
         row: CSV row data
         fields: Available importable columns
         column_mapping: User-defined column mappings
+        entity_type: Known entity type of a hierarchy row, used to read a
+            combined folder/task type column without an entity type column
     """
     # Create lookup dictionaries for efficient access
     source_mapping_by_key = {mapping.source_key: mapping for mapping in column_mapping}
@@ -1127,7 +1144,9 @@ async def _remap_row(
             continue
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
-        if column_name == HIERARCHY_UNIFIED_COLUMN:
+        if column_name == HIERARCHY_UNIFIED_COLUMN and entity_type:
+            column_name = f"{entity_type}_type"
+        elif column_name == HIERARCHY_UNIFIED_COLUMN:
             mapping_for_entity_type = target_mapping_by_key.get("entity_type")
             if mapping_for_entity_type is None:
                 raise BadRequestException(
