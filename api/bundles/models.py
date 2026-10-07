@@ -1,22 +1,30 @@
 import re
 from datetime import datetime
-from typing import Any
 
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, RootModel, field_validator
 
 from ayon_server.logging import logger
 from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
 from ayon_server.utils import camelize
 
-dependency_packages_meta: dict[str, Any] = {
-    "title": "Dependency packages",
-    "description": "mapping of platform:dependency_package_filename",
-    "example": {
-        "windows": "a_windows_package123.zip",
-        "linux": "a_linux_package123.zip",
-        "darwin": "a_mac_package123.zip",
-    },
-}
+
+class DependencyPackagesModel(RootModel[dict[Platform, str | None]]):
+    """Mapping of platforms to dependency package filenames."""
+
+    model_config = ConfigDict(
+        title="Dependency packages",
+        json_schema_extra={
+            "examples": [
+                {
+                    "windows": "a_windows_package123.zip",
+                    "linux": "a_linux_package123.zip",
+                    "darwin": "a_mac_package123.zip",
+                }
+            ]
+        },
+    )
+
+    root: dict[Platform, str | None] = Field(default_factory=dict)
 
 
 class BaseBundleModel(OPModel):
@@ -66,9 +74,8 @@ class BundleDataModel(BaseBundleModel):
         return value
 
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] = Field(
-        default_factory=dict,
-        **dependency_packages_meta,
+    dependency_packages: DependencyPackagesModel = Field(
+        default_factory=DependencyPackagesModel,
     )
     addon_development: dict[str, AddonDevelopmentItem] = Field(
         default_factory=dict,
@@ -143,10 +150,7 @@ class BundlePatchModel(BaseBundleModel):
         return value
 
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] | None = Field(
-        None,
-        **dependency_packages_meta,
-    )
+    dependency_packages: DependencyPackagesModel | None = Field(None)
     is_production: bool | None = Field(None, example=False)
     is_staging: bool | None = Field(None, example=False)
     is_archived: bool | None = Field(None, example=False)

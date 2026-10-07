@@ -306,7 +306,7 @@ async def update_bundle(
                 )
                 installer_version = None
 
-        dependency_packages = dict(stored_data.dependency_packages)
+        dependency_packages = dict(stored_data.dependency_packages.root)
         if dependency_packages:
             existing_dependency_packages = await list_dependency_packages()
             for platform, filename in list(dependency_packages.items()):
