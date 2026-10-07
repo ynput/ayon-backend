@@ -1,0 +1,43 @@
+--
+-- Add blobs table to all project schemas
+--
+-- Stores metadata of binary payloads saved by addons
+-- using BlobStorage. Payloads live in the project storage.
+--
+
+-- DO $$
+-- DECLARE rec RECORD;
+-- BEGIN
+--   FOR rec IN
+--     SELECT ns.nspname AS project_schema
+--     FROM pg_namespace ns
+--     LEFT JOIN pg_class cl
+--       ON cl.relnamespace = ns.oid
+--       AND cl.relname = 'blobs'
+--     WHERE
+--       ns.nspname LIKE 'project_%'
+--       AND cl.oid IS NULL
+--     LOOP
+--         BEGIN
+--           RAISE WARNING 'Adding blobs table to %', rec.project_schema;
+--           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
+--
+--           CREATE TABLE IF NOT EXISTS blobs(
+--             id VARCHAR NOT NULL PRIMARY KEY,
+--             kind VARCHAR NOT NULL,
+--             size BIGINT NOT NULL DEFAULT 0,
+--             data JSONB NOT NULL DEFAULT '{}'::JSONB,
+--             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--             created_by VARCHAR,
+--             updated_by VARCHAR
+--           );
+--
+--           CREATE INDEX IF NOT EXISTS blob_kind_idx ON blobs(kind);
+--
+--         EXCEPTION
+--           WHEN OTHERS THEN
+--              RAISE WARNING 'Skipping schema % due to error: %', rec.project_schema, SQLERRM;
+--         END;
+--     END LOOP;
+-- END $$;

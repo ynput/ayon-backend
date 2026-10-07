@@ -1,7 +1,9 @@
 import os
+import re
 import time
-from collections.abc import AsyncGenerator
-from typing import Any
+import uuid
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any, get_args
 
 import aiocache
 import aiofiles
@@ -24,6 +26,8 @@ from ayon_server.files.s3 import (
     remote_to_s3,
     retrieve_s3_file,
     store_s3_file,
+    store_s3_stream,
+    stream_s3_file,
     upload_s3_file,
 )
 from ayon_server.helpers.cloud import CloudUtils
@@ -34,6 +38,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
+from ayon_server.types import NAME_REGEX
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .common import FileGroup, StorageType
@@ -89,7 +94,7 @@ class ProjectStorage:
     # Common file management methods
 
     async def get_filegroup_dir(self, file_group: FileGroup) -> str:
-        assert file_group in ["uploads", "thumbnails"], "Invalid file group"
+        assert file_group in get_args(FileGroup), "Invalid file group"
         root = await self.get_root()
         project_dirname = self.project_name
         if self.storage_type == "s3":
@@ -105,13 +110,26 @@ class ProjectStorage:
         self,
         file_id: str,
         file_group: FileGroup = "uploads",
+        *,
+        sub_key: str | None = None,
     ) -> str:
         """Return the full path to the file on the storage
 
         In the case of S3, the resulting path is used as the key (relative
         path from the bucket), while in the case of local storage, it's
         the full path to the file on the disk.
+
+        Blobs are stored as `blobs/{sub_key}/{file_id}`, where `sub_key`
+        is the blob kind and `file_id` is an arbitrary name.
         """
+        if file_group == "blobs":
+            for key in (sub_key, file_id):
+                if not (key and re.match(NAME_REGEX, key)):
+                    raise ValueError(f"Invalid blob key: {key}")
+            assert sub_key  # mypy
+            file_group_dir = await self.get_filegroup_dir(file_group)
+            return os.path.join(file_group_dir, sub_key, file_id)
+
         _file_id = file_id.replace("-", "")
         if len(_file_id) != 32:
             raise ValueError(f"Invalid file ID: {file_id}")
@@ -286,6 +304,8 @@ class ProjectStorage:
         self,
         file_id: str,
         file_group: FileGroup = "uploads",
+        *,
+        sub_key: str | None = None,
     ) -> bool:
         """Delete file from the storage if exists
 
@@ -294,7 +314,7 @@ class ProjectStorage:
         files with missing DB records.
         """
 
-        path = await self.get_path(file_id, file_group=file_group)
+        path = await self.get_path(file_id, file_group=file_group, sub_key=sub_key)
         if self.storage_type == "local":
             try:
                 os.remove(path)
@@ -481,6 +501,96 @@ class ProjectStorage:
         """
         logger.debug(f"Deleting thumbnail {thumbnail_id} from {self}")
         await self.unlink(thumbnail_id, file_group="thumbnails")
+
+    # Blob methods
+    # Used by BlobStorage to store arbitrary addon payloads
+
+    async def store_blob(
+        self,
+        kind: str,
+        blob_id: str,
+        payload: bytes | AsyncIterator[bytes],
+    ) -> int:
+        """Store the blob payload in the storage.
+
+        Existing payload is overwritten. Returns the number of bytes written.
+        """
+        logger.debug(f"Storing blob {kind}/{blob_id} to {self}")
+        path = await self.get_path(blob_id, file_group="blobs", sub_key=kind)
+
+        if self.storage_type == "local":
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Write to a temporary file first, so a failed write
+            # does not corrupt the existing payload
+            tmp_path = f"{path}.{uuid.uuid4().hex}.tmp"
+            size = 0
+            try:
+                async with aiofiles.open(tmp_path, "wb") as f:
+                    if isinstance(payload, bytes):
+                        await f.write(payload)
+                        size = len(payload)
+                    else:
+                        async for chunk in payload:
+                            await f.write(chunk)
+                            size += len(chunk)
+                os.replace(tmp_path, path)
+            except BaseException:
+                try:
+                    os.remove(tmp_path)
+                except FileNotFoundError:
+                    pass
+                raise
+            return size
+
+        elif self.storage_type == "s3":
+            if isinstance(payload, bytes):
+                await store_s3_file(self, path, payload)
+                return len(payload)
+            return await store_s3_stream(self, path, payload)
+
+        raise AyonException("Unknown storage type")
+
+    async def get_blob(self, kind: str, blob_id: str) -> bytes:
+        """Retrieve the whole blob payload from the storage.
+
+        Raises `FileNotFoundError` if the payload is not found.
+        """
+        path = await self.get_path(blob_id, file_group="blobs", sub_key=kind)
+        if self.storage_type == "local":
+            async with aiofiles.open(path, "rb") as f:
+                return await f.read()
+        elif self.storage_type == "s3":
+            return await retrieve_s3_file(self, path)
+        raise AyonException("Unknown storage type")
+
+    async def stream_blob(
+        self,
+        kind: str,
+        blob_id: str,
+        chunk_size: int = 1024 * 1024,
+    ) -> AsyncGenerator[bytes]:
+        """Yield the blob payload from the storage in chunks.
+
+        Raises `FileNotFoundError` if the payload is not found.
+        """
+        path = await self.get_path(blob_id, file_group="blobs", sub_key=kind)
+        if self.storage_type == "local":
+            async with aiofiles.open(path, "rb") as f:
+                while chunk := await f.read(chunk_size):
+                    yield chunk
+        elif self.storage_type == "s3":
+            async for chunk in stream_s3_file(self, path, chunk_size):
+                yield chunk
+        else:
+            raise AyonException("Unknown storage type")
+
+    async def delete_blob(self, kind: str, blob_id: str) -> bool:
+        """Delete the blob payload from the storage.
+
+        Fail silently if the payload is not found.
+        """
+        logger.debug(f"Deleting blob {kind}/{blob_id} from {self}")
+        return await self.unlink(blob_id, file_group="blobs", sub_key=kind)
 
     # Trash project storage
     # This is called when a project is deleted

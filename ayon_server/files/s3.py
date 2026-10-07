@@ -1,9 +1,9 @@
 import asyncio
 import os
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 
 import boto3
 import httpx
@@ -133,6 +133,76 @@ async def retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
     return await run_in_threadpool(_retrieve_s3_file, storage, key)
 
 
+def _open_s3_file(storage: "ProjectStorage", key: str) -> Any:
+    client = _get_s3_client(storage)
+    try:
+        response = client.get_object(Bucket=storage.bucket_name, Key=key)
+    except client.exceptions.NoSuchKey as e:
+        raise FileNotFoundError() from e
+    return response["Body"]
+
+
+async def stream_s3_file(
+    storage: "ProjectStorage",
+    key: str,
+    chunk_size: int = 1024 * 1024,
+) -> AsyncGenerator[bytes]:
+    """Yield the content of the S3 object in chunks"""
+    body = await run_in_threadpool(_open_s3_file, storage, key)
+    try:
+        while chunk := await run_in_threadpool(body.read, chunk_size):
+            yield chunk
+    finally:
+        body.close()
+
+
+async def store_s3_stream(
+    storage: "ProjectStorage",
+    key: str,
+    stream: AsyncIterator[bytes],
+) -> int:
+    """Store the content of an async byte iterator as an S3 object
+
+    Payloads smaller than a single multipart chunk are stored
+    using a simple put. Returns the number of bytes written.
+    """
+    buffer_size = 1024 * 1024 * 5
+    buff = bytearray()
+    uploader: S3Uploader | None = None
+    finished_ok = False
+    i = 0
+
+    try:
+        async for chunk in stream:
+            buff += chunk
+            while len(buff) >= buffer_size:
+                if uploader is None:
+                    client = await get_s3_client(storage)
+                    assert storage.bucket_name
+                    uploader = S3Uploader(client, storage.bucket_name)
+                    await uploader.init_file_upload(key)
+                await uploader.push_chunk(buff[:buffer_size])
+                i += buffer_size
+                del buff[:buffer_size]
+
+        if uploader is None:
+            await store_s3_file(storage, key, bytes(buff))
+        else:
+            if buff:
+                await uploader.push_chunk(buff)
+            await uploader.complete()
+        i += len(buff)
+        finished_ok = True
+        return i
+
+    finally:
+        if uploader is not None and not finished_ok:
+            try:
+                await uploader.abort()
+            except Exception:
+                pass
+
+
 def _delete_s3_file(storage: "ProjectStorage", key: str):
     client = _get_s3_client(storage)
     try:
@@ -220,7 +290,7 @@ class FileIterator:
 async def list_s3_files(
     storage: "ProjectStorage", file_group: FileGroup
 ) -> AsyncGenerator[str]:
-    assert file_group in ["uploads", "thumbnails"], "Invalid file group"
+    assert file_group in get_args(FileGroup), "Invalid file group"
     file_iterator = FileIterator(storage, file_group)
     await file_iterator.init_iterator()
     async for key in file_iterator:
