@@ -49,6 +49,10 @@ class BundleModel(BaseBundleModel):
         default_factory=datetime.now,
         example=datetime.now(),
     )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        example=datetime.now(),
+    )
 
     ## patchables
 

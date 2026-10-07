@@ -45,7 +45,7 @@ async def _list_bundles(archived: bool = False):
     query = f"""
         SELECT
             name, is_production, is_staging, is_dev,
-            is_archived, active_user, created_at, data
+            is_archived, active_user, created_at, updated_at, data
         FROM bundles
         {cond}
         ORDER BY created_at DESC
@@ -56,6 +56,7 @@ async def _list_bundles(archived: bool = False):
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
+            updated_at=row["updated_at"],
             addons=data.get("addons", {}),
             installer_version=data.get("installer_version"),
             dependency_packages=data.get("dependency_packages", {}),
@@ -135,8 +136,9 @@ async def _create_new_bundle(
 
     query = """
         INSERT INTO bundles
-        (name, data, is_production, is_staging, is_dev, active_user, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (name, data, is_production, is_staging, is_dev, active_user,
+         created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """
 
     # we ignore is_archived. it does not make sense to create
@@ -151,6 +153,7 @@ async def _create_new_bundle(
         bundle.is_dev,
         bundle.active_user,
         bundle.created_at,
+        bundle.updated_at,
     )
 
     stat = ""
@@ -335,6 +338,7 @@ async def update_bundle(
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
+            updated_at=row["updated_at"],
             addons=addons,
             installer_version=installer_version,
             dependency_packages=dependency_packages,
@@ -594,6 +598,7 @@ async def bundle_actions(
             **row["data"],
             name=row["name"],
             created_at=row["created_at"],
+            updated_at=row["updated_at"],
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
