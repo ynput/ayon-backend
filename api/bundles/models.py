@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import ConfigDict, field_validator
 
 from ayon_server.logging import logger
 from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
@@ -24,6 +24,8 @@ class BaseBundleModel(OPModel):
 
 
 class AddonDevelopmentItem(OPModel):
+    model_config = ConfigDict(extra="allow")
+
     enabled: bool = Field(
         True, example=False, description="Enable/disable addon development"
     )
@@ -32,31 +34,13 @@ class AddonDevelopmentItem(OPModel):
     )
 
 
-class BundleModel(BaseBundleModel):
-    """
-    Model for GET and POST requests
-    """
+class BundleDataModel(BaseBundleModel):
+    """Stored bundle data, including fields from newer server versions."""
 
-    name: str = Field(
-        ...,
-        title="Name",
-        description="Name of the bundle",
-        example="my_superior_bundle",
-        regex=NAME_REGEX,
-    )
+    model_config = ConfigDict(extra="allow")
 
-    created_at: datetime = Field(
-        default_factory=datetime.now,
-        example=datetime.now(),
-    )
-    updated_at: datetime = Field(
-        default_factory=datetime.now,
-        example=datetime.now(),
-    )
-
-    ## patchables
-
-    # data
+    description: str | None = Field(None, title="Description")
+    is_project: bool = Field(False, example=False)
     addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
@@ -65,9 +49,7 @@ class BundleModel(BaseBundleModel):
 
     @field_validator("addons")
     @classmethod
-    def validate_addons(
-        cls, value: dict[str, str | None]
-    ) -> dict[str, str | None] | None:
+    def validate_addons(cls, value: dict[str, str | None]) -> dict[str, str | None]:
         for addon_name, version in value.items():
             if version is None:
                 continue
@@ -93,16 +75,45 @@ class BundleModel(BaseBundleModel):
         example={"ftrack": {"enabled": True, "path": "~/devel/ftrack"}},
     )
 
+
+class BundleModel(BundleDataModel):
+    """Flat model for GET and POST requests."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(
+        ...,
+        title="Name",
+        description="Name of the bundle",
+        example="my_superior_bundle",
+        pattern=NAME_REGEX,
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        example=datetime.now(),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        example=datetime.now(),
+    )
+
+    def to_data(self, stored_data: BundleDataModel | None = None) -> BundleDataModel:
+        data = stored_data.model_dump(by_alias=False) if stored_data else {}
+        data.update(
+            self.model_dump(include=set(BundleDataModel.model_fields), by_alias=False)
+        )
+        return BundleDataModel.model_validate(data)
+
     # flags
     is_production: bool = Field(False, example=False)
     is_staging: bool = Field(False, example=False)
     is_archived: bool = Field(False, example=False)
     is_dev: bool = Field(False, example=False)
-    is_project: bool = Field(False, example=False)
     active_user: str | None = Field(None, example="admin")
 
 
 class BundlePatchModel(BaseBundleModel):
+    description: str | None = Field(None, title="Description")
     addons: dict[str, str | None] | None = Field(
         None,
         title="Addons",
@@ -145,6 +156,8 @@ class BundlePatchModel(BaseBundleModel):
 
     def get_changed_fields(self) -> list[str]:
         dict_data = self.model_dump(exclude_none=True)
+        if "description" in self.model_fields_set:
+            dict_data["description"] = self.description
         return [camelize(field) for field in dict_data.keys()]
 
     def get_changes_description(self, bundle_name: str) -> str:
@@ -175,6 +188,9 @@ class BundlePatchModel(BaseBundleModel):
 
         if self.dependency_packages is not None:
             changes.append("updated with new dependency packages")
+
+        if "description" in self.model_fields_set:
+            changes.append("updated with a new description")
 
         if changes and len(changes) < 3:
             if len(changes) > 1:

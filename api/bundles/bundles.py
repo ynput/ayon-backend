@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import Query
 
@@ -24,7 +24,7 @@ from ayon_server.utils import RequestCoalescer
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
 from .migration import migrate_server_addon_settings, migrate_settings
-from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
+from .models import BundleDataModel, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
 #
@@ -52,21 +52,22 @@ async def _list_bundles(archived: bool = False):
     """
 
     async for row in Postgres.iterate(query):
-        data = row["data"]
+        data = BundleDataModel.model_validate(row["data"])
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
-            addons=data.get("addons", {}),
-            installer_version=data.get("installer_version"),
-            dependency_packages=data.get("dependency_packages", {}),
+            addons=data.addons,
+            installer_version=data.installer_version,
+            dependency_packages=data.dependency_packages,
+            description=data.description,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
-            is_project=data.get("is_project", False),
+            is_project=data.is_project,
             active_user=row["active_user"],
-            addon_development=data.get("addon_development", {}),
+            addon_development=data.addon_development,
         )
 
         # helper top-level attributes (for convenience not crawling the list)
@@ -121,18 +122,7 @@ async def _create_new_bundle(
             bundle.active_user,
         )
 
-    data: dict[str, Any] = {
-        "addons": bundle.addons,
-        "installer_version": bundle.installer_version,
-        "dependency_packages": bundle.dependency_packages,
-    }
-    if bundle.is_project:
-        data["is_project"] = True
-    if bundle.addon_development:
-        addon_development_dict = {}
-        for key, value in bundle.addon_development.items():
-            addon_development_dict[key] = value.model_dump()
-        data["addon_development"] = addon_development_dict
+    data = bundle.to_data().model_dump(by_alias=False)
 
     query = """
         INSERT INTO bundles
@@ -263,21 +253,8 @@ async def update_bundle(
             raise NotFoundException("Bundle not found")
 
         row = res[0]
-        data = row["data"]
-
-        addon_development = data.get("addon_development") or {}
-        if not isinstance(addon_development, dict):
-            addon_development = {}
-
-        addon_development_dict: dict[str, AddonDevelopmentItem] = {}
-        for key, value in addon_development.items():
-            addon_development_dict[key] = AddonDevelopmentItem(**value)
-
-        addons = data.get("addons") or {}
-        if not isinstance(addons, dict):
-            addons = {}
-        else:
-            addons = dict(addons)
+        stored_data = BundleDataModel.model_validate(row["data"])
+        addons = dict(stored_data.addons)
         original_addons = dict(addons)
 
         # Only clean up non-existent addons when the addon list is being
@@ -310,7 +287,7 @@ async def update_bundle(
                     )
                     addons.pop(addon_name, None)
 
-        installer_version = data.get("installer_version")
+        installer_version = stored_data.installer_version
         if installer_version is not None:
             existing_installer_versions = await list_installer_versions()
             if installer_version not in existing_installer_versions:
@@ -320,10 +297,8 @@ async def update_bundle(
                 )
                 installer_version = None
 
-        dependency_packages = data.get("dependency_packages", {})
-        if not isinstance(dependency_packages, dict):
-            dependency_packages = {}
-        else:
+        dependency_packages = dict(stored_data.dependency_packages)
+        if dependency_packages:
             existing_dependency_packages = await list_dependency_packages()
             for platform, filename in list(dependency_packages.items()):
                 if filename is None:
@@ -342,11 +317,12 @@ async def update_bundle(
             addons=addons,
             installer_version=installer_version,
             dependency_packages=dependency_packages,
-            addon_development=addon_development_dict,
+            addon_development=stored_data.addon_development,
+            description=stored_data.description,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_dev=row["is_dev"],
-            is_project=data.get("is_project", False),
+            is_project=stored_data.is_project,
             active_user=row["active_user"],
             is_archived=row["is_archived"],
         )
@@ -458,19 +434,10 @@ async def update_bundle(
             if not bstat.success:
                 raise BadRequestException(bstat.message())
 
-        # Construct the new data
+        if "description" in patch.model_fields_set:
+            bundle.description = patch.description
 
-        data = {
-            "addons": bundle.addons,
-            "dependency_packages": bundle.dependency_packages,
-            "installer_version": bundle.installer_version,
-            "is_project": bundle.is_project,
-        }
-        if bundle.is_dev:
-            data["addon_development"] = {
-                key: value.model_dump()
-                for key, value in bundle.addon_development.items()
-            }
+        data = bundle.to_data(stored_data).model_dump(by_alias=False)
 
         if patch.is_archived is not None:
             bundle.is_archived = patch.is_archived
@@ -596,7 +563,9 @@ async def bundle_actions(
             raise NotFoundException("Bundle not found")
         row = res[0]
         bundle = BundleModel(
-            **row["data"],
+            **BundleDataModel.model_validate(row["data"]).model_dump(
+                include=set(BundleDataModel.model_fields), by_alias=False
+            ),
             name=row["name"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
