@@ -243,8 +243,9 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
 }
 
 
-async def deploy_attributes() -> None:
-    position = 0
+def default_attribute_rows() -> list[dict[str, Any]]:
+    """Return the rows of the attributes table for the default attributes"""
+    rows: list[dict[str, Any]] = []
     for name, tdata in DEFAULT_ATTRIBUTES.items():
         try:
             scope = [
@@ -300,6 +301,20 @@ async def deploy_attributes() -> None:
             if (value := tdata.get(key)) is not None:
                 data[key] = value
 
+        rows.append(
+            {
+                "name": name,
+                "position": len(rows),
+                "scope": scope,
+                "builtin": True,
+                "data": data,
+            }
+        )
+    return rows
+
+
+async def deploy_attributes() -> None:
+    for row in default_attribute_rows():
         await Postgres.execute(
             """
             INSERT INTO public.attributes
@@ -321,9 +336,8 @@ async def deploy_attributes() -> None:
                 end
 
             """,
-            name,
-            position,
-            scope,
-            data,
+            row["name"],
+            row["position"],
+            row["scope"],
+            row["data"],
         )
-        position += 1

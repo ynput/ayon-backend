@@ -1,16 +1,38 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 import strawberry
 from strawberry.scalars import JSON
 
 from ayon_server.entities import UserEntity
+from ayon_server.entities.core.attrib import ResolvedAttrib, resolve_attrib
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
-from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
+
+ATTRIB_DESCRIPTION = (
+    "Attribute values (JSON object). "
+    "Use the attributes endpoint to get the attribute definitions."
+)
+
+AttribNamesArgument = Annotated[
+    list[str] | None,
+    strawberry.argument(description="Return only the given attributes"),
+]
+
+LegacyAttribSelectionArgument = Annotated[
+    str | None,
+    strawberry.argument(
+        description=(
+            "Used internally for backwards compatibility: `attrib { a b: c }` "
+            'queries are rewritten to `attrib(legacySelection: "a b:c")`'
+        ),
+        deprecation_reason="Use `names` or select all attributes",
+    ),
+]
 
 
 @strawberry.type
@@ -149,9 +171,66 @@ class ThumbnailInfo:
     relation: str | None = strawberry.field(default=None)
 
 
-@strawberry.interface
-class BaseNode:
+@strawberry.type
+class AttribFields:
+    """`attrib` and `allAttrib` fields of the nodes having attributes.
+
+    The values are resolved the same way as in REST (see resolve_attrib)
+    and filtered by the permissions of the user. Subclasses provide
+    `entity_type`, `_attrib` (stored own values) and `_user`, project
+    nodes also `project_name`. Folders and tasks also provide
+    `_inherited_attrib` / `_project_attrib`.
+    """
+
     entity_type: strawberry.Private[str] = "unknown"
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
+    _resolved_attrib: strawberry.Private[ResolvedAttrib | None] = None
+    _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
+
+    def resolved_attrib(self) -> ResolvedAttrib:
+        """Attribute values resolved the same way as in REST (resolve_attrib)"""
+        if self._resolved_attrib is None:
+            self._resolved_attrib = resolve_attrib(
+                self.entity_type,
+                self._attrib,
+                inherited=getattr(self, "_inherited_attrib", None),
+                project=getattr(self, "_project_attrib", None),
+            )
+        return self._resolved_attrib
+
+    def processed_attrib(self) -> dict[str, Any]:
+        """Resolved attribute values the user can read."""
+        if self._processed_attrib is None:
+            self._processed_attrib = process_attrib_data(
+                self.resolved_attrib().values,
+                user=self._user,
+                project_name=getattr(self, "project_name", None),
+            )
+        return self._processed_attrib
+
+    @strawberry.field(description=ATTRIB_DESCRIPTION)
+    def attrib(
+        self,
+        names: AttribNamesArgument = None,
+        legacy_selection: LegacyAttribSelectionArgument = None,
+    ) -> JSON:
+        return JSON(
+            attrib_to_json(
+                self.entity_type,
+                self.processed_attrib(),
+                names=names,
+                legacy_selection=legacy_selection,
+            )
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self.processed_attrib())
+
+
+@strawberry.interface
+class BaseNode(AttribFields):
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
@@ -163,32 +242,6 @@ class BaseNode:
     updated_by: str | None = strawberry.field(default=None)
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
-
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
-    _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
-
-    def processed_attrib(self) -> dict[str, Any]:
-        if self._processed_attrib is None:
-            inherited_attrib = (
-                self._inherited_attrib if hasattr(self, "_inherited_attrib") else None
-            )
-            project_attrib = (
-                self._project_attrib if hasattr(self, "_project_attrib") else None
-            )
-            return process_attrib_data(
-                self.entity_type,
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-                project_attrib=project_attrib,
-                inherited_attrib=inherited_attrib,
-            )
-        return self._processed_attrib
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(self.processed_attrib())
 
     @strawberry.field
     async def links(

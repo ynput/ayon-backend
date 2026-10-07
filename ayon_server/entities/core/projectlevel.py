@@ -1,12 +1,12 @@
-from contextlib import suppress
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
+from ayon_server.entities.models.common import ProjectLevelEntityModel
 from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
@@ -24,7 +24,15 @@ BASE_GET_QUERY = """
 """
 
 
-class ProjectLevelEntity(BaseEntity):
+ProjectLevelModelT = TypeVar(
+    "ProjectLevelModelT",
+    bound=ProjectLevelEntityModel,
+    default=ProjectLevelEntityModel,
+    covariant=True,
+)
+
+
+class ProjectLevelEntity(BaseEntity[ProjectLevelModelT]):
     entity_type: ProjectLevelEntityType
     project_name: str
     base_get_query: str = BASE_GET_QUERY
@@ -39,6 +47,8 @@ class ProjectLevelEntity(BaseEntity):
         payload: dict[str, Any],
         exists: bool = False,
         own_attrib: list[str] | None = None,
+        inherited_attrib: dict[str, Any] | None = None,
+        project_attrib: dict[str, Any] | None = None,
     ) -> None:
         """Return a new entity instance from given data.
 
@@ -46,22 +56,20 @@ class ProjectLevelEntity(BaseEntity):
         considered entity's own. When set to list, only selected
         attributes will be stored in the attrib column, others will
         be considered inherited (and stored in exported_attribs)
+
+        Entities loaded from the database (`exists`) resolve their attribute
+        values from the stored own values and the `inherited_attrib`
+        (exported attributes of the parent) and `project_attrib` values.
+        See `resolve_attrib`.
         """
 
-        attrib_dict = payload.get("attrib", {})
-        if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.dict()
-        if own_attrib is None:
-            self.own_attrib = list(attrib_dict.keys())
-        else:
-            self.own_attrib = own_attrib
-
-        self._payload = self.model.main_model(
-            **dict_exclude(payload, ["own_attrib"]),
-            own_attrib=self.own_attrib,
+        self._init_payload(
+            payload,
+            exists=exists,
+            own_attrib=own_attrib,
+            inherited_attrib=inherited_attrib,
+            project_attrib=project_attrib,
         )
-
-        self.exists = exists
         self.project_name = project_name
 
     @classmethod
@@ -77,29 +85,29 @@ class ProjectLevelEntity(BaseEntity):
         # because it accepts a DB row data and de-serializes JSON fields
         and reformats ids.
 
+        The record contains the own attribute values of the entity
+        (`attrib`). Folders and tasks also contain the values they inherit
+        (`inherited_attrib` and `project_attrib`, see `resolve_attrib`).
         """
         # ensure payload is a dict (it might be a asyncpg.Record)
-        payload = dict(payload)
-        if own_attrib is None:
-            own_attrib = list(payload["attrib"].keys())
-        payload = cls.preprocess_record(payload)
+        payload = cls.preprocess_record(dict(payload))
         parsed = {}
-        for key in cls.model.main_model.__fields__:
+        for key in cls.model.main_model.model_fields:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        result = cls(
+        return cls(
             project_name,
             parsed,
             exists=True,
             own_attrib=own_attrib,
+            inherited_attrib=payload.get("inherited_attrib"),
+            project_attrib=payload.get("project_attrib"),
         )
-        result.inherited_attrib = payload.get("inherited_attrib", {})
-        return result
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""
-        self._payload = self.model.main_model(id=self.id, **replace_data.dict())
+        self._payload = self.model.main_model(id=self.id, **replace_data.model_dump())
 
     #
     # Access control
@@ -109,23 +117,18 @@ class ProjectLevelEntity(BaseEntity):
         """Return a payload of the entity limited to the attributes that
         are accessible to the given user.
         """
-        kw: dict[str, Any] = {"deep": True, "exclude": {}}
+        result = self._payload.model_copy(deep=True)
+        if user.is_manager:  # managers have access to all attributes
+            return result
 
-        # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
-        attrib = self._payload.attrib.dict()  # type: ignore
-        if not user.is_manager:  # managers have access to all attributes
-            # kw["exclude"]["data"] = True
-
-            attr_perm = user.permissions(self.project_name).attrib_read
-            if attr_perm.enabled:
-                exattr = set()
-                for key in tuple(attrib.keys()):
-                    if key not in attr_perm.attributes:
-                        exattr.add(key)
-                if exattr:
-                    kw["exclude"]["attrib"] = exattr
-
-        result = self._payload.copy(**kw)
+        attr_perm = user.permissions(self.project_name).attrib_read
+        if attr_perm.enabled:
+            # Remove attributes the user cannot read from the payload,
+            # so they are not included in the serialized output
+            attrib = result.attrib
+            for key in tuple(attrib):
+                if key not in attr_perm.attributes:
+                    attrib.pop(key)
         return result
 
     async def ensure_create_access(self, user, **kwargs) -> None:
@@ -227,11 +230,7 @@ class ProjectLevelEntity(BaseEntity):
             self.status = await self.get_default_status()
 
         async with Postgres.transaction():
-            attrib = {}
-            for key in self.own_attrib:
-                with suppress(AttributeError):
-                    if (value := getattr(self.attrib, key)) is not None:
-                        attrib[key] = value
+            attrib = self.own_attrib_to_save()
 
             if self.exists:
                 await self.pre_save(False)
@@ -335,12 +334,12 @@ class ProjectLevelEntity(BaseEntity):
     @property
     def id(self) -> str:
         """Return the entity id."""
-        return self._payload.id  # type: ignore
+        return self._payload.id
 
     @id.setter
     def id(self, value: str):
         """Set the entity id."""
-        self._payload.id = value  # type: ignore
+        self._payload.id = value
 
     @property
     def parent_id(self) -> str | None:
@@ -354,22 +353,22 @@ class ProjectLevelEntity(BaseEntity):
         raise NotImplementedError
 
     @property
-    def status(self) -> str:
+    def status(self) -> str | None:
         """Return the entity status."""
-        return self._payload.status  # type: ignore
+        return self._payload.status
 
     @status.setter
     def status(self, value: str):
         """Set the entity status."""
-        self._payload.status = value  # type: ignore
+        self._payload.status = value
 
     @property
     def tags(self) -> list[str]:
-        return self._payload.tags  # type: ignore
+        return self._payload.tags
 
     @tags.setter
     def tags(self, value: list[str]):
-        self._payload.tags = value  # type: ignore
+        self._payload.tags = value
 
     #
     # Read only properties
@@ -385,13 +384,13 @@ class ProjectLevelEntity(BaseEntity):
         return None
 
     @property
-    def path(self) -> str:
+    def path(self) -> str | None:
         return ""
 
     @property
     def created_by(self) -> str | None:
-        return self._payload.created_by  # type: ignore
+        return self._payload.created_by
 
     @property
     def updated_by(self) -> str | None:
-        return self._payload.updated_by  # type: ignore
+        return self._payload.updated_by

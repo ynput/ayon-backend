@@ -1,9 +1,7 @@
 from typing import Annotated
 
-from pydantic import Field
-
 from ayon_server.entities import UserEntity
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 
 UserMainModel = UserEntity.model.main_model  # noqa
 

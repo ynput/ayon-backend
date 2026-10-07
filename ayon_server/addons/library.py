@@ -4,7 +4,8 @@ from typing import Any
 
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.definition import ServerAddonDefinition
-from ayon_server.config import ayonconfig
+from ayon_server.config import ayonconfig, get_addons_dir
+from ayon_server.deprecations import get_deprecations, split_addon_path
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -56,12 +57,26 @@ class AddonLibrary:
             if definition.restart_requested:
                 self.restart_requested = True
 
+        self.log_deprecations()
+
+    def log_deprecations(self) -> None:
+        """Log a summary of deprecated features used by the addons."""
+        addon_deprecations = [
+            split
+            for record in get_deprecations()
+            if (split := split_addon_path(record.path))
+        ]
+        if not addon_deprecations:
+            return
+        addon_count = len({split[:2] for split in addon_deprecations})
+        logger.warning(
+            f"{len(addon_deprecations)} deprecations found "
+            f"in {addon_count} addon versions. "
+            "See /api/system/deprecations for details"
+        )
+
     def get_addons_dir(self) -> str | None:
-        for d in [ayonconfig.addons_dir, "addons"]:
-            if not os.path.isdir(d):
-                continue
-            return d
-        return None
+        return get_addons_dir()
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:

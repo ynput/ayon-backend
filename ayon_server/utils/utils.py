@@ -109,3 +109,10 @@ def run_blocking_coro(coro) -> Any:
 def now():
     """Get the current time in UTC"""
     return datetime.datetime.now(datetime.UTC)
+
+
+def as_utc(value: datetime.datetime) -> datetime.datetime:
+    """Return a timezone-aware datetime (naive datetimes are considered UTC)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=datetime.UTC)
+    return value

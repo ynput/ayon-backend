@@ -235,7 +235,7 @@ async def update_server_config(
     """
 
     current_config = await get_server_config()
-    current_dict = current_config.dict()
+    current_dict = current_config.model_dump()
     updated_dict = _recursive_merge(current_dict, updates)
 
     # Validate and normalize; also drops any unknown keys

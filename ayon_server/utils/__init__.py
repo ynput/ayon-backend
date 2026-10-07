@@ -25,6 +25,7 @@ __all__ = [
     "run_blocking_coro",
     "server_url_from_request",
     "now",
+    "as_utc",
 ]
 
 
@@ -47,6 +48,7 @@ from .strings import (
     slugify,
 )
 from .utils import (
+    as_utc,
     batched,
     dict_exclude,
     dict_patch,

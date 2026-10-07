@@ -90,7 +90,7 @@ async def update_entity_list(
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
 
-        payload_dict = payload.dict(exclude_unset=True)
+        payload_dict = payload.model_dump(exclude_unset=True)
 
         for key, value in payload_dict.items():
             if not hasattr(entity_list.payload, key):
