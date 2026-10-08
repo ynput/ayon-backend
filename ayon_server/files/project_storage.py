@@ -119,22 +119,17 @@ class ProjectStorage:
         path from the bucket), while in the case of local storage, it's
         the full path to the file on the disk.
 
-        Blobs are stored as `blobs/{sub_key}/{file_id}`, where `sub_key`
-        is the blob kind and `file_id` is an arbitrary name.
+        Blobs are additionally grouped by `sub_key` (the blob kind).
         """
-        if file_group == "blobs":
-            for key in (sub_key, file_id):
-                if not (key and re.match(NAME_REGEX, key)):
-                    raise ValueError(f"Invalid blob key: {key}")
-            assert sub_key  # mypy
-            file_group_dir = await self.get_filegroup_dir(file_group)
-            return os.path.join(file_group_dir, sub_key, file_id)
-
         _file_id = file_id.replace("-", "")
         if len(_file_id) != 32:
             raise ValueError(f"Invalid file ID: {file_id}")
 
         file_group_dir = await self.get_filegroup_dir(file_group)
+        if file_group == "blobs":
+            if not (sub_key and re.fullmatch(NAME_REGEX, sub_key)):
+                raise ValueError(f"Invalid blob kind: {sub_key}")
+            file_group_dir = os.path.join(file_group_dir, sub_key)
 
         # Take first two characters of the file ID as a subdirectory
         # to avoid having too many files in a single directory
@@ -583,6 +578,19 @@ class ProjectStorage:
                 yield chunk
         else:
             raise AyonException("Unknown storage type")
+
+    async def blob_exists(self, kind: str, blob_id: str) -> bool:
+        """Check whether the blob payload is in the storage"""
+        path = await self.get_path(blob_id, file_group="blobs", sub_key=kind)
+        if self.storage_type == "local":
+            return os.path.isfile(path)
+        elif self.storage_type == "s3":
+            try:
+                await get_s3_file_info(self, path)
+            except NotFoundException:
+                return False
+            return True
+        raise AyonException("Unknown storage type")
 
     async def delete_blob(self, kind: str, blob_id: str) -> bool:
         """Delete the blob payload from the storage.

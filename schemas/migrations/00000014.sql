@@ -5,6 +5,8 @@
 -- using BlobStorage. Payloads live in the project storage.
 --
 
+SELECT 1;
+
 -- DO $$
 -- DECLARE rec RECORD;
 -- BEGIN
@@ -23,7 +25,7 @@
 --           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.project_schema);
 --
 --           CREATE TABLE IF NOT EXISTS blobs(
---             id VARCHAR NOT NULL PRIMARY KEY,
+--             id UUID NOT NULL PRIMARY KEY,
 --             kind VARCHAR NOT NULL,
 --             size BIGINT NOT NULL DEFAULT 0,
 --             data JSONB NOT NULL DEFAULT '{}'::JSONB,
