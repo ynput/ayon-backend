@@ -254,6 +254,7 @@ class BlobStorage:
         kind: str | None = None,
         *,
         data: dict[str, Any] | None = None,
+        with_data: bool = True,
     ) -> AsyncGenerator[BlobRecord]:
         """Yield blob records (metadata only), oldest first.
 
@@ -269,9 +270,24 @@ class BlobStorage:
             args.append(data)
             conditions.append(f"data @> ${len(args)}::JSONB")
 
+        cols = [
+            "id",
+            "kind",
+            "size",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+
+        if with_data:
+            cols.append("data")
+
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"""
-            SELECT * FROM project_{project_name}.blobs
+            SELECT
+            {", ".join(cols)}
+            FROM project_{project_name}.blobs
             {where}
             ORDER BY created_at, id
         """

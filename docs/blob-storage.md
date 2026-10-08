@@ -28,7 +28,9 @@ await BlobStorage.update(project_name, blob_id, {"status": "done"})
 await BlobStorage.delete(project_name, blob_id)
 
 # List records (metadata only), optionally by kind and metadata
-async for record in BlobStorage.list(project_name, "io.ynput.my-addon.attachment", data={"status": "done"}):
+async for record in BlobStorage.list(
+    project_name, "io.ynput.my-addon.attachment", data={"status": "done"}
+):
     ...
 ```
 
@@ -44,7 +46,9 @@ To look records up by a readable key, derive the blob id from it:
 import uuid
 
 blob_id = uuid.uuid5(MY_NAMESPACE, f"my-addon").hex
-await BlobStorage.save(project_name, "io.ynput.ayon.addon-config", blob_id=blob_id, data={...})
+await BlobStorage.save(
+    project_name, "io.ynput.ayon.addon-config", blob_id=blob_id, data={...}
+)
 ```
 
 ## Behavior
