@@ -75,8 +75,11 @@ query ExportProject($projectName: String!) { project(name: $projectName) { name 
 """
 
 USERS_QUERY = """
-query ExportUsers($projectName: String!, $names: [String!]!, $first: Int!) {
-  users(projectName: $projectName, names: $names, first: $first) {
+query ExportUsers(
+  $projectName: String!, $names: [String!]!, $first: Int!, $after: String
+) {
+  users(projectName: $projectName, names: $names, first: $first, after: $after) {
+    pageInfo { hasNextPage endCursor }
     edges { node { name attrib { fullName } } }
   }
 }
@@ -647,15 +650,17 @@ async def _fetch(
     path: list[str],
     variables: dict[str, Any],
     edges: bool = False,
+    *,
+    root: str | None = "project",
 ) -> list[dict[str, Any]]:
-    """All nodes (or edges) of a paginated connection under `project`."""
+    """All nodes (or edges) of a paginated connection under the given root."""
     result: list[dict[str, Any]] = []
     after = None
     while True:
         data = await _execute(
             context, query, {**variables, "first": PAGE_SIZE, "after": after}
         )
-        page = data["project"]
+        page = data[root] if root is not None else data
         for key in path:
             page = page[key]
         result.extend(edge if edges else edge["node"] for edge in page["edges"])
@@ -681,15 +686,15 @@ async def _user_full_names(
                     names.add(value)
     if not names:
         return {}
-    variables = {"projectName": project_name, "names": sorted(names), "first": 1000}
+    variables = {"projectName": project_name, "names": sorted(names)}
     try:
-        data = await _execute(context, USERS_QUERY, variables)
+        users = await _fetch(context, USERS_QUERY, ["users"], variables, root=None)
     except AyonException:
         return {}  # fall back to user names
     return {
-        edge["node"]["name"]: edge["node"]["attrib"]["fullName"]
-        for edge in data["users"]["edges"]
-        if edge["node"]["attrib"]["fullName"]
+        user["name"]: user["attrib"]["fullName"]
+        for user in users
+        if user["attrib"]["fullName"]
     }
 
 
