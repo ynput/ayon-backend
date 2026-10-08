@@ -3,7 +3,7 @@
 Each replica keeps its own snapshot of the production addon versions
 and calls `on_addon_activate` / `on_addon_deactivate` for the difference
 whenever a bundle changes. Hooks therefore run on every replica and
-must be idempotent.
+must be idempotent. Failed hooks are retried on the next bundle change.
 """
 
 import asyncio
@@ -51,6 +51,9 @@ async def sync_addon_activation(event: "EventModel | None" = None) -> None:
                     await getattr(addon, hook)()
                 except Exception:
                     log_traceback(f"Error in {addon_name} {addon_version} {hook}")
+                    # Keep the previous state of the addon,
+                    # so the hook is retried on the next bundle change
+                    production ^= {(addon_name, addon_version)}
 
         _active = production
 
@@ -60,6 +63,6 @@ async def init_addon_activation() -> None:
 
     Must be called after all addons are set up.
     """
-    for topic in ("bundle.created", "bundle.updated"):
+    for topic in ("bundle.created", "bundle.updated", "bundle.deleted"):
         EventStream.subscribe(topic, sync_addon_activation, all_nodes=True)
     await sync_addon_activation()
