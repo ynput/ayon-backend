@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 from fastapi.exceptions import FastAPIDeprecationWarning
 from pydantic.warnings import PydanticDeprecatedSince20
@@ -66,3 +68,37 @@ class TestAddonPath:
         monkeypatch.setattr(deprecations, "_addons_dir", None)
         monkeypatch.setattr(deprecations, "get_addons_dir", lambda: None)
         assert split_addon_path("/addons/core/1.2.3/server/main.py") is None
+
+
+class TestNxtools:
+    def _run(self, code: str) -> list[warnings.WarningMessage]:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            exec(compile(code, "/addons/foo/1.0.0/server/main.py", "exec"), {})
+        return caught
+
+    def test_from_import_warns_at_caller(self):
+        caught = self._run("from nxtools import logging, slugify")
+        assert [w.category for w in caught] == [AyonDeprecationWarning] * 2
+        assert {w.filename for w in caught} == {"/addons/foo/1.0.0/server/main.py"}
+        assert "from ayon_server.logging import logger" in str(caught[0].message)
+
+    def test_attribute_access_warns(self):
+        caught = self._run("import nxtools\nnxtools.slugify('a')")
+        assert len(caught) == 1
+        assert caught[0].lineno == 2
+
+    def test_returns_replacement(self):
+        from ayon_server.utils.strings import slugify
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from nxtools import slugify as nx_slugify
+
+        assert nx_slugify is slugify
+
+    def test_unknown_attribute(self):
+        import nxtools
+
+        with pytest.raises(AttributeError):
+            nxtools.nope  # noqa: B018
