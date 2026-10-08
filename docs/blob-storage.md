@@ -12,7 +12,7 @@ from ayon_server.blob_storage import BlobStorage
 # Store a payload (bytes, an async iterator of bytes, or None)
 blob_id = await BlobStorage.save(
     project_name,
-    "my_addon",  # kind - categorizes the blob, e.g. the addon name
+    "io.ynput.my-addon.attachment",  # kind - categorizes the blob, e.g. the addon name
     payload,
     blob_id=blob_id,  # optional UUID, generated if omitted
     data={"source": "foo"},  # optional free-form metadata
@@ -28,7 +28,7 @@ await BlobStorage.update(project_name, blob_id, {"status": "done"})
 await BlobStorage.delete(project_name, blob_id)
 
 # List records (metadata only), optionally by kind and metadata
-async for record in BlobStorage.list(project_name, "my_addon", data={"status": "done"}):
+async for record in BlobStorage.list(project_name, "io.ynput.my-addon.attachment", data={"status": "done"}):
     ...
 ```
 
@@ -43,8 +43,8 @@ To look records up by a readable key, derive the blob id from it:
 ```python
 import uuid
 
-blob_id = uuid.uuid5(MY_NAMESPACE, f"my_addon:settings").hex
-await BlobStorage.save(project_name, "my_addon", blob_id=blob_id, data={...})
+blob_id = uuid.uuid5(MY_NAMESPACE, f"my-addon").hex
+await BlobStorage.save(project_name, "io.ynput.ayon.addon-config", blob_id=blob_id, data={...})
 ```
 
 ## Behavior
