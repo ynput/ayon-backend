@@ -55,7 +55,7 @@ fragment ExportTask on TaskNode {
 # needs $featuredVersionOrder in the query
 PRODUCT_FRAGMENT = """
 fragment ExportProduct on ProductNode {
-  id name productType productBaseType path active status tags allAttrib
+  id name folderId productType productBaseType path active status tags allAttrib
   createdAt updatedAt
   folder { name label }
   featuredVersion(order: $featuredVersionOrder) { name author }
@@ -64,7 +64,7 @@ fragment ExportProduct on ProductNode {
 
 VERSION_FRAGMENT = """
 fragment ExportVersion on VersionNode {
-  id name author path active status tags allAttrib createdAt updatedAt
+  id name productId taskId author path active status tags allAttrib createdAt updatedAt
   product { name productType productBaseType folder { name label } }
   task { name label taskType }
 }
@@ -758,6 +758,7 @@ def _product_row(node: dict[str, Any]) -> dict[str, Any]:
     return {
         **_common(node, "product"),
         "path": (node["path"] or "").strip("/"),
+        "folder_id": node["folderId"],
         "product_type": node["productType"],
         "product_base_type": node["productBaseType"],
         "folder": folder["name"],
@@ -773,6 +774,8 @@ def _version_row(node: dict[str, Any]) -> dict[str, Any]:
     return {
         **_common(node, "version"),
         "path": (node["path"] or "").strip("/"),
+        "product_id": node["productId"],
+        "task_id": node["taskId"],
         # shown as the name with label values, "v001" alone says little
         "label": f"{product['name']} {node['name']}",
         "version": node["name"],
