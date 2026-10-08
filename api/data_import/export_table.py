@@ -829,6 +829,11 @@ def _value(value: Any, column: ExportColumn, labels: bool, users: dict[str, str]
 
 
 def _readable_datetime(value: str) -> str:
+    """Format an ISO datetime for display, leaving invalid values unchanged.
+
+    For example, ``2026-10-08T00:00:00`` becomes ``2026-10-08``, while
+    ``2026-10-08T15:35:24`` becomes ``2026-10-08 15:35``.
+    """
     try:
         moment = datetime.fromisoformat(value)
     except ValueError:
