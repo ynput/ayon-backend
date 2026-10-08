@@ -24,7 +24,11 @@ from ayon_server.utils import RequestCoalescer
 
 from .actions import copy_staging_settings
 from .check_bundle import CheckBundleResponseModel, check_bundle
-from .migration import migrate_server_addon_settings, migrate_settings
+from .migration import (
+    dispatch_settings_events,
+    migrate_server_addon_settings,
+    migrate_settings,
+)
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -515,18 +519,18 @@ async def _update_bundle(
             bundle_name,
         )
 
-    async def finalize() -> None:
-        if bundle.is_production and server_bundle_migrations:
+        settings_events: list[dict[str, Any]] = []
+        if bundle.is_production:
             for addon_name, previous_version, new_version in server_bundle_migrations:
                 if not (previous_version and new_version):
                     continue
-                await migrate_server_addon_settings(
+                settings_events += await migrate_server_addon_settings(
                     addon_name,
                     previous_version,
                     new_version,
-                    user=user if user else None,
                 )
 
+    async def finalize() -> None:
         if (
             patch.is_production is not None
             or patch.is_staging is not None
@@ -548,6 +552,7 @@ async def _update_bundle(
             },
             payload=data,
         )
+        await dispatch_settings_events(settings_events, user.name)
 
     return finalize
 
