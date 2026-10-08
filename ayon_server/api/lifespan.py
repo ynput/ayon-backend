@@ -137,6 +137,7 @@ async def addon_update(library: AddonLibrary) -> None:
             """
         )
         bundle_update_needed = False
+        row = None
         if res:
             production_addons = dict(res["addons"] or {})
             has_previous_bundle = True
@@ -193,7 +194,6 @@ async def addon_update(library: AddonLibrary) -> None:
         if bundle_update_needed:
             if has_previous_bundle:
                 logger.debug("Updating production bundle with required addons")
-                topic = "bundle.updated"
                 row = await Postgres.fetchrow(
                     """
                     UPDATE public.bundles
@@ -205,7 +205,6 @@ async def addon_update(library: AddonLibrary) -> None:
                 )
             else:
                 logger.debug("Creating production bundle with required addons")
-                topic = "bundle.created"
                 row = await Postgres.fetchrow(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
@@ -226,9 +225,10 @@ async def addon_update(library: AddonLibrary) -> None:
 
     if bundle_update_needed:
         # Notify already running replicas (after the commit)
+        await AddonLibrary.clear_addon_list_cache()
         bundle_name = row["name"] if row else None
         await EventStream.dispatch(
-            topic,
+            "bundle.updated" if has_previous_bundle else "bundle.created",
             description=f"Required addons added to bundle '{bundle_name}'",
             summary={"name": bundle_name, "isProduction": True},
         )
