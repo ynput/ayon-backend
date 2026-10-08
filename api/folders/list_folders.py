@@ -87,6 +87,8 @@ class FolderListItem(OPModel):
     own_attrib: list[str] | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    created_by: str | None = None
+    updated_by: str | None = None
 
 
 class FolderListModel(OPModel):
