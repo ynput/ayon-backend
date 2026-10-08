@@ -883,8 +883,18 @@ class FolderTaskExportImportModel(EntityExportImport):
         return all_items
 
 
+class _VersionAttribExportImportModel(EntityExportImport):
+    """Model used for exporting and importing version attributes.
+
+    Not fully fledged model as others, used only to get attributes of version
+    entity for entity list import/export.
+    """
+
+    _entity_model = VersionEntity
+
+
 class EntityListExportImportModel(EntityExportImport):
-    """Model used for exporting and importing task entities.
+    """Model used for exporting and importing entity list items.
 
     More explicit in fields and get_all_items as `EntityListItemModel` is not a
     TopLevelModel (as FolderEntity for example)
@@ -899,11 +909,7 @@ class EntityListExportImportModel(EntityExportImport):
 
     @classmethod
     async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
-        """Return model fields (public) plus fields derived from `_attrib`.
-
-        Args:
-            project_name: Project name for resolving project-specific enums.
-        """
+        """Return list item references and attributes of supported entity types."""
         result: list[ImportableColumn] = []
 
         result.append(
@@ -939,6 +945,17 @@ class EntityListExportImportModel(EntityExportImport):
             )
         )
 
+        seen = set()
+        for model in (
+            FolderExportImportModel,
+            TaskExportImportModel,
+            _VersionAttribExportImportModel,
+        ):
+            for field in await model.fields(project_name=project_name):
+                if field.key.startswith("attrib.") and field.key not in seen:
+                    result.append(field)
+                    seen.add(field.key)
+
         return result
 
     @classmethod
@@ -961,7 +978,7 @@ class EntityListExportImportModel(EntityExportImport):
             List of entity dictionaries or CSV rows (including header)
         """
         if field_names is None:
-            fields = await cls.fields()
+            fields = await cls.fields(project_name=project_name)
             field_names = [field.key for field in fields]
 
         where = ""
@@ -971,7 +988,7 @@ class EntityListExportImportModel(EntityExportImport):
             where = f"WHERE  li.entity_list_id IN ({placeholders})"
 
         query = (
-            "SELECT li.entity_id, li.entity_list_id, "
+            "SELECT li.entity_id, li.entity_list_id, li.attrib, "
             "CASE "
             "WHEN t.id IS NOT NULL THEN li.folder_path || '/' || t.name "
             "ELSE li.folder_path "
@@ -981,7 +998,7 @@ class EntityListExportImportModel(EntityExportImport):
             "ON li.entity_id = t.id "
             f"{where}"
         )
-        rows = await Postgres.fetch(query)
+        rows = await Postgres.fetch(query, *(entity_ids[1] if entity_ids else []))
 
         return await cls._return_items(as_csv, field_names, rows)
 
@@ -992,6 +1009,7 @@ class EntityListExportImportModel(EntityExportImport):
         user = kwargs["user"]
         folder_path = kwargs.get("folder_path")
         entity_id = kwargs.get("entity_id")
+        attrib = kwargs.get("attrib")
         preview = kwargs.get("preview")
 
         if not folder_path and not entity_id:
@@ -1038,6 +1056,7 @@ class EntityListExportImportModel(EntityExportImport):
             await entity_list.add(
                 id=new_id,
                 entity_id=entity_id,
+                attrib=attrib,
             )
             if not preview:
                 await entity_list.save(

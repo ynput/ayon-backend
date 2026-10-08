@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
+from ayon_server.helpers.download import shorten_url_string
 from ayon_server.logging import log_traceback, logger
 from ayon_server.version import __version__ as ayon_version
 
@@ -223,9 +224,11 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
 async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
     """Download the addon zip file from the URL and install it"""
 
+    log_url = shorten_url_string(url, 50)
+
     await EventStream.update(
         event_id,
-        description=f"Downloading addon from URL {url}",
+        description=f"Downloading addon from URL {log_url}",
         status="in_progress",
         sender="background-installer",
         sender_type="system",
