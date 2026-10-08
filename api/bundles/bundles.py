@@ -21,7 +21,7 @@ from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
 from ayon_server.utils import RequestCoalescer
 
-from .actions import promote_bundle
+from .actions import copy_staging_settings
 from .check_bundle import CheckBundleResponseModel, check_bundle
 from .migration import migrate_server_addon_settings, migrate_settings
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
@@ -604,8 +604,20 @@ async def bundle_actions(
             raise BadRequestException("Archived bundles cannot be modified")
 
         if action.action == "promote":
-            await promote_bundle(bundle, user)
-            await AddonLibrary.clear_addon_list_cache()
+            bstat = await check_bundle(bundle)
+            if not bstat.success:
+                raise BadRequestException(bstat.message())
+            await copy_staging_settings(bundle, user)
+
+    if action.action == "promote":
+        # Already validated above
+        await update_bundle(
+            bundle_name,
+            BundlePatchModel(is_production=True),
+            user,
+            build=None,
+            force=True,
+        )
 
     return EmptyResponse(status_code=204)
 

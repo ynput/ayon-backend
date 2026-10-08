@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from ayon_server.addons import AddonLibrary
+from ayon_server.addons.activation import init_addon_activation
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.readiness import set_ready
@@ -332,6 +333,7 @@ async def _startup(app: "FastAPI") -> None:
 
         await AddonLibrary.clear_addon_list_cache()
         await clear_server_restart_required()
+        await init_addon_activation()
 
         logger.trace(f"{len(app.routes)} routes registered")
         logger.info("Server is now ready to connect")
