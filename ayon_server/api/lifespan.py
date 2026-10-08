@@ -193,17 +193,20 @@ async def addon_update(library: AddonLibrary) -> None:
         if bundle_update_needed:
             if has_previous_bundle:
                 logger.debug("Updating production bundle with required addons")
-                await Postgres.execute(
+                topic = "bundle.updated"
+                row = await Postgres.fetchrow(
                     """
                     UPDATE public.bundles
                     SET data = jsonb_set(data, '{addons}', $1::jsonb)
                     WHERE is_production = TRUE
+                    RETURNING name
                     """,
                     production_addons,
                 )
             else:
                 logger.debug("Creating production bundle with required addons")
-                await Postgres.execute(
+                topic = "bundle.created"
+                row = await Postgres.fetchrow(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
                     VALUES (
@@ -211,6 +214,7 @@ async def addon_update(library: AddonLibrary) -> None:
                         TRUE,
                         $1
                     )
+                    RETURNING name
                     """,
                     {
                         "addons": production_addons,
@@ -219,6 +223,15 @@ async def addon_update(library: AddonLibrary) -> None:
                     },
                 )
             logger.debug("Production bundle updated with required addons")
+
+    if bundle_update_needed:
+        # Notify already running replicas (after the commit)
+        bundle_name = row["name"] if row else None
+        await EventStream.dispatch(
+            topic,
+            description=f"Required addons added to bundle '{bundle_name}'",
+            summary={"name": bundle_name, "isProduction": True},
+        )
 
 
 async def _startup(app: "FastAPI") -> None:
