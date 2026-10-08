@@ -243,16 +243,25 @@ async def get_folder_groups(
     Group value is the folder id, label is the full folder path.
     """
 
-    if entity_type == "task":
-        values_cte = f"SELECT folder_id FROM project_{project_name}.tasks"
-    elif entity_type == "product":
-        values_cte = f"SELECT folder_id FROM project_{project_name}.products"
+    if entity_type in ("task", "product"):
+        counts_cte = f"""
+            SELECT folder_id, count(*) AS count
+            FROM project_{project_name}.{entity_type}s
+            GROUP BY folder_id
+        """
     elif entity_type == "version":
-        values_cte = f"""
-            SELECT p.folder_id
-            FROM project_{project_name}.versions v
+        # Pre-aggregate versions per product (index-only scan on product_id)
+        # so the join with products is products-sized, not versions-sized.
+        counts_cte = f"""
+            SELECT p.folder_id, sum(vc.count)::bigint AS count
+            FROM (
+                SELECT product_id, count(*) AS count
+                FROM project_{project_name}.versions
+                GROUP BY product_id
+            ) vc
             JOIN project_{project_name}.products p
-            ON v.product_id = p.id
+            ON p.id = vc.product_id
+            GROUP BY p.folder_id
         """
     else:
         raise BadRequestException(
@@ -265,11 +274,7 @@ async def get_folder_groups(
         conditions.append(f"h.path like ANY ('{{ {','.join(facl)} }}')")
 
     query = f"""
-        WITH counts AS (
-            SELECT folder_id, count(*) AS count
-            FROM ({values_cte}) AS entities
-            GROUP BY folder_id
-        )
+        WITH counts AS ({counts_cte})
         SELECT
             f.id AS value,
             h.path AS label,
