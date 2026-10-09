@@ -10,6 +10,7 @@ in the storage and can be used as simple JSON records.
 
 import re
 from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
@@ -48,6 +49,22 @@ def _validate_kind(kind: str) -> None:
         raise BadRequestException(f"Invalid blob kind: {kind!r}")
 
 
+@asynccontextmanager
+async def _blob_lock(project_name: str, blob_id: str) -> AsyncGenerator[None]:
+    """Serialize writes of a single blob
+
+    Concurrent saves and deletes of the same blob are applied one by one
+    (in the order they acquire the lock), so the record always matches
+    the stored payload. The lock is held until the transaction ends.
+    """
+    async with Postgres.transaction():
+        await Postgres.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            f"blob:{project_name}:{blob_id}",
+        )
+        yield
+
+
 def _get_user_name() -> str | None:
     user = get_request_context().user
     return user.name if user else None
@@ -82,63 +99,65 @@ class BlobStorage:
         _validate_kind(kind)
         blob_id = EntityID.create() if blob_id is None else EntityID.parse(blob_id)
 
-        existing = await Postgres.fetchrow(
-            f"SELECT kind, size FROM project_{project_name}.blobs WHERE id = $1",
-            blob_id,
-        )
-        if existing and existing["kind"] != kind:
-            raise ConflictException(f"Blob {blob_id} belongs to another kind")
-
-        # Payload path contains the kind, so a conflicting save
-        # never overwrites a payload of another kind
-        storage = await Storages.project(project_name)
-        size = 0
-        if payload:
-            size = await storage.store_blob(kind, blob_id, payload)
-            if not size:
-                # Empty stream: blobs of size 0 have nothing in the storage
-                await storage.delete_blob(kind, blob_id)
-
-        user_name = _get_user_name()
-        try:
-            res = await Postgres.fetchrow(
-                f"""
-                INSERT INTO project_{project_name}.blobs
-                (id, kind, size, data, created_by, updated_by)
-                VALUES ($1, $2, $3, $4, $5, $5)
-                ON CONFLICT (id) DO UPDATE
-                SET
-                    size = EXCLUDED.size,
-                    data = EXCLUDED.data,
-                    updated_at = NOW(),
-                    updated_by = EXCLUDED.updated_by
-                WHERE blobs.kind = EXCLUDED.kind
-                RETURNING id
-                """,
+        async with _blob_lock(project_name, blob_id):
+            existing = await Postgres.fetchrow(
+                f"SELECT kind, size FROM project_{project_name}.blobs WHERE id = $1",
                 blob_id,
-                kind,
-                size,
-                data or {},
-                user_name,
             )
-        except Exception:
-            # Keep the payload of an existing record, as it may still be
-            # referenced. Only clean up payloads of new blobs.
-            if size and not existing:
+            if existing and existing["kind"] != kind:
+                raise ConflictException(f"Blob {blob_id} belongs to another kind")
+
+            # Payload path contains the kind, so a conflicting save
+            # never overwrites a payload of another kind
+            storage = await Storages.project(project_name)
+            size = 0
+            if payload:
+                size = await storage.store_blob(kind, blob_id, payload)
+                if not size:
+                    # Empty stream: blobs of size 0 have nothing in the storage
+                    await storage.delete_blob(kind, blob_id)
+
+            user_name = _get_user_name()
+            try:
+                res = await Postgres.fetchrow(
+                    f"""
+                    INSERT INTO project_{project_name}.blobs
+                    (id, kind, size, data, created_by, updated_by)
+                    VALUES ($1, $2, $3, $4, $5, $5)
+                    ON CONFLICT (id) DO UPDATE
+                    SET
+                        size = EXCLUDED.size,
+                        data = EXCLUDED.data,
+                        updated_at = NOW(),
+                        updated_by = EXCLUDED.updated_by
+                    WHERE blobs.kind = EXCLUDED.kind
+                    RETURNING id
+                    """,
+                    blob_id,
+                    kind,
+                    size,
+                    data or {},
+                    user_name,
+                )
+            except Exception:
+                # Keep the payload of an existing record, as it may still be
+                # referenced. Only clean up payloads of new blobs.
+                if size and not existing:
+                    await storage.delete_blob(kind, blob_id)
+                raise
+
+            if res is None:
+                # Saves are serialized by the lock, so this only happens
+                # when the table is modified outside BlobStorage
+                if size:
+                    await storage.delete_blob(kind, blob_id)
+                raise ConflictException(f"Blob {blob_id} belongs to another kind")
+
+            if existing and existing["size"] and not size:
+                # The blob had a payload, but the new one is empty
                 await storage.delete_blob(kind, blob_id)
-            raise
 
-        if res is None:
-            # The id was taken by another kind in the meantime
-            if size:
-                await storage.delete_blob(kind, blob_id)
-            raise ConflictException(f"Blob {blob_id} belongs to another kind")
-
-        if existing and existing["size"] and not size:
-            # The blob had a payload, but the new one is empty
-            await storage.delete_blob(kind, blob_id)
-
-        return blob_id
+            return blob_id
 
     @classmethod
     async def get(cls, project_name: str, blob_id: str) -> BlobRecord:
@@ -231,21 +250,22 @@ class BlobStorage:
     async def delete(cls, project_name: str, blob_id: str) -> None:
         """Remove the blob record and its payload."""
         blob_id = EntityID.parse(blob_id)
-        res = await Postgres.fetchrow(
-            f"""
-            DELETE FROM project_{project_name}.blobs WHERE id = $1
-            RETURNING kind, size
-            """,
-            blob_id,
-        )
-        if res is None:
-            raise NotFoundException(f"Blob {blob_id} not found")
-        if not res["size"]:
-            return
+        async with _blob_lock(project_name, blob_id):
+            res = await Postgres.fetchrow(
+                f"""
+                DELETE FROM project_{project_name}.blobs WHERE id = $1
+                RETURNING kind, size
+                """,
+                blob_id,
+            )
+            if res is None:
+                raise NotFoundException(f"Blob {blob_id} not found")
+            if not res["size"]:
+                return
 
-        storage = await Storages.project(project_name)
-        if not await storage.delete_blob(res["kind"], blob_id):
-            logger.warning(f"Failed to delete payload of blob {blob_id}")
+            storage = await Storages.project(project_name)
+            if not await storage.delete_blob(res["kind"], blob_id):
+                logger.warning(f"Failed to delete payload of blob {blob_id}")
 
     @classmethod
     async def list(
