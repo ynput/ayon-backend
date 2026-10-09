@@ -24,7 +24,7 @@ from ayon_server.graphql.nodes.entity_list import (
     EntityListNode,
 )
 from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.sqlfilter import JSON_FIELDS, QueryFilter, build_filter
 from ayon_server.utils import SQLTool
 
 from .common import (
@@ -168,8 +168,9 @@ async def get_entity_list_items(
         info.context["entity_type"] = entity_type
 
     # Get attribute definition for the entity list
+    # Keyed by list, as one query may resolve items of several lists
     attrs = root._data.get("attributes") or []
-    info.context["list_attributes"] = {
+    info.context.setdefault("list_attributes", {})[root.id] = {
         attr["name"]: attr["data"].get("type", "string") for attr in attrs
     }
 
@@ -473,18 +474,18 @@ async def get_entity_list_items(
 
     # Unified attributes
     # Create additions column _all_attrib that contains all attributes
-    # from the entity and the item itself - used for sorting and filtering
+    # from the entity and the item itself - used for sorting and filtering.
+    # _listed_entity_attrib has the entity's attributes without the item's
+    # values (not prefixed with _entity_, so it's not passed to the node)
 
     if entity_type == "folder":
-        sql_columns.append(
-            "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"  # noqa: E501
-        )
+        entity_attrib = "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     elif entity_type == "task":
-        sql_columns.append(
-            "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"
-        )  # noqa: E501
+        entity_attrib = "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     else:
-        sql_columns.append("(e.attrib || i.attrib) as _all_attrib")
+        entity_attrib = "e.attrib"
+    sql_columns.append(f"({entity_attrib} || i.attrib) as _all_attrib")
+    sql_columns.append(f"{entity_attrib} as _listed_entity_attrib")
 
     #
     # Sorting
@@ -506,6 +507,11 @@ async def get_entity_list_items(
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
+            columns.append(f"({attr_case})")
+
+        elif sort_key.startswith("entityAttrib."):
+            attr_name = sort_key.removeprefix("entityAttrib.")
+            attr_case = await get_attrib_sort_case(attr_name, "_listed_entity_attrib")
             columns.append(f"({attr_case})")
 
         elif sort_key.startswith("entity"):
@@ -558,6 +564,7 @@ async def get_entity_list_items(
     if filter:
         column_whitelist = [
             *COLS_ITEMS,
+            "entity_attrib",
             *[f"entity_{col}" for col in cols],
             *[f"parent_{col}" for col in allowed_parent_keys],
         ]
@@ -568,8 +575,10 @@ async def get_entity_list_items(
             filter = build_filter(
                 fq,
                 column_whitelist=column_whitelist,
+                json_fields=[*JSON_FIELDS, "entity_attrib"],
                 column_map={
                     "attrib": "_all_attrib",
+                    "entity_attrib": "_listed_entity_attrib",
                     **{f"entity_{col}": f"_entity_{col}" for col in cols},
                     **{
                         f"parent_{col}": f"_parent_{col}" for col in allowed_parent_keys
