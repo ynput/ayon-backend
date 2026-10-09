@@ -396,6 +396,24 @@ class S3Uploader:
         )
         self._worker_task = asyncio.create_task(self._worker())
 
+    async def _put(self, item: bytes | None) -> None:
+        """Put the item to the queue, unless the worker stops first.
+
+        A failed worker no longer consumes the queue, so waiting for
+        free space would block forever. Raise the worker's error instead.
+        """
+        assert self._worker_task, "Upload not initialized"
+        put_task = asyncio.ensure_future(self._queue.put(item))
+        await asyncio.wait(
+            {put_task, self._worker_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if put_task.done():
+            return
+        put_task.cancel()
+        self._worker_task.result()  # re-raises the worker's exception
+        raise AyonException("S3 upload worker stopped unexpectedly")
+
     async def push_chunk(self, chunk: bytes | bytearray):
         """
         Push chunk to the queue for background processing by the worker.
@@ -403,9 +421,9 @@ class S3Uploader:
         """
 
         if isinstance(chunk, bytearray):
-            await self._queue.put(bytes(memoryview(chunk)))
+            await self._put(bytes(memoryview(chunk)))
         else:
-            await self._queue.put(chunk)
+            await self._put(chunk)
 
     def _complete(self):
         if not self._multipart:
@@ -427,7 +445,7 @@ class S3Uploader:
         Signal the worker to complete and wait for uploads to finish.
         Finalize the multipart upload.
         """
-        await self._queue.put(None)  # Shutdown signal for the worker
+        await self._put(None)  # Shutdown signal for the worker
         if self._worker_task:
             await self._worker_task  # Wait for the worker to finish.
 
