@@ -32,8 +32,6 @@ class BaseBundleModel(OPModel):
 
 
 class AddonDevelopmentItem(OPModel):
-    model_config = ConfigDict(extra="allow")
-
     enabled: bool = Field(
         True, example=False, description="Enable/disable addon development"
     )
@@ -43,9 +41,7 @@ class AddonDevelopmentItem(OPModel):
 
 
 class BundleDataModel(BaseBundleModel):
-    """Stored bundle data, including fields from newer server versions."""
-
-    model_config = ConfigDict(extra="allow")
+    """Stored bundle data."""
 
     description: str | None = Field(None, title="Description")
     is_project: bool = Field(False, example=False)
@@ -85,8 +81,6 @@ class BundleDataModel(BaseBundleModel):
 
 class BundleModel(BundleDataModel):
     """Flat model for GET and POST requests."""
-
-    model_config = ConfigDict(extra="ignore")
 
     name: str = Field(
         ...,
