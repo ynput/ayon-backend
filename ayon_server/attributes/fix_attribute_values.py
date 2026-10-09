@@ -169,7 +169,9 @@ async def fix_attribute_values(
             table = f"project_{name}.{entity_type}s"
             changed += await fix_table(table, "id", entity_type, **kwargs)
 
-        if changed and not dry_run:
+        # Changed definitions (e.g. the inherit flag) may change
+        # the inherited values even if no stored value changed
+        if (changed or attribute_names) and not dry_run:
             await rebuild_inherited_attributes(name)
             await rebuild_hierarchy_cache(name)
         total += changed

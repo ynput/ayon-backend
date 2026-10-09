@@ -128,7 +128,7 @@ class AttributeData(OPModel):
             title="Inherit",
             description="Inherit the attribute value from the parent entity.",
         ),
-    ] = True
+    ] = False
 
     widget: Annotated[
         str | None,
