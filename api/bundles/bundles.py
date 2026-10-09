@@ -672,6 +672,8 @@ async def bundle_actions(
                 user,
                 force=True,  # Already validated above
             )
+        else:
+            raise BadRequestException(f"Unknown action: {action.action}")
     await finalize()
 
     return EmptyResponse(status_code=204)
