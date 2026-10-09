@@ -16,7 +16,7 @@ from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import EntityID, SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude
 
 BASE_GET_QUERY = """
     SELECT *
@@ -181,9 +181,6 @@ class ProjectLevelEntity(BaseEntity):
         attribute hierarchy.path along with the base data and
         the attributes inherited from parent entities.
         """
-
-        if EntityID.parse(entity_id) is None:
-            raise ValueError(f"Invalid {cls.entity_type} ID specified")
 
         query = cls.base_get_query.format(
             project_name=project_name,
