@@ -26,6 +26,7 @@ from ayon_server.graphql.resolvers.pagination import (
     sort_columns,
     with_tiebreakers,
 )
+from ayon_server.graphql.resolvers.sorting import get_attrib_sort_case
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.types import validate_name_list, validate_status_list
@@ -37,12 +38,43 @@ from .common import (
     build_search_conditions,
 )
 
+# Workfile name is not stored - it is the last segment of the path
+# (see workfile_from_record). Both / and \ are treated as separators.
+# The explicit ::text cast makes create_pagination compare cursor values
+# as text (file names such as "2024-01-01T10.30" would otherwise be
+# mistaken for timestamps).
+WORKFILE_NAME_EXPRESSION = r"substring(workfiles.path from '[^/\\]*$')::text"
+
 SORT_OPTIONS = {
-    "name": "workfiles.name",
+    "name": WORKFILE_NAME_EXPRESSION,
+    "path": "workfiles.path",
     "status": "workfiles.status",
     "createdAt": "workfiles.created_at",
     "updatedAt": "workfiles.updated_at",
 }
+
+
+async def get_workfiles_order_by(sort_by: str | list[str] | None) -> OrderBy:
+    """Return the columns to sort workfiles by for the given sort_by value.
+
+    `workfiles.creation_order` is always appended as the last key,
+    so the ordering is total and cursor pagination is stable.
+    """
+    order_by: OrderBy = []
+
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
+        if sort_key in SORT_OPTIONS:
+            columns.append(SORT_OPTIONS[sort_key])
+        elif sort_key.startswith("attrib."):
+            attr_case = await get_attrib_sort_case(sort_key[7:], "workfiles.attrib")
+            columns.append(attr_case)
+        else:
+            raise BadRequestException(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
+
+    return with_tiebreakers(order_by, "workfiles.creation_order")
 
 
 async def get_workfiles(
@@ -189,20 +221,7 @@ async def get_workfiles(
     # Pagination
     #
 
-    order_by: OrderBy = []
-
-    for sort_key, descending in get_sort_keys(sort_by):
-        columns: list[str] = []
-        if sort_key in SORT_OPTIONS:
-            columns.append(SORT_OPTIONS[sort_key])
-        elif sort_key.startswith("attrib."):
-            columns.append(f"workfiles.attrib->>'{sort_key[7:]}'")
-        else:
-            raise ValueError(f"Invalid sort_by value: {sort_key}")
-
-        order_by.extend(sort_columns(columns, descending))
-
-    order_by = with_tiebreakers(order_by, "workfiles.creation_order")
+    order_by = await get_workfiles_order_by(sort_by)
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
