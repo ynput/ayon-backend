@@ -7,6 +7,7 @@ from strawberry.scalars import JSON
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info
+from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps, json_loads, slugify
 
 if TYPE_CHECKING:
@@ -173,7 +174,12 @@ class ActivityNode:
             return None
 
         loader = info.context["version_loader"]
-        record = await loader.load((self.project_name, version_id))
+        try:
+            record = await loader.load((self.project_name, version_id))
+        except Postgres.UndefinedTableError:
+            # The inbox lists activities of all projects and resolves this
+            # after its project lock is released: the project was deleted
+            return None
         if record is None:
             return None
         return await info.context["version_from_record"](
