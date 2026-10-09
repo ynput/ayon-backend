@@ -314,6 +314,37 @@ async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     return [result_dict[k] for k in keys]
 
 
+async def entity_lists_by_entity_loader(
+    keys: list[KeyType],
+) -> list[list[dict[str, Any]]]:
+    """Load the entity lists containing each of the given entities.
+    keys must be a list of tuples (project_name, entity_id) and project_name
+    values must be the same!
+    """
+
+    result_dict: dict[KeyType, list[dict[str, Any]]] = {k: [] for k in keys}
+    project_name = get_project_name(keys)
+
+    query = f"""
+        SELECT
+            lists.*,
+            items.entity_id AS _entity_id
+        FROM project_{project_name}.entity_lists AS lists
+        JOIN (
+            SELECT DISTINCT entity_list_id, entity_id
+            FROM project_{project_name}.entity_list_items
+            WHERE entity_id IN {SQLTool.id_array([k[1] for k in keys])}
+        ) AS items
+        ON items.entity_list_id = lists.id
+        ORDER BY lists.label, lists.creation_order
+        """
+
+    async for record in Postgres.iterate(query):
+        key: KeyType = KeyType((project_name, str(record["_entity_id"])))
+        result_dict[key].append(dict(record))
+    return [result_dict[k] for k in keys]
+
+
 async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
 
