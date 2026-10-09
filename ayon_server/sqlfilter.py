@@ -14,6 +14,7 @@ from pydantic import (
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils.entity_id import EntityID
+from ayon_server.utils.sqltool import SQLTool
 
 ValueType = (
     StrictStr
@@ -185,8 +186,155 @@ def create_path_from_key(
     return path
 
 
+#
+# Link conditions
+#
+
+LINK_KEY_REGEX = re.compile(r"^links(?:[/.](in|out|any)(?:[/.](.+))?)?$")
+
+LINK_OPERATORS = (
+    "includesany",
+    "includesall",
+    "excludesany",
+    "excludesall",
+    "includes",
+    "excludes",
+    "notnull",
+    "isnull",
+)
+
+
+def is_link_key(key: str) -> bool:
+    return key == "links" or key.startswith(("links/", "links."))
+
+
+def build_link_condition(
+    c: QueryCondition,
+    *,
+    project_name: str,
+    id_column: str,
+) -> str:
+    """Return a SQL condition matching entities by their links.
+
+    The key selects the links: `links[/<direction>[/<link_type>]]`,
+    where direction is `in` (the entity is the link output), `out`
+    (it is the input) or `any` (default), e.g. `links/in/reference|folder|folder`.
+
+    The operator and value select the entities on the other end:
+
+      - `notnull` / `isnull`: has / has no such link to any entity
+      - `includesany` / `includes`: has such a link to any of the given IDs
+      - `includesall`: has such a link to each of the given IDs
+      - `excludesany` / `excludes`: has no such link to any of the given IDs
+      - `excludesall`: is missing such a link to at least one of the given IDs
+    """
+
+    if not (m := LINK_KEY_REGEX.match(c.key)):
+        raise ValueError(f"Invalid link key: {c.key}")
+    direction = m.group(1) or "any"
+    link_type = m.group(2)
+
+    operator = c.operator
+    if operator not in LINK_OPERATORS:
+        raise ValueError(f"Unsupported operator for links: {operator}")
+
+    # (column holding the entity, column holding the other end)
+    ends = {
+        "in": [("output_id", "input_id")],
+        "out": [("input_id", "output_id")],
+        "any": [("output_id", "input_id"), ("input_id", "output_id")],
+    }[direction]
+
+    base_conds = []
+    if link_type:
+        safe_link_type = link_type.replace("'", "''")
+        base_conds.append(f"lnk.link_type = '{safe_link_type}'")
+
+    def has_link(other_ids: list[str] | None, negate: bool = False) -> str:
+        """Whether a matching link (to any of other_ids, if given) exists.
+
+        The shapes are chosen so postgres can plan them as joins using
+        the link indexes rather than as a subplan per row: `id IN (...)`
+        becomes a semi-join (an OR of two EXISTS would not), and
+        NOT(a OR b) is spelled out as (NOT EXISTS a AND NOT EXISTS b),
+        each of which becomes an anti-join.
+        """
+        if not negate:
+            selects = []
+            for column, other in ends:
+                conds = list(base_conds)
+                if other_ids is not None:
+                    conds.append(f"lnk.{other} IN {SQLTool.id_array(other_ids)}")
+                selects.append(
+                    f"SELECT lnk.{column} FROM project_{project_name}.links AS lnk"
+                    f" {SQLTool.conditions(conds)}"
+                )
+            return f"{id_column} IN ({' UNION ALL '.join(selects)})"
+
+        result = []
+        for column, other in ends:
+            conds = [f"lnk.{column} = {id_column}", *base_conds]
+            if other_ids is not None:
+                conds.append(f"lnk.{other} IN {SQLTool.id_array(other_ids)}")
+            result.append(
+                f"NOT EXISTS (SELECT 1 FROM project_{project_name}.links AS lnk"
+                f" WHERE {' AND '.join(conds)})"
+            )
+        return result[0] if len(result) == 1 else f"({' AND '.join(result)})"
+
+    if operator in ("notnull", "isnull"):
+        return has_link(None, negate=operator == "isnull")
+
+    value = [c.value] if isinstance(c.value, str) else c.value
+    if not isinstance(value, list):
+        raise ValueError("Link condition value must be a list of entity IDs")
+    str_values = [v for v in value if isinstance(v, str)]
+    if len(str_values) != len(value):
+        raise ValueError("Link condition value must be a list of entity IDs")
+    # Normalize and deduplicate (also validates the IDs)
+    ids = list(dict.fromkeys(cast(str, EntityID.parse(v)) for v in str_values))
+    if not ids:
+        raise ValueError("Link condition requires at least one entity ID")
+
+    if operator in ("includesany", "includes"):
+        return has_link(ids)
+    if operator in ("excludesany", "excludes"):
+        return has_link(ids, negate=True)
+
+    # includesall / excludesall: entities linked to each of the ids,
+    # as a single (small, index driven) set rather than a condition per id
+    sql_ids = SQLTool.id_array(ids)
+    pairs = " UNION ALL ".join(
+        f"SELECT lnk.{column} AS entity_id, lnk.{other} AS other_id"
+        f" FROM project_{project_name}.links AS lnk"
+        f" {SQLTool.conditions([*base_conds, f'lnk.{other} IN {sql_ids}'])}"
+        for column, other in ends
+    )
+    linked_to_all = (
+        f"{id_column} IN (SELECT entity_id FROM ({pairs}) AS pairs"
+        f" GROUP BY entity_id HAVING COUNT(DISTINCT other_id) = {len(ids)})"
+    )
+    if operator == "includesall":
+        return linked_to_all
+    return f"NOT ({linked_to_all})"
+
+
 def build_condition(c: QueryCondition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
+
+    # The project the filtered table belongs to. Conditions on columns
+    # don't need it (the caller's query already names the table), but
+    # the ones that query another table of the project do, e.g. links.
+    project_name = kwargs.get("project_name")
+    if project_name and is_link_key(c.key):
+        table_prefix = kwargs.get("table_prefix")
+        if not table_prefix:
+            raise ValueError("Link conditions require table_prefix")
+        return build_link_condition(
+            c,
+            project_name=project_name,
+            id_column=f"{table_prefix}.id",
+        )
 
     json_fields = kwargs.get("json_fields", JSON_FIELDS)
     single_json_column = kwargs.get("single_json_column", None)

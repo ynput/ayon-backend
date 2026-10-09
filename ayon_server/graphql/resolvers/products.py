@@ -474,6 +474,7 @@ async def get_products(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+            project_name=project_name,
         ):
             sql_conditions.append(fcond)
 
@@ -499,6 +500,7 @@ async def get_products(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
+            project_name=project_name,
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
@@ -537,6 +539,7 @@ async def get_products(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="versions",
+                project_name=project_name,
                 column_map={
                     "product_type": "products.product_type",
                     "product_base_type": "products.product_base_type",
@@ -569,6 +572,7 @@ async def get_products(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="tasks",
+                project_name=project_name,
             )
             if fcond:
                 task_cond = f"{fcond}"
