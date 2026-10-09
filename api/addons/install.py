@@ -55,7 +55,8 @@ async def upload_addon_zip_file(
         if not allow_custom_addons:
             raise ForbiddenException("Custom addons uploads are not allowed")
 
-    temp_path = f"/tmp/{shortuuid.uuid()}.zip"
+    # Archive format (zip or tar) is detected from the content, not the extension
+    temp_path = f"/tmp/{shortuuid.uuid()}.addon"
     await handle_upload(request, temp_path)
 
     # Get addon name and version from the zip file
