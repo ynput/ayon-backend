@@ -285,7 +285,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 return f"({column})::jsonb @> {safe_value}"
 
             elif operator == "excludesall":
-                return f"NOT ({column})::jsonb @> {safe_value}"
+                return f"NOT COALESCE(({column})::jsonb @> {safe_value}, FALSE)"
 
             elif operator == "includesany":
                 return f"""EXISTS (
@@ -360,11 +360,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         elif operator == "excludesall":
             # Field does not contain the given array
-            return f"NOT (({column})::{cast_type}[] @> {arr_value})"
+            return f"NOT COALESCE(({column})::{cast_type}[] @> {arr_value}, FALSE)"
 
         elif operator == "excludesany":
             # Field does not contain any of the values in the array
-            return f"NOT(({column})::{cast_type}[] && {arr_value})"
+            return f"NOT COALESCE(({column})::{cast_type}[] && {arr_value}, FALSE)"
 
         elif operator == "includesany":
             # There's an intersection between the field and the array
@@ -377,8 +377,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             return f"({column})::{cast_type} = ANY({arr_value})"
 
         elif operator == "notin":
-            # Field does not match any of the values in the array
-            return f"NOT ({column})::{cast_type} = ANY({arr_value})"
+            # Field does not match any of the values in the array.
+            # NULL (unset) fields match too, since they are not in the array
+            return f"NOT COALESCE(({column})::{cast_type} = ANY({arr_value}), FALSE)"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
@@ -421,7 +422,8 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     elif operator == "gte":
         return f"{column} >= {safe_value}"
     elif operator == "ne":
-        return f"{column} != {safe_value}"
+        # NULL (unset) fields are not equal to the value either
+        return f"{column} IS DISTINCT FROM {safe_value}"
 
     # Field is a list
 
@@ -441,7 +443,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
               FROM jsonb_array_elements({column}) AS elem
               WHERE elem = {safe_value}
             )"""
-        return f"NOT ({safe_value} = ANY({column}))"
+        return f"NOT COALESCE({safe_value} = ANY({column}), FALSE)"
 
     else:
         raise ValueError(f"Unsupported operator: {operator}")
