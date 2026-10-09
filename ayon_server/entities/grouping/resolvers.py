@@ -1,13 +1,19 @@
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
+from ayon_server.access.utils import folder_access_list
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.anatomy import get_project_anatomy
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
+from ayon_server.utils import SQLTool
 
 from .common import EntityGroup
+
+if TYPE_CHECKING:
+    from ayon_server.entities import UserEntity
 
 
 async def get_status_or_type_groups(
@@ -224,6 +230,76 @@ async def get_tags_groups(
         )
         groups.append(group)
     return groups
+
+
+async def get_folder_groups(
+    project_name: str,
+    entity_type: ProjectLevelEntityType,
+    user: "UserEntity",
+) -> list[EntityGroup]:
+    """Get entity groups based on the folder the entity belongs to.
+
+    Only folders containing at least one entity of the given type are returned.
+    Group value is the folder id, label is the full folder path.
+    """
+
+    if entity_type in ("task", "product"):
+        counts_cte = f"""
+            SELECT folder_id, count(*) AS count
+            FROM project_{project_name}.{entity_type}s
+            GROUP BY folder_id
+        """
+    elif entity_type == "version":
+        # Pre-aggregate versions per product (index-only scan on product_id)
+        # so the join with products is products-sized, not versions-sized.
+        counts_cte = f"""
+            SELECT p.folder_id, sum(vc.count)::bigint AS count
+            FROM (
+                SELECT product_id, count(*) AS count
+                FROM project_{project_name}.versions
+                GROUP BY product_id
+            ) vc
+            JOIN project_{project_name}.products p
+            ON p.id = vc.product_id
+            GROUP BY p.folder_id
+        """
+    else:
+        raise BadRequestException(
+            "Grouping by folder is only supported for tasks, products and versions."
+        )
+
+    conditions = [f"NOT starts_with(h.path, '{AYON_INTERNAL_FOLDER_NAME}')"]
+    facl = await folder_access_list(user, project_name, "read")
+    if facl is not None:
+        conditions.append(f"h.path like ANY ('{{ {','.join(facl)} }}')")
+
+    query = f"""
+        WITH counts AS ({counts_cte})
+        SELECT
+            f.id AS value,
+            h.path AS label,
+            ft.data->>'icon' AS icon,
+            counts.count AS count
+        FROM counts
+        JOIN project_{project_name}.folders f
+        ON f.id = counts.folder_id
+        JOIN project_{project_name}.hierarchy h
+        ON h.id = f.id
+        LEFT JOIN project_{project_name}.folder_types ft
+        ON ft.name = f.folder_type
+        {SQLTool.conditions(conditions)}
+        ORDER BY h.path
+    """
+    result = await Postgres.fetch(query)
+    return [
+        EntityGroup(
+            value=row["value"],
+            label=row["label"],
+            icon=row["icon"],
+            count=row["count"],
+        )
+        for row in result
+    ]
 
 
 async def get_product_type_groups(

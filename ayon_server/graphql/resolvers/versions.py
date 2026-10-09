@@ -1041,6 +1041,7 @@ async def get_versions(
             [
                 "products.product_base_type AS product_base_type",
                 "products.product_type AS product_type",
+                "replace(products.folder_id::text, '-', '') AS folder_id",
                 "folders.folder_type AS folder_type",
                 "tasks.task_type AS task_type",
             ]
