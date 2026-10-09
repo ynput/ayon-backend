@@ -16,16 +16,29 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 
-from api.data_import.common import SENDER_TYPE, get_entity_id_by_path
-from ayon_server.entities import FolderEntity, TaskEntity, UserEntity, VersionEntity
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.attributes.models import AttributeData
+from ayon_server.entities import (
+    FolderEntity,
+    ProductEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
+)
 from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import AttributeType, Field, OPModel
-from ayon_server.utils import create_uuid
+from ayon_server.types import AttributeType, Field, OPModel, ProjectLevelEntityType
+
+from .common import (
+    SENDER_TYPE,
+    RowSkippedException,
+    get_entity_id_by_path,
+)
 
 # Create reverse mapping: Python type -> AttributeType string
 # This inverts FIELD_TYPES which maps AttributeType -> Python type
@@ -45,6 +58,21 @@ class ExistingItemStrategy(StrEnum):
 
 # Type alias for existing strategy values
 ExistingStrategyType = Literal["skip", "update", "fail"]
+
+
+class MissingItemStrategy(StrEnum):
+    """Strategy for rows that match no existing item during import."""
+
+    CREATE = "create"
+    SKIP = "skip"
+
+
+class DuplicateItemStrategy(StrEnum):
+    """Strategy for update-only rows whose name matches several items."""
+
+    SKIP = "skip"
+    ALL = "all"
+
 
 # How to handle errors when importing data for this column.
 # - "skip": skip the row if there is an error in this column.
@@ -204,6 +232,56 @@ PATH_COLUMN = ImportableColumn(
     enum_items=None,
 )
 
+COMMENT_COLUMN = "comment"
+COMMENT_CATEGORY_COLUMN = "comment_category"
+IMPORT_ONLY_COLUMNS = {COMMENT_COLUMN, COMMENT_CATEGORY_COLUMN}
+
+
+async def get_comment_columns(project_name: str | None) -> list[ImportableColumn]:
+    """Columns that add a comment to the imported folder or task.
+
+    Categories come from the project settings each time, they can be anything.
+    """
+    columns = [
+        ImportableColumn(
+            key=COMMENT_COLUMN,
+            label="Comment",
+            required=False,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["skip", "abort"],
+            enum_name=None,
+            enum_items=None,
+        )
+    ]
+    categories = (
+        await ActivityCategories.get_activity_categories(project_name)
+        if project_name
+        else []
+    )
+    if categories:
+        columns.append(
+            ImportableColumn(
+                key=COMMENT_CATEGORY_COLUMN,
+                label="Comment category",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["skip", "abort", "default"],
+                enum_name=None,
+                enum_items=[
+                    EnumItem(
+                        value=category["name"],
+                        label=category["name"],
+                        color=category.get("color"),
+                    )
+                    for category in categories
+                ],
+                create_new_items=False,
+            )
+        )
+    return columns
+
 
 class ImportStatus(OPModel):
     """Status model for tracking import results."""
@@ -215,6 +293,11 @@ class ImportStatus(OPModel):
     failed_items: dict[str, Any] = Field(
         default_factory=dict
     )  # Dict of items that failed with error details (name -> error message)
+    skipped_items: dict[str, Any] = Field(
+        default_factory=dict
+    )  # Rows skipped on purpose, e.g. matching no existing item (row -> reason)
+    comments: int = 0  # Comments added to imported folders and tasks
+    entity_list_id: str | None = None  # The list created by a new-list import
     preview: bool = False  # if import was run in regular or dry run mode
     phase: Literal["validating", "importing"] = "validating"
 
@@ -247,6 +330,8 @@ class EntityExportImport:
     _calculated_fields: list[ImportableColumn] = []
     # Column name for parent reference
     _parent_column_name: str | None = None
+    # Offer comment columns, which add a comment to the imported entity
+    _comment_columns: bool = False
     # Field names to exclude from export/import
     # Subclasses can override by redefining this class attribute
     _excluded_field_names: set[str] = {
@@ -323,7 +408,12 @@ class EntityExportImport:
         return cls._data_fields
 
     @classmethod
-    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
+    async def fields(
+        cls,
+        project_name: str | None = None,
+        parent_id: str | None = None,
+        list_entity_type: str | None = None,
+    ) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
         Args:
@@ -442,6 +532,9 @@ class EntityExportImport:
 
             result.append(column_info)
 
+        if cls._comment_columns:
+            result.extend(await get_comment_columns(project_name))
+
         return result
 
     @classmethod
@@ -465,7 +558,9 @@ class EntityExportImport:
         """
         if field_names is None:
             fields = await cls.fields()
-            field_names = [field.key for field in fields]
+            field_names = [
+                field.key for field in fields if field.key not in IMPORT_ONLY_COLUMNS
+            ]
 
         # Resolve table name
         table_name = cls._table_name
@@ -616,6 +711,7 @@ class FolderExportImportModel(EntityExportImport):
         PATH_COLUMN,
     ]
     _parent_column_name = "parent_id"
+    _comment_columns = True
 
 
 class TaskExportImportModel(EntityExportImport):
@@ -630,6 +726,25 @@ class TaskExportImportModel(EntityExportImport):
         PATH_COLUMN,
     ]
     _parent_column_name = "folder_id"
+    _comment_columns = True
+
+
+class ProductExportImportModel(EntityExportImport):
+    """Fields of products, for importing their values through a list."""
+
+    _entity_model = ProductEntity
+    _table_name = "project_{project_name}.products"
+    _unique_fields = ["id"]
+    _parent_column_name = "folder_id"
+
+
+class VersionExportImportModel(EntityExportImport):
+    """Fields of versions, for importing their values through a list."""
+
+    _entity_model = VersionEntity
+    _table_name = "project_{project_name}.versions"
+    _unique_fields = ["id"]
+    _parent_column_name = "product_id"
 
 
 class FolderTaskExportImportModel(EntityExportImport):
@@ -649,7 +764,12 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = []
 
     @classmethod
-    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
+    async def fields(
+        cls,
+        project_name: str | None = None,
+        parent_id: str | None = None,
+        list_entity_type: str | None = None,
+    ) -> list[ImportableColumn]:
         """Return task fields including folder_path.
 
         Args:
@@ -741,7 +861,9 @@ class FolderTaskExportImportModel(EntityExportImport):
         """
         if field_names is None:
             fields = await cls.fields()
-            field_names = [field.key for field in fields]
+            field_names = [
+                field.key for field in fields if field.key not in IMPORT_ONLY_COLUMNS
+            ]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
         folder_items: list[dict[str, Any]] = cast(
@@ -884,16 +1006,6 @@ class FolderTaskExportImportModel(EntityExportImport):
         return all_items
 
 
-class _VersionAttribExportImportModel(EntityExportImport):
-    """Model used for exporting and importing version attributes.
-
-    Not fully fledged model as others, used only to get attributes of version
-    entity for entity list import/export.
-    """
-
-    _entity_model = VersionEntity
-
-
 class EntityListExportImportModel(EntityExportImport):
     """Model used for exporting and importing entity list items.
 
@@ -909,8 +1021,17 @@ class EntityListExportImportModel(EntityExportImport):
     _parent_column_name = "entity_list_id"
 
     @classmethod
-    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
-        """Return list item references and attributes of supported entity types."""
+    async def fields(
+        cls,
+        project_name: str | None = None,
+        parent_id: str | None = None,
+        list_entity_type: str | None = None,
+    ) -> list[ImportableColumn]:
+        """Return list item references, list attributes and the values of the
+        listed entities, of the list (parent_id) or a new list's entity type.
+
+        Without either, the attributes of folders, tasks and versions.
+        """
         result: list[ImportableColumn] = []
 
         result.append(
@@ -946,16 +1067,46 @@ class EntityListExportImportModel(EntityExportImport):
             )
         )
 
-        seen = set()
-        for model in (
-            FolderExportImportModel,
-            TaskExportImportModel,
-            _VersionAttribExportImportModel,
-        ):
-            for field in await model.fields(project_name=project_name):
-                if field.key.startswith("attrib.") and field.key not in seen:
-                    result.append(field)
-                    seen.add(field.key)
+        result.append(
+            ImportableColumn(
+                key="name",
+                label="Entity name",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["skip"],
+            )
+        )
+
+        entity_type = list_entity_type
+        if project_name and parent_id:
+            list_record = await Postgres.fetchrow(
+                f"SELECT entity_type FROM project_{project_name}.entity_lists "
+                "WHERE id = $1",
+                parent_id,
+            )
+            if list_record:
+                entity_type = list_record["entity_type"]
+            result.extend(await get_list_attribute_columns(project_name, parent_id))
+        known = {column.key for column in result}
+        if project_name and entity_type:
+            result.extend(
+                column
+                for column in await get_listed_entity_columns(project_name, entity_type)
+                if column.key not in known
+            )
+        else:
+            for model in (
+                FolderExportImportModel,
+                TaskExportImportModel,
+                VersionExportImportModel,
+            ):
+                for field in await model.fields(project_name=project_name):
+                    if field.key.startswith("attrib.") and field.key not in known:
+                        result.append(field)
+                        known.add(field.key)
+        if project_name:
+            result.extend(await get_comment_columns(project_name))
 
         return result
 
@@ -980,7 +1131,11 @@ class EntityListExportImportModel(EntityExportImport):
         """
         if field_names is None:
             fields = await cls.fields(project_name=project_name)
-            field_names = [field.key for field in fields]
+            field_names = [
+                field.key
+                for field in fields
+                if field.key not in IMPORT_ONLY_COLUMNS | {"name"}
+            ]
 
         where = ""
         if entity_ids:
@@ -1003,74 +1158,212 @@ class EntityListExportImportModel(EntityExportImport):
 
         return await cls._return_items(as_csv, field_names, rows)
 
-    @classmethod
-    async def create(cls, **kwargs: Any) -> str | None:
-        project_name = kwargs["project_name"]
-        entity_list_id = kwargs["entity_list_id"]
-        user = kwargs["user"]
-        folder_path = kwargs.get("folder_path")
-        entity_id = kwargs.get("entity_id")
-        attrib = kwargs.get("attrib")
-        preview = kwargs.get("preview")
 
-        if not folder_path and not entity_id:
-            raise BadRequestException(
-                "At least one of 'entity_id', or 'folder_path' must be provided."
+async def get_list_attribute_columns(
+    project_name: str, entity_list_id: str
+) -> list[ImportableColumn]:
+    """Columns for the attributes defined on one entity list."""
+    record = await Postgres.fetchrow(
+        f"SELECT data FROM project_{project_name}.entity_lists WHERE id = $1",
+        entity_list_id,
+    )
+    if not record:
+        return []
+
+    columns: list[ImportableColumn] = []
+    for definition in (record["data"] or {}).get("attributes") or []:
+        try:
+            name = definition["name"]
+            data = AttributeData(**definition["data"])
+        except Exception:
+            continue
+        columns.append(
+            ImportableColumn(
+                key=f"attrib.{name}",
+                label=data.title or name,
+                required=False,
+                value_type=data.type,
+                default_value=None if data.default is None else str(data.default),
+                error_handling_modes=["skip", "abort", "default"],
+                enum_name=None,
+                enum_items=data.enum,
+                create_new_items=False,
             )
+        )
+    return columns
 
-        async with Postgres.transaction():
-            entity_list = await EntityList.load(project_name, entity_list_id, user=user)
+
+# list entity types whose entities have a name to match rows by
+NAME_MATCHED_LIST_TYPES = ("folder", "task", "product")
+
+# Fields a list import sets on the listed entities themselves, besides their
+# attributes. Names, parents and version numbers are not changed by a list.
+LISTED_ENTITY_FIELDS = {
+    "label",
+    "status",
+    "tags",
+    "assignees",
+    "active",
+    "folder_type",
+    "task_type",
+    "product_type",
+}
+
+
+async def get_listed_entity_columns(
+    project_name: str, entity_type: str
+) -> list[ImportableColumn]:
+    """Columns for the values of the entities a list holds."""
+    models: dict[str, type[EntityExportImport]] = {
+        "folder": FolderExportImportModel,
+        "task": TaskExportImportModel,
+        "product": ProductExportImportModel,
+        "version": VersionExportImportModel,
+    }
+    model = models.get(entity_type)
+    if model is None:
+        return []
+    return [
+        column.copy(update={"required": False})
+        for column in await model.fields(project_name=project_name)
+        if column.key in LISTED_ENTITY_FIELDS or column.key.startswith("attrib.")
+    ]
+
+
+class EntityListItemsImport:
+    """Adds entities to lists and sets item attributes during one import.
+
+    Lists are loaded (or created) once and changed in memory, save() writes
+    each changed list once, so a preview never touches the database.
+    """
+
+    def __init__(self, project_name: str, user: UserEntity):
+        self.project_name = project_name
+        self.user = user
+        self._lists: dict[str, EntityList] = {}
+        self._item_ids: dict[str, dict[str, str]] = {}
+        self._changed: set[str] = set()
+        self._ids_by_name: dict[str, dict[str, list[str]]] = {}
+        self.created_list_id: str | None = None
+
+    async def get_list(self, entity_list_id: str | None) -> EntityList:
+        if not entity_list_id:
+            raise BadRequestException("No list to import the items into")
+        if entity_list_id not in self._lists:
+            entity_list = await EntityList.load(
+                self.project_name, entity_list_id, user=self.user
+            )
             await entity_list.ensure_can_update()
+            self._lists[entity_list_id] = entity_list
+            self._item_ids[entity_list_id] = {
+                item.entity_id: item.id for item in entity_list.items
+            }
+        return self._lists[entity_list_id]
 
+    async def create_list(
+        self, label: str, entity_type: ProjectLevelEntityType
+    ) -> EntityList:
+        """Start a new list, save() stores it if it got any items."""
+        entity_list = await EntityList.construct(
+            self.project_name, entity_type, label, user=self.user
+        )
+        self._lists[entity_list.id] = entity_list
+        self._item_ids[entity_list.id] = {}
+        self.created_list_id = entity_list.id
+        return entity_list
+
+    async def get_entity_ids(
+        self,
+        entity_list: EntityList,
+        entity_id: str | None,
+        folder_path: str | None,
+        name: str | None,
+        allow_many: bool = False,
+    ) -> list[str]:
+        """Return the ids of the entities a row lists, by id, path or name.
+
+        A name matching several entities is an error unless allow_many is set.
+        """
+        list_type = entity_list.entity_type
+        if not entity_id and folder_path:
             # folder paths might be folders or tasks
-            if not entity_id:
+            try:
+                entity_id = await get_entity_id_by_path(
+                    self.project_name, folder_path, is_task=False
+                )
+            except NotFoundException:
                 try:
+                    if "/" not in folder_path.strip("/"):
+                        raise
                     entity_id = await get_entity_id_by_path(
-                        project_name, folder_path, is_task=False
+                        self.project_name, folder_path, is_task=True
                     )
                 except NotFoundException:
-                    entity_id = await get_entity_id_by_path(
-                        project_name, folder_path, is_task=True
-                    )
+                    raise RowSkippedException(
+                        f"No folder or task with path '{folder_path}'"
+                    ) from None
 
-            list_type = entity_list.entity_type
+        if entity_id:
             try:
-                if list_type == "folder":
-                    await FolderEntity.load(project_name, entity_id)
-                elif list_type == "task":
-                    await TaskEntity.load(project_name, entity_id)
-                elif list_type == "version":
-                    await VersionEntity.load(project_name, entity_id)
-                else:
-                    raise BadRequestException(f"Unsupported entity type: {list_type}")
+                await get_entity_class(list_type).load(self.project_name, entity_id)
             except NotFoundException:
                 raise NotFoundException(
                     f"Entity with id '{entity_id}' not found for type '{list_type}'"
                 )
+            return [entity_id]
 
-            # check if already in list
-            for item in entity_list.items:
-                if item.entity_id == entity_id:
-                    return item.id
-
-            new_id = create_uuid()
-            await entity_list.add(
-                id=new_id,
-                entity_id=entity_id,
-                attrib=attrib,
+        if not name:
+            raise BadRequestException("No entity path, name or id to find the entity")
+        if list_type not in NAME_MATCHED_LIST_TYPES:
+            raise BadRequestException(
+                f"{list_type.capitalize()}s can't be matched by name, "
+                "map an Entity Id column"
             )
-            if not preview:
-                await entity_list.save(
-                    sender=f"{SENDER_TYPE}-create", sender_type=SENDER_TYPE
-                )
+        if list_type not in self._ids_by_name:
+            index: dict[str, list[str]] = {}
+            table = f"project_{self.project_name}.{list_type}s"
+            for record in await Postgres.fetch(f"SELECT id, name FROM {table}"):
+                index.setdefault(record["name"], []).append(record["id"])
+            self._ids_by_name[list_type] = index
 
-        return new_id
+        ids = self._ids_by_name[list_type].get(name, [])
+        if not ids:
+            raise RowSkippedException(f"No {list_type} named '{name}'")
+        if len(ids) > 1 and not allow_many:
+            raise BadRequestException(
+                f"Name '{name}' matches {len(ids)} {list_type}s, "
+                "map an Entity path column or choose to add all of them"
+            )
+        return ids
 
-    @classmethod
-    async def update(cls, **kwargs: Any) -> str | None:
-        # no sense in updating list item for now
-        # currently only adding items to a list
-        return "dummy"
+    def get_item_id(self, entity_list: EntityList, entity_id: str) -> str | None:
+        return self._item_ids[entity_list.id].get(entity_id)
+
+    async def add(
+        self, entity_list: EntityList, entity_id: str, attrib: dict[str, Any]
+    ) -> None:
+        item_id = await entity_list.add(
+            entity_id, attrib=attrib, normalize_positions=False
+        )
+        self._item_ids[entity_list.id][entity_id] = item_id
+        self._changed.add(entity_list.id)
+
+    async def update(
+        self, entity_list: EntityList, item_id: str, attrib: dict[str, Any]
+    ) -> None:
+        await entity_list.update(item_id, attrib=attrib, merge_fields=True)
+        self._changed.add(entity_list.id)
+
+    async def save(self) -> None:
+        if self.created_list_id not in self._changed:
+            # nothing was added to the new list, so it isn't created
+            self.created_list_id = None
+        for entity_list_id in self._changed:
+            entity_list = self._lists[entity_list_id]
+            entity_list.normalize_positions()
+            await entity_list.save(
+                sender=f"{SENDER_TYPE}-create", sender_type=SENDER_TYPE
+            )
 
 
 def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
