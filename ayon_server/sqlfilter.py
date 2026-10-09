@@ -7,8 +7,8 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
-    root_validator,
-    validator,
+    field_validator,
+    model_validator,
 )
 
 from ayon_server.logging import logger
@@ -81,12 +81,16 @@ class QueryCondition(OPModel):
         ),
     ] = "eq"
 
-    @validator("operator", pre=True)
+    @field_validator("operator", mode="before")
+    @classmethod
     def convert_operator_to_lowercase(cls, v):
         return v.lower().replace("-", "").replace("_", "")
 
-    @root_validator(pre=True)
-    def validate_value(cls, values: dict[str, Any]):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_value(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         operator = (
             values.get("operator", "eq").lower().replace("-", "").replace("_", "")
         )
@@ -120,7 +124,8 @@ class QueryFilter(OPModel):
         ),
     ] = "and"
 
-    @validator("operator", pre=True, always=True)
+    @field_validator("operator", mode="before")
+    @classmethod
     def convert_operator_to_lowercase(cls, v):
         return v.lower()
 
@@ -454,7 +459,7 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
         return None
 
     if not f.conditions:
-        logger.trace(f"Empty conditions {f.dict()}")
+        logger.trace(f"Empty conditions {f.model_dump()}")
         return None
 
     result = []

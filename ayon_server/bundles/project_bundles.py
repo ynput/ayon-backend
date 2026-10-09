@@ -9,6 +9,7 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.models.field_info import get_field_extra, get_inner_type
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.set_addon_settings import set_addon_settings
 from ayon_server.types import Platform
@@ -122,7 +123,7 @@ async def process_addon_settings(
     project_settings = await addon.get_project_settings(project_name, variant)
     # TODO: load original overrides so, we can create a change event
 
-    project_settings_dict = project_settings.dict() if project_settings else {}
+    project_settings_dict = project_settings.model_dump() if project_settings else {}
 
     # Save the entire object as project settings overrides
 
@@ -243,18 +244,18 @@ async def _remove_studio_overrides_from_project_addon(
     def crawl(override_obj: dict[str, Any], model: type[BaseSettingsModel]) -> None:
         dict_keys = list(override_obj.keys())
         for key in dict_keys:
-            field = model.__fields__.get(key)
+            field = model.model_fields.get(key)
             if not field:
                 continue
 
-            scopes = field.field_info.extra.get("scope", ["studio", "project"])
+            scopes = get_field_extra(field).get("scope", ["studio", "project"])
             if "project" not in scopes:
                 # Field is not project-overridable, remove it
                 override_obj.pop(key)
                 continue
 
             try:
-                field_type = field.type_
+                field_type = get_inner_type(field.annotation)
 
                 if issubclass(field_type, BaseSettingsModel):
                     if isinstance(override_obj[key], dict):

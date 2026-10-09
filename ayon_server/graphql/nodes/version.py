@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.representations import get_representations
@@ -20,11 +19,6 @@ else:
     ]
     ProductNode = Annotated["ProductNode", strawberry.lazy(".product")]
     TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
-
-
-@VersionEntity.strawberry_attrib()
-class VersionAttribType:
-    pass
 
 
 @strawberry.type
@@ -93,10 +87,6 @@ class VersionNode(BaseNode):
         return await info.context["task_from_record"](
             self.project_name, record, info.context
         )
-
-    @strawberry.field
-    def attrib(self) -> VersionAttribType:
-        return VersionAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:

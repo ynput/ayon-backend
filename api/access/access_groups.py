@@ -67,14 +67,14 @@ async def clean_up_user_access_groups() -> None:
 async def get_access_group_schema(
     project_name: Annotated[
         str | None,
-        Query(alias="project_name", regex=PROJECT_NAME_REGEX),
+        Query(alias="project_name", pattern=PROJECT_NAME_REGEX),
     ] = None,
 ):
     context = {}
     if project_name:
         context["project_name"] = project_name
 
-    schema = copy.deepcopy(Permissions.schema())
+    schema = copy.deepcopy(Permissions.model_json_schema())
     await postprocess_settings_schema(schema, Permissions, context=context)
     return schema
 
@@ -226,7 +226,7 @@ async def save_access_group(
             DO UPDATE SET data = $2
             """,
             access_group_name,
-            data.dict(),
+            data.model_dump(),
         )
     except Exception:
         # TODO: which exception is raised?

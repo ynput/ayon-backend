@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, get_args
 
 from ayon_server.activities import (
     ActivityPatchModel,
@@ -15,7 +15,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import OperationType
@@ -126,7 +126,10 @@ async def process_activity_operation(
                     "Only service users can create activities of this type"
                 )
 
-        entity_class = get_entity_class(operation.data["entityType"])
+        entity_type: str = operation.data.get("entityType") or ""
+        if entity_type not in get_args(ProjectLevelEntityType):
+            raise BadRequestException(f"Invalid entity type: {entity_type}")
+        entity_class = get_entity_class(entity_type)
         entity_id = operation.data.get("entityId", "").replace("-", "")
         if not len(entity_id) == 32:
             raise BadRequestException("Invalid entity ID")

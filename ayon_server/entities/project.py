@@ -12,6 +12,11 @@ import aiofiles
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.project import (
+    ProjectModel,
+    ProjectPatchModel,
+    ProjectPostModel,
+)
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.entities.project_aux_tables import (
     FolderTypeDict,
@@ -27,10 +32,22 @@ from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.utils import RequestCoalescer, SQLTool, dict_exclude, get_nickname
+from ayon_server.utils import RequestCoalescer, SQLTool, get_nickname
 
 if TYPE_CHECKING:
     from .project_skeleton import ProjectSkeletonEntity
+
+
+# Fields not stored in the projects table
+# (folder types, task types... are stored in the project schema)
+NOT_STORED_FIELDS = [
+    "folder_types",
+    "task_types",
+    "link_types",
+    "statuses",
+    "tags",
+    "skeleton",
+]
 
 
 async def ensure_required_project_link_types(
@@ -134,9 +151,15 @@ async def ensure_required_project_link_types(
     return added
 
 
-class ProjectEntity(TopLevelEntity):
+class ProjectEntity(TopLevelEntity[ProjectModel]):
     entity_type: str = "project"
-    model: ModelSet = ModelSet("project", attribute_library["project"], False)
+    model = ModelSet(
+        "project",
+        ProjectModel,
+        ProjectPostModel,
+        ProjectPatchModel,
+        dynamic_fields=["skeleton"],
+    )
     # Set per instance by _load(), used by _save() to detect attrib changes
     original_attributes: dict[str, Any] | None = None
 
@@ -361,21 +384,7 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                [
-                    "folder_types",
-                    "task_types",
-                    "link_types",
-                    "statuses",
-                    "tags",
-                    "created_at",
-                    "name",
-                    "own_attrib",
-                    "skeleton",
-                ],
-            )
-
+            fields = self.fields_to_save([*NOT_STORED_FIELDS, "created_at", "name"])
             fields["updated_at"] = datetime.now()
 
             await Postgres.execute(
@@ -388,24 +397,15 @@ class ProjectEntity(TopLevelEntity):
                 await rebuild_inherited_attributes(self.name, fields["attrib"])
 
         else:
-            # Create a project record
-            await Postgres.execute(
-                *SQLTool.insert(
-                    "projects",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        [
-                            "folder_types",
-                            "task_types",
-                            "link_types",
-                            "statuses",
-                            "tags",
-                            "own_attrib",
-                            "skeleton",
-                        ],
-                    ),
-                )
-            )
+            # Create a project record. The project stores the attribute
+            # defaults as its own values (changing a default later
+            # does not affect existing projects)
+            fields = self.fields_to_save(NOT_STORED_FIELDS)
+            fields["attrib"] = {
+                **attribute_library.project_defaults,
+                **fields["attrib"],
+            }
+            await Postgres.execute(*SQLTool.insert("projects", **fields))
             # Create a new schema for the project tablespace
             await Postgres.execute(f"CREATE SCHEMA project_{project_name}")
 
@@ -449,10 +449,10 @@ class ProjectEntity(TopLevelEntity):
         return True
 
     def as_user(self, user):
-        payload = self._payload.copy()
+        payload = self._payload.model_copy()
         if user.is_guest:
-            payload.data = {}  # type: ignore
-            payload.config = {}  # type: ignore
+            payload.data = {}
+            payload.config = {}
         return payload
 
     #
@@ -467,96 +467,96 @@ class ProjectEntity(TopLevelEntity):
     @property
     def code(self) -> str:
         """Get the project code."""
-        return self._payload.code  # type: ignore
+        return self._payload.code
 
     @code.setter
     def code(self, value: str) -> None:
         """Set the project code."""
-        self._payload.code = value  # type: ignore
+        self._payload.code = value
 
     @property
     def label(self) -> str | None:
         """Get the project label."""
-        return self._payload.label  # type: ignore
+        return self._payload.label
 
     @label.setter
     def label(self, value: str | None) -> None:
         """Set the project label."""
-        self._payload.label = value  # type: ignore
+        self._payload.label = value
 
     @property
     def library(self) -> bool:
         """Return True if the entity is a library."""
-        return self._payload.library  # type: ignore
+        return self._payload.library
 
     @library.setter
     def library(self, value: bool) -> None:
         """Set the entity type to library."""
-        self._payload.library = value  # type: ignore
+        self._payload.library = value
 
     @property
     def config(self) -> dict[str, Any]:
         """Return the entity configuration."""
-        return self._payload.config  # type: ignore
+        return self._payload.config
 
     @config.setter
     def config(self, value: dict[str, Any]) -> None:
         """Set the entity configuration."""
-        self._payload.config = value  # type: ignore
+        self._payload.config = value
 
     # Project aux tables
 
     @property
     def folder_types(self) -> Sequence[FolderTypeDict]:
         """Return the folder types."""
-        return self._payload.folder_types  # type: ignore
+        return self._payload.folder_types
 
     @folder_types.setter
     def folder_types(self, value: Sequence[FolderTypeDict]) -> None:
         """Set the folder types."""
-        self._payload.folder_types = value  # type: ignore
+        self._payload.folder_types = list(value)
 
     @property
     def task_types(self) -> Sequence[TaskTypeDict]:
         """Return the task types."""
-        return self._payload.task_types  # type: ignore
+        return self._payload.task_types
 
     @task_types.setter
     def task_types(self, value: Sequence[TaskTypeDict]) -> None:
         """Set the task types."""
-        self._payload.task_types = value  # type: ignore
+        self._payload.task_types = list(value)
 
     @property
     def statuses(self) -> Sequence[StatusTypeDict]:
         """Return the statuses."""
-        return self._payload.statuses  # type: ignore
+        return self._payload.statuses
 
     @statuses.setter
     def statuses(self, value: Sequence[StatusTypeDict]) -> None:
         """Set the statuses."""
-        self._payload.statuses = value  # type: ignore
+        self._payload.statuses = list(value)
 
     @property
     def tags(self) -> Sequence[TagTypeDict]:
         """Return the tags."""
-        return self._payload.tags  # type: ignore
+        return self._payload.tags
 
     @tags.setter
     def tags(self, value: Sequence[TagTypeDict]) -> None:
         """Set the tags."""
-        self._payload.tags = value  # type: ignore
+        self._payload.tags = list(value)
 
     # Link types. Black sheep of aux tables
 
     @property
     def link_types(self) -> Sequence[LinkTypeModel]:
         """Return the link types."""
-        return self._payload.link_types  # type: ignore
+        return self._payload.link_types
 
     @link_types.setter
-    def link_types(self, value: list[dict[str, Any]]) -> None:
+    def link_types(self, value: list[LinkTypeModel]) -> None:
         """Set the link types."""
-        self._payload.link_types = value  # type: ignore
+        self._payload.link_types = value
 
     @property
     def skeleton(self) -> bool:

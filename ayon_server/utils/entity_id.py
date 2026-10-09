@@ -9,19 +9,19 @@ from .hashing import create_uuid
 
 
 class EntityIDMeta(TypedDict):
-    example: str
+    examples: list[str]
     min_length: int
     max_length: int
-    regex: str
+    pattern: str
 
 
 class EntityID:
     example: str = "af10c8f0e9b111e9b8f90242ac130003"
     META: dict[str, Any] = {
-        "example": "af10c8f0e9b111e9b8f90242ac130003",
+        "examples": ["af10c8f0e9b111e9b8f90242ac130003"],
         "min_length": 32,
         "max_length": 32,
-        "regex": r"^[0-9a-f]{32}$",
+        "pattern": r"^[0-9a-f]{32}$",
     }
 
     @classmethod
@@ -44,8 +44,8 @@ class EntityID:
         raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod
-    def field(cls, name: str = "entity") -> Field:  # type: ignore
-        return Field(  # type: ignore
+    def field(cls, name: str = "entity") -> Any:
+        return Field(
             title=f"{name.capitalize()} ID",
             description=f"{name.capitalize()} ID",
             **cls.META,

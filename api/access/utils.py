@@ -17,7 +17,7 @@ class ShareOptions(OPModel):
 @router.get("/share")
 async def get_share_options(
     user: CurrentUser,
-    project_name: Annotated[str | None, Query(regex=PROJECT_NAME_REGEX)] = None,
+    project_name: Annotated[str | None, Query(pattern=PROJECT_NAME_REGEX)] = None,
 ) -> ShareOptions:
     if project_name is not None:
         project_name = await normalize_project_name(project_name)

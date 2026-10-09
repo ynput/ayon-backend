@@ -63,7 +63,7 @@ def build_user_permissions_model(user: UserEntity) -> UserPermissionsModel:
     project_perms = {}
     for project_name in user.data.get("accessGroups", {}):
         perms = user.permissions(project_name=project_name)
-        project_perms[project_name] = Permissions(**perms.dict())
+        project_perms[project_name] = Permissions(**perms.model_dump())
 
     return UserPermissionsModel(
         studio=default_perms.studio,
@@ -99,7 +99,7 @@ async def get_my_project_permissions(
     perms = user.permissions(project_name=project_name)
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return Permissions(**perms.dict())
+    return Permissions(**perms.model_dump())
 
 
 #
@@ -124,7 +124,7 @@ async def get_user_studio_permissions(
     perms = target_user.permissions()
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return Permissions(**perms.dict())
+    return Permissions(**perms.model_dump())
 
 
 @router.get("/{user_name}/permissions/{project_name}")
@@ -145,4 +145,4 @@ async def get_user_project_permissions(
     perms = target_user.permissions(project_name=project_name)
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return Permissions(**perms.dict())
+    return Permissions(**perms.model_dump())

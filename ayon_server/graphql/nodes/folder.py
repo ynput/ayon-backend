@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.products import get_products
@@ -17,11 +16,6 @@ else:
         "ProductsConnection", strawberry.lazy("..connections")
     ]
     TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
-
-
-@FolderEntity.strawberry_attrib()
-class FolderAttribType:
-    pass
 
 
 @strawberry.type
@@ -105,13 +99,9 @@ class FolderNode(BaseNode):
         )
 
     @strawberry.field
-    def attrib(self) -> FolderAttribType:
-        return FolderAttribType(**self.processed_attrib())
-
-    @strawberry.field
     def own_attrib(self) -> list[str]:
-        """Return a list of attributes that are defined on the task."""
-        return list(self._attrib.keys())
+        """Return a list of attributes that are set on the entity itself."""
+        return self.resolved_attrib().own
 
 
 #

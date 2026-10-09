@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import (
     ProjectName,
 )
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.models import project as project_models
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
 from ayon_server.exceptions import (
@@ -54,21 +55,21 @@ TAGS_FIELD = Annotated[
 ]
 
 
-class ProjectModel(ProjectEntity.model.main_model):  # type: ignore
+class ProjectModel(project_models.ProjectModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPostModel(ProjectEntity.model.post_model):  # type: ignore
+class ProjectPostModel(project_models.ProjectPostModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
+class ProjectPatchModel(project_models.ProjectPatchModel):
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
@@ -148,7 +149,7 @@ async def create_project(
     try:
         project = await ProjectEntity.load(project_name)
     except NotFoundException:
-        project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
+        project = ProjectEntity(payload=put_data.model_dump() | {"name": project_name})
     else:
         raise ConflictException(f"Project {project_name} already exists")
 
@@ -193,7 +194,7 @@ async def update_project(
             "You need to be a manager in order to update a project"
         )
 
-    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_dict = patch_data.model_dump(exclude_unset=True)
     patch_data_converted = ProjectEntity.model.patch_model(**patch_data_dict)
 
     project.patch(patch_data_converted)
@@ -295,7 +296,7 @@ class RenameProjectRequestModel(OPModel):
             regex=PROJECT_CODE_REGEX,
             min_length=1,
         ),
-    ]
+    ] = None
 
 
 @router.post(

@@ -154,7 +154,7 @@ async def enroll(
     if payload.ignore_sender_types is not None and not payload.ignore_sender_types:
         payload.ignore_sender_types = None
 
-    request_hash = hash_data(payload.dict())
+    request_hash = hash_data(payload.model_dump())
     sloth()
     sloth(f"Received enroll request from {payload.sender}! Hash {request_hash}")
 
@@ -217,7 +217,7 @@ async def enroll(
             request_hash,
             {
                 "status": "done",
-                "result": res.dict() if res is not None else None,
+                "result": res.model_dump() if res is not None else None,
                 "timestamp": time.time(),
             },
             ttl=60,

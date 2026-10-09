@@ -48,10 +48,10 @@ def _as_string_list(type_node: TypeNode) -> TypeNode | None:
     Returns None if the type is not a (non-null) `String`.
     """
     non_null = isinstance(type_node, NonNullTypeNode)
-    named = type_node.type if non_null else type_node  # type: ignore[attr-defined]
+    named = type_node.type if isinstance(type_node, NonNullTypeNode) else type_node
     if not isinstance(named, NamedTypeNode) or named.name.value != "String":
         return None
-    list_type: TypeNode = ListTypeNode(type=NonNullTypeNode(type=named))
+    list_type = ListTypeNode(type=NonNullTypeNode(type=named))
     return NonNullTypeNode(type=list_type) if non_null else list_type
 
 

@@ -40,6 +40,8 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
          """
     )
 
+    inheritable = attribute_library.inheritable
+
     # path: attrib_set cache to use when returning from child to parent
     caching: dict[tuple[str, ...], dict[str, Any]] = {}
     active_caching: dict[tuple[str, ...], bool] = {}
@@ -58,12 +60,17 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
             current_attrib_set = caching[path_elements[:-1]]
             current_active = active_caching[path_elements[:-1]]
 
+        # Exported attributes are the inherited and own values combined,
+        # but only the inheritable ones are passed to the children
         new_attrib_set = current_attrib_set.copy()
         new_attrib_set.update(record["own"])
+        children_attrib_set = {
+            k: v for k, v in new_attrib_set.items() if k in inheritable
+        }
 
         new_active = current_active and record["own_active"]
 
-        caching[path_elements] = new_attrib_set
+        caching[path_elements] = children_attrib_set
         active_caching[path_elements] = new_active
 
         if (
@@ -84,7 +91,7 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
             await st_upsert.executemany(buff)
             buff = []
 
-        current_attrib_set = new_attrib_set
+        current_attrib_set = children_attrib_set
         current_active = new_active
 
     if buff:
@@ -117,12 +124,12 @@ async def rebuild_inherited_attributes(
         else:
             project_attrib = pattr.copy()
 
-        # Filter out non-inheritable and non-folder attributes
-        for attr_type in attribute_library["folder"]:
-            if attr_type["name"] not in project_attrib:
-                continue
-            if not attr_type.get("inherit", True):
-                del project_attrib[attr_type["name"]]
+        # Only inheritable attributes are inherited
+        project_attrib = {
+            name: value
+            for name, value in project_attrib.items()
+            if name in attribute_library.inheritable
+        }
 
         await _rebuild_from(project_name, project_attrib)
 

@@ -3,6 +3,7 @@ from typing import Any
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
 from ayon_server.settings.anatomy import (
     Anatomy,
     EntityNaming,
@@ -47,17 +48,24 @@ def extract_project_anatomy(project: ProjectEntity) -> Anatomy:
             continue
         templates[template_group] = dict2list(template_group_def)
 
-    return Anatomy(
-        templates=templates,
-        attributes=project.attrib,
-        roots=[Root(**k) for k in dict2list(project.config.get("roots", {}))],
-        folder_types=[FolderType(**k) for k in project.folder_types],
-        task_types=[TaskType(**k) for k in project.task_types],
-        statuses=[Status(**k) for k in project.statuses],
-        product_base_types=ProductBaseTypes(
-            **project.config.get("productBaseTypes", {})
-        ),
-        entity_naming=EntityNaming(**project.config.get("entityNaming", {})),
-        tags=[Tag(**k) for k in project.tags],
-        link_types=[LinkType(**k) for k in process_link_types(project.link_types)],
+    # Attribute values are loaded from the project, so they are not validated
+    # again (they may not match changed attribute definitions)
+    return Anatomy.model_validate(
+        {
+            "templates": templates,
+            "attributes": project.attrib,
+            "roots": [Root(**k) for k in dict2list(project.config.get("roots", {}))],
+            "folder_types": [FolderType(**k) for k in project.folder_types],
+            "task_types": [TaskType(**k) for k in project.task_types],
+            "statuses": [Status(**k) for k in project.statuses],
+            "product_base_types": ProductBaseTypes(
+                **project.config.get("productBaseTypes", {})
+            ),
+            "entity_naming": EntityNaming(**project.config.get("entityNaming", {})),
+            "tags": [Tag(**k) for k in project.tags],
+            "link_types": [
+                LinkType(**k) for k in process_link_types(project.link_types)
+            ],
+        },
+        context=STORED_VALUES_CONTEXT,
     )

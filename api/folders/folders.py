@@ -3,6 +3,11 @@ from fastapi import Query
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import FolderEntity
+from ayon_server.entities.models.folder import (
+    FolderModel,
+    FolderPatchModel,
+    FolderPostModel,
+)
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -19,7 +24,7 @@ async def get_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-) -> FolderEntity.model.main_model:  # type: ignore
+) -> FolderModel:
     """Retrieve a folder by its ID."""
 
     folder = await FolderEntity.load(project_name, folder_id)
@@ -34,7 +39,7 @@ async def get_folder(
 
 @router.post("", status_code=201)
 async def create_folder(
-    post_data: FolderEntity.model.post_model,  # type: ignore
+    post_data: FolderPostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -45,7 +50,7 @@ async def create_folder(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
-    ops.create("folder", **post_data.dict(exclude_unset=True))
+    ops.create("folder", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     folder_id = res.operations[0].entity_id
     assert folder_id is not None, "Folder ID is None. This should never happen."
@@ -59,7 +64,7 @@ async def create_folder(
 
 @router.patch("/{folder_id}", status_code=204)
 async def update_folder(
-    post_data: FolderEntity.model.patch_model,  # type: ignore
+    post_data: FolderPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
@@ -74,7 +79,7 @@ async def update_folder(
         raise BadRequestException("Reserved folder name")
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))
+    ops.update("folder", folder_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
