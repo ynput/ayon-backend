@@ -16,6 +16,9 @@ class EntityIDMeta(TypedDict):
     regex: str
 
 
+_ENTITY_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
+
+
 class EntityID:
     example: str = "af10c8f0e9b111e9b8f90242ac130003"
     META: dict[str, Any] = {
@@ -62,7 +65,7 @@ class EntityID:
             return entity_id.hex
         if isinstance(entity_id, str):
             _entity_id = entity_id.replace("-", "").lower()
-            if re.fullmatch(cls.META["regex"], _entity_id):
+            if _ENTITY_ID_PATTERN.fullmatch(_entity_id):
                 return _entity_id
         raise ValueError(f"Invalid entity ID {entity_id}")
 

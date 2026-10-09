@@ -66,8 +66,20 @@ await BlobStorage.save(
   The payload is not touched.
 - `created_by` / `updated_by` are taken from the request context.
 - Reading, updating or deleting a non-existent blob raises `NotFoundException`.
-- If the payload cannot be stored, no record is created.
-  If the record of a new blob cannot be created, the stored payload is removed.
+- If the payload cannot be stored, the record is not created or updated,
+  and the previous payload of an existing blob stays intact.
+- Concurrent saves and deletes of the same blob are applied one at a time.
+
+## Transactions
+
+`save()` and `delete()` cannot be called inside a transaction
+(`async with Postgres.transaction()`) and raise `AyonException` if they are.
+Payload changes in the project storage cannot be rolled back, so rolling back
+the transaction would leave the record and the payload out of sync.
+Call them after the transaction commits instead.
+
+`get()`, `get_payload()`, `stream_payload()`, `update()` and `list()`
+only touch the database and can be used inside a transaction.
 
 ## Storage layout
 
