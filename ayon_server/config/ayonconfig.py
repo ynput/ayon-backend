@@ -315,6 +315,21 @@ class AyonConfig(BaseModel):
         description="Max width/height of generated thumbnails in pixels",
     )
 
+    filmstrip_frames: int = Field(
+        default=20,
+        ge=2,
+        le=100,
+        description="Number of frames sampled from a video reviewable "
+        "to create a filmstrip (hover-scrub thumbnail)",
+    )
+
+    filmstrip_frame_size: int = Field(
+        default=480,
+        ge=64,
+        le=1280,
+        description="Max width/height of a single filmstrip frame in pixels",
+    )
+
     # Temporary / workarounds
 
     limit_user_visibility: bool = Field(
