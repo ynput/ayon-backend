@@ -1,6 +1,7 @@
 import copy
 from typing import Any, Literal
 
+from api.bundles.models import BundleDataModel
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.entities import ProjectEntity
@@ -43,7 +44,7 @@ async def has_project_bundle(
 
 async def get_studio_bundle_addons(
     variant: Literal["production", "staging"],
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     """Get the addons for the studio bundle for the given variant"""
 
     if variant == "production":
@@ -54,10 +55,12 @@ async def get_studio_bundle_addons(
     row = await Postgres.fetchrow(query)
     if not row:
         return {}
-    return row["data"].get("addons", {})
+    return BundleDataModel.model_validate(row["data"]).addons
 
 
-async def get_project_bundle_addons(project_name: str, variant: str) -> dict[str, str]:
+async def get_project_bundle_addons(
+    project_name: str, variant: str
+) -> dict[str, str | None]:
     query = """
         SELECT b.data FROM public.projects p
         JOIN public.bundles b
@@ -68,7 +71,7 @@ async def get_project_bundle_addons(project_name: str, variant: str) -> dict[str
     if not row:
         return {}
 
-    return row["data"].get("addons", {})
+    return BundleDataModel.model_validate(row["data"]).addons
 
 
 async def has_project_bundle_addon(
@@ -159,12 +162,12 @@ async def freeze_project_bundle(
 
     bundle_name = get_project_bundle_name(project_name, variant)
 
-    bundle_data = {
-        "addons": addons,
-        "installer_version": installer_version,
-        "dependency_packages": dependency_packages,
-        "is_project": True,
-    }
+    bundle_data = BundleDataModel(
+        addons=addons,
+        installer_version=installer_version,
+        dependency_packages=dependency_packages,
+        is_project=True,
+    )
 
     query = """
         INSERT INTO public.bundles (name, is_production, is_staging, is_dev, data)
@@ -173,7 +176,8 @@ async def freeze_project_bundle(
             is_production = FALSE,
             is_staging = FALSE,
             is_dev = FALSE,
-            data = EXCLUDED.data
+            data = bundles.data || EXCLUDED.data,
+            updated_at = NOW()
     """
 
     events = []
@@ -189,7 +193,7 @@ async def freeze_project_bundle(
         await Postgres.execute(
             query,
             bundle_name,
-            bundle_data,
+            bundle_data.model_dump(exclude_unset=True, by_alias=False),
         )
 
         # Enforce all overrides for project settings

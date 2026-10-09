@@ -180,7 +180,8 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_dev BOOLEAN NOT NULL DEFAULT FALSE,
   active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- only one bundle per active user
