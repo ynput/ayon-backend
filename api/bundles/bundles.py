@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from fastapi import Query
@@ -21,9 +22,13 @@ from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
 from ayon_server.utils import RequestCoalescer
 
-from .actions import promote_bundle
+from .actions import copy_staging_settings
 from .check_bundle import CheckBundleResponseModel, check_bundle
-from .migration import migrate_server_addon_settings, migrate_settings
+from .migration import (
+    dispatch_settings_events,
+    migrate_server_addon_settings,
+    migrate_settings,
+)
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -104,7 +109,12 @@ async def _create_new_bundle(
     bundle: BundleModel,
     *,
     user: UserEntity | None = None,
-):
+) -> Callable[[], Awaitable[None]]:
+    """Create a new bundle.
+
+    Returns a coroutine function, which must be awaited after the commit.
+    """
+
     assert await Postgres.is_in_transaction(), (
         "_create_new_bundle must be called in a transaction"
     )
@@ -161,18 +171,21 @@ async def _create_new_bundle(
     elif bundle.is_dev:
         stat = " development"
 
-    await EventStream.dispatch(
-        "bundle.created",
-        user=user.name if user else None,
-        description=f"New{stat} bundle '{bundle.name}' created",
-        summary={
-            "name": bundle.name,
-            "isProduction": bundle.is_production,
-            "isStaging": bundle.is_staging,
-            "isDev": bundle.is_dev,
-        },
-        payload=data,
-    )
+    async def finalize() -> None:
+        await EventStream.dispatch(
+            "bundle.created",
+            user=user.name if user else None,
+            description=f"New{stat} bundle '{bundle.name}' created",
+            summary={
+                "name": bundle.name,
+                "isProduction": bundle.is_production,
+                "isStaging": bundle.is_staging,
+                "isDev": bundle.is_dev,
+            },
+            payload=data,
+        )
+
+    return finalize
 
 
 @router.post("/bundles/check")
@@ -223,9 +236,10 @@ async def create_new_bundle(
                 bundle.addons.pop(addon_name)
 
     async with Postgres.transaction():
-        await _create_new_bundle(bundle, user=user)
+        finalize = await _create_new_bundle(bundle, user=user)
     if bundle.is_production or bundle.is_staging:
         await AddonLibrary.clear_addon_list_cache()
+    await finalize()
 
     return EmptyResponse(status_code=201)
 
@@ -235,20 +249,19 @@ async def create_new_bundle(
 #
 
 
-@router.patch("/bundles/{bundle_name}", status_code=204)
-async def update_bundle(
+async def _update_bundle(
     bundle_name: str,
     patch: BundlePatchModel,
-    user: CurrentUser,
-    build: list[Platform] | None = Query(
-        None,
-        title="Request build",
-        description="Build dependency packages for selected platforms",
-    ),
-    force: bool = Query(False, description="Force creation of bundle"),
-) -> EmptyResponse:
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can patch bundles")
+    user: UserEntity,
+    *,
+    force: bool = False,
+) -> Callable[[], Awaitable[None]]:
+    """Update the bundle.
+
+    Returns a coroutine function, which must be awaited after the commit
+    (of the outer transaction if there is one), so other replicas see
+    the committed state when handling bundle.updated event.
+    """
 
     addon_library = AddonLibrary.getinstance()
 
@@ -506,42 +519,65 @@ async def update_bundle(
             bundle_name,
         )
 
-    if (
-        patch.is_production is not None
-        or patch.is_staging is not None
-        or bundle.addons != original_addons
-    ):
-        await addon_library.clear_addon_list_cache()
+        settings_events: list[dict[str, Any]] = []
+        if bundle.is_production:
+            for addon_name, previous_version, new_version in server_bundle_migrations:
+                if not (previous_version and new_version):
+                    continue
+                settings_events += await migrate_server_addon_settings(
+                    addon_name,
+                    previous_version,
+                    new_version,
+                )
 
-    await EventStream.dispatch(
-        "bundle.updated",
-        description=patch.get_changes_description(bundle_name),
-        summary={
-            "name": bundle_name,
-            "changedFields": patch.get_changed_fields(),
-            "isProduction": bundle.is_production,
-            "isStaging": bundle.is_staging,
-            "isArchived": bundle.is_archived,
-            "isDev": bundle.is_dev,
-            "isProject": bundle.is_project,
-        },
-        payload=data,
-    )
+    async def finalize() -> None:
+        if (
+            patch.is_production is not None
+            or patch.is_staging is not None
+            or bundle.addons != original_addons
+        ):
+            await addon_library.clear_addon_list_cache()
+
+        await EventStream.dispatch(
+            "bundle.updated",
+            description=patch.get_changes_description(bundle_name),
+            summary={
+                "name": bundle_name,
+                "changedFields": patch.get_changed_fields(),
+                "isProduction": bundle.is_production,
+                "isStaging": bundle.is_staging,
+                "isArchived": bundle.is_archived,
+                "isDev": bundle.is_dev,
+                "isProject": bundle.is_project,
+            },
+            payload=data,
+        )
+        await dispatch_settings_events(settings_events, user.name)
+
+    return finalize
+
+
+@router.patch("/bundles/{bundle_name}", status_code=204)
+async def update_bundle(
+    bundle_name: str,
+    patch: BundlePatchModel,
+    user: CurrentUser,
+    build: list[Platform] | None = Query(
+        None,
+        title="Request build",
+        description="Build dependency packages for selected platforms",
+    ),
+    force: bool = Query(False, description="Force creation of bundle"),
+) -> EmptyResponse:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can patch bundles")
+
+    finalize = await _update_bundle(bundle_name, patch, user, force=force)
+    await finalize()
 
     if build:
         # TODO
         pass
-
-    if bundle.is_production and server_bundle_migrations:
-        for addon_name, previous_version, new_version in server_bundle_migrations:
-            if not (previous_version and new_version):
-                continue
-            await migrate_server_addon_settings(
-                addon_name,
-                previous_version,
-                new_version,
-                user=user if user else None,
-            )
 
     return EmptyResponse(status_code=204)
 
@@ -552,7 +588,29 @@ async def update_bundle(
 
 
 async def delete_bundle(bundle_name: str):
-    await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+    row = await Postgres.fetchrow(
+        """
+        DELETE FROM bundles WHERE name = $1
+        RETURNING is_production, is_staging, is_dev
+        """,
+        bundle_name,
+    )
+    if row is None:
+        return
+
+    if row["is_production"] or row["is_staging"]:
+        await AddonLibrary.clear_addon_list_cache()
+
+    await EventStream.dispatch(
+        "bundle.deleted",
+        description=f"Bundle '{bundle_name}' deleted",
+        summary={
+            "name": bundle_name,
+            "isProduction": row["is_production"],
+            "isStaging": row["is_staging"],
+            "isDev": row["is_dev"],
+        },
+    )
 
 
 @router.delete("/bundles/{bundle_name}", status_code=204)
@@ -604,8 +662,19 @@ async def bundle_actions(
             raise BadRequestException("Archived bundles cannot be modified")
 
         if action.action == "promote":
-            await promote_bundle(bundle, user)
-            await AddonLibrary.clear_addon_list_cache()
+            bstat = await check_bundle(bundle)
+            if not bstat.success:
+                raise BadRequestException(bstat.message())
+            await copy_staging_settings(bundle, user)
+            finalize = await _update_bundle(
+                bundle_name,
+                BundlePatchModel(is_production=True),
+                user,
+                force=True,  # Already validated above
+            )
+        else:
+            raise BadRequestException(f"Unknown action: {action.action}")
+    await finalize()
 
     return EmptyResponse(status_code=204)
 
