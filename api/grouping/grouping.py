@@ -11,7 +11,6 @@ from ayon_server.entities.grouping.common import EntityGroup
 from ayon_server.entities.grouping.resolvers import (
     get_assignees_groups,
     get_attrib_groups,
-    get_folder_groups,
     get_product_base_type_groups,
     get_product_type_groups,
     get_status_or_type_groups,
@@ -28,7 +27,6 @@ GroupingKey = Annotated[str, Path(title="Grouping Key")]
 TOP_LEVEL_GROUPING_KEYS = {
     "taskType": "task_type",
     "folderType": "folder_type",
-    "folder": "folder",
     "productType": "product_type",
     "productBaseType": "product_base_type",
     "assignees": "assignees",
@@ -111,9 +109,6 @@ async def get_entity_groups(
             entity_type=entity_type,
             key=cast(Literal["status", "task_type", "folder_type"], key),
         )
-
-    elif key == "folder":
-        groups = await get_folder_groups(project_name, entity_type, user)
 
     elif key == "product_type":
         groups = await get_product_type_groups(project_name)
