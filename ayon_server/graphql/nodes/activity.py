@@ -164,16 +164,17 @@ class ActivityNode:
 
     @strawberry.field
     async def version(self, info: Info) -> VersionNode | None:
-        if self.activity_type not in ["version.publish", "reviewable"]:
+        if not self.origin or self.origin.type != "version":
             return None
-
-        data = json_loads(self.activity_data)
-        version_id = data.get("origin", {}).get("id")
-        if not version_id:
+        if self.activity_type == "comment":
+            # only annotated comments need the version (frameStart offset)
+            if not json_loads(self.activity_data).get("annotations"):
+                return None
+        elif self.activity_type not in ("version.publish", "reviewable"):
             return None
 
         loader = info.context["version_loader"]
-        record = await loader.load((self.project_name, version_id))
+        record = await loader.load((self.project_name, self.origin.id))
         if record is None:
             return None
         return await info.context["version_from_record"](
