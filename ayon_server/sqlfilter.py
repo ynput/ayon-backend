@@ -30,6 +30,7 @@ ValueType = (
 OperatorType = Literal[
     "eq",
     "like",
+    "notlike",
     "re",
     "lt",
     "gt",
@@ -258,13 +259,15 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like", "re"):
+        if operator in ("like", "notlike", "re"):
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{safe_value}'"
             else:
-                raise ValueError("Value must be a string for 'like' or 're' operators")
+                raise ValueError(
+                    "Value must be a string for 'like', 'notlike' or 're' operators"
+                )
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -408,6 +411,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         # replace last -> with ->> to get text value
         column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
+    elif operator == "notlike":
+        # replace last -> with ->> to get text value
+        column = re.sub(r"->(?!.*->)", "->>", column)
+        # a missing value does not match the pattern, so it passes the filter
+        return f"NOT coalesce(({column}) ILIKE {safe_value}, FALSE)"
     elif operator == "re":
         # replace last -> with ->> to get text value
         column = re.sub(r"->(?!.*->)", "->>", column)
