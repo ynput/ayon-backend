@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Optional
+from typing import Any, Optional
 
 import strawberry
 from strawberry.scalars import JSON
@@ -11,9 +11,6 @@ from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
-
-if TYPE_CHECKING:
-    from ayon_server.graphql.nodes.entity_list import EntityListNode
 
 
 @strawberry.type
@@ -152,6 +149,15 @@ class ThumbnailInfo:
     relation: str | None = strawberry.field(default=None)
 
 
+@strawberry.type
+class EntityListInfo:
+    id: str = strawberry.field()
+    label: str = strawberry.field()
+    entity_list_type: str = strawberry.field()
+    entity_type: str = strawberry.field()
+    active: bool = strawberry.field()
+
+
 @strawberry.interface
 class BaseNode:
     entity_type: strawberry.Private[str] = "unknown"
@@ -222,8 +228,8 @@ class BaseNode:
         info: Info,
         active: bool | None = None,
         entity_list_types: list[str] | None = None,
-    ) -> list[Annotated["EntityListNode", strawberry.lazy(".entity_list")]]:
-        resolver = info.context["entity_lists_by_entity_resolver"]
+    ) -> list[EntityListInfo]:
+        resolver = info.context["entity_lists_info_resolver"]
         return await resolver(
             root=self,
             info=info,
