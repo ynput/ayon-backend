@@ -167,8 +167,9 @@ class ActivityNode:
         if not self.origin or self.origin.type != "version":
             return None
         if self.activity_type == "comment":
-            # only annotated comments need the version (frameStart offset)
-            if not json_loads(self.activity_data).get("annotations"):
+            # only comments with frames need the version (frameStart offset)
+            data = json_loads(self.activity_data)
+            if not data.get("annotations") and data.get("startFrame") is None:
                 return None
         elif self.activity_type not in ("version.publish", "reviewable"):
             return None
