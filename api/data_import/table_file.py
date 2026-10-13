@@ -16,7 +16,9 @@ Cell = str | int | float | bool | None
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # characters XML 1.0 does not allow, Excel refuses files that contain them
-_ILLEGAL_XML_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
+_ILLEGAL_XML_CHARS = dict.fromkeys(
+    [*range(0x09), 0x0B, 0x0C, *range(0x0E, 0x20), 0xFFFE, 0xFFFF]
+)
 _ILLEGAL_SHEET_NAME_CHARS = re.compile(r"[\[\]:*?/\\]")
 _MAX_CELL_TEXT = 32767  # Excel's limit per cell
 
@@ -112,7 +114,7 @@ def _row_xml(row_number: int, values: list[Cell] | list[str], style: int = 0) ->
         elif isinstance(value, int | float) and math.isfinite(value):
             cells.append(f'<c r="{ref}"{style_attr}><v>{value!r}</v></c>')
         else:
-            text = escape(_ILLEGAL_XML_CHARS.sub("", str(value))[:_MAX_CELL_TEXT])
+            text = escape(str(value).translate(_ILLEGAL_XML_CHARS)[:_MAX_CELL_TEXT])
             cells.append(
                 f'<c r="{ref}"{style_attr} t="inlineStr">'
                 f'<is><t xml:space="preserve">{text}</t></is></c>'

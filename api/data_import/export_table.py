@@ -12,7 +12,7 @@ full names of users and readable dates.
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, Literal
 
@@ -48,7 +48,7 @@ TASK_FRAGMENT = """
 fragment ExportTask on TaskNode {
   id name label taskType folderId active status tags assignees allAttrib
   createdAt updatedAt
-  folder { name label path }
+  folder { name label path folderType status tags allAttrib createdAt updatedAt }
 }
 """
 
@@ -57,7 +57,7 @@ PRODUCT_FRAGMENT = """
 fragment ExportProduct on ProductNode {
   id name productType productBaseType path active status tags allAttrib
   createdAt updatedAt
-  folder { name label }
+  folder { name label folderType status tags allAttrib createdAt updatedAt }
   featuredVersion(order: $featuredVersionOrder) { name author }
 }
 """
@@ -65,8 +65,11 @@ fragment ExportProduct on ProductNode {
 VERSION_FRAGMENT = """
 fragment ExportVersion on VersionNode {
   id name author path active status tags allAttrib createdAt updatedAt
-  product { name productType productBaseType folder { name label } }
-  task { name label taskType }
+  product {
+    name productType productBaseType status tags allAttrib createdAt updatedAt
+    folder { name label folderType status tags allAttrib createdAt updatedAt }
+  }
+  task { name label taskType status tags allAttrib createdAt updatedAt }
 }
 """
 
@@ -297,6 +300,19 @@ EXTRA_COLUMNS = [
     ExportColumn("updated_at", "Updated", "datetime"),
 ]
 
+# a key prefixed with one of these is a field of the row's folder, task or product
+PARENT_SCOPES = ("folder", "task", "product")
+PARENT_FIELDS = {
+    "status": "status",
+    "tags": "tags",
+    "createdAt": "created_at",
+    "updatedAt": "updated_at",
+    "folderType": "folder_type",
+    "taskType": "task_type",
+    "productType": "product_type",
+    "productBaseType": "product_base_type",
+}
+
 # shown instead of the value with label values
 DISPLAY_KEYS = {"name": "label", "folder": "folder_label", "task": "task_label"}
 
@@ -391,7 +407,9 @@ class ExportTableRequest(OPModel):
         description=(
             "Column keys in order: entity fields (`status`, `attrib.priority`...), "
             "`entity_type`, `path`, `folder`, `task`, `product`, `version`, "
-            "`author`, `created_at` and `updated_at`"
+            "`author`, `created_at` and `updated_at`. Prefixed with `folder.`, "
+            "`task.` or `product.`, a key is a field of the row's parent, "
+            "e.g. `product.attrib.productGroup`"
         ),
         example=["entity_type", "path", "status", "assignees", "attrib.priority"],
     )
@@ -454,11 +472,15 @@ async def export_table(
         for column in _list_attribute_columns(data["project"]["entityList"]):
             available.setdefault(column.key, column)
 
-    keys = list(dict.fromkeys(payload.columns))
-    unknown = [k for k in keys if k not in available and not k.startswith("attrib.")]
+    columns: list[ExportColumn] = []
+    unknown: list[str] = []
+    for key in dict.fromkeys(payload.columns):
+        if found := _column(key, available):
+            columns.append(found)
+        else:
+            unknown.append(key)
     if unknown:
         raise BadRequestException(f"Unknown columns: {', '.join(unknown)}")
-    columns = [available.get(key) or ExportColumn(key, key[7:]) for key in keys]
 
     rows = await _fetch_rows(context, project_name, payload)
 
@@ -702,6 +724,27 @@ def _attrib(node: dict[str, Any]) -> dict[str, Any]:
     return {f"attrib.{k}": v for k, v in json.loads(node["allAttrib"]).items()}
 
 
+def _parent(scope: str, node: dict[str, Any] | None) -> dict[str, Any]:
+    """Fields of the row's folder, task or product, for parent columns."""
+    if not node:
+        return {}
+    fields = {key: node[field] for field, key in PARENT_FIELDS.items() if field in node}
+    return {
+        f"{scope}.{key}": value for key, value in {**fields, **_attrib(node)}.items()
+    }
+
+
+def _column(key: str, available: dict[str, ExportColumn]) -> ExportColumn | None:
+    if key in available:
+        return available[key]
+    scope, _, field = key.partition(".")
+    if scope in PARENT_SCOPES and (column := _column(field, available)):
+        return replace(column, key=key, label=f"{scope.capitalize()} {column.label}")
+    if key.startswith("attrib."):
+        return ExportColumn(key, key.removeprefix("attrib."))
+    return None
+
+
 def _common(node: dict[str, Any], entity_type: str) -> dict[str, Any]:
     return {
         **_attrib(node),
@@ -749,6 +792,7 @@ def _task_row(node: dict[str, Any]) -> dict[str, Any]:
         "folder": folder["name"],
         "folder_label": folder["label"],
         "assignees": node["assignees"],
+        **_parent("folder", folder),
     }
 
 
@@ -764,6 +808,7 @@ def _product_row(node: dict[str, Any]) -> dict[str, Any]:
         "folder_label": folder["label"],
         "version": featured.get("name"),
         "author": featured.get("author"),
+        **_parent("folder", folder),
     }
 
 
@@ -785,6 +830,9 @@ def _version_row(node: dict[str, Any]) -> dict[str, Any]:
         "task": task.get("name"),
         "task_label": task.get("label"),
         "task_type": task.get("taskType"),
+        **_parent("product", product),
+        **_parent("task", task),
+        **_parent("folder", product["folder"]),
     }
 
 
