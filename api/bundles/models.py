@@ -1,22 +1,30 @@
 import re
 from datetime import datetime
-from typing import Any
 
-from pydantic import field_validator
+from pydantic import ConfigDict, RootModel, field_validator
 
 from ayon_server.logging import logger
 from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
 from ayon_server.utils import camelize
 
-dependency_packages_meta: dict[str, Any] = {
-    "title": "Dependency packages",
-    "description": "mapping of platform:dependency_package_filename",
-    "example": {
-        "windows": "a_windows_package123.zip",
-        "linux": "a_linux_package123.zip",
-        "darwin": "a_mac_package123.zip",
-    },
-}
+
+class DependencyPackagesModel(RootModel[dict[Platform, str | None]]):
+    """Mapping of platforms to dependency package filenames."""
+
+    model_config = ConfigDict(
+        title="Dependency packages",
+        json_schema_extra={
+            "examples": [
+                {
+                    "windows": "a_windows_package123.zip",
+                    "linux": "a_linux_package123.zip",
+                    "darwin": "a_mac_package123.zip",
+                }
+            ]
+        },
+    )
+
+    root: dict[Platform, str | None] = Field(default_factory=dict)
 
 
 class BaseBundleModel(OPModel):
@@ -32,27 +40,11 @@ class AddonDevelopmentItem(OPModel):
     )
 
 
-class BundleModel(BaseBundleModel):
-    """
-    Model for GET and POST requests
-    """
+class BundleDataModel(BaseBundleModel):
+    """Stored bundle data."""
 
-    name: str = Field(
-        ...,
-        title="Name",
-        description="Name of the bundle",
-        example="my_superior_bundle",
-        regex=NAME_REGEX,
-    )
-
-    created_at: datetime = Field(
-        default_factory=datetime.now,
-        example=datetime.now(),
-    )
-
-    ## patchables
-
-    # data
+    description: str | None = Field(None, title="Description")
+    is_project: bool = Field(False, example=False)
     addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
@@ -61,9 +53,7 @@ class BundleModel(BaseBundleModel):
 
     @field_validator("addons")
     @classmethod
-    def validate_addons(
-        cls, value: dict[str, str | None]
-    ) -> dict[str, str | None] | None:
+    def validate_addons(cls, value: dict[str, str | None]) -> dict[str, str | None]:
         for addon_name, version in value.items():
             if version is None:
                 continue
@@ -80,25 +70,51 @@ class BundleModel(BaseBundleModel):
         return value
 
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] = Field(
-        default_factory=dict,
-        **dependency_packages_meta,
+    dependency_packages: DependencyPackagesModel = Field(
+        default_factory=DependencyPackagesModel,
     )
     addon_development: dict[str, AddonDevelopmentItem] = Field(
         default_factory=dict,
         example={"ftrack": {"enabled": True, "path": "~/devel/ftrack"}},
     )
 
+
+class BundleModel(BundleDataModel):
+    """Flat model for GET and POST requests."""
+
+    name: str = Field(
+        ...,
+        title="Name",
+        description="Name of the bundle",
+        example="my_superior_bundle",
+        pattern=NAME_REGEX,
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        example=datetime.now(),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        example=datetime.now(),
+    )
+
+    def to_data(self, stored_data: BundleDataModel | None = None) -> BundleDataModel:
+        data = stored_data.model_dump(by_alias=False) if stored_data else {}
+        data.update(
+            self.model_dump(include=set(BundleDataModel.model_fields), by_alias=False)
+        )
+        return BundleDataModel.model_validate(data)
+
     # flags
     is_production: bool = Field(False, example=False)
     is_staging: bool = Field(False, example=False)
     is_archived: bool = Field(False, example=False)
     is_dev: bool = Field(False, example=False)
-    is_project: bool = Field(False, example=False)
     active_user: str | None = Field(None, example="admin")
 
 
 class BundlePatchModel(BaseBundleModel):
+    description: str | None = Field(None, title="Description")
     addons: dict[str, str | None] | None = Field(
         None,
         title="Addons",
@@ -128,10 +144,7 @@ class BundlePatchModel(BaseBundleModel):
         return value
 
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] | None = Field(
-        None,
-        **dependency_packages_meta,
-    )
+    dependency_packages: DependencyPackagesModel | None = Field(None)
     is_production: bool | None = Field(None, example=False)
     is_staging: bool | None = Field(None, example=False)
     is_archived: bool | None = Field(None, example=False)
@@ -141,6 +154,8 @@ class BundlePatchModel(BaseBundleModel):
 
     def get_changed_fields(self) -> list[str]:
         dict_data = self.model_dump(exclude_none=True)
+        if "description" in self.model_fields_set:
+            dict_data["description"] = self.description
         return [camelize(field) for field in dict_data.keys()]
 
     def get_changes_description(self, bundle_name: str) -> str:
@@ -171,6 +186,9 @@ class BundlePatchModel(BaseBundleModel):
 
         if self.dependency_packages is not None:
             changes.append("updated with new dependency packages")
+
+        if "description" in self.model_fields_set:
+            changes.append("updated with a new description")
 
         if changes and len(changes) < 3:
             if len(changes) > 1:

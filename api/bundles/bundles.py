@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import Query
 
@@ -24,7 +24,7 @@ from ayon_server.utils import RequestCoalescer
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
 from .migration import migrate_server_addon_settings, migrate_settings
-from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
+from .models import BundleDataModel, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
 #
@@ -45,27 +45,29 @@ async def _list_bundles(archived: bool = False):
     query = f"""
         SELECT
             name, is_production, is_staging, is_dev,
-            is_archived, active_user, created_at, data
+            is_archived, active_user, created_at, updated_at, data
         FROM bundles
         {cond}
         ORDER BY created_at DESC
     """
 
     async for row in Postgres.iterate(query):
-        data = row["data"]
+        data = BundleDataModel.model_validate(row["data"])
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
-            addons=data.get("addons", {}),
-            installer_version=data.get("installer_version"),
-            dependency_packages=data.get("dependency_packages", {}),
+            updated_at=row["updated_at"],
+            addons=data.addons,
+            installer_version=data.installer_version,
+            dependency_packages=data.dependency_packages,
+            description=data.description,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
-            is_project=data.get("is_project", False),
+            is_project=data.is_project,
             active_user=row["active_user"],
-            addon_development=data.get("addon_development", {}),
+            addon_development=data.addon_development,
         )
 
         # helper top-level attributes (for convenience not crawling the list)
@@ -111,32 +113,31 @@ async def _create_new_bundle(
 
     # Clear constrained values if they are being updated
     if bundle.is_production:
-        await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+        await Postgres.execute(
+            "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+            " WHERE is_production = TRUE"
+        )
     if bundle.is_staging:
-        await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+        await Postgres.execute(
+            "UPDATE bundles SET is_staging = FALSE, updated_at = NOW()"
+            " WHERE is_staging = TRUE"
+        )
     if bundle.active_user:
         await Postgres.execute(
-            "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+            "UPDATE bundles SET active_user = NULL, updated_at = NOW()"
+            " WHERE active_user = $1",
             bundle.active_user,
         )
 
-    data: dict[str, Any] = {
-        "addons": bundle.addons,
-        "installer_version": bundle.installer_version,
-        "dependency_packages": bundle.dependency_packages,
-    }
-    if bundle.is_project:
-        data["is_project"] = True
-    if bundle.addon_development:
-        addon_development_dict = {}
-        for key, value in bundle.addon_development.items():
-            addon_development_dict[key] = value.model_dump()
-        data["addon_development"] = addon_development_dict
+    data = bundle.to_data().model_dump(by_alias=False)
+    if data["description"] is None:
+        data.pop("description")
 
     query = """
         INSERT INTO bundles
-        (name, data, is_production, is_staging, is_dev, active_user, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (name, data, is_production, is_staging, is_dev, active_user,
+         created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     """
 
     # we ignore is_archived. it does not make sense to create
@@ -151,6 +152,7 @@ async def _create_new_bundle(
         bundle.is_dev,
         bundle.active_user,
         bundle.created_at,
+        bundle.updated_at,
     )
 
     stat = ""
@@ -260,21 +262,8 @@ async def update_bundle(
             raise NotFoundException("Bundle not found")
 
         row = res[0]
-        data = row["data"]
-
-        addon_development = data.get("addon_development") or {}
-        if not isinstance(addon_development, dict):
-            addon_development = {}
-
-        addon_development_dict: dict[str, AddonDevelopmentItem] = {}
-        for key, value in addon_development.items():
-            addon_development_dict[key] = AddonDevelopmentItem(**value)
-
-        addons = data.get("addons") or {}
-        if not isinstance(addons, dict):
-            addons = {}
-        else:
-            addons = dict(addons)
+        stored_data = BundleDataModel.model_validate(row["data"])
+        addons = dict(stored_data.addons)
         original_addons = dict(addons)
 
         # Only clean up non-existent addons when the addon list is being
@@ -307,7 +296,7 @@ async def update_bundle(
                     )
                     addons.pop(addon_name, None)
 
-        installer_version = data.get("installer_version")
+        installer_version = stored_data.installer_version
         if installer_version is not None:
             existing_installer_versions = await list_installer_versions()
             if installer_version not in existing_installer_versions:
@@ -317,10 +306,8 @@ async def update_bundle(
                 )
                 installer_version = None
 
-        dependency_packages = data.get("dependency_packages", {})
-        if not isinstance(dependency_packages, dict):
-            dependency_packages = {}
-        else:
+        dependency_packages = dict(stored_data.dependency_packages.root)
+        if dependency_packages:
             existing_dependency_packages = await list_dependency_packages()
             for platform, filename in list(dependency_packages.items()):
                 if filename is None:
@@ -335,14 +322,16 @@ async def update_bundle(
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
+            updated_at=row["updated_at"],
             addons=addons,
             installer_version=installer_version,
             dependency_packages=dependency_packages,
-            addon_development=addon_development_dict,
+            addon_development=stored_data.addon_development,
+            description=stored_data.description,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_dev=row["is_dev"],
-            is_project=data.get("is_project", False),
+            is_project=stored_data.is_project,
             active_user=row["active_user"],
             is_archived=row["is_archived"],
         )
@@ -368,7 +357,8 @@ async def update_bundle(
             logger.debug(f"Updating dev bundle {bundle.name}")
             if "active_user" in patch.model_dump(exclude_unset=True, by_alias=False):
                 await Postgres.execute(
-                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+                    "UPDATE bundles SET active_user = NULL, updated_at = NOW()"
+                    " WHERE active_user = $1",
                     patch.active_user,
                 )
                 bundle.active_user = patch.active_user
@@ -454,19 +444,12 @@ async def update_bundle(
             if not bstat.success:
                 raise BadRequestException(bstat.message())
 
-        # Construct the new data
+        if "description" in patch.model_fields_set:
+            bundle.description = patch.description
 
-        data = {
-            "addons": bundle.addons,
-            "dependency_packages": bundle.dependency_packages,
-            "installer_version": bundle.installer_version,
-            "is_project": bundle.is_project,
-        }
-        if bundle.is_dev:
-            data["addon_development"] = {
-                key: value.model_dump()
-                for key, value in bundle.addon_development.items()
-            }
+        data = bundle.to_data(stored_data).model_dump(by_alias=False)
+        if data["description"] is None:
+            data.pop("description")
 
         if patch.is_archived is not None:
             bundle.is_archived = patch.is_archived
@@ -476,12 +459,18 @@ async def update_bundle(
 
         if patch.is_production is not None:
             if patch.is_production:
-                await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+                await Postgres.execute(
+                    "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+                    " WHERE is_production = TRUE"
+                )
             bundle.is_production = patch.is_production
 
         if patch.is_staging is not None:
             if patch.is_staging:
-                await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
+                await Postgres.execute(
+                    "UPDATE bundles SET is_staging = FALSE, updated_at = NOW()"
+                    " WHERE is_staging = TRUE"
+                )
             bundle.is_staging = patch.is_staging
 
         # Update the bundle
@@ -495,7 +484,8 @@ async def update_bundle(
                 is_staging = $3,
                 is_dev = $4,
                 active_user = $5,
-                is_archived = $6
+                is_archived = $6,
+                updated_at = NOW()
             WHERE name = $7
             """,
             data,
@@ -592,9 +582,12 @@ async def bundle_actions(
             raise NotFoundException("Bundle not found")
         row = res[0]
         bundle = BundleModel(
-            **row["data"],
+            **BundleDataModel.model_validate(row["data"]).model_dump(
+                include=set(BundleDataModel.model_fields), by_alias=False
+            ),
             name=row["name"],
             created_at=row["created_at"],
+            updated_at=row["updated_at"],
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
