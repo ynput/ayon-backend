@@ -27,9 +27,11 @@ from ayon_server.addons.models import (
     ServerSourceInfo,
     SourceInfo,
     SSOOption,
+    TraitDefinition,
 )
 from ayon_server.addons.openapi import get_addon_api_docs, get_addon_openapi
 from ayon_server.addons.settings_caching import AddonSettingsCache
+from ayon_server.addons.traits import TRAITS_MANIFEST_FILENAME, load_trait_manifest
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
     AyonException,
@@ -705,6 +707,21 @@ class BaseServerAddon:
         if self.app_host_name is None:
             return []
         return [self.app_host_name]
+
+    #
+    # Traits
+    #
+
+    async def get_trait_definitions(self) -> list[TraitDefinition]:
+        """Return definitions of representation traits the addon provides.
+
+        By default, definitions are read from the generated manifest
+        `server/traits.json` shipped with the addon. Addon may reimplement
+        this method to provide the definitions in a different way.
+        """
+
+        path = os.path.join(self.addon_dir, "server", TRAITS_MANIFEST_FILENAME)
+        return load_trait_manifest(path)
 
     #
     # Actions
