@@ -63,6 +63,8 @@ async def check_bundle(
     if bundle.addons is None:
         return CheckBundleResponseModel(success=True)
 
+    addon_types: set[str] = set()
+
     for addon_name, addon_version in bundle.addons.items():
         if addon_version is None or addon_version in PLACEHOLDER_VERSIONS:
             continue
@@ -78,6 +80,8 @@ async def check_bundle(
                 )
             )
             continue
+
+        addon_types.add(addon.addon_type)
 
         if addon.compatibility is None:
             # No compatibility information available,
@@ -211,26 +215,28 @@ async def check_bundle(
                 )
 
     # Check for Python version installer compatibility with dependency packs
-    if not bundle.dependency_packages:
-        issues.append(
-            BundleIssueModel(
-                severity="error",
-                addon=None,
-                message=(f"Bundle {bundle.name} doesn't have dependency packages."),
-                required_addon=None,
+    # We don't need dependency packages for server-only bundles
+    if "pipeline" in addon_types:
+        if not bundle.dependency_packages:
+            issues.append(
+                BundleIssueModel(
+                    severity="warning",
+                    addon=None,
+                    message=(f"Bundle {bundle.name} doesn't have dependency packages."),
+                    required_addon=None,
+                )
             )
-        )
-    else:
-        # check pythons in all packages
-        for platform, filename in bundle.dependency_packages.items():
-            if not filename:
-                continue
+        else:
+            # check pythons in all packages
+            for platform, filename in bundle.dependency_packages.items():
+                if not filename:
+                    continue
 
-            package_issue = await _validate_python_package_compatibility(
-                bundle, platform, filename
-            )
-            if package_issue:
-                issues.append(package_issue)
+                package_issue = await _validate_python_package_compatibility(
+                    bundle, platform, filename
+                )
+                if package_issue:
+                    issues.append(package_issue)
 
     has_errors = any(issue.severity == "error" for issue in issues)
     return CheckBundleResponseModel(success=not has_errors, issues=issues)
