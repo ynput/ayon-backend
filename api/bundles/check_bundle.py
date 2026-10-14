@@ -10,7 +10,7 @@ from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__ as ayon_version
 
-from .models import BundleModel, BundlePatchModel
+from .models import BundleModel
 
 if TYPE_CHECKING:
     pass
@@ -56,7 +56,7 @@ async def get_active_services() -> list[dict[str, str]]:
 
 
 async def check_bundle(
-    bundle: BundleModel | BundlePatchModel,
+    bundle: BundleModel,
 ) -> CheckBundleResponseModel:
     issues: list[BundleIssueModel] = []
 
@@ -237,7 +237,9 @@ async def check_bundle(
 
 
 async def _validate_python_package_compatibility(
-    bundle, platform_name: Literal["windows", "linux", "darwin"], package_filename: str
+    bundle: BundleModel,
+    platform_name: Literal["windows", "linux", "darwin"],
+    package_filename: str,
 ) -> BundleIssueModel | None:
     """Validates a single package's Python compatibility against the installer.
 

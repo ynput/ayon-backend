@@ -29,7 +29,8 @@ router = APIRouter(prefix="/mcp", tags=["MCP"], include_in_schema=False)
 async def mcp_endpoint(
     request: Request,
     user: CurrentUser,
-    variant: Annotated[str, Query(title="Variant")] = "production") -> RedirectResponse:
+    variant: Annotated[str, Query(title="Variant")] = "production",
+) -> RedirectResponse:
     """Redirect to the MCP endpoint of the production MCP addon.
 
     307 keeps the method and body, so MCP clients follow it with POST.
@@ -45,7 +46,8 @@ async def mcp_endpoint(
     """
     try:
         addon = await AddonLibrary.getinstance().get_addon_by_variant(
-            MCP_ADDON_NAME, variant=variant)
+            MCP_ADDON_NAME, variant=variant
+        )
     except KeyError:
         addon = None
     if addon is None:
