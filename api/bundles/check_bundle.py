@@ -6,7 +6,7 @@ from api.desktop.deps import get_manifest
 from api.desktop.installers import get_installers
 from api.desktop.installers import get_manifest as get_installer_manifest
 from ayon_server.addons.library import AddonLibrary
-from ayon_server.exceptions import AyonException, NotFoundException
+from ayon_server.exceptions import NotFoundException
 from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__ as ayon_version
 
@@ -270,10 +270,16 @@ async def _validate_python_package_compatibility(
     installer_list = await get_installers(bundle.installer_version, platform_name)
     if not installer_list or len(installer_list.installers) != 1:
         num_found = len(installer_list.installers) if installer_list else 0
-        raise AyonException(
-            f"Found {num_found} installers for {bundle.name} "
-            f"on platform {platform_name}"
+        return BundleIssueModel(
+            severity="error",
+            addon=None,
+            message=(
+                f"Found {num_found} installers for {bundle.name} "
+                f"on platform {platform_name}, expected 1."
+            ),
+            required_addon=None,
         )
+
     installer = installer_list.installers[0]
     installer_manifest = get_installer_manifest(installer.filename)
     installer_python_version = installer_manifest.python_version
