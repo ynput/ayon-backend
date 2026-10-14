@@ -1,10 +1,10 @@
+import re
 from typing import TYPE_CHECKING, Literal
 
 import semver
 
 from api.desktop.deps import get_manifest
 from api.desktop.installers import get_installers
-from api.desktop.installers import get_manifest as get_installer_manifest
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.exceptions import NotFoundException
 from ayon_server.types import Field, OPModel
@@ -27,6 +27,13 @@ def is_compatible(version: str, requirements: str) -> bool:
         if not semver.match(version, condition):
             return False
     return True
+
+
+def _python_minor(version: str) -> tuple[int, int] | None:
+    """Return (major, minor) of a Python version string, None if unparseable."""
+    if m := re.match(r"\s*(\d+)\.(\d+)", version):
+        return int(m.group(1)), int(m.group(2))
+    return None
 
 
 class BundleIssueModel(OPModel):
@@ -281,12 +288,26 @@ async def _validate_python_package_compatibility(
         )
 
     installer = installer_list.installers[0]
-    installer_manifest = get_installer_manifest(installer.filename)
-    installer_python_version = installer_manifest.python_version
+    installer_python_version = installer.python_version
     if not installer_python_version:
         return None
 
-    if is_compatible(package_python_version, installer_python_version):
+    # Compiled wheels are bound to the minor version (cp311, cp312...),
+    # so patch versions of the dependency package and installer may differ
+    package_minor = _python_minor(package_python_version)
+    installer_minor = _python_minor(installer_python_version)
+    if package_minor is None or installer_minor is None:
+        return BundleIssueModel(
+            severity="warning",
+            addon=None,
+            message=(
+                f"Unable to compare Python versions of dependency package "
+                f"'{package_filename}' ({package_python_version}) and installer "
+                f"'{installer.filename}' ({installer_python_version})."
+            ),
+            required_addon=None,
+        )
+    if package_minor == installer_minor:
         return None
 
     return BundleIssueModel(
