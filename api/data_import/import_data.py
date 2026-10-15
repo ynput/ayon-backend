@@ -754,42 +754,12 @@ async def import_data(
             import_status.failed_items["comments"] = (
                 "Comments were not added because the import failed"
             )
-        for index, (comment_type, comment_entity_id, body, category) in enumerate(
-            pending_comments if committed else [], start=1
-        ):
-            try:
-                entity = await get_entity_class(comment_type).load(
-                    project_name, comment_entity_id
-                )
-                await create_activity(
-                    entity=entity,
-                    activity_type="comment",
-                    body=body,
-                    user=user,
-                    data={"category": category} if category else None,
-                    sender_type=SENDER_TYPE,
-                    bump_entity_updated_at=True,
-                )
-                import_status.comments += 1
-            except Exception as exp:
-                status_str = "with errors"
-                import_status.failed_items[f"comment {index}"] = (
-                    f"Comment on {comment_type} {comment_entity_id} failed: {exp}"
-                )
-
-            current_progress, trigger_update = _trigger_status_update(
-                index, len(pending_comments)
+        else:
+            comments_succeeded = await _create_import_comments(
+                project_name, user, pending_comments, import_status, event_id
             )
-            if trigger_update:
-                await EventStream.update(
-                    event_id,
-                    project=project_name,
-                    description=f"Adding comment {index}/{len(pending_comments)}",
-                    summary=await _prepare_status_summary(import_status),
-                    status="in_progress",
-                    progress=current_progress,
-                    store=False,
-                )
+            if not comments_succeeded:
+                status_str = "with errors"
 
     logger.debug(f"Import completed:{import_status}")
     await EventStream.update(
@@ -802,6 +772,54 @@ async def import_data(
     )
 
     return import_status
+
+
+async def _create_import_comments(
+    project_name: str,
+    user: UserEntity,
+    pending_comments: list[tuple[str, str, str, str | None]],
+    import_status: ImportStatus,
+    event_id: str,
+) -> bool:
+    """Create queued comments and report whether all succeeded."""
+    succeeded = True
+    for index, (comment_type, comment_entity_id, body, category) in enumerate(
+        pending_comments, start=1
+    ):
+        try:
+            entity = await get_entity_class(comment_type).load(
+                project_name, comment_entity_id
+            )
+            await create_activity(
+                entity=entity,
+                activity_type="comment",
+                body=body,
+                user=user,
+                data={"category": category} if category else None,
+                sender_type=SENDER_TYPE,
+                bump_entity_updated_at=True,
+            )
+            import_status.comments += 1
+        except Exception as exp:
+            succeeded = False
+            import_status.failed_items[f"comment {index}"] = (
+                f"Comment on {comment_type} {comment_entity_id} failed: {exp}"
+            )
+
+        current_progress, trigger_update = _trigger_status_update(
+            index, len(pending_comments)
+        )
+        if trigger_update:
+            await EventStream.update(
+                event_id,
+                project=project_name,
+                description=f"Adding comment {index}/{len(pending_comments)}",
+                summary=await _prepare_status_summary(import_status),
+                status="in_progress",
+                progress=current_progress,
+                store=False,
+            )
+    return succeeded
 
 
 async def _get_entity_type(
