@@ -154,6 +154,8 @@ async def import_data(
 
     Parses the CSV file and creates/updates entities based on the data.
     Supports importing users, folders, tasks, or hierarchies (combined).
+    For new entity list items, mapped `attrib.<name>` values are stored on the
+    list item rather than modifying the referenced entity.
 
     Args:
         import_type: Type of entity to import (user, folder, task, hierarchy)
@@ -187,6 +189,9 @@ async def import_data(
         # This technically should not happen as project_name is required
         # for folder/task imports, but we check anyway
         raise ForbiddenException("You must be a manager to import data")
+
+    if import_type == "entity_list_item" and project_name is None:
+        raise BadRequestException("Project name is required for list item imports")
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
@@ -455,8 +460,11 @@ async def import_data(
 
     if not preview and operations is not None:
         # Reset the counts for the second round (actual write)
-        import_status.created = 0
-        import_status.updated = 0
+        # user and entity_list_item do not have operations, so we skip
+        # resetting counts for them
+        if import_type not in ["user", "entity_list_item"]:
+            import_status.created = 0
+            import_status.updated = 0
 
         start_time = time.perf_counter()
         try:
@@ -989,8 +997,8 @@ async def _resolve_entity_id(
             break
         identifier = (*identifier, str(val))
 
-    if identifier in existing_identifiers:
-        return identifier[0]  # Return the identifier
+    if identifier and identifier in existing_identifiers:
+        return identifier[0]
 
     # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:

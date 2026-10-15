@@ -34,7 +34,9 @@ async def postgres_setup(conn) -> None:
     await conn.set_type_codec(
         "uuid",
         encoder=lambda x: EntityID.parse(x, True),
-        decoder=lambda x: EntityID.parse(x, True),
+        # Postgres always returns valid UUIDs and asyncpg never passes
+        # NULLs to decoders, so there's nothing to validate
+        decoder=lambda x: x.replace("-", ""),
         schema="pg_catalog",
     )
 

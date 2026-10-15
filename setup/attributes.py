@@ -242,6 +242,9 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Fields of built-in attributes that users may change.
+USER_EDITABLE_FIELDS = ("title", "enum", "description")
+
 
 async def deploy_attributes() -> None:
     position = 0
@@ -311,19 +314,20 @@ async def deploy_attributes() -> None:
                 position = EXCLUDED.position,
                 scope = EXCLUDED.scope,
                 builtin = EXCLUDED.builtin,
-                data = case
-                when $4->'enum' IS NULL then
-                    EXCLUDED.data
-                else
-                    EXCLUDED.data || jsonb_build_object(
-                        'enum', public.attributes.data->'enum'
-                    )
-                end
-
+                -- keep user-edited values of the preserved fields
+                data = EXCLUDED.data || coalesce(
+                    (
+                        SELECT jsonb_object_agg(key, value)
+                        FROM jsonb_each(public.attributes.data)
+                        WHERE key = ANY($5)
+                    ),
+                    '{}'::jsonb
+                )
             """,
             name,
             position,
             scope,
             data,
+            [k for k in USER_EDITABLE_FIELDS if k in data],
         )
         position += 1

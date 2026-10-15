@@ -215,8 +215,8 @@ class AyonConfig(BaseModel):
     )
 
     ynput_cloud_api_url: str | None = Field(
-        "https://im.ynput.cloud",
-        description="YnputConnect URL",
+        "https://ynput.cloud",
+        description="Ynput Cloud URL",
     )
 
     disable_feedback: bool = Field(
@@ -358,6 +358,17 @@ def load_config() -> AyonConfig:
 
         key = key.lower().removeprefix(prefix)
         if key in AyonConfig.__fields__:
+            # Replace deprecated endpoints
+
+            if key == "ynput_cloud_api_url" and value == "https://im.ynput.cloud":
+                value = "https://ynput.cloud"
+
+            if (
+                key == "default_project_storage_cdn_resolver"
+                and value == "https://im.ynput.cloud/api/v1/cdn"
+            ):
+                value = "https://ynput.cloud/api/ayon/cdn"
+
             env_data[key] = value
 
     config = AyonConfig(**env_data)
