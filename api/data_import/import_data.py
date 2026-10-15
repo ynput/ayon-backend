@@ -71,7 +71,6 @@ from .models import (
     MissingItemStrategy,
     TaskExportImportModel,
     UserExportImportModel,
-    get_list_attribute_columns,
 )
 from .router import router
 
@@ -295,7 +294,9 @@ async def import_data(
         elif folder_id:
             list_attribute_keys = {
                 column.key
-                for column in await get_list_attribute_columns(project_name, folder_id)
+                for column in await EntityListExportImportModel.list_attribute_columns(
+                    project_name, folder_id
+                )
             }
     elif import_type != "hierarchy":
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)

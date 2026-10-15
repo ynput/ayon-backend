@@ -1006,6 +1006,20 @@ class FolderTaskExportImportModel(EntityExportImport):
         return all_items
 
 
+# Fields a list import sets on the listed entities themselves, besides their
+# attributes. Names, parents and version numbers are not changed by a list.
+LISTED_ENTITY_FIELDS = {
+    "label",
+    "status",
+    "tags",
+    "assignees",
+    "active",
+    "folder_type",
+    "task_type",
+    "product_type",
+}
+
+
 class EntityListExportImportModel(EntityExportImport):
     """Model used for exporting and importing entity list items.
 
@@ -1087,12 +1101,12 @@ class EntityListExportImportModel(EntityExportImport):
             )
             if list_record:
                 entity_type = list_record["entity_type"]
-            result.extend(await get_list_attribute_columns(project_name, parent_id))
+            result.extend(await cls.list_attribute_columns(project_name, parent_id))
         known = {column.key for column in result}
         if project_name and entity_type:
             result.extend(
                 column
-                for column in await get_listed_entity_columns(project_name, entity_type)
+                for column in await cls.listed_entity_columns(project_name, entity_type)
                 if column.key not in known
             )
         else:
@@ -1109,6 +1123,64 @@ class EntityListExportImportModel(EntityExportImport):
             result.extend(await get_comment_columns(project_name))
 
         return result
+
+    @classmethod
+    async def list_attribute_columns(
+        cls, project_name: str, entity_list_id: str
+    ) -> list[ImportableColumn]:
+        """Columns for the custom attributes defined on one entity list.
+
+        The definitions live in entity_lists.data.attributes (set by
+        PUT /projects/{project}/lists/{id}/attributes). Not the list's own attrib.
+        """
+        record = await Postgres.fetchrow(
+            f"SELECT data FROM project_{project_name}.entity_lists WHERE id = $1",
+            entity_list_id,
+        )
+        if not record:
+            return []
+
+        columns: list[ImportableColumn] = []
+        for definition in (record["data"] or {}).get("attributes") or []:
+            try:
+                name = definition["name"]
+                data = AttributeData(**definition["data"])
+            except Exception:
+                continue
+            columns.append(
+                ImportableColumn(
+                    key=f"attrib.{name}",
+                    label=data.title or name,
+                    required=False,
+                    value_type=data.type,
+                    default_value=None if data.default is None else str(data.default),
+                    error_handling_modes=["skip", "abort", "default"],
+                    enum_name=None,
+                    enum_items=data.enum,
+                    create_new_items=False,
+                )
+            )
+        return columns
+
+    @classmethod
+    async def listed_entity_columns(
+        cls, project_name: str, entity_type: str
+    ) -> list[ImportableColumn]:
+        """Columns for the values of the entities a list holds."""
+        models: dict[str, type[EntityExportImport]] = {
+            "folder": FolderExportImportModel,
+            "task": TaskExportImportModel,
+            "product": ProductExportImportModel,
+            "version": VersionExportImportModel,
+        }
+        model = models.get(entity_type)
+        if model is None:
+            return []
+        return [
+            column.copy(update={"required": False})
+            for column in await model.fields(project_name=project_name)
+            if column.key in LISTED_ENTITY_FIELDS or column.key.startswith("attrib.")
+        ]
 
     @classmethod
     async def get_all_items(
@@ -1159,79 +1231,8 @@ class EntityListExportImportModel(EntityExportImport):
         return await cls._return_items(as_csv, field_names, rows)
 
 
-async def get_list_attribute_columns(
-    project_name: str, entity_list_id: str
-) -> list[ImportableColumn]:
-    """Columns for the custom attributes defined on one entity list.
-
-    The definitions live in entity_lists.data.attributes (set by
-    PUT /projects/{project}/lists/{id}/attributes). Not the list's own attrib.
-    """
-    record = await Postgres.fetchrow(
-        f"SELECT data FROM project_{project_name}.entity_lists WHERE id = $1",
-        entity_list_id,
-    )
-    if not record:
-        return []
-
-    columns: list[ImportableColumn] = []
-    for definition in (record["data"] or {}).get("attributes") or []:
-        try:
-            name = definition["name"]
-            data = AttributeData(**definition["data"])
-        except Exception:
-            continue
-        columns.append(
-            ImportableColumn(
-                key=f"attrib.{name}",
-                label=data.title or name,
-                required=False,
-                value_type=data.type,
-                default_value=None if data.default is None else str(data.default),
-                error_handling_modes=["skip", "abort", "default"],
-                enum_name=None,
-                enum_items=data.enum,
-                create_new_items=False,
-            )
-        )
-    return columns
-
-
 # list entity types whose entities have a name to match rows by
 NAME_MATCHED_LIST_TYPES = ("folder", "task", "product")
-
-# Fields a list import sets on the listed entities themselves, besides their
-# attributes. Names, parents and version numbers are not changed by a list.
-LISTED_ENTITY_FIELDS = {
-    "label",
-    "status",
-    "tags",
-    "assignees",
-    "active",
-    "folder_type",
-    "task_type",
-    "product_type",
-}
-
-
-async def get_listed_entity_columns(
-    project_name: str, entity_type: str
-) -> list[ImportableColumn]:
-    """Columns for the values of the entities a list holds."""
-    models: dict[str, type[EntityExportImport]] = {
-        "folder": FolderExportImportModel,
-        "task": TaskExportImportModel,
-        "product": ProductExportImportModel,
-        "version": VersionExportImportModel,
-    }
-    model = models.get(entity_type)
-    if model is None:
-        return []
-    return [
-        column.copy(update={"required": False})
-        for column in await model.fields(project_name=project_name)
-        if column.key in LISTED_ENTITY_FIELDS or column.key.startswith("attrib.")
-    ]
 
 
 class EntityListItemsImport:
