@@ -16,9 +16,14 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, Literal
 
-from fastapi import Query, Request
+from fastapi import Request
 from fastapi.responses import Response
 
+from api.data_import.models import (
+    HIERARCHY_UNIFIED_COLUMN,
+    EntityExportImport,
+    FolderTaskExportImportModel,
+)
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import ProductEntity, VersionEntity
 from ayon_server.exceptions import AyonException, BadRequestException
@@ -27,11 +32,6 @@ from ayon_server.graphql import router as graphql_router
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
 
-from .models import (
-    HIERARCHY_UNIFIED_COLUMN,
-    EntityExportImport,
-    FolderTaskExportImportModel,
-)
 from .router import router
 from .table_file import XLSX_MEDIA_TYPE, Cell, write_csv, write_xlsx
 
@@ -402,6 +402,7 @@ class ExportListQuery(OPModel):
 
 
 class ExportTableRequest(OPModel):
+    project_name: str = Field(..., regex=PROJECT_NAME_REGEX, example="my_project")
     columns: list[str] = Field(
         default_factory=list,
         description=(
@@ -443,12 +444,11 @@ class ExportTableRequest(OPModel):
     )
 
 
-@router.post("/table/export")
+@router.post("/export-table")
 async def export_table(
     request: Request,
     user: CurrentUser,
     payload: ExportTableRequest,
-    project_name: str = Query(..., regex=PROJECT_NAME_REGEX),
 ) -> Response:
     """Export rows of a project table as CSV or XLSX.
 
@@ -459,7 +459,7 @@ async def export_table(
     Folders and tasks are ordered depth first, products with their versions by
     path. Other rows keep the order of the query.
     """
-    project_name = await normalize_project_name(project_name)
+    project_name = await normalize_project_name(payload.project_name)
     context = await graphql_get_context(request, user)
     # same project access check as the table's own queries
     await _execute(context, PROJECT_QUERY, {"projectName": project_name})
