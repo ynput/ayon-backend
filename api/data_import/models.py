@@ -1162,7 +1162,11 @@ class EntityListExportImportModel(EntityExportImport):
 async def get_list_attribute_columns(
     project_name: str, entity_list_id: str
 ) -> list[ImportableColumn]:
-    """Columns for the attributes defined on one entity list."""
+    """Columns for the custom attributes defined on one entity list.
+
+    The definitions live in entity_lists.data.attributes (set by
+    PUT /projects/{project}/lists/{id}/attributes). Not the list's own attrib.
+    """
     record = await Postgres.fetchrow(
         f"SELECT data FROM project_{project_name}.entity_lists WHERE id = $1",
         entity_list_id,
