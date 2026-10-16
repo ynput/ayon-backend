@@ -141,7 +141,7 @@ async def user_from_request(request: Request) -> UserEntity:
             )
         elif not session_data.is_api_key:
             # regular session, not an API key session
-            session_data = None
+            raise UnauthorizedException("Regular session cannot be used as an API key")
 
         # Sessions stored before is_api_key was persisted lack the flag
         if not session_data.is_api_key:
