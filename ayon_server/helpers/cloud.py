@@ -1,5 +1,6 @@
 import time
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -324,6 +325,21 @@ class CloudUtils:
         except Exception as e:
             logger.debug(f"Failed to fetch required addons list: {e}")
             return []
+
+    @classmethod
+    def is_official_download_link(cls, url: str) -> bool:
+        """Check if the given URL is an official download link."""
+
+        parsed = urlparse(url)
+
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname is not None
+            and (
+                parsed.hostname == "ynput.cloud"
+                or parsed.hostname.endswith(".ynput.cloud")
+            )
+        )
 
 
 #
