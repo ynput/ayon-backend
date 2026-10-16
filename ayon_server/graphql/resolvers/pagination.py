@@ -176,8 +176,12 @@ def create_pagination(
         if isinstance(val, (int, float)):
             cast = "numeric"
             sql_val = f"{val}::numeric"
-        elif isinstance(val, str) and re.match(
-            r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
+        elif (
+            isinstance(val, str)
+            and re.match(r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val)
+            # Expression explicitly cast to text: never guess
+            # its type from the cursor value
+            and not ob.endswith("::text")
         ):
             cast = "timestamptz"
             sql_val = f"'{val}'::timestamptz"
