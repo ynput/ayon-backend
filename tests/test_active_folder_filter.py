@@ -119,9 +119,9 @@ def client(list_folders, folders, user, monkeypatch):
                 "archived/child/grandchild",
             ],
         ),
-        ({"active": "true"}, ["shots", "shots/active"]),
+        ({"visibility": "visible"}, ["shots", "shots/active"]),
         (
-            {"active": "false"},
+            {"visibility": "hidden"},
             [
                 "shots/inactive",
                 "archived",
@@ -131,7 +131,7 @@ def client(list_folders, folders, user, monkeypatch):
         ),
     ],
 )
-def test_active_filter(client, folders, params, expected):
+def test_visibility_filter(client, folders, params, expected):
     original = deepcopy(folders)
     response = client.get("/projects/testproject/folders", params=params)
 
@@ -144,20 +144,35 @@ def test_active_filter(client, folders, params, expected):
     assert folders == original
 
 
-def test_invalid_active_parameter(client):
-    response = client.get("/projects/testproject/folders", params={"active": "invalid"})
+def test_visibility_all_matches_default(client):
+    default_response = client.get("/projects/testproject/folders")
+    all_response = client.get(
+        "/projects/testproject/folders",
+        params={"visibility": "all"},
+    )
+
+    assert default_response.status_code == 200
+    assert all_response.status_code == 200
+    assert all_response.json() == default_response.json()
+
+
+def test_invalid_visibility_parameter(client):
+    response = client.get(
+        "/projects/testproject/folders", params={"visibility": "invalid"}
+    )
     assert response.status_code == 422
 
 
 @pytest.mark.parametrize("is_manager", [True, False])
-def test_active_filter_with_attributes(client, folders, user, is_manager):
+def test_visibility_filter_with_attributes(client, folders, user, is_manager):
     original = deepcopy(folders)
     user.is_manager = is_manager
     user.permissions = lambda **kwargs: SimpleNamespace(
         attrib_read=SimpleNamespace(enabled=True, attributes=["fps"])
     )
     response = client.get(
-        "/projects/testproject/folders", params={"active": "true", "attrib": "true"}
+        "/projects/testproject/folders",
+        params={"visibility": "visible", "attrib": "true"},
     )
 
     assert response.status_code == 200
@@ -174,7 +189,9 @@ def test_active_filter_with_attributes(client, folders, user, is_manager):
 
 def test_guest_still_receives_no_folders(client, user, list_folders):
     user.is_guest = True
-    response = client.get("/projects/testproject/folders", params={"active": "true"})
+    response = client.get(
+        "/projects/testproject/folders", params={"visibility": "visible"}
+    )
 
     assert response.status_code == 200
     assert response.json()["folders"] == []

@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Query, Response
 
@@ -16,6 +16,8 @@ from ayon_server.utils import RequestCoalescer, camelize, json_dumps, json_loads
 
 from .router import router
 
+FolderVisibility = Literal["all", "visible", "hidden"]
+
 # This model is only used for the API documentaion,
 # it is not actually used in the code as we stream the json response
 # that is generated on the fly.
@@ -25,15 +27,15 @@ def _build_response(
     folder_list: list[dict[str, Any]],
     access_checker: AccessChecker,
     attrib_whitelist: set[str] | None = None,
-    active: bool | None = None,
+    visibility: FolderVisibility = "all",
 ) -> Response:
     def acl_checker(folder: dict[str, Any]) -> bool:
         return access_checker[folder["path"]]
 
-    def active_checker(folder: dict[str, Any]) -> bool:
-        if active is None:
+    def visibility_checker(folder: dict[str, Any]) -> bool:
+        if visibility == "all":
             return True
-        if active:
+        if visibility == "visible":
             return folder["active"] and folder["visible"]
         return not folder["active"] or not folder["visible"]
 
@@ -68,7 +70,7 @@ def _build_response(
                 "folders": [
                     attr_parser(folder)
                     for folder in folder_list
-                    if acl_checker(folder) and active_checker(folder)
+                    if acl_checker(folder) and visibility_checker(folder)
                 ]
             },
         ),
@@ -146,7 +148,7 @@ class FolderListLoader:
         folder_list: list[dict[str, Any]],
         access_checker: AccessChecker,
         attrib_whitelist: set[str] | None = None,
-        active: bool | None = None,
+        visibility: FolderVisibility = "all",
     ) -> Response:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
@@ -155,7 +157,7 @@ class FolderListLoader:
             folder_list,
             access_checker,
             attrib_whitelist,
-            active,
+            visibility,
         )
 
 
@@ -172,16 +174,17 @@ async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
     attrib: bool = Query(False, description="Include folder attributes"),
-    active: bool | None = Query(
-        None,
+    visibility: FolderVisibility = Query(
+        "all",
         description=(
-            "Filter folders by active state, including ancestor folders. "
-            "True returns only active folders; false returns folders that are "
-            "inactive themselves or have an inactive ancestor. Omit to return both."
+            "Filter folders by visibility, including ancestor folders. "
+            "'visible' returns only visible folders; 'hidden' returns folders "
+            "that are inactive themselves or have an inactive ancestor. "
+            "'all' (default) returns both."
         ),
     ),
 ):
-    """Return folders in the project, optionally filtered by active state.
+    """Return folders in the project, optionally filtered by visibility.
 
     This is a similar endpoint to /hierarchy, but the result
     is a flat list. additionally, this endpoint should be faster
@@ -246,5 +249,5 @@ async def get_folder_list(
             logger.debug(f"{user} {project_name} attrib whitelist {attrib_whitelist}")
 
     return await folder_list_loader.build_response(
-        entities, access_checker, attrib_whitelist, active=active
+        entities, access_checker, attrib_whitelist, visibility=visibility
     )
