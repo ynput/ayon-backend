@@ -1,5 +1,6 @@
 from typing import Any
 
+from ayon_server.access.task_access import ensure_task_read_access
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -82,6 +83,12 @@ class TaskEntity(ProjectLevelEntity):
     @classmethod
     async def refresh_views(cls, project_name: str, **kwargs: Any) -> None:
         await rebuild_hierarchy_cache(project_name)
+
+    async def ensure_read_access(self, user, **kwargs) -> None:
+        await super().ensure_read_access(user, **kwargs)
+        await ensure_task_read_access(
+            user, self.project_name, self.folder_id, self.assignees
+        )
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
