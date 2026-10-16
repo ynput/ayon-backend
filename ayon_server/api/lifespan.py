@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from ayon_server.addons import AddonLibrary
+from ayon_server.entities.core import attribute_library
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.readiness import set_ready
@@ -233,6 +234,7 @@ async def _startup(app: "FastAPI") -> None:
     """
 
     await ayon_init()
+    EventStream.subscribe("server.attributes_updated", attribute_library.reload_handler, True)
     await load_access_groups()
     await CloudUtils.clear_cloud_info_cache()
 
