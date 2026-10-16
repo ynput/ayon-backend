@@ -139,6 +139,10 @@ async def user_from_request(request: Request) -> UserEntity:
                 token=api_key,
                 is_api_key=True,
             )
+        elif not session_data.is_api_key:
+            # regular session, not an API key session
+            session_data = None
+
         # Sessions stored before is_api_key was persisted lack the flag
         if not session_data.is_api_key:
             session_data.is_api_key = True
@@ -146,6 +150,8 @@ async def user_from_request(request: Request) -> UserEntity:
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)
+        if session_data and session_data.is_api_key:
+            session_data = None  # an API key sent as a Bearer token
 
     else:
         raise UnauthorizedException("Access token is missing")
