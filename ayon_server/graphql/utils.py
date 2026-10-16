@@ -19,7 +19,6 @@ def process_attrib_data(
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
     list_attribute_config: dict[str, Any] | None = None,
-    apply_inheritance: bool = True,
 ) -> dict[str, Any]:
     attr_limit: list[str] | Literal["all"] = []
 
@@ -50,7 +49,7 @@ def process_attrib_data(
 
     # Copy, so the caller's dict (often a node's own attributes) stays as it was
     data = dict(own_attrib or {})
-    if apply_inheritance and entity_type in {"folder", "task"}:
+    if entity_type in {"folder", "task"}:
         # Apply inherited and project attributes for folders and tasks
         # (other entities do not inherit attributes)
         if inherited_attrib is not None:
@@ -100,6 +99,14 @@ def process_attrib_data(
         result[key] = value
 
     return result
+
+
+def jsonable_attrib(attrib: dict[str, Any]) -> dict[str, Any]:
+    """Attribute values for a JSON field: GraphQL responses can't encode datetimes."""
+    return {
+        key: value.isoformat() if isinstance(value, datetime) else value
+        for key, value in attrib.items()
+    }
 
 
 def parse_attrib_data[T](
