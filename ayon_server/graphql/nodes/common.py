@@ -7,6 +7,7 @@ from strawberry.scalars import JSON
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
+from ayon_server.graphql.resolvers.common import ARGVisibility, EntityVisibility
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.logging import logger
@@ -149,6 +150,15 @@ class ThumbnailInfo:
     relation: str | None = strawberry.field(default=None)
 
 
+@strawberry.type
+class EntityListInfo:
+    id: str = strawberry.field()
+    label: str = strawberry.field()
+    entity_list_type: str = strawberry.field()
+    entity_type: str = strawberry.field()
+    active: bool = strawberry.field()
+
+
 @strawberry.interface
 class BaseNode:
     entity_type: strawberry.Private[str] = "unknown"
@@ -211,6 +221,21 @@ class BaseNode:
             name_ex=name_ex,
             first=first,
             after=after,
+        )
+
+    @strawberry.field(description="Entity lists containing this entity")
+    async def entity_lists(
+        self,
+        info: Info,
+        visibility: ARGVisibility = EntityVisibility.ALL,
+        entity_list_types: list[str] | None = None,
+    ) -> list[EntityListInfo]:
+        resolver = info.context["entity_lists_info_resolver"]
+        return await resolver(
+            root=self,
+            info=info,
+            visibility=visibility,
+            entity_list_types=entity_list_types,
         )
 
     @strawberry.field

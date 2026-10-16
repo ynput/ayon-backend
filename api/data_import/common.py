@@ -10,6 +10,10 @@ from ayon_server.types import PROJECT_NAME_REGEX
 SENDER_TYPE = "data_import"
 
 
+class RowSkippedException(Exception):
+    """A row is skipped on purpose, e.g. update-only and no match."""
+
+
 ProjectNameQuery = Annotated[
     str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
 ]

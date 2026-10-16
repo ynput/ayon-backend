@@ -15,6 +15,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.installer import background_installer
 from ayon_server.installer.models import (
     DependencyPackageManifest,
@@ -87,7 +88,7 @@ async def get_manifest(filename: str) -> DependencyPackage:
     manifest.sources = [
         m
         for m in manifest.sources
-        if not (m.url and m.url.startswith("https://download.ynput.cloud"))
+        if not (m.url and CloudUtils.is_official_download_link(m.url))
     ]
 
     return manifest
