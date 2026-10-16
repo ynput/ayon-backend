@@ -47,7 +47,8 @@ def process_attrib_data(
             if k not in attr_limit:
                 attr_limit.append(k)
 
-    data = own_attrib or {}
+    # Copy, so the caller's dict (often a node's own attributes) stays as it was
+    data = dict(own_attrib or {})
     if entity_type in {"folder", "task"}:
         # Apply inherited and project attributes for folders and tasks
         # (other entities do not inherit attributes)
@@ -98,6 +99,14 @@ def process_attrib_data(
         result[key] = value
 
     return result
+
+
+def jsonable_attrib(attrib: dict[str, Any]) -> dict[str, Any]:
+    """Attribute values for a JSON field: GraphQL responses can't encode datetimes."""
+    return {
+        key: value.isoformat() if isinstance(value, datetime) else value
+        for key, value in attrib.items()
+    }
 
 
 def parse_attrib_data[T](
