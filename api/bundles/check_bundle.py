@@ -223,8 +223,9 @@ async def check_bundle(
 
     # Check for Python version installer compatibility with dependency packs
     # We don't need dependency packages for server-only bundles
+    dependency_packages = bundle.dependency_packages.root
     if "pipeline" in addon_types:
-        if not bundle.dependency_packages:
+        if not dependency_packages:
             issues.append(
                 BundleIssueModel(
                     severity="warning",
@@ -235,7 +236,7 @@ async def check_bundle(
             )
         else:
             # check pythons in all packages
-            for platform, filename in bundle.dependency_packages.items():
+            for platform, filename in dependency_packages.items():
                 if not filename:
                     continue
 
