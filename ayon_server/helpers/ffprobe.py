@@ -7,8 +7,11 @@ ReviewableAvailability = Literal[
 ]
 
 
-async def ffprobe(file_path: str) -> dict[str, Any]:
-    """Runs ffprobe on a file and returns the metadata."""
+async def ffprobe(file_path: str, timeout: float | None = None) -> dict[str, Any]:
+    """Runs ffprobe on a file and returns the metadata.
+
+    Raises `TimeoutError` when ffprobe doesn't finish in `timeout` seconds.
+    """
     process = await asyncio.create_subprocess_exec(
         "ffprobe",
         "-v",
@@ -22,7 +25,12 @@ async def ffprobe(file_path: str) -> dict[str, Any]:
         stderr=asyncio.subprocess.PIPE,
     )
 
-    stdout, stderr = await process.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout)
+    except (TimeoutError, asyncio.CancelledError):
+        process.kill()
+        await process.wait()
+        raise
 
     if process.returncode != 0:
         raise Exception(f"ffprobe failed: {stderr.decode()}")
