@@ -39,18 +39,18 @@ async def upload_server_config_file(
     file_type: ServerFileType = Path(
         ...,
         description="The type of file to upload.",
-        example="login_background",
+        examples=["login_background"],
     ),
     x_file_name: str = Header(
         ...,
         description="The name of the file.",
-        example="background.jpg",
-        regex=r"^[a-zA-Z0-9._-]+$",
+        examples=["background.jpg"],
+        pattern=r"^[a-zA-Z0-9._-]+$",
     ),
     content_type: str = Header(
         ...,
-        example="image/jpeg",
-        regex=r"^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$",
+        examples=["image/jpeg"],
+        pattern=r"^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$",
     ),
 ):
     """Upload a file to the server configuration."""
@@ -70,7 +70,7 @@ async def upload_server_config_file(
     await handle_upload(request, x_file_name, root_dir=base_dir)
 
     config = await get_server_config()
-    config_data = config.dict()
+    config_data = config.model_dump()
     if "customization" not in config_data:
         config_data["customization"] = {}
     config_data["customization"][file_type] = x_file_name

@@ -1,6 +1,6 @@
-from typing import Annotated, Any
+from typing import Annotated
 
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.types import Field, OPModel, SimpleValue
 from ayon_server.utils import slugify
@@ -35,7 +35,11 @@ class EnumItem(OPModel):
 
     fulltext: Annotated[
         list[str] | None,
-        Field(title="Fulltext search terms", example=["my", "value"]),
+        Field(
+            title="Fulltext search terms",
+            example=["my", "value"],
+            validate_default=True,
+        ),
     ] = None
 
     group: Annotated[
@@ -108,16 +112,20 @@ class EnumItem(OPModel):
         ),
     ] = None
 
-    @validator("label", pre=True, always=True)
-    def set_label(cls, v: str | None, values: dict[str, Any]) -> str:
+    @field_validator("label", mode="before")
+    @classmethod
+    def set_label(cls, v: str | None, info: ValidationInfo) -> str:
+        values = info.data
         if v is None and "value" in values:
             return str(values["value"])
         if v is None:
             return ""
         return v
 
-    @validator("fulltext", pre=True, always=True)
-    def set_fulltext(cls, v: list[str] | None, values: dict[str, Any]) -> list[str]:
+    @field_validator("fulltext", mode="before")
+    @classmethod
+    def set_fulltext(cls, v: list[str] | None, info: ValidationInfo) -> list[str]:
+        values = info.data
         if v is not None:
             return v
 

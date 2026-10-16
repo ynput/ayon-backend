@@ -1,12 +1,17 @@
 import builtins
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
-from pydantic import BaseModel
-from strawberry.experimental.pydantic import type as pydantic_type
+from pydantic import BaseModel, ValidationError
 
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.entities.models.attrib import validate_attrib
+from ayon_server.entities.models.common import EntityMainModel
+from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
+from ayon_server.utils import dict_exclude
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -15,20 +20,112 @@ ALWAYS_WRITABLE_ATTRS: list[str] = []
 ALWAYS_WRITABLE_FIELDS: list[str] = ["thumbnail_id"]
 
 
-class BaseEntity:
+# Entity model (payload) of the entity type
+ModelT = TypeVar(
+    "ModelT", bound=EntityMainModel, default=EntityMainModel, covariant=True
+)
+
+
+class BaseEntity(Generic[ModelT]):
     entity_type: str
-    model: ModelSet
+    model: ModelSet[ModelT, Any, Any]
     exists: bool = False
     project_name: str | None = None
     own_attrib: list[str] = []
     inherited_attrib: dict[str, Any] = {}
-    _payload: BaseModel
+    _payload: ModelT
 
     def __repr__(self):
         return f"<{self.entity_type} {self.name}>"
 
     def __bool__(self) -> bool:
         return bool(self._payload)
+
+    def validated_attrib(
+        self, values: builtins.dict[str, Any]
+    ) -> builtins.dict[str, Any]:
+        """Validate attribute values before they are saved.
+
+        Values set by code (such as `entity.attrib.fps = 25`) are not
+        validated when they are assigned, so they are validated here.
+        Returns the validated values. Attributes without a definition
+        are dropped.
+        """
+        try:
+            return builtins.dict(validate_attrib(self.entity_type, values))
+        except ValidationError as e:
+            details = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+                for error in e.errors()
+            )
+            raise BadRequestException(
+                f"Invalid attribute values of {self.entity_type}: {details}"
+            ) from e
+
+    def _init_payload(
+        self,
+        payload: builtins.dict[str, Any],
+        *,
+        exists: bool,
+        own_attrib: list[str] | None = None,
+        inherited_attrib: builtins.dict[str, Any] | None = None,
+        project_attrib: builtins.dict[str, Any] | None = None,
+    ) -> None:
+        """Construct the entity model from the given data.
+
+        Entities loaded from the database (`exists`) resolve their attribute
+        values from the stored ones (see `resolve_attrib`), folders and tasks
+        inherit values from `inherited_attrib` and `project_attrib`. Stored
+        values are not validated again. `own_attrib` lists the attributes set on the
+        entity itself (all given attributes by default).
+        """
+        attrib = payload.get("attrib") or {}
+        if isinstance(attrib, BaseModel):
+            attrib = attrib.model_dump()
+        if own_attrib is None:
+            own_attrib = list(attrib)
+        payload = dict_exclude(payload, ["own_attrib"])
+
+        if exists:
+            resolved = resolve_attrib(
+                self.entity_type,
+                {key: attrib[key] for key in own_attrib if key in attrib},
+                inherited=inherited_attrib,
+                project=project_attrib,
+            )
+            payload["attrib"] = resolved.values
+            self.own_attrib = resolved.own
+            self.inherited_attrib = resolved.inherited
+            self._payload = self.model.main_model.model_validate(
+                {**payload, "own_attrib": self.own_attrib},
+                context=STORED_VALUES_CONTEXT,
+            )
+        else:
+            self.own_attrib = own_attrib
+            self._payload = self.model.main_model(**payload, own_attrib=own_attrib)
+        self.exists = exists
+
+    def fields_to_save(self, exclude: list[str]) -> builtins.dict[str, Any]:
+        """Return the entity data to be saved (without None values).
+
+        Attribute values are validated (see `validated_attrib`).
+        """
+        fields = dict_exclude(self.dict(exclude_none=True), ["own_attrib", *exclude])
+        fields["attrib"] = self.validated_attrib(fields.get("attrib", {}))
+        return fields
+
+    def own_attrib_to_save(self) -> builtins.dict[str, Any]:
+        """Return the validated own attribute values to be saved.
+
+        Attributes without a value (None) are not saved
+        (the entity inherits them).
+        """
+        values = {
+            key: value
+            for key in self.own_attrib
+            if (value := self.attrib.get(key)) is not None
+        }
+        return self.validated_attrib(values)
 
     def dict(
         self,
@@ -37,7 +134,7 @@ class BaseEntity:
         exclude_none: bool = False,
     ) -> dict[str, Any]:
         """Return the entity data as a dict."""
-        return self._payload.dict(
+        return self._payload.model_dump(
             exclude_defaults=exclude_defaults,
             exclude_unset=exclude_unset,
             exclude_none=exclude_none,
@@ -48,7 +145,7 @@ class BaseEntity:
         Use aliases instead of the original field names
         and drop inherited attributes.
         """
-        result = self._payload.dict(exclude_none=True, by_alias=True)
+        result = self._payload.model_dump(exclude_none=True, by_alias=True)
         attrib = result.pop("attrib", {})
         for key in list(attrib.keys()):
             if key not in self.own_attrib:
@@ -64,7 +161,7 @@ class BaseEntity:
     def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
-        pdata = patch_data.dict(exclude_unset=True)
+        pdata = patch_data.model_dump(exclude_unset=True)
         pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
@@ -72,7 +169,7 @@ class BaseEntity:
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
-                patch_data = patch_data.copy(deep=True)
+                patch_data = patch_data.model_copy(deep=True)
                 perms = user.permissions(self.project_name)
 
                 if not user.is_developer and "developerMode" in pattr:
@@ -121,16 +218,11 @@ class BaseEntity:
             # Revert the attrib value to the value inherited from parent
             # (if available)
             if attr in self.inherited_attrib:
-                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])  # type: ignore
+                self._payload.attrib[attr] = self.inherited_attrib[attr]
 
     @property
-    def payload(self) -> BaseModel:
+    def payload(self) -> ModelT:
         return self._payload
-
-    @classmethod
-    def strawberry_attrib(cls):
-        # fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
     #
     # DB
@@ -156,48 +248,49 @@ class BaseEntity:
 
     @property
     def name(self) -> str:
-        return self._payload.name  # type: ignore
+        # All entities have a name except workfiles, which override it
+        return self._payload.name  # type: ignore[attr-defined]
 
     @name.setter
     def name(self, value: str) -> None:
-        self._payload.name = value  # type: ignore
+        self._payload.name = value  # type: ignore[attr-defined]
 
     @property
     def attrib(self):
         """Return the entity attributes."""
-        return self._payload.attrib  # type: ignore
+        return self._payload.attrib
 
     @property
     def data(self) -> builtins.dict[str, Any]:
-        return self._payload.data  # type: ignore
+        return self._payload.data
 
     @data.setter
     def data(self, value: builtins.dict[str, Any]) -> None:
-        self._payload.data = value  # type: ignore
+        self._payload.data = value
 
     @property
     def active(self) -> bool:
-        return self._payload.active  # type: ignore
+        return self._payload.active
 
     @active.setter
     def active(self, value) -> None:
-        self._payload.active = value  # type: ignore
+        self._payload.active = value
 
     @property
-    def created_at(self) -> float:
-        return self._payload.created_at  # type: ignore
+    def created_at(self) -> datetime:
+        return self._payload.created_at
 
     @created_at.setter
-    def created_at(self, value: float) -> None:
-        self._payload.created_at = value  # type: ignore
+    def created_at(self, value: datetime) -> None:
+        self._payload.created_at = value
 
     @property
-    def updated_at(self) -> float:
-        return self._payload.updated_at  # type: ignore
+    def updated_at(self) -> datetime:
+        return self._payload.updated_at
 
     @updated_at.setter
-    def updated_at(self, value: float) -> None:
-        self._payload.updated_at = value  # type: ignore
+    def updated_at(self, value: datetime) -> None:
+        self._payload.updated_at = value
 
     def skip_patch_permissions_check(self) -> bool:
         """Return whether patch permission check should be skipped for this entity."""

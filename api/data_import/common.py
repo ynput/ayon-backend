@@ -11,7 +11,7 @@ SENDER_TYPE = "data_import"
 
 
 ProjectNameQuery = Annotated[
-    str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+    str | None, Query(alias="project_name", pattern=PROJECT_NAME_REGEX)
 ]
 
 # Type alias for exportable entity types

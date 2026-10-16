@@ -21,7 +21,7 @@ def json_default_handler(value: Any) -> list[Any] | dict[str, Any] | str:
         return list(value)
 
     if isinstance(value, BaseModel):
-        return value.dict()
+        return value.model_dump()
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()
