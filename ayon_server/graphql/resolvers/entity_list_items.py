@@ -564,7 +564,6 @@ async def get_entity_list_items(
     if filter:
         column_whitelist = [
             *COLS_ITEMS,
-            "entity_attrib",
             *[f"entity_{col}" for col in cols],
             *[f"parent_{col}" for col in allowed_parent_keys],
         ]
@@ -578,8 +577,9 @@ async def get_entity_list_items(
                 json_fields=[*JSON_FIELDS, "entity_attrib"],
                 column_map={
                     "attrib": "_all_attrib",
-                    "entity_attrib": "_listed_entity_attrib",
                     **{f"entity_{col}": f"_entity_{col}" for col in cols},
+                    # after the entity columns, which also have entity_attrib
+                    "entity_attrib": "_listed_entity_attrib",
                     **{
                         f"parent_{col}": f"_parent_{col}" for col in allowed_parent_keys
                     },  # noqa: E501
