@@ -12,6 +12,8 @@ import re
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
+import orjson
+
 from ayon_server.addons.models import TraitDefinition, TraitDefinitionListItem
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
@@ -242,10 +244,12 @@ async def get_trait_definitions(
     if conflicts:
         await _report_conflicts(conflicts)
 
-    await Redis.set_json(
+    # Not `Redis.set_json`: it sorts the keys, and schema properties
+    # must keep the field order of the trait classes.
+    await Redis.set(
         TRAITS_CACHE_NS,
         cache_key,
-        [item.dict(by_alias=True) for item in items],
+        orjson.dumps([item.dict(by_alias=True) for item in items]),
     )
     return items
 

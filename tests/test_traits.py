@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -225,3 +226,40 @@ class TestMergeTraitDefinitions:
     def test_definition_type(self):
         definition = make_definition("ayon.2d.Image.v1", "sha256:a")
         assert isinstance(definition, TraitDefinition)
+
+
+class TestTraitDefinitionsCache:
+    def test_cache_keeps_property_order(self, monkeypatch):
+        from ayon_server.addons import traits
+        from ayon_server.lib.redis import Redis
+
+        store: dict[str, str | bytes] = {}
+
+        async def redis_get(namespace, key):
+            return store.get(f"{namespace}-{key}")
+
+        async def redis_set(namespace, key, value, ttl=0):
+            store[f"{namespace}-{key}"] = value
+
+        schema = {
+            "type": "object",
+            "properties": {"width": {"type": "integer"}, "height": {"type": "integer"}},
+        }
+
+        async def collect_sources(variant):
+            return [
+                ("core", "1.0.0", [make_definition("a.Size.v1", "a", schema=schema)])
+            ]
+
+        monkeypatch.setattr(Redis, "connected", True)
+        monkeypatch.setattr(Redis, "get", redis_get)
+        monkeypatch.setattr(Redis, "set", redis_set)
+        monkeypatch.setattr(traits, "_collect_sources", collect_sources)
+
+        fresh = asyncio.run(traits.get_trait_definitions())
+        cached = asyncio.run(traits.get_trait_definitions())
+
+        assert store
+        for items in (fresh, cached):
+            properties = items[0].dict(by_alias=True)["schema"]["properties"]
+            assert list(properties) == ["width", "height"]
