@@ -4,6 +4,7 @@ from typing import Any
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.nodes.common import EntityListInfo
+from ayon_server.graphql.resolvers.common import EntityVisibility
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.lib.postgres import Postgres
@@ -101,7 +102,7 @@ async def get_request_project(info: Info, project_name: str) -> ProjectEntity:
 async def get_entity_lists_info(
     root,
     info: Info,
-    active: bool | None = None,
+    visibility: EntityVisibility = EntityVisibility.ALL,
     entity_list_types: list[str] | None = None,
 ) -> list[EntityListInfo]:
     project_name = root.project_name
@@ -119,7 +120,9 @@ async def get_entity_lists_info(
 
     result: list[EntityListInfo] = []
     for record in records:
-        if active is not None and record["active"] != active:
+        if visibility == EntityVisibility.VISIBLE and not record["active"]:
+            continue
+        if visibility == EntityVisibility.HIDDEN and record["active"]:
             continue
         if entity_list_types and record["entity_list_type"] not in entity_list_types:
             continue
