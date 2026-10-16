@@ -51,7 +51,7 @@ async def entity_lists_by_entity_loader(
 
 async def can_read_entity_list(
     user: UserEntity,
-    project_name: str,
+    project: ProjectEntity,
     record: dict[str, Any],
 ) -> bool:
     """Same rules as project.entityLists, including guest access."""
@@ -61,7 +61,7 @@ async def can_read_entity_list(
         if user.data.get("guestAccess"):
             return bool(
                 user.get_guest_access(
-                    project_name=project_name,
+                    project_name=project.name,
                     type="entityList",
                     id=str(record["id"]),
                 )
@@ -78,12 +78,24 @@ async def can_read_entity_list(
             access=access,
             level=EntityAccessHelper.READ,
             owner=record["owner"],
-            project=await ProjectEntity.load(project_name),
+            project=project,
             default_open=True,
         )
     except ForbiddenException:
         return False
     return True
+
+
+async def get_request_project(info: Info, project_name: str) -> ProjectEntity:
+    project = info.context.get("project")
+    if project is not None and project.name == project_name:
+        return project
+
+    loads: dict[str, asyncio.Task[ProjectEntity]]
+    loads = info.context.setdefault("entity_lists_projects", {})
+    if project_name not in loads:
+        loads[project_name] = asyncio.create_task(ProjectEntity.load(project_name))
+    return await loads[project_name]
 
 
 async def get_entity_lists_info(
@@ -97,6 +109,9 @@ async def get_entity_lists_info(
 
     loader = info.context["entity_lists_by_entity_loader"]
     records = await loader.load((project_name, root.id))
+    if not records:
+        return []
+    project = await get_request_project(info, project_name)
 
     # shared by all nodes of the request, which resolve concurrently
     checks: dict[tuple[str, str], asyncio.Task[bool]]
@@ -112,7 +127,7 @@ async def get_entity_lists_info(
         key = (project_name, str(record["id"]))
         if key not in checks:
             checks[key] = asyncio.create_task(
-                can_read_entity_list(user, project_name, record)
+                can_read_entity_list(user, project, record)
             )
         if not await checks[key]:
             continue
