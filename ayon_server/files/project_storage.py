@@ -345,13 +345,15 @@ class ProjectStorage:
 
         if not await self.unlink(file_id):
             raise Exception("Failed to delete file")
-        await self.delete_filmstrip(file_id)
 
         query = f"""
             DELETE FROM project_{self.project_name}.files
             WHERE id = $1
         """
         await Postgres.execute(query, file_id)
+        # After the record: a filmstrip stored by a running creation is then
+        # either deleted here, or by the creation, which finds no record
+        await self.delete_filmstrip(file_id)
         query = f"""
             WITH updated_activities AS (
                 SELECT
@@ -566,6 +568,7 @@ class ProjectStorage:
         Fail silently if the filmstrip is not found.
         """
         await self.unlink(file_id, file_group="filmstrips")
+
     # Blob methods
     # Used by BlobStorage to store arbitrary addon payloads
 

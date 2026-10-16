@@ -59,8 +59,10 @@ from ayon_server.utils.request_coalescer import RequestCoalescer
 FILMSTRIP_SEMAPHORE = asyncio.Semaphore(2)
 
 # Only one server instance creates a filmstrip of a file, others wait for it.
-# The lock outlives the worst case generation (single pass + seeking fallback)
+# The lock is extended while the filmstrip is created, and expires when
+# the instance holding it crashes.
 LOCK_TTL = 300
+LOCK_EXTEND_INTERVAL = 100
 LOCK_WAIT_TIMEOUT = 60
 LOCK_POLL_INTERVAL = 0.5
 
@@ -159,6 +161,47 @@ async def _run_ffmpeg(cmd: list[str], timeout: float) -> bytes:
     return stdout
 
 
+async def _decode_frames(
+    video_path: str,
+    *,
+    max_frames: int,
+    frame_size: int,
+    stream_index: int | None = None,
+    select_filter: str = "",
+) -> list[bytes]:
+    """Decode the video once. Returns BMP bytes of up to `max_frames` frames,
+    all of them or those picked by `select_filter`."""
+
+    async with aiofiles.tempfile.TemporaryDirectory() as temp_dir:
+        cmd = _ffmpeg_base_args()
+        cmd.extend(["-i", video_path])
+        cmd.extend(_output_args(frame_size, stream_index, select_filter))
+        cmd.extend(
+            [
+                "-fps_mode",
+                "passthrough",
+                "-frames:v",
+                str(max_frames),
+                # uncompressed, PNG encoding takes ~20% of the extraction time
+                "-c:v",
+                "bmp",
+                os.path.join(temp_dir, "%03d.bmp"),
+            ]
+        )
+        await _run_ffmpeg(cmd, SINGLE_PASS_TIMEOUT)
+
+        results: list[bytes] = []
+        for i in range(max_frames):
+            try:
+                async with aiofiles.open(
+                    os.path.join(temp_dir, f"{i + 1:03d}.bmp"), "rb"
+                ) as f:
+                    results.append(await f.read())
+            except FileNotFoundError:
+                break
+        return results
+
+
 async def _extract_frames_single_pass(
     video_path: str,
     *,
@@ -173,34 +216,40 @@ async def _extract_frames_single_pass(
     select_filter = (
         f"select='gte(t-start_t\\,(selected_n+0.5)*{duration:.6f}/{frames})'"
     )
-    async with aiofiles.tempfile.TemporaryDirectory() as temp_dir:
-        cmd = _ffmpeg_base_args()
-        cmd.extend(["-i", video_path])
-        cmd.extend(_output_args(frame_size, stream_index, select_filter))
-        cmd.extend(
-            [
-                "-fps_mode",
-                "passthrough",
-                "-frames:v",
-                str(frames),
-                # uncompressed, PNG encoding takes ~20% of the extraction time
-                "-c:v",
-                "bmp",
-                os.path.join(temp_dir, "%03d.bmp"),
-            ]
+    decoded: list[bytes | None] = list(
+        await _decode_frames(
+            video_path,
+            max_frames=frames,
+            frame_size=frame_size,
+            stream_index=stream_index,
+            select_filter=select_filter,
         )
-        await _run_ffmpeg(cmd, SINGLE_PASS_TIMEOUT)
+    )
+    return decoded + [None] * (frames - len(decoded))
 
-        results: list[bytes | None] = []
-        for i in range(frames):
-            try:
-                async with aiofiles.open(
-                    os.path.join(temp_dir, f"{i + 1:03d}.bmp"), "rb"
-                ) as f:
-                    results.append(await f.read())
-            except FileNotFoundError:
-                results.append(None)
-        return results
+
+async def _extract_frames_of_short_clip(
+    video_path: str,
+    *,
+    frames: int,
+    frame_size: int,
+    stream_index: int | None = None,
+) -> list[bytes | None]:
+    """Decode all frames of a clip with fewer frames than samples and repeat
+    them evenly. Picking by time would put them all in the first samples.
+
+    Returns an empty list if the clip has as many frames as samples or more.
+    """
+
+    decoded = await _decode_frames(
+        video_path,
+        max_frames=frames,
+        frame_size=frame_size,
+        stream_index=stream_index,
+    )
+    if not decoded or len(decoded) >= frames:
+        return []
+    return [decoded[(2 * i + 1) * len(decoded) // (2 * frames)] for i in range(frames)]
 
 
 async def _extract_frame(
@@ -328,7 +377,21 @@ async def create_filmstrip(
     }
 
     results: list[bytes | None] = []
-    if duration * (frame_rate or 25) <= SINGLE_PASS_MAX_FRAMES:
+    expected_frames = duration * (frame_rate or 25)
+    if expected_frames < frames:
+        try:
+            results = await _extract_frames_of_short_clip(
+                video_path,
+                frames=frames,
+                frame_size=frame_size,
+                stream_index=stream_index,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug(f"Short clip filmstrip extraction failed: {e}")
+
+    if not any(results) and expected_frames <= SINGLE_PASS_MAX_FRAMES:
         try:
             results = await _extract_frames_single_pass(video_path, **kwargs)
         except asyncio.CancelledError:
@@ -502,15 +565,20 @@ async def _generate_file_filmstrip(
         file_id,
     )
     await storage.store_filmstrip(file_id, payload, content_type=FILMSTRIP_MIME)
-    await Postgres.execute(
+    res = await Postgres.fetchrow(
         f"""
         UPDATE project_{project_name}.files
         SET data = data || $2::jsonb
         WHERE id = $1
+        RETURNING id
         """,
         file_id,
         {"filmstrip": info},
     )
+    if not res:
+        # The file was deleted meanwhile
+        await storage.delete_filmstrip(file_id)
+        raise NotFoundException("File not found")
     await _invalidate_thumbnail_info(project_name, file_id)
     end_time = time.monotonic()
     logger.debug(
@@ -527,6 +595,15 @@ async def _check_failures(key: str) -> None:
         raise ServiceUnavailableException("Filmstrip creation failed, retry later")
 
 
+async def _extend_lock(lock_key: str, token: str) -> None:
+    """Keep the creation lock while the filmstrip is created"""
+    while True:
+        await asyncio.sleep(LOCK_EXTEND_INTERVAL)
+        if not await Redis.extend_lock("filmstrip-lock", lock_key, token, LOCK_TTL):
+            logger.warning(f"Lost the filmstrip creation lock of {lock_key}")
+            return
+
+
 async def _create_file_filmstrip(
     project_name: str,
     file_id: str,
@@ -540,6 +617,7 @@ async def _create_file_filmstrip(
         async with FILMSTRIP_SEMAPHORE:
             token = await Redis.acquire_lock("filmstrip-lock", lock_key, LOCK_TTL)
             if token:
+                extend_task = asyncio.create_task(_extend_lock(lock_key, token))
                 try:
                     # It may have been created while waiting for the lock
                     info = (await _get_file_data(project_name, file_id)).get(
@@ -551,6 +629,7 @@ async def _create_file_filmstrip(
                         project_name, file_id, media_info
                     )
                 finally:
+                    extend_task.cancel()
                     await Redis.release_lock("filmstrip-lock", lock_key, token)
 
         await asyncio.sleep(LOCK_POLL_INTERVAL)
@@ -670,10 +749,13 @@ async def get_filmstrip_payload_response(
     # the image: while a filmstrip is re-created, the info is removed before
     # the new image is stored, so a stale version never matches the new image.
     info = (await _get_file_data(project_name, file_id)).get("filmstrip")
-    if info and version == _get_filmstrip_version(info):
+    if version is None:
+        cache_control = "private, no-cache"
+    elif info and version == _get_filmstrip_version(info):
         cache_control = FILMSTRIP_PAYLOAD_CACHE_CONTROL
     else:
-        cache_control = "private, no-cache"
+        # The client would read the new image with the old layout
+        raise NotFoundException("Filmstrip version not found")
 
     return Response(
         content=payload,

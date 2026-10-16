@@ -40,6 +40,14 @@ end
 return 0
 """
 
+# Extend the lock only if it is still held by the caller
+EXTEND_LOCK_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("EXPIRE", KEYS[1], ARGV[2])
+end
+return 0
+"""
+
 T = TypeVar("T", bound=Callable[..., Coroutine[Any, Any, Any]])
 
 
@@ -194,6 +202,19 @@ class Redis:
         await cls.redis_pool.eval(
             RELEASE_LOCK_SCRIPT, 1, f"{cls.prefix}{namespace}-{key}", token
         )
+
+    @classmethod
+    async def extend_lock(cls, namespace: str, key: str, token: str, ttl: int) -> bool:
+        """Extend a lock acquired with `acquire_lock` to expire in `ttl` seconds
+
+        Returns False if the lock is not held by the caller anymore.
+        """
+        if not cls.connected:
+            await cls.connect()
+        extended = await cls.redis_pool.eval(
+            EXTEND_LOCK_SCRIPT, 1, f"{cls.prefix}{namespace}-{key}", token, ttl
+        )
+        return bool(extended)
 
     @classmethod
     async def incr(cls, namespace: str, key: str, *, ttl: int = 0) -> int:
