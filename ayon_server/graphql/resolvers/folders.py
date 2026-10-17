@@ -127,7 +127,25 @@ async def get_folders(
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
     task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
-    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
+    global_search: Annotated[
+        str | None,
+        argdesc(
+            """
+            Fuzzy text search matching folders by their own fields
+            or by any of their tasks (same as the REST folder search)
+            """
+        ),
+    ] = None,
+    include_parents: Annotated[
+        bool,
+        argdesc(
+            """
+            Include the parent folders of the matching folders.
+            Parents are only limited by access, visibility, ids and parentIds.
+            """
+        ),
+    ] = False,
+    sort_by:Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
     ] = False,
@@ -176,10 +194,14 @@ async def get_folders(
     sql_group_by = ["folders.id", "pr.attrib", "ex.attrib", "hierarchy.path"]
     sql_conditions = []
     sql_having = []
+    # joins that filter the result (not just add columns)
+    sql_filter_joins = []
+    # conditions that also apply to parents added by include_parents
+    scope_conditions = []
 
     access_list = await create_folder_access_list(root, info)
     if access_list is not None:
-        sql_conditions.append(
+        scope_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
         )
 
@@ -256,14 +278,14 @@ async def get_folders(
         # If no specific ids are requested,
         # we can filter by visibility and internal folder
         if not include_internal_folder:
-            sql_conditions.append(
+            scope_conditions.append(
                 f"(hierarchy.path <> '{AYON_INTERNAL_FOLDER_NAME}' AND "
                 f"NOT starts_with(hierarchy.path, '{AYON_INTERNAL_FOLDER_NAME}/'))"
             )
         if visibility == EntityVisibility.VISIBLE:
-            sql_conditions.append("(COALESCE(ex.active, TRUE) AND folders.active)")
+            scope_conditions.append("(COALESCE(ex.active, TRUE) AND folders.active)")
         elif visibility == EntityVisibility.HIDDEN:
-            sql_conditions.append(
+            scope_conditions.append(
                 "(NOT COALESCE(ex.active, TRUE) OR NOT folders.active)"
             )
 
@@ -384,14 +406,14 @@ async def get_folders(
 
         if include_folder_children:
             sql_cte.extend(create_child_folder_ctes(project_name, ids))
-            sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
+            scope_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
 
         else:
-            sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
+            scope_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
 
     if parent_id is not None:
         # Still used. do not remove!
-        sql_conditions.append(
+        scope_conditions.append(
             "folders.parent_id IS NULL"
             if parent_id == "root"
             else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
@@ -405,7 +427,7 @@ async def get_folders(
             sql_cte.extend(
                 create_child_folder_ctes(project_name, parent_ids, include_self=False)
             )
-            sql_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
+            scope_conditions.append("folders.id IN (SELECT id FROM child_folder_ids)")
         else:
             pids_set: set[str | None] = set(parent_ids)
             lconds = []
@@ -419,7 +441,7 @@ async def get_folders(
                 pids_list = cast("list[str]", list(pids_set))
                 lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
             if lconds:
-                sql_conditions.append(f"({' OR '.join(lconds)})")
+                scope_conditions.append(f"({' OR '.join(lconds)})")
 
     if folder_types is not None:
         if not folder_types:
@@ -593,12 +615,83 @@ async def get_folders(
                 """
             )
 
-            sql_joins.append(
+            sql_filter_joins.append(
                 """
                 INNER JOIN filtered_tasks ft
                 ON ft.folder_id = folders.id
                 """
             )
+
+    if global_search:
+        # folders matching the search themselves or by any of their tasks
+        task_search_cond = build_search_conditions(
+            global_search,
+            ["tasks.name", "tasks.label", "tasks.task_type", "e.path"],
+        )
+        folder_search_cond = build_search_conditions(
+            global_search,
+            ["f.name", "f.label", "e.path"],
+        )
+        if task_search_cond and folder_search_cond:
+            sql_cte.append(
+                f"""
+                searched_folders AS (
+                    SELECT tasks.folder_id
+                    FROM project_{project_name}.tasks AS tasks
+                    INNER JOIN project_{project_name}.exported_attributes AS e
+                        ON tasks.folder_id = e.folder_id
+                    WHERE {task_search_cond}
+                    UNION
+                    SELECT f.id AS folder_id
+                    FROM project_{project_name}.folders AS f
+                    INNER JOIN project_{project_name}.exported_attributes AS e
+                        ON f.id = e.folder_id
+                    WHERE {folder_search_cond}
+                )
+                """
+            )
+            sql_filter_joins.append(
+                """
+                INNER JOIN searched_folders sf
+                ON sf.folder_id = folders.id
+                """
+            )
+
+    if include_parents and (sql_conditions or sql_having or sql_filter_joins):
+        # Resolve the matching folders first, then add their ancestors.
+        # Ancestors only have to satisfy the scope conditions, not the filters.
+        sql_cte.append(
+            f"""
+            matched_folders AS (
+                SELECT folders.id
+                FROM project_{project_name}.folders AS folders
+                {" ".join(sql_joins + sql_filter_joins)}
+                {SQLTool.conditions(scope_conditions + sql_conditions)}
+                GROUP BY {",".join(sql_group_by)}
+                {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
+            )
+            """
+        )
+        sql_cte.append(
+            f"""
+            matched_with_parents AS (
+                SELECT f.id, f.parent_id
+                FROM project_{project_name}.folders AS f
+                WHERE f.id IN (SELECT id FROM matched_folders)
+                UNION
+                SELECT f.id, f.parent_id
+                FROM project_{project_name}.folders AS f
+                INNER JOIN matched_with_parents AS m
+                ON f.id = m.parent_id
+            )
+            """
+        )
+        sql_conditions = ["folders.id IN (SELECT id FROM matched_with_parents)"]
+        sql_having = []
+        sql_filter_joins = []
+
+    sql_conditions = scope_conditions + sql_conditions
+    sql_joins.extend(sql_filter_joins)
 
     #
     # Pagination
