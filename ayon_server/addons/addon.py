@@ -193,6 +193,24 @@ class BaseServerAddon:
         """
         return None
 
+    async def on_addon_activate(self) -> None:
+        """Hook called when this addon version becomes active.
+
+        That happens on server start (after setup) when the addon is in
+        the production bundle, and when the addon is added to the
+        production bundle. It runs on every server replica, so the
+        implementation must be idempotent.
+        """
+        pass
+
+    async def on_addon_deactivate(self) -> None:
+        """Hook called when this addon version is removed from production.
+
+        Runs on every server replica, so the implementation
+        must be idempotent.
+        """
+        pass
+
     def request_server_restart(self):
         """Request the server to restart.
 

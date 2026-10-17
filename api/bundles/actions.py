@@ -1,5 +1,4 @@
 from ayon_server.entities.user import UserEntity
-from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
@@ -7,14 +6,15 @@ from ayon_server.lib.postgres import Postgres
 from .models import BundleModel
 
 
-async def promote_bundle(bundle: BundleModel, user: UserEntity):
-    """Promote a bundle to production.
+async def copy_staging_settings(bundle: BundleModel, user: UserEntity):
+    """Copy staging settings of the bundle addons to production.
 
-    That includes copying staging settings to production.
+    This is the first step of the bundle promotion. The bundle itself
+    is then set as production using update_bundle.
     """
 
     assert await Postgres.is_in_transaction(), (
-        "promote_bundle function must be called within a transaction"
+        "copy_staging_settings function must be called within a transaction"
     )
 
     if not user.is_admin:
@@ -25,16 +25,6 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity):
 
     if bundle.is_dev:
         raise BadRequestException("Dev bundles cannot be promoted")
-
-    await Postgres.execute("UPDATE bundles SET is_production = FALSE")
-    await Postgres.execute(
-        """
-        UPDATE bundles
-        SET is_production = TRUE
-        WHERE name = $1
-        """,
-        bundle.name,
-    )
 
     project_list = await get_project_list()
 
@@ -110,14 +100,3 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity):
                     addon_name,
                     addon_version,
                 )
-
-    await EventStream.dispatch(
-        "bundle.status_changed",
-        user=user.name,
-        description=f"Bundle {bundle.name} promoted to production",
-        summary={
-            "name": bundle.name,
-            "status": "production",
-        },
-        payload=data,
-    )
