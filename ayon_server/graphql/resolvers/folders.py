@@ -145,7 +145,7 @@ async def get_folders(
             """
         ),
     ] = False,
-    sort_by:Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
     ] = False,
