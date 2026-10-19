@@ -67,7 +67,7 @@ class BaseEntity:
         patch_data: BaseModel,
         user: Optional["UserEntity"] = None,
         *,
-        calculated_attributes: Iterable[str] = (),
+        calculated_attributes: Iterable[str] | None = None,
     ) -> None:
         """Apply a patch, allowing attributes calculated by trusted operation hooks."""
 
