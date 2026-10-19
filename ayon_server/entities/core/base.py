@@ -1,4 +1,5 @@
 import builtins
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel
@@ -61,8 +62,14 @@ class BaseEntity:
     # Modification
     #
 
-    def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
-        """Apply a patch to the entity."""
+    def patch(
+        self,
+        patch_data: BaseModel,
+        user: Optional["UserEntity"] = None,
+        *,
+        calculated_attributes: Iterable[str] | None = None,
+    ) -> None:
+        """Apply a patch, allowing attributes calculated by trusted operation hooks."""
 
         pdata = patch_data.dict(exclude_unset=True)
         pattr = pdata.pop("attrib", {})  # attributes to be patched
@@ -80,7 +87,9 @@ class BaseEntity:
 
                 if perms.attrib_write.enabled:
                     writable_attrs = (
-                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
+                        perms.attrib_write.attributes
+                        + ALWAYS_WRITABLE_ATTRS
+                        + list(calculated_attributes)
                     )
                     writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
                     for attr, val in pattr.items():
