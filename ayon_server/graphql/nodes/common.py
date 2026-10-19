@@ -157,6 +157,9 @@ class EntityListInfo:
     entity_list_type: str = strawberry.field()
     entity_type: str = strawberry.field()
     active: bool = strawberry.field()
+    item_ids: list[str] = strawberry.field(
+        description="List items of the entity in this list, in list order"
+    )
 
 
 @strawberry.interface
