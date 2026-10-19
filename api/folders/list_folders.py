@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import Query, Response
 
@@ -11,12 +11,10 @@ from ayon_server.api.dependencies import AllowGuests, CurrentUser, ProjectName
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.types import OPModel
+from ayon_server.types import OPModel, VisibilityOptions
 from ayon_server.utils import RequestCoalescer, camelize, json_dumps, json_loads
 
 from .router import router
-
-FolderVisibility = Literal["all", "visible", "hidden"]
 
 # This model is only used for the API documentaion,
 # it is not actually used in the code as we stream the json response
@@ -27,7 +25,7 @@ def _build_response(
     folder_list: list[dict[str, Any]],
     access_checker: AccessChecker,
     attrib_whitelist: set[str] | None = None,
-    visibility: FolderVisibility = "all",
+    visibility: VisibilityOptions = "all",
 ) -> Response:
     def acl_checker(folder: dict[str, Any]) -> bool:
         return access_checker[folder["path"]]
@@ -148,7 +146,7 @@ class FolderListLoader:
         folder_list: list[dict[str, Any]],
         access_checker: AccessChecker,
         attrib_whitelist: set[str] | None = None,
-        visibility: FolderVisibility = "all",
+        visibility: VisibilityOptions = "all",
     ) -> Response:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
@@ -174,7 +172,7 @@ async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
     attrib: bool = Query(False, description="Include folder attributes"),
-    visibility: FolderVisibility = Query(
+    visibility: VisibilityOptions = Query(
         "all",
         description=(
             "Filter folders by visibility, including ancestor folders. "
