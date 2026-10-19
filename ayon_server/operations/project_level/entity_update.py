@@ -174,7 +174,7 @@ async def update_project_level_entity(
         and update_payload_dict["thumbnail_id"] != entity.thumbnail_id
     )
 
-    entity.patch(payload, user=user)
+    entity.patch(payload, user=user, calculated_attributes=calculated_attributes)
 
     if "thumbnail_id" in update_payload_dict:
         # if thumbnail is updated, we need to bump thumbnail hash in data
