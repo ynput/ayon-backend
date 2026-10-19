@@ -3,6 +3,7 @@ import hashlib
 from ayon_server.constraints import Constraints
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.download import shorten_url_string
 from ayon_server.installer import background_installer
 from ayon_server.lib.postgres import Postgres
@@ -19,10 +20,8 @@ async def download_addon(
     if (
         allow_custom_addons := await Constraints.check("allowCustomAddons")
     ) is not None:
-        if not allow_custom_addons:
-            allowed_prefixes = ["https://download.ynput.cloud"]
-            if not any(url.startswith(prefix) for prefix in allowed_prefixes):
-                raise ForbiddenException("Custom addons uploads are not allowed")
+        if not allow_custom_addons and not CloudUtils.is_official_download_link(url):
+            raise ForbiddenException("Custom addons uploads are not allowed")
 
     hash = hashlib.sha256(f"addon_install_{url.split('?')[0]}".encode()).hexdigest()
 

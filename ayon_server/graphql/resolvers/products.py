@@ -139,6 +139,12 @@ async def get_products(
         str | None,
         argdesc("Filter products by their tasks (via versions) using QueryFilter"),
     ] = None,
+    representation_filter: Annotated[
+        str | None,
+        argdesc(
+            "Filter products by their representations (via versions) using QueryFilter"
+        ),
+    ] = None,
     has_reviewables: Annotated[
         bool | None,
         argdesc("Filter products that have at least one version with reviewables"),
@@ -505,12 +511,13 @@ async def get_products(
             use_folder_query = True
 
     #
-    # Filtering products by versions and tasks
+    # Filtering products by versions, tasks and representations
     #
 
-    if version_filter or task_filter:
+    if version_filter or task_filter or representation_filter:
         version_cond = ""
         task_cond = ""
+        representation_cond = ""
 
         if version_filter:
             column_whitelist = [
@@ -573,7 +580,43 @@ async def get_products(
             if fcond:
                 task_cond = f"{fcond}"
 
-        if version_cond or task_cond:
+        if representation_filter:
+            column_whitelist = [
+                "id",
+                "name",
+                "version_id",
+                "files",
+                "attrib",
+                "data",
+                "traits",
+                "status",
+                "tags",
+                "active",
+                "created_at",
+                "updated_at",
+            ]
+
+            fdata = json.loads(representation_filter)
+            fq = QueryFilter(**fdata)
+            fcond = build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="representations",
+            )
+            if fcond:
+                # The representation has to belong to the same version that
+                # matches the version and task filters, as in the versions
+                # resolver.
+                representation_cond = f"""
+                EXISTS (
+                    SELECT 1
+                    FROM project_{project_name}.representations AS representations
+                    WHERE representations.version_id = versions.id
+                    AND {fcond}
+                )
+                """
+
+        if version_cond or task_cond or representation_cond:
             vtconds = []
             tjoin = ""
             if version_cond:
@@ -584,6 +627,8 @@ async def get_products(
                 LEFT JOIN project_{project_name}.tasks
                 ON versions.task_id = tasks.id
                 """
+            if representation_cond:
+                vtconds.append(representation_cond)
 
             vtcondstr = "WHERE " + " AND ".join(vtconds)
 
