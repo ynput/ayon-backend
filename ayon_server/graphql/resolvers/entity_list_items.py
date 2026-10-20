@@ -1,19 +1,9 @@
-import functools
 import json
 from typing import Annotated
 
 from graphql.pyutils import camel_to_snake
 
 from ayon_server.access.utils import AccessChecker
-from ayon_server.entities.models.fields import (
-    FieldDefinitionDict,
-    folder_fields,
-    product_fields,
-    representation_fields,
-    task_fields,
-    version_fields,
-    workfile_fields,
-)
 from ayon_server.exceptions import (
     BadRequestException,
     NotImplementedException,
@@ -105,31 +95,24 @@ ENTITY_SORT_OPTIONS: dict[str, dict[str, str]] = {
 }
 
 
-@functools.cache
+# Stored columns of the entities (besides COLS_COMMON)
+ENTITY_COLS: dict[str, list[str]] = {
+    "folder": ["name", "label", "folder_type", "parent_id", "thumbnail_id"],
+    "task": ["name", "label", "task_type", "thumbnail_id", "assignees", "folder_id"],
+    "product": ["name", "folder_id", "product_type", "product_base_type"],
+    "version": ["version", "product_id", "task_id", "thumbnail_id", "author"],
+    "representation": ["name", "version_id", "files", "traits"],
+    "workfile": ["path", "task_id", "thumbnail_id", "created_by", "updated_by"],
+}
+
+
 def cols_for_entity(entity_type: str) -> list[str]:
-    fields: list[FieldDefinitionDict]
-    if entity_type == "folder":
-        fields = folder_fields
-    elif entity_type == "task":
-        fields = task_fields
-    elif entity_type == "product":
-        fields = product_fields
-    elif entity_type == "version":
-        fields = version_fields
-    elif entity_type == "representation":
-        fields = representation_fields
-    elif entity_type == "workfile":
-        fields = workfile_fields
-    else:
+    if entity_type not in ENTITY_COLS:
         # this cannot happen, but let's be safe
         raise NotImplementedException(
             f"Entity lists with {entity_type} are not supported"
         )
-    return COLS_COMMON + [
-        field["name"]
-        for field in fields
-        if field["name"] not in COLS_COMMON and not field.get("dynamic")
-    ]
+    return COLS_COMMON + ENTITY_COLS[entity_type]
 
 
 async def get_entity_list_items(

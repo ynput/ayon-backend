@@ -68,7 +68,7 @@ async def pin_override(
     c_overr = overrides
 
     for key in path:
-        if key not in c_field.__fields__:
+        if key not in type(c_field).model_fields:
             raise KeyError(f"{key} is not present in {c_field}")
 
         c_field = getattr(c_field, key)
@@ -85,12 +85,12 @@ async def pin_override(
             continue
 
         if isinstance(c_field, BaseSettingsModel):
-            c_overr[key] = c_field.dict()
+            c_overr[key] = c_field.model_dump()
         elif isinstance(c_field, list):
             val = []
             for r in c_field:
                 if isinstance(r, BaseSettingsModel):
-                    val.append(r.dict())
+                    val.append(r.model_dump())
                 else:
                     val.append(r)
             c_overr[key] = val
@@ -159,7 +159,7 @@ async def pin_site_override(
     c_overr = overrides
 
     for key in path:
-        if key not in c_field.__fields__:
+        if key not in type(c_field).model_fields:
             raise KeyError(f"{key} is not present in {c_field}")
 
         c_field = getattr(c_field, key)
@@ -176,12 +176,12 @@ async def pin_site_override(
             continue
 
         if isinstance(c_field, BaseSettingsModel):
-            c_overr[key] = c_field.dict()
+            c_overr[key] = c_field.model_dump()
         elif isinstance(c_field, list):
             val = []
             for r in c_field:
                 if isinstance(r, BaseSettingsModel):
-                    val.append(r.dict())
+                    val.append(r.model_dump())
                 else:
                     val.append(r)
             c_overr[key] = val

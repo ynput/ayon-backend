@@ -6,6 +6,7 @@ from strawberry.scalars import JSON
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.guest_access import get_guest_activity_category
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
@@ -13,7 +14,7 @@ from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.graphql.resolvers.field_stats import MetricTargetInput
 from ayon_server.graphql.types import BaseConnection, BaseEdge, ColumnStats, Info
-from ayon_server.graphql.utils import jsonable_attrib, process_attrib_data
+from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
@@ -53,17 +54,29 @@ class EntityListItemEdge(BaseEdge):
 
     def _entity_values(self, with_item_values: bool) -> dict[str, Any]:
         """Attributes of the listed entity, with the item's values over them or not."""
-        if self._entity is None or self._forbidden:
+        if (entity := self._entity) is None or self._forbidden:
             return {}
-        own_attrib = getattr(self._entity, "_attrib", None) or {}
-        return process_attrib_data(
+
+        item = (self._attrib or {}) if with_item_values else {}
+        list_attributes = self._list_attributes if with_item_values else {}
+        # Attributes of the list item override the entity's own ones.
+        # List attributes (list_attributes) are not entity attributes.
+        own = {**(getattr(entity, "_attrib", None) or {}), **item}
+        resolved = resolve_attrib(
             self.entity_type,
-            {**own_attrib, **(self._attrib or {})} if with_item_values else own_attrib,
+            {k: v for k, v in own.items() if k not in list_attributes},
+            inherited=getattr(entity, "_inherited_attrib", None),
+            project=getattr(entity, "_project_attrib", None),
+        )
+        values = {
+            **resolved.values,
+            **{k: v for k, v in own.items() if k in list_attributes},
+        }
+        return process_attrib_data(
+            values,
             user=self._user,
             project_name=self.project_name,
-            inherited_attrib=getattr(self._entity, "_inherited_attrib", None) or {},
-            project_attrib=getattr(self._entity, "_project_attrib", None) or {},
-            list_attribute_config=self._list_attributes if with_item_values else None,
+            list_attribute_config=list_attributes,
         )
 
     def processed_attrib(self) -> dict[str, Any]:
@@ -71,10 +84,10 @@ class EntityListItemEdge(BaseEdge):
             self._processed_attrib = self._entity_values(with_item_values=True)
         return self._processed_attrib
 
-    @strawberry.field(graphql_type=JSON)
-    def attrib(self) -> dict[str, Any]:
+    @strawberry.field()
+    def attrib(self) -> JSON:
         """Attributes of the entity with the list item's values over them."""
-        return jsonable_attrib(self.processed_attrib())
+        return JSON(attrib_to_json(self.entity_type, self.processed_attrib()))
 
     @strawberry.field()
     def all_attrib(self) -> str:
@@ -89,10 +102,11 @@ class EntityListItemEdge(BaseEdge):
         """
         return list((self._attrib or {}).keys())
 
-    @strawberry.field(graphql_type=JSON)
-    def entity_attrib(self) -> dict[str, Any]:
+    @strawberry.field()
+    def entity_attrib(self) -> JSON:
         """Attributes of the entity, without the list item's values."""
-        return jsonable_attrib(self._entity_values(with_item_values=False))
+        values = self._entity_values(with_item_values=False)
+        return JSON(attrib_to_json(self.entity_type, values))
 
     @strawberry.field()
     def data(self) -> str:

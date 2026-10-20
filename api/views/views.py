@@ -39,24 +39,24 @@ PViewType = Annotated[
     str,
     Path(
         title="View type",
-        regex=NAME_REGEX,
-        example="overview",
+        pattern=NAME_REGEX,
+        examples=["overview"],
     ),
 ]
 PViewId = Annotated[
     str,
     Path(
         title="View ID",
-        regex=r"^[0-9a-f]{32}$",
-        example=create_uuid(),
+        pattern=r"^[0-9a-f]{32}$",
+        examples=[create_uuid()],
     ),
 ]
 QProjectName = Annotated[
     str | None,
     Query(
         title="Project name",
-        example="my_project",
-        regex=PROJECT_NAME_REGEX,
+        examples=["my_project"],
+        pattern=PROJECT_NAME_REGEX,
     ),
 ]
 
@@ -308,7 +308,7 @@ async def create_view(
         """
 
         if isinstance(payload.settings, OPModel):
-            settings_dict = payload.settings.dict()
+            settings_dict = payload.settings.model_dump()
         elif isinstance(payload.settings, dict):
             settings_dict = payload.settings
         else:
@@ -380,7 +380,7 @@ async def update_view(
 
         # Update the view with the new settings
 
-        update_dict = payload.dict(exclude_unset=True)
+        update_dict = payload.model_dump(exclude_unset=True)
 
         label = update_dict.get("label", res["label"])
         working = update_dict.get("working", res["working"])

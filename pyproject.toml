@@ -1,6 +1,6 @@
 [project]
 name = "ayon-server"
-version = "1.16.9"
+version = "1.17.0.dev0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -15,7 +15,7 @@ dependencies = [
   "croniter>=6.2.2",
   "cryptography>=50.0.0",
   "email-validator >=2.3.0",
-  "fastapi ==0.125.0", # Higher versions require Pydantic v2
+  "fastapi >=0.141.1",
   "geoip2 >=5.2.0",
   "granian >=2.3.2",
   "gunicorn >=25.1.0",
@@ -25,7 +25,7 @@ dependencies = [
   "orjson >=3.11.7",
   "pillow >=12.1.1",
   "psutil >=7.2.2",
-  "pydantic ==1.10.26", # 1.10.26 is the last 1.x version
+  "pydantic >=2.13,<3",
   "pyjwt >=2.15.1",
   "python-dateutil>=2.9.0.post0",
   "pytz>=2026.1.post1",
@@ -69,6 +69,10 @@ dev = [
   "types-pytz>=2026.1.1.20260304",
 ]
 
+[tool.pytest.ini_options]
+# Integration tests need a database: make test-integration
+testpaths = ["tests/unit"]
+
 [tool.ruff]
 fix = true
 line-length = 88
@@ -104,15 +108,30 @@ plugins = [
 
 check_untyped_defs = true
 disallow_any_generics = true
+disallow_any_unimported = true
+disallow_subclassing_any = true
 exclude = "tests/|venv/|tool/|test_"
 explicit_package_bases = true
+extra_checks = true
 no_implicit_reexport = true
+strict_equality = true
 strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-# follow_imports = "silent"
-# strict = true
-# disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+
+# Fully typed packages (extend the list when a package is typed)
+[[tool.mypy.overrides]]
+module = [
+  "ayon_server.attributes.*",
+  "ayon_server.models.*",
+  "ayon_server.operations.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
 
 [[tool.mypy.overrides]]
 module = [

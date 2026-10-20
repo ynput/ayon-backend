@@ -3,21 +3,17 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import UserEntity
+from ayon_server.graphql.nodes.common import (
+    AttribFields,
+)
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import TasksConnection
 else:
     TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
-
-
-@UserEntity.strawberry_attrib()
-class UserAttribType:
-    pass
 
 
 class FakeRoot:
@@ -28,7 +24,8 @@ class FakeRoot:
 
 
 @strawberry.type
-class UserNode:
+class UserNode(AttribFields):
+    entity_type: strawberry.Private[str] = "user"
     name: str
     active: bool
     created_at: datetime
@@ -48,28 +45,6 @@ class UserNode:
     user_pool: str | None = None
     apiKeyPreview: str | None = None
     deleted: bool = False
-
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]  # The user making the request
-
-    @strawberry.field
-    def attrib(self) -> UserAttribType:
-        return parse_attrib_data(
-            "user",
-            UserAttribType,
-            self._attrib,
-            user=self._user,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                "user",
-                self._attrib,
-                user=self._user,
-            )
-        )
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> TasksConnection:

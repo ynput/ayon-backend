@@ -116,8 +116,8 @@ async def list_projects(
             title="Filter by name",
             description="""Limit the result to project with the matching name,
         or its part. % character may be used as a wildcard""",
-            example="forest",
-            regex=NAME_REGEX,
+            examples=["forest"],
+            pattern=NAME_REGEX,
         ),
     ] = None,
 ) -> ListProjectsResponseModel:
