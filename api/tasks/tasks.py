@@ -7,6 +7,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import TaskEntity
+from ayon_server.entities.models.task import TaskModel, TaskPatchModel, TaskPostModel
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -27,7 +28,7 @@ async def get_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-) -> TaskEntity.model.main_model:  # type: ignore
+) -> TaskModel:
     """Retrieve a task by its ID."""
 
     task = await TaskEntity.load(project_name, task_id)
@@ -42,7 +43,7 @@ async def get_task(
 
 @router.post("/projects/{project_name}/tasks", status_code=201)
 async def create_task(
-    post_data: TaskEntity.model.post_model,  # type: ignore
+    post_data: TaskPostModel,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -52,7 +53,7 @@ async def create_task(
     """
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.create("task", **post_data.dict(exclude_unset=True))
+    ops.create("task", **post_data.model_dump(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
     return EntityIdResponse(id=entity_id)
@@ -65,7 +66,7 @@ async def create_task(
 
 @router.patch("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def update_task(
-    post_data: TaskEntity.model.patch_model,  # type: ignore
+    post_data: TaskPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
@@ -73,7 +74,7 @@ async def update_task(
     """Patch (partially update) a task."""
 
     ops = ProjectLevelOperations(project_name, user=user)
-    ops.update("task", task_id, **post_data.dict(exclude_unset=True))
+    ops.update("task", task_id, **post_data.model_dump(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 

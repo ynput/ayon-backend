@@ -21,7 +21,7 @@ from .router import router
 
 @router.get("/config/schema")
 async def get_server_config_schema(_: CurrentUserOptional) -> dict[str, Any]:
-    schema = ServerConfigModel.schema()
+    schema = ServerConfigModel.model_json_schema()
     await postprocess_settings_schema(schema, ServerConfigModel)
     schema["title"] = "Server Configuration"
     return schema
@@ -76,7 +76,7 @@ async def get_config_value(
     key: str = Path(..., description="The key of the configuration value to retrieve"),
 ) -> Any:
     config = await _get_server_config()
-    config_dict = config.dict()
+    config_dict = config.model_dump()
 
     try:
         value = config_dict[key]

@@ -19,8 +19,8 @@ def _pin_model(model: BaseSettingsModel, target: dict[str, Any]) -> None:
     Non-group submodels are crawled recursively, everything else
     (groups, lists, scalars) is pinned as a whole.
     """
-    data = model.dict()
-    for key in model.__fields__:
+    data = model.model_dump()
+    for key in type(model).model_fields:
         value = getattr(model, key)
         if isinstance(value, BaseSettingsModel) and not value._isGroup:
             if not isinstance(target.get(key), dict):
@@ -41,7 +41,7 @@ def _pin_path(
 
     for key in path:
         if not isinstance(c_field, BaseSettingsModel) or (
-            key not in c_field.__fields__
+            key not in type(c_field).model_fields
         ):
             raise KeyError(f"{key} is not present in {c_field}")
 
@@ -54,7 +54,7 @@ def _pin_path(
             continue
 
         # Groups, lists and scalars are pinned as a whole
-        c_overr[key] = parent.dict()[key]
+        c_overr[key] = parent.model_dump()[key]
         return
 
     # Path points to a non-group model: pin all its children

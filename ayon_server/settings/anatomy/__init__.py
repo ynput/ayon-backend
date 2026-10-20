@@ -10,10 +10,15 @@ __all__ = [
     "ProductBaseTypes",
 ]
 
-from pydantic import validator
+from typing import Any
+
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.entities.models.attrib import validate_attrib
 from ayon_server.logging import logger
+from ayon_server.models.attrib_values import AttribDict
 from ayon_server.settings.anatomy.entity_naming import EntityNaming
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
@@ -28,11 +33,11 @@ from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, ensure_unique_property
 
 
-class ProjectAttribModel(
-    ProjectEntity.model.attrib_model,  # type: ignore
-    BaseSettingsModel,
-):
-    pass
+def __getattr__(name: str) -> Any:
+    # Backwards compatibility: ProjectAttribModel used to be a module-level class
+    if name == "ProjectAttribModel":
+        return ProjectEntity.model.attrib_model
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class Anatomy(BaseSettingsModel):
@@ -57,8 +62,11 @@ class Anatomy(BaseSettingsModel):
         description="Path templates configuration",
     )
 
-    attributes: ProjectAttribModel = SettingsField(
-        default_factory=ProjectAttribModel,
+    # Project attributes are configured at runtime, so they are not part
+    # of the model schema (see the anatomy schema endpoint)
+    attributes: dict[str, Any] = SettingsField(
+        default_factory=dict,
+        validate_default=True,
         title="Attributes",
         description="Attributes configuration",
     )
@@ -67,35 +75,35 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: default_folder_types,
         title="Folder types",
         description="Folder types configuration",
-        example=[default_folder_types[0].dict()],
+        example=[default_folder_types[0].model_dump()],
     )
 
     task_types: list[TaskType] = SettingsField(
         default_factory=lambda: default_task_types,
         title="Task types",
         description="Task types configuration",
-        example=[default_task_types[0].dict()],
+        example=[default_task_types[0].model_dump()],
     )
 
     link_types: list[LinkType] = SettingsField(
         default_factory=lambda: default_link_types,
         title="Link types",
         description="Link types configuration",
-        example=[default_link_types[0].dict()],
+        example=[default_link_types[0].model_dump()],
     )
 
     statuses: list[Status] = SettingsField(
         default_factory=lambda: default_statuses,
         title="Statuses",
         description="Statuses configuration",
-        example=[default_statuses[0].dict()],
+        example=[default_statuses[0].model_dump()],
     )
 
     tags: list[Tag] = SettingsField(
         default_factory=lambda: default_tags,
         title="Tags",
         description="Tags configuration",
-        example=[default_tags[0].dict()],
+        example=[default_tags[0].model_dump()],
     )
 
     product_base_types: ProductBaseTypes = SettingsField(
@@ -103,15 +111,34 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: ProductBaseTypes(),  # type: ignore
     )
 
-    @validator("roots", "folder_types", "task_types", "statuses", "tags")
-    def ensure_unique_names(cls, value, field):
-        ensure_unique_names(value, field_name=field.name)
+    @field_validator("attributes")
+    @classmethod
+    def validate_attributes(
+        cls, value: dict[str, Any], info: ValidationInfo
+    ) -> dict[str, Any]:
+        # The anatomy lists all project attributes (with the defaults).
+        # A new project stores them as its own values.
+        # Stored values (STORED_VALUES_CONTEXT) are not validated again.
+        return AttribDict(
+            {
+                **dict.fromkeys(a["name"] for a in attribute_library["project"]),
+                **attribute_library.project_defaults,
+                **validate_attrib("project", value, info.context),
+            }
+        )
+
+    @field_validator("roots", "folder_types", "task_types", "statuses", "tags")
+    @classmethod
+    def ensure_unique_names(cls, value, info: ValidationInfo):
+        ensure_unique_names(value, field_name=info.field_name)
         return value
 
-    @validator("folder_types", "task_types", "statuses")
-    def ensure_unique_short_names(cls, value, field):
+    @field_validator("folder_types", "task_types", "statuses")
+    @classmethod
+    def ensure_unique_short_names(cls, value, info: ValidationInfo):
+        field_name = info.field_name
         try:
-            ensure_unique_property(value, "shortName", context=field.name)
+            ensure_unique_property(value, "shortName", context=field_name or "")
         except Exception:
-            logger.warning(f"Duplicate shortName found in project anatomy {field.name}")
+            logger.warning(f"Duplicate shortName found in project anatomy {field_name}")
         return value

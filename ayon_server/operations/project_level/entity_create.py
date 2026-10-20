@@ -27,8 +27,8 @@ async def create_project_level_entity(
         # this won't be saved
         temp_payload = entity_class.model.post_model(**operation.data)
         if operation.entity_id is not None:
-            temp_payload.id = operation.entity_id  # type: ignore
-        temp_entity = entity_class(project_name, temp_payload.dict())
+            temp_payload.id = operation.entity_id
+        temp_entity = entity_class(project_name, temp_payload.model_dump())
         for hook in hooks:
             await hook(operation, temp_entity, user)
 
@@ -38,8 +38,8 @@ async def create_project_level_entity(
 
     payload = entity_class.model.post_model(**operation.data)
     if operation.entity_id is not None:
-        payload.id = operation.entity_id  # type: ignore
-    payload_dict = payload.dict()
+        payload.id = operation.entity_id
+    payload_dict = payload.model_dump()
 
     #
     # Sanity checks
