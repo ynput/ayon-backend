@@ -1,7 +1,7 @@
 import copy
 from typing import Any
 
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, SiteID
@@ -9,6 +9,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.models.field_info import format_validation_errors
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
 from .router import router
@@ -31,7 +32,7 @@ async def get_addon_site_settings_schema(
         logger.error(f"No site settings schema for addon {addon_name}")
         return {}
 
-    schema = copy.deepcopy(model.schema())
+    schema = copy.deepcopy(model.model_json_schema())
     context = {
         "addon": addon,
         "user_name": user.name,
@@ -75,7 +76,7 @@ async def get_addon_site_settings(
         data = res["data"]
 
     # use model to include defaults
-    return model(**data)  # type: ignore
+    return model(**data).model_dump(by_alias=True)
 
 
 @router.put("/{addon_name}/{version}/siteSettings", status_code=204)
@@ -98,7 +99,9 @@ async def set_addon_site_settings(
     try:
         data = model(**payload)
     except ValidationError as e:
-        raise BadRequestException("Invalid settings", errors=e.errors()) from e
+        raise BadRequestException(
+            "Invalid settings", errors=format_validation_errors(e.errors())
+        ) from e
 
     await Postgres.execute(
         """
@@ -111,7 +114,7 @@ async def set_addon_site_settings(
         version,
         site_id,
         user.name,
-        data.dict(),
+        data.model_dump(),
     )
 
     return EmptyResponse()

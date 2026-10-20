@@ -76,7 +76,7 @@ async def delete_site(
         Path(
             ...,
             title="Site identifier",
-            regex="^[a-zA-Z0-9_-]+$",
+            pattern="^[a-zA-Z0-9_-]+$",
         ),
     ],
     user: CurrentUser,

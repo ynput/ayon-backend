@@ -33,6 +33,7 @@ from ayon_server.graphql.dataloaders.entity_lists import (
     entity_lists_by_entity_loader,
     get_entity_lists_info,
 )
+from ayon_server.graphql.legacy_attrib import LegacyAttribSelection
 from ayon_server.graphql.legacy_sort_by import LegacySortByVariables
 from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.nodes.entity_list import entity_list_from_record
@@ -146,7 +147,7 @@ class Query:
             active=user.active,
             updated_at=user.updated_at,
             created_at=user.created_at,
-            _attrib=user.attrib.dict(),
+            _attrib=user.attrib.model_dump(),
             access_groups=json_dumps(user.data.get("accessGroups", {})),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
@@ -246,7 +247,11 @@ class QueryNameExtension(SchemaExtension):
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
     schema=AyonSchema(
         query=Query,
-        extensions=[LegacySortByVariables, QueryNameExtension],
+        extensions=[
+            LegacyAttribSelection,
+            LegacySortByVariables,
+            QueryNameExtension,
+        ],
     ),
     graphql_ide=None,
     context_getter=graphql_get_context,
