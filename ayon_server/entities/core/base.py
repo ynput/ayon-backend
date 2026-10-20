@@ -89,7 +89,7 @@ class BaseEntity:
                     writable_attrs = (
                         perms.attrib_write.attributes
                         + ALWAYS_WRITABLE_ATTRS
-                        + list(calculated_attributes)
+                        + list(calculated_attributes or [])
                     )
                     writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
                     for attr, val in pattr.items():
