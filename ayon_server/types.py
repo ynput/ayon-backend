@@ -58,6 +58,12 @@ AttributeType = Literal[
     "dict",
 ]
 
+VisibilityOptions = Literal[
+    "all",
+    "visible",
+    "hidden",
+]
+
 #
 # Common regexes
 #

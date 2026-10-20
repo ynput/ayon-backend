@@ -1,4 +1,5 @@
 import builtins
+from collections.abc import Iterable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
 
@@ -158,8 +159,14 @@ class BaseEntity(Generic[ModelT]):
     # Modification
     #
 
-    def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
-        """Apply a patch to the entity."""
+    def patch(
+        self,
+        patch_data: BaseModel,
+        user: Optional["UserEntity"] = None,
+        *,
+        calculated_attributes: Iterable[str] | None = None,
+    ) -> None:
+        """Apply a patch, allowing attributes calculated by trusted operation hooks."""
 
         pdata = patch_data.model_dump(exclude_unset=True)
         pattr = pdata.pop("attrib", {})  # attributes to be patched
@@ -177,7 +184,9 @@ class BaseEntity(Generic[ModelT]):
 
                 if perms.attrib_write.enabled:
                     writable_attrs = (
-                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
+                        perms.attrib_write.attributes
+                        + ALWAYS_WRITABLE_ATTRS
+                        + list(calculated_attributes or [])
                     )
                     writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
                     for attr, val in pattr.items():
