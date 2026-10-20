@@ -7,6 +7,8 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.entities import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.utils import as_utc
+from ayon_server.utils import now as utils_now
 
 from .router import router
 
@@ -99,7 +101,7 @@ async def get_project_health(
     completed_statuses = [
         p["name"] for p in project.statuses if p.get("state") == "done"
     ]
-    now = datetime.datetime.now()
+    now = utils_now()
 
     total_tasks = 0
     completed_tasks = 0
@@ -116,7 +118,7 @@ async def get_project_health(
         statuses[status] = statuses.get(status, 0) + 1
 
         try:
-            end_date = datetime.datetime.fromisoformat(attrib.get("endDate"))
+            end_date = as_utc(datetime.datetime.fromisoformat(attrib.get("endDate")))
         except (TypeError, ValueError):
             end_date = None
 

@@ -23,8 +23,7 @@ __all__ = [
     "anatomy_template_items_enum",
 ]
 
-from pydantic import Field  # This is deprecated and will be removed in the future
-
+# Deprecated, use SettingsField. Kept for backwards compatibility
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import (
     anatomy_presets_enum,
@@ -47,5 +46,6 @@ from ayon_server.settings.overrides import (
     extract_overrides,
     list_overrides,
 )
+from ayon_server.settings.pydantic_compat import Field
 from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, normalize_name

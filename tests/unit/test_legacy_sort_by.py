@@ -1,38 +1,15 @@
-"""Multiple sort keys in `sortBy` and compatibility with `String` variables.
-
-The modules are loaded from their files: importing the `ayon_server.graphql`
-package builds the whole schema, which requires a database connection.
-"""
+"""Multiple sort keys in `sortBy` and compatibility with `String` variables."""
 
 import asyncio
-import importlib.util
-import os
-import sys
-from types import ModuleType
+from typing import Any
 
 import pytest
 import strawberry
 from graphql import parse, print_ast
 
-BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, BACKEND_DIR)
-
-from ayon_server.exceptions import BadRequestException  # noqa: E402
-
-
-def load(*path: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        path[-1].removesuffix(".py"),
-        os.path.join(BACKEND_DIR, "ayon_server", "graphql", *path),
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-legacy_sort_by = load("legacy_sort_by.py")
-pagination = load("resolvers", "pagination.py")
+from ayon_server.exceptions import BadRequestException
+from ayon_server.graphql import legacy_sort_by
+from ayon_server.graphql.resolvers import pagination
 
 
 def rewrite(query: str) -> tuple[str, int]:
@@ -117,7 +94,7 @@ schema = strawberry.Schema(
         ),
     ],
 )
-def test_execution(query: str, variables: dict | None, expected: str):
+def test_execution(query: str, variables: dict[str, Any] | None, expected: str):
     result = asyncio.run(schema.execute(query, variable_values=variables))
     assert not result.errors, result.errors
     assert result.data == {"tasks": expected}

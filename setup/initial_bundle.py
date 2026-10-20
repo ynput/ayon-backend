@@ -73,7 +73,12 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
                 finished=False,
             )
 
-            zip_info = await install_addon_from_url(event_id, addon_url)
+            try:
+                zip_info = await install_addon_from_url(event_id, addon_url)
+            except Exception as e:
+                logger.error(f"Failed to install required addon {log_name}: {e}")
+                continue
+
             bundle_addons[zip_info.name] = zip_info.version
 
         elif addon_name and addon_version:
@@ -92,12 +97,16 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
 
     async with Postgres.transaction():
         logger.info(f"Creating initial bundle '{bundle_name}'")
-        await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+        await Postgres.execute(
+            "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+            " WHERE is_production = TRUE"
+        )
 
         query = """
             INSERT INTO bundles (name, data, is_production)
             VALUES ($1, $2, TRUE)
-            ON CONFLICT (name) DO UPDATE SET data = $2, is_production = TRUE
+            ON CONFLICT (name) DO UPDATE SET
+                data = $2, is_production = TRUE, updated_at = NOW()
         """
 
         await Postgres.execute(query, bundle_name, bundle_data)

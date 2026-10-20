@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import root_validator
+from pydantic import model_validator
 
 from .rest_model import RestModel
 
@@ -30,9 +30,10 @@ class FileInfo(RestModel):
     content_type: str = "application/octet-stream"
     media_info: dict[str, Any] | None = None
 
-    @root_validator(pre=True)
-    def set_content_type(cls, values):
-        if not values.get("content_type"):
+    @model_validator(mode="before")
+    @classmethod
+    def set_content_type(cls, values: Any) -> Any:
+        if isinstance(values, dict) and not values.get("content_type"):
             ext = values.get("filename", "").split(".")[-1].lower()
             values["content_type"] = COMMON_FILE_TYPES.get(
                 ext,

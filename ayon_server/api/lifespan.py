@@ -197,7 +197,8 @@ async def addon_update(library: AddonLibrary) -> None:
                 row = await Postgres.fetchrow(
                     """
                     UPDATE public.bundles
-                    SET data = jsonb_set(data, '{addons}', $1::jsonb)
+                    SET data = jsonb_set(data, '{addons}', $1::jsonb),
+                        updated_at = NOW()
                     WHERE is_production = TRUE
                     RETURNING name
                     """,
