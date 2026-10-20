@@ -467,7 +467,10 @@ async def get_entity_list_items(
         entity_attrib = "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     else:
         entity_attrib = "e.attrib"
-    sql_columns.append(f"({entity_attrib} || i.attrib) as _all_attrib")
+    # empty item values don't override the entity's ones
+    sql_columns.append(
+        f"({entity_attrib} || jsonb_strip_nulls(i.attrib)) as _all_attrib"
+    )
     sql_columns.append(f"{entity_attrib} as _listed_entity_attrib")
 
     #

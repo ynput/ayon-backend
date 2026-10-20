@@ -58,8 +58,10 @@ class EntityListItemEdge(BaseEdge):
             return {}
 
         item = (self._attrib or {}) if with_item_values else {}
+        item = {k: v for k, v in item.items() if v is not None}
         list_attributes = self._list_attributes if with_item_values else {}
-        # Attributes of the list item override the entity's own ones.
+        # Attributes of the list item override the entity's own ones
+        # (empty values don't, the entity's value is used).
         # List attributes (list_attributes) are not entity attributes.
         own = {**(getattr(entity, "_attrib", None) or {}), **item}
         resolved = resolve_attrib(
@@ -99,8 +101,15 @@ class EntityListItemEdge(BaseEdge):
         """Names of the attributes set on the list item itself.
 
         The list's own attributes and the entity's attributes the list overrides.
+        Only the ones returned in `attrib`: not the empty values, attributes
+        no longer configured or defined, or ones the user can't read.
         """
-        return list((self._attrib or {}).keys())
+        values = self.processed_attrib()
+        return [
+            key
+            for key, value in (self._attrib or {}).items()
+            if value is not None and key in values
+        ]
 
     @strawberry.field()
     def entity_attrib(self) -> JSON:
