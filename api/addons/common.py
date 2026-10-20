@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.exceptions import NotFoundException
@@ -11,6 +11,54 @@ from ayon_server.utils import dict_remove_path
 class ModifyOverridesRequestModel(OPModel):
     action: Literal["delete", "pin"] = Field(..., title="Action")
     path: list[str] = Field(..., title="Path")
+
+
+def _pin_model(model: BaseSettingsModel, target: dict[str, Any]) -> None:
+    """Pin all fields of a non-group model to the target overrides.
+
+    Non-group submodels are crawled recursively, everything else
+    (groups, lists, scalars) is pinned as a whole.
+    """
+    data = model.dict()
+    for key in model.__fields__:
+        value = getattr(model, key)
+        if isinstance(value, BaseSettingsModel) and not value._isGroup:
+            if not isinstance(target.get(key), dict):
+                target[key] = {}
+            _pin_model(value, target[key])
+        else:
+            target[key] = data[key]
+
+
+def _pin_path(
+    settings: BaseSettingsModel,
+    overrides: dict[str, Any],
+    path: list[str],
+) -> None:
+    """Pin the current value of the field at the given path to overrides."""
+    c_field: Any = settings
+    c_overr = overrides
+
+    for key in path:
+        if not isinstance(c_field, BaseSettingsModel) or (
+            key not in c_field.__fields__
+        ):
+            raise KeyError(f"{key} is not present in {c_field}")
+
+        parent = c_field
+        c_field = getattr(c_field, key)
+        if isinstance(c_field, BaseSettingsModel) and not c_field._isGroup:
+            if not isinstance(c_overr.get(key), dict):
+                c_overr[key] = {}
+            c_overr = c_overr[key]
+            continue
+
+        # Groups, lists and scalars are pinned as a whole
+        c_overr[key] = parent.dict()[key]
+        return
+
+    # Path points to a non-group model: pin all its children
+    _pin_model(c_field, c_overr)
 
 
 async def remove_override(
@@ -64,39 +112,7 @@ async def pin_override(
     if not settings:
         return
 
-    c_field = settings
-    c_overr = overrides
-
-    for key in path:
-        if key not in c_field.__fields__:
-            raise KeyError(f"{key} is not present in {c_field}")
-
-        c_field = getattr(c_field, key)
-        is_group = False
-        if isinstance(c_field, BaseSettingsModel):
-            is_group = c_field._isGroup
-        else:
-            is_group = True
-
-        if not is_group:
-            if key not in c_overr:
-                c_overr[key] = {}
-            c_overr = c_overr[key]
-            continue
-
-        if isinstance(c_field, BaseSettingsModel):
-            c_overr[key] = c_field.dict()
-        elif isinstance(c_field, list):
-            val = []
-            for r in c_field:
-                if isinstance(r, BaseSettingsModel):
-                    val.append(r.dict())
-                else:
-                    val.append(r)
-            c_overr[key] = val
-        else:
-            c_overr[key] = c_field
-        break
+    _pin_path(settings, overrides, path)
 
     await set_addon_settings(
         addon_name,
@@ -155,39 +171,7 @@ async def pin_site_override(
     if not settings:
         return
 
-    c_field = settings
-    c_overr = overrides
-
-    for key in path:
-        if key not in c_field.__fields__:
-            raise KeyError(f"{key} is not present in {c_field}")
-
-        c_field = getattr(c_field, key)
-        is_group = False
-        if isinstance(c_field, BaseSettingsModel):
-            is_group = c_field._isGroup
-        else:
-            is_group = True
-
-        if not is_group:
-            if key not in c_overr:
-                c_overr[key] = {}
-            c_overr = c_overr[key]
-            continue
-
-        if isinstance(c_field, BaseSettingsModel):
-            c_overr[key] = c_field.dict()
-        elif isinstance(c_field, list):
-            val = []
-            for r in c_field:
-                if isinstance(r, BaseSettingsModel):
-                    val.append(r.dict())
-                else:
-                    val.append(r)
-            c_overr[key] = val
-        else:
-            c_overr[key] = c_field
-        break
+    _pin_path(settings, overrides, path)
 
     await set_addon_settings(
         addon_name,
