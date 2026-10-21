@@ -60,3 +60,35 @@ def test_notlike_conditions_in_filter():
         "(NOT coalesce((attrib->>'note') ILIKE '%a%', FALSE)"
         " AND NOT coalesce((attrib->>'note') ILIKE '%b%', FALSE))"
     )
+
+
+@pytest.mark.parametrize("operator", ["like", "notlike"])
+@pytest.mark.parametrize("key", ["attrib.description", "attrib/description"])
+def test_description_matching_removes_markdown_escapes(operator, key):
+    condition = QueryCondition(key=key, operator=operator, value="%foo_bar%")
+    column = r"regexp_replace(attrib->>'description', '\\([[:punct:]])', '\1', 'g')"
+    expected = f"({column}) ILIKE '%foo_bar%'"
+    if operator == "notlike":
+        expected = f"NOT coalesce({expected}, FALSE)"
+    assert build_condition(condition) == expected
+
+
+def test_description_matching_with_mapped_attributes():
+    condition = QueryCondition(
+        key="attrib.description", operator="like", value=r"%foo\_bar%"
+    )
+    result = build_condition(
+        condition, table_prefix="folders", column_map={"attrib": "f_ex.attrib"}
+    )
+    assert result == (
+        r"(regexp_replace(f_ex.attrib->>'description', "
+        r"'\\([[:punct:]])', '\1', 'g')) ILIKE '%foo\_bar%'"
+    )
+
+
+@pytest.mark.parametrize("operator", ["eq", "ne", "re"])
+def test_other_description_operators_preserve_markdown(operator):
+    condition = QueryCondition(
+        key="attrib.description", operator=operator, value=r"foo\_bar"
+    )
+    assert "regexp_replace" not in build_condition(condition)
