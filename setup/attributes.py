@@ -284,6 +284,10 @@ def default_attribute_rows() -> list[dict[str, Any]]:
         data = {
             "type": tdata["type"],
             "title": tdata.get("title", name.capitalize()),
+            # Built-in attributes are inherited unless specified otherwise.
+            # Stored explicitly, as attributes saved using the API
+            # (AttributeData model) are not inherited by default.
+            "inherit": tdata.get("inherit", True),
         }
 
         if enum := tdata.get("enum"):
@@ -296,7 +300,6 @@ def default_attribute_rows() -> list[dict[str, Any]]:
             "description",
             "gt",
             "lt",
-            "inherit",
             "enum",
             "widget",
             "widget_settings",

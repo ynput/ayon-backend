@@ -164,7 +164,8 @@ class AttributeLibrary:
         for entity_type, attributes in data.items():
             scoped[entity_type] = {}
             for attr in attributes:
-                if attr.get("inherit", True):
+                # The same default as in the AttributeData model
+                if attr.get("inherit", False):
                     inheritable.add(attr["name"])
                 by_name.setdefault(attr["name"], attr)
                 scoped[entity_type][attr["name"]] = attr
