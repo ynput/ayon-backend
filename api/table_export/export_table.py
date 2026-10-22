@@ -57,17 +57,22 @@ PRODUCT_FRAGMENT = """
 fragment ExportProduct on ProductNode {
   id name productType productBaseType path active status tags allAttrib
   createdAt updatedAt
-  folder { name label folderType status tags allAttrib createdAt updatedAt }
+  folder {
+    name label path folderType status tags allAttrib createdAt updatedAt
+  }
   featuredVersion(order: $featuredVersionOrder) { name author }
 }
 """
 
 VERSION_FRAGMENT = """
 fragment ExportVersion on VersionNode {
-  id name author path active status tags allAttrib createdAt updatedAt
+  id productId name author path active status tags allAttrib createdAt updatedAt
   product {
-    name productType productBaseType status tags allAttrib createdAt updatedAt
-    folder { name label folderType status tags allAttrib createdAt updatedAt }
+    name productType productBaseType status tags allAttrib
+    createdAt updatedAt
+    folder {
+      name label path folderType status tags allAttrib createdAt updatedAt
+    }
   }
   task { name label taskType status tags allAttrib createdAt updatedAt }
 }
@@ -148,6 +153,7 @@ query ExportProducts(
   $folderFilter: String
   $versionFilter: String
   $taskFilter: String
+  $representationFilter: String
   $sortBy: [String!]
   $featuredVersionOrder: [String!]
   $first: Int!
@@ -162,6 +168,7 @@ query ExportProducts(
       folderFilter: $folderFilter
       versionFilter: $versionFilter
       taskFilter: $taskFilter
+      representationFilter: $representationFilter
       sortBy: $sortBy
       first: $first
       after: $after
@@ -187,6 +194,7 @@ query ExportVersions(
   $folderFilter: String
   $productFilter: String
   $taskFilter: String
+  $representationFilter: String
   $featuredOnly: [String!]
   $latestPerFolder: Boolean!
   $hasReviewables: Boolean
@@ -204,6 +212,7 @@ query ExportVersions(
       folderFilter: $folderFilter
       productFilter: $productFilter
       taskFilter: $taskFilter
+      representationFilter: $representationFilter
       featuredOnly: $featuredOnly
       latestPerFolder: $latestPerFolder
       hasReviewables: $hasReviewables
@@ -301,8 +310,17 @@ EXTRA_COLUMNS = [
 ]
 
 # a key prefixed with one of these is a field of the row's folder, task or product
-PARENT_SCOPES = ("folder", "task", "product")
+# (or one of its attributes)
+_PARENT_COMMON = {"status", "tags", "created_at", "updated_at"}
+PARENT_COLUMNS = {
+    "folder": _PARENT_COMMON | {"name", "label", "path", "folder_type"},
+    "task": _PARENT_COMMON | {"name", "label", "task_type"},
+    "product": _PARENT_COMMON | {"name", "path", "product_type", "product_base_type"},
+}
 PARENT_FIELDS = {
+    "name": "name",
+    "label": "label",
+    "path": "path",
     "status": "status",
     "tags": "tags",
     "createdAt": "created_at",
@@ -314,7 +332,13 @@ PARENT_FIELDS = {
 }
 
 # shown instead of the value with label values
-DISPLAY_KEYS = {"name": "label", "folder": "folder_label", "task": "task_label"}
+DISPLAY_KEYS = {
+    "name": "label",
+    "folder": "folder_label",
+    "task": "task_label",
+    "folder.name": "folder.label",
+    "task.name": "task.label",
+}
 
 
 class _ProductFields(EntityExportImport):
@@ -352,6 +376,9 @@ class ExportProductsQuery(OPModel):
     folder_filter: str | None = Field(None, description="Folder QueryFilter (JSON)")
     version_filter: str | None = Field(None, description="Version QueryFilter (JSON)")
     task_filter: str | None = Field(None, description="Task QueryFilter (JSON)")
+    representation_filter: str | None = Field(
+        None, description="Representation QueryFilter (JSON)"
+    )
     sort_by: list[str] | None = Field(
         None, description="Row order, as the GraphQL sortBy argument"
     )
@@ -379,6 +406,9 @@ class ExportVersionsQuery(OPModel):
     folder_filter: str | None = Field(None, description="Folder QueryFilter (JSON)")
     product_filter: str | None = Field(None, description="Product QueryFilter (JSON)")
     task_filter: str | None = Field(None, description="Task QueryFilter (JSON)")
+    representation_filter: str | None = Field(
+        None, description="Representation QueryFilter (JSON)"
+    )
     featured_only: list[str] | None = Field(
         None, description="One version per product: 'hero', 'latestDone', 'latest'"
     )
@@ -456,8 +486,9 @@ async def export_table(
     the arguments of their GraphQL queries. Users only get the entities and
     attributes they can read.
 
-    Folders and tasks are ordered depth first, products with their versions by
-    path. Other rows keep the order of the query.
+    Folders and tasks are ordered depth first. Products keep the order of the
+    query, each followed by its versions, as in the products table. Other rows
+    keep the order of the query.
     """
     project_name = await normalize_project_name(payload.project_name)
     context = await graphql_get_context(request, user)
@@ -549,6 +580,7 @@ async def _fetch_rows(
             "folderFilter": products.folder_filter,
             "versionFilter": products.version_filter,
             "taskFilter": products.task_filter,
+            "representationFilter": products.representation_filter,
             "sortBy": products.sort_by,
             "featuredVersionOrder": products.featured_version_order,
         }
@@ -571,6 +603,7 @@ async def _fetch_rows(
             "folderFilter": versions.folder_filter,
             "productFilter": versions.product_filter,
             "taskFilter": versions.task_filter,
+            "representationFilter": versions.representation_filter,
             "featuredOnly": versions.featured_only,
             "latestPerFolder": versions.latest_per_folder,
             "hasReviewables": versions.has_reviewables,
@@ -579,11 +612,7 @@ async def _fetch_rows(
         for node in await _fetch(context, VERSIONS_QUERY, ["versions"], variables):
             version_rows.append(_version_row(node))
 
-    # products with their versions, as in the products table
-    if product_rows and version_rows:
-        tree_rows += product_rows + version_rows
-    else:
-        rows += product_rows + version_rows
+    rows += _with_versions(product_rows, version_rows)
 
     if (entity_list := payload.entity_list) and entity_list.item_ids != []:
         item_ids = set(entity_list.item_ids or [])
@@ -606,6 +635,22 @@ async def _fetch_rows(
 
     tree_rows.sort(key=_tree_order)
     return tree_rows + rows
+
+
+def _with_versions(
+    product_rows: list[dict[str, Any]], version_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Each product followed by its versions (versions of other products last)."""
+    versions: dict[str, list[dict[str, Any]]] = {}
+    for row in version_rows:
+        versions.setdefault(row["product_id"], []).append(row)
+    rows: list[dict[str, Any]] = []
+    for product in product_rows:
+        rows.append(product)
+        rows += versions.pop(product["id"], [])
+    for remaining in versions.values():
+        rows += remaining
+    return rows
 
 
 async def _available_columns(project_name: str) -> dict[str, ExportColumn]:
@@ -729,6 +774,8 @@ def _parent(scope: str, node: dict[str, Any] | None) -> dict[str, Any]:
     if not node:
         return {}
     fields = {key: node[field] for field, key in PARENT_FIELDS.items() if field in node}
+    if fields.get("path"):
+        fields["path"] = fields["path"].strip("/")
     return {
         f"{scope}.{key}": value for key, value in {**fields, **_attrib(node)}.items()
     }
@@ -738,7 +785,9 @@ def _column(key: str, available: dict[str, ExportColumn]) -> ExportColumn | None
     if key in available:
         return available[key]
     scope, _, field = key.partition(".")
-    if scope in PARENT_SCOPES and (column := _column(field, available)):
+    if (field in PARENT_COLUMNS.get(scope, ()) or field.startswith("attrib.")) and (
+        column := _column(field, available)
+    ):
         return replace(column, key=key, label=f"{scope.capitalize()} {column.label}")
     if key.startswith("attrib."):
         return ExportColumn(key, key.removeprefix("attrib."))
@@ -804,8 +853,10 @@ def _product_row(node: dict[str, Any]) -> dict[str, Any]:
         "path": (node["path"] or "").strip("/"),
         "product_type": node["productType"],
         "product_base_type": node["productBaseType"],
+        "product": node["name"],
         "folder": folder["name"],
         "folder_label": folder["label"],
+        "folder_type": folder["folderType"],
         "version": featured.get("name"),
         "author": featured.get("author"),
         **_parent("folder", folder),
@@ -815,24 +866,29 @@ def _product_row(node: dict[str, Any]) -> dict[str, Any]:
 def _version_row(node: dict[str, Any]) -> dict[str, Any]:
     product = node["product"]
     task = node["task"] or {}
+    path = (node["path"] or "").strip("/")
     return {
         **_common(node, "version"),
-        "path": (node["path"] or "").strip("/"),
+        "path": path,
         # shown as the name with label values, "v001" alone says little
         "label": f"{product['name']} {node['name']}",
         "version": node["name"],
         "author": node["author"],
+        "product_id": node["productId"],
         "product": product["name"],
         "product_type": product["productType"],
         "product_base_type": product["productBaseType"],
         "folder": product["folder"]["name"],
         "folder_label": product["folder"]["label"],
+        "folder_type": product["folder"]["folderType"],
         "task": task.get("name"),
         "task_label": task.get("label"),
         "task_type": task.get("taskType"),
         **_parent("product", product),
         **_parent("task", task),
         **_parent("folder", product["folder"]),
+        # the product loaded with a version has no path
+        "product.path": path.rpartition("/")[0] or None,
     }
 
 
