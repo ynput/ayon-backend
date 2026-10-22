@@ -246,8 +246,9 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
 USER_EDITABLE_FIELDS = ("title", "enum", "description")
 
 
-async def deploy_attributes() -> None:
-    position = 0
+def default_attribute_rows() -> list[dict[str, Any]]:
+    """Return the rows of the attributes table for the default attributes"""
+    rows: list[dict[str, Any]] = []
     for name, tdata in DEFAULT_ATTRIBUTES.items():
         try:
             scope = [
@@ -283,6 +284,10 @@ async def deploy_attributes() -> None:
         data = {
             "type": tdata["type"],
             "title": tdata.get("title", name.capitalize()),
+            # Built-in attributes are inherited unless specified otherwise.
+            # Stored explicitly, as attributes saved using the API
+            # (AttributeData model) are not inherited by default.
+            "inherit": tdata.get("inherit", True),
         }
 
         if enum := tdata.get("enum"):
@@ -295,7 +300,6 @@ async def deploy_attributes() -> None:
             "description",
             "gt",
             "lt",
-            "inherit",
             "enum",
             "widget",
             "widget_settings",
@@ -303,6 +307,20 @@ async def deploy_attributes() -> None:
             if (value := tdata.get(key)) is not None:
                 data[key] = value
 
+        rows.append(
+            {
+                "name": name,
+                "position": len(rows),
+                "scope": scope,
+                "builtin": True,
+                "data": data,
+            }
+        )
+    return rows
+
+
+async def deploy_attributes() -> None:
+    for row in default_attribute_rows():
         await Postgres.execute(
             """
             INSERT INTO public.attributes
@@ -324,10 +342,9 @@ async def deploy_attributes() -> None:
                     '{}'::jsonb
                 )
             """,
-            name,
-            position,
-            scope,
-            data,
-            [k for k in USER_EDITABLE_FIELDS if k in data],
+            row["name"],
+            row["position"],
+            row["scope"],
+            row["data"],
+            [k for k in USER_EDITABLE_FIELDS if k in row["data"]],
         )
-        position += 1

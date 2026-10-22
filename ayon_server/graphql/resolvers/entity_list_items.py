@@ -1,19 +1,9 @@
-import functools
 import json
 from typing import Annotated
 
 from graphql.pyutils import camel_to_snake
 
 from ayon_server.access.utils import AccessChecker
-from ayon_server.entities.models.fields import (
-    FieldDefinitionDict,
-    folder_fields,
-    product_fields,
-    representation_fields,
-    task_fields,
-    version_fields,
-    workfile_fields,
-)
 from ayon_server.exceptions import (
     BadRequestException,
     NotImplementedException,
@@ -24,7 +14,7 @@ from ayon_server.graphql.nodes.entity_list import (
     EntityListNode,
 )
 from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.sqlfilter import JSON_FIELDS, QueryFilter, build_filter
 from ayon_server.utils import SQLTool
 
 from .common import (
@@ -105,31 +95,24 @@ ENTITY_SORT_OPTIONS: dict[str, dict[str, str]] = {
 }
 
 
-@functools.cache
+# Stored columns of the entities (besides COLS_COMMON)
+ENTITY_COLS: dict[str, list[str]] = {
+    "folder": ["name", "label", "folder_type", "parent_id", "thumbnail_id"],
+    "task": ["name", "label", "task_type", "thumbnail_id", "assignees", "folder_id"],
+    "product": ["name", "folder_id", "product_type", "product_base_type"],
+    "version": ["version", "product_id", "task_id", "thumbnail_id", "author"],
+    "representation": ["name", "version_id", "files", "traits"],
+    "workfile": ["path", "task_id", "thumbnail_id", "created_by", "updated_by"],
+}
+
+
 def cols_for_entity(entity_type: str) -> list[str]:
-    fields: list[FieldDefinitionDict]
-    if entity_type == "folder":
-        fields = folder_fields
-    elif entity_type == "task":
-        fields = task_fields
-    elif entity_type == "product":
-        fields = product_fields
-    elif entity_type == "version":
-        fields = version_fields
-    elif entity_type == "representation":
-        fields = representation_fields
-    elif entity_type == "workfile":
-        fields = workfile_fields
-    else:
+    if entity_type not in ENTITY_COLS:
         # this cannot happen, but let's be safe
         raise NotImplementedException(
             f"Entity lists with {entity_type} are not supported"
         )
-    return COLS_COMMON + [
-        field["name"]
-        for field in fields
-        if field["name"] not in COLS_COMMON and not field.get("dynamic")
-    ]
+    return COLS_COMMON + ENTITY_COLS[entity_type]
 
 
 async def get_entity_list_items(
@@ -168,8 +151,9 @@ async def get_entity_list_items(
         info.context["entity_type"] = entity_type
 
     # Get attribute definition for the entity list
+    # Keyed by list, as one query may resolve items of several lists
     attrs = root._data.get("attributes") or []
-    info.context["list_attributes"] = {
+    info.context.setdefault("list_attributes", {})[root.id] = {
         attr["name"]: attr["data"].get("type", "string") for attr in attrs
     }
 
@@ -473,18 +457,21 @@ async def get_entity_list_items(
 
     # Unified attributes
     # Create additions column _all_attrib that contains all attributes
-    # from the entity and the item itself - used for sorting and filtering
+    # from the entity and the item itself - used for sorting and filtering.
+    # _listed_entity_attrib has the entity's attributes without the item's
+    # values (not prefixed with _entity_, so it's not passed to the node)
 
     if entity_type == "folder":
-        sql_columns.append(
-            "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"  # noqa: E501
-        )
+        entity_attrib = "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     elif entity_type == "task":
-        sql_columns.append(
-            "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"
-        )  # noqa: E501
+        entity_attrib = "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     else:
-        sql_columns.append("(e.attrib || i.attrib) as _all_attrib")
+        entity_attrib = "e.attrib"
+    # empty item values don't override the entity's ones
+    sql_columns.append(
+        f"({entity_attrib} || jsonb_strip_nulls(i.attrib)) as _all_attrib"
+    )
+    sql_columns.append(f"{entity_attrib} as _listed_entity_attrib")
 
     #
     # Sorting
@@ -506,6 +493,11 @@ async def get_entity_list_items(
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
+            columns.append(f"({attr_case})")
+
+        elif sort_key.startswith("entityAttrib."):
+            attr_name = sort_key.removeprefix("entityAttrib.")
+            attr_case = await get_attrib_sort_case(attr_name, "_listed_entity_attrib")
             columns.append(f"({attr_case})")
 
         elif sort_key.startswith("entity"):
@@ -568,9 +560,12 @@ async def get_entity_list_items(
             filter = build_filter(
                 fq,
                 column_whitelist=column_whitelist,
+                json_fields=[*JSON_FIELDS, "entity_attrib"],
                 column_map={
                     "attrib": "_all_attrib",
                     **{f"entity_{col}": f"_entity_{col}" for col in cols},
+                    # after the entity columns, which also have entity_attrib
+                    "entity_attrib": "_listed_entity_attrib",
                     **{
                         f"parent_{col}": f"_parent_{col}" for col in allowed_parent_keys
                     },  # noqa: E501

@@ -74,6 +74,6 @@ async def query(
                 summary=record["summary"],
                 created_at=record["created_at"],
                 updated_at=record["updated_at"],
-            ).dict(exclude_none=True, exclude_unset=True)
+            ).model_dump(exclude_none=True, exclude_unset=True)
         )
     return events

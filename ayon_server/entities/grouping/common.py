@@ -11,7 +11,7 @@ class EntityGroup(OPModel):
             description="The value used for grouping entities.",
             example=["john.doe"],
         ),
-    ]
+    ] = None
 
     label: Annotated[
         str | None,

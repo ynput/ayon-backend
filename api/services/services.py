@@ -202,7 +202,7 @@ async def spawn_service(
     if image is None:
         raise BadRequestException("This service does not have an image")
 
-    data = payload.config.dict()
+    data = payload.config.model_dump()
     data["image"] = image
 
     # Use environment and ports from package.py unless explicitly provided
@@ -289,7 +289,7 @@ async def patch_service(
 
     service_data = dict(service_data_record)
 
-    patch_dict = payload.dict(exclude_unset=True)
+    patch_dict = payload.model_dump(exclude_unset=True)
 
     if (should_run := patch_dict.pop("should_run", None)) is not None:
         service_data["should_run"] = should_run
