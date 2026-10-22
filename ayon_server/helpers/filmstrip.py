@@ -58,6 +58,11 @@ from ayon_server.utils.request_coalescer import RequestCoalescer
 # Max number of filmstrips generated at the same time by this server instance
 FILMSTRIP_SEMAPHORE = asyncio.Semaphore(2)
 
+# Max number of filmstrips queued for creation by this server instance.
+# Sweeping the cursor over a grid of videos without filmstrips (e.g. after
+# an upgrade) queues a creation for each of them, which survives the request.
+MAX_PENDING_BUILDS = 100
+
 # Only one server instance creates a filmstrip of a file, others wait for it.
 # The lock is extended while the filmstrip is created, and expires when
 # the instance holding it crashes.
@@ -710,6 +715,10 @@ async def _ensure_file_filmstrip(
     await _check_failures(key)
 
     if (task := _builds.get(key)) is None:
+        if len(_builds) >= MAX_PENDING_BUILDS:
+            raise ServiceUnavailableException(
+                "Too many filmstrips are being created, retry later"
+            )
         task = asyncio.create_task(
             _build_file_filmstrip(project_name, file_id, media_info)
         )
