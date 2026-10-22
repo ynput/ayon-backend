@@ -119,6 +119,7 @@ query ExportTasks(
   $filter: String
   $folderFilter: String
   $search: String
+  $sortBy: [String!]
   $first: Int!
   $after: String
 ) {
@@ -130,6 +131,7 @@ query ExportTasks(
       filter: $filter
       folderFilter: $folderFilter
       search: $search
+      sortBy: $sortBy
       first: $first
       after: $after
     ) {
@@ -362,6 +364,13 @@ class ExportTasksQuery(OPModel):
         None, description="QueryFilter (JSON) the task's folder has to match"
     )
     search: str | None = Field(None, description="Fuzzy text search")
+    sort_by: list[str] | None = Field(
+        None,
+        description=(
+            "Row order, as the GraphQL sortBy argument. "
+            "Without it, tasks are in the tree with the folders"
+        ),
+    )
 
 
 class ExportProductsQuery(OPModel):
@@ -486,7 +495,8 @@ async def export_table(
     the arguments of their GraphQL queries. Users only get the entities and
     attributes they can read.
 
-    Folders and tasks are ordered depth first. Products keep the order of the
+    Folders and tasks are ordered depth first, tasks with a sort_by keep the
+    order of the query after the folders. Products keep the order of the
     query, each followed by its versions, as in the products table. Other rows
     keep the order of the query.
     """
@@ -565,9 +575,17 @@ async def _fetch_rows(
             "filter": tasks.filter,
             "folderFilter": tasks.folder_filter,
             "search": tasks.search,
+            "sortBy": tasks.sort_by,
         }
-        for node in await _fetch(context, TASKS_QUERY, ["tasks"], variables):
-            tree_rows.append(_task_row(node))
+        task_rows = [
+            _task_row(node)
+            for node in await _fetch(context, TASKS_QUERY, ["tasks"], variables)
+        ]
+        # sorted tasks (task list views) keep their order, after the folders
+        if tasks.sort_by:
+            rows += task_rows
+        else:
+            tree_rows += task_rows
 
     product_rows: list[dict[str, Any]] = []
     if (products := payload.products) and products.ids != []:

@@ -803,6 +803,27 @@ def test_task_search(fx: ExportFixture):
     assert [row["name"] for row in rows] == ["rigging"]
 
 
+def test_sorted_tasks_keep_the_query_order(fx: ExportFixture):
+    """Task list views (flat, grouped) export in the order of the table."""
+    rows = fx.rows(tasks={"sortBy": ["-name"]}, columns=["name"])
+    assert [row["name"] for row in rows] == ["rigging", "modeling", "comp"]
+
+
+def test_sorted_tasks_follow_the_folders(fx: ExportFixture):
+    rows = fx.rows(
+        folderIds=[fx.folders["hero"], fx.folders["sh010"]],
+        tasks={"sortBy": ["name"]},
+        columns=["path"],
+    )
+    assert [row["path"] for row in rows] == [
+        "assets/chars/hero",
+        "shots/sh010",
+        "shots/sh010/comp",
+        "assets/chars/hero/modeling",
+        "assets/chars/hero/rigging",
+    ]
+
+
 def test_invalid_filter_is_a_bad_request(fx: ExportFixture):
     response = export(fx.api, fx.name, columns=["name"], tasks={"filter": "{nope"})
     assert response.status_code == 400, response.text
