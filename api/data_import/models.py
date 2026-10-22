@@ -8,7 +8,6 @@ from typing import (
     Any,
     Literal,
     Union,
-    cast,
     get_args,
     get_origin,
 )
@@ -540,20 +539,17 @@ class EntityExportImport:
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all entities from the database.
 
         Args:
             field_names: List of field names to include. Supports prefixes like
                     'attrib.field' or 'data.field' to access nested values.
-            as_csv: If True, returns CSV-compatible rows with header
             project_name: Project name for table resolution
 
         Returns:
-            List of entity dictionaries or CSV rows (including header)
+            List of entity dictionaries
         """
         if field_names is None:
             fields = await cls.fields()
@@ -565,15 +561,6 @@ class EntityExportImport:
         table_name = cls._table_name
         if project_name and "{project_name}" in table_name:
             table_name = table_name.format(project_name=project_name)
-
-        where = ""
-        query_values = []
-        if entity_ids:
-            id_field = entity_ids[0]
-            id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
-            where = f"WHERE {id_field} IN ({placeholders})"
-            query_values = id_list
 
         select_field_names = "*"
         join_str = ""
@@ -594,29 +581,16 @@ class EntityExportImport:
             select_field_names = f"{table_name}.*, {full_path}"
 
         query = (
-            f"SELECT {select_field_names} "
-            f"FROM {table_name} "
-            f"{join_str} "
-            f"{where} ORDER BY name"
+            f"SELECT {select_field_names} FROM {table_name} {join_str} ORDER BY name"
         )
-        rows = await Postgres.fetch(query, *query_values)
+        rows = await Postgres.fetch(query)
 
-        return await cls._return_items(as_csv, field_names, rows)
+        return await cls._return_items(field_names, rows)
 
     @classmethod
-    async def _return_items(cls, as_csv, field_names, rows):
-        if as_csv:
-            # Create CSV rows with header
-            csv_rows = [field_names]  # Header row
-            for row in rows:
-                csv_row = []
-                for field_name in field_names:
-                    value = _get_field_value(row, field_name)
-                    csv_row.append(str(value) if value is not None else "")
-                csv_rows.append(csv_row)
-            return csv_rows
-
-        # Return dictionaries
+    async def _return_items(
+        cls, field_names: list[str], rows: list[Any]
+    ) -> list[dict[str, Any]]:
         items = []
         for row in rows:
             item = {}
@@ -848,10 +822,8 @@ class FolderTaskExportImportModel(EntityExportImport):
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all tasks with folder path information.
 
         Calls get_all_items from FolderExportImportModel and TaskExportImportModel
@@ -864,30 +836,12 @@ class FolderTaskExportImportModel(EntityExportImport):
                 field.key for field in fields if field.key not in IMPORT_ONLY_COLUMNS
             ]
 
-        # Get folders and tasks sequentially (as dictionaries, not CSV)
-        folder_items: list[dict[str, Any]] = cast(
-            "list[dict[str, Any]]",
-            await FolderExportImportModel.get_all_items(
-                field_names=field_names,
-                as_csv=False,
-                project_name=project_name,
-                entity_ids=entity_ids,
-            ),
+        # Get folders and tasks sequentially
+        folder_items = await FolderExportImportModel.get_all_items(
+            field_names=field_names, project_name=project_name
         )
-
-        # Determine task entity_ids if needed
-        task_entity_ids = None
-        if entity_ids:
-            task_entity_ids = entity_ids
-
-        task_items: list[dict[str, Any]] = cast(
-            "list[dict[str, Any]]",
-            await TaskExportImportModel.get_all_items(
-                field_names=field_names,
-                as_csv=False,
-                project_name=project_name,
-                entity_ids=task_entity_ids,
-            ),
+        task_items = await TaskExportImportModel.get_all_items(
+            field_names=field_names, project_name=project_name
         )
 
         # Add entity_type to each item
@@ -903,17 +857,6 @@ class FolderTaskExportImportModel(EntityExportImport):
             )
         else:
             result_items = await cls._build_hierarchy_by_ids(folder_items, task_items)
-
-        if as_csv:
-            # Create CSV rows with header
-            csv_rows = [field_names]
-            for item in result_items:
-                csv_row = []
-                for field in field_names:
-                    value = item.get(field)
-                    csv_row.append(str(value) if value is not None else "")
-                csv_rows.append(csv_row)
-            return csv_rows
 
         return result_items
 
@@ -1185,20 +1128,17 @@ class EntityListExportImportModel(EntityExportImport):
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all entities from the database.
 
         Args:
             field_names: List of field names to include. Supports prefixes like
                     'attrib.field' or 'data.field' to access nested values.
-            as_csv: If True, returns CSV-compatible rows with header
             project_name: Project name for table resolution
 
         Returns:
-            List of entity dictionaries or CSV rows (including header)
+            List of entity dictionaries
         """
         if field_names is None:
             fields = await cls.fields(project_name=project_name)
@@ -1208,12 +1148,6 @@ class EntityListExportImportModel(EntityExportImport):
                 if field.key not in IMPORT_ONLY_COLUMNS | {"name"}
             ]
 
-        where = ""
-        if entity_ids:
-            id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
-            where = f"WHERE  li.entity_list_id IN ({placeholders})"
-
         query = (
             "SELECT li.entity_id, li.entity_list_id, li.attrib, "
             "CASE "
@@ -1222,12 +1156,11 @@ class EntityListExportImportModel(EntityExportImport):
             "END AS folder_path "
             f"FROM project_{project_name}.entity_list_items li "
             f"LEFT JOIN project_{project_name}.tasks t "
-            "ON li.entity_id = t.id "
-            f"{where}"
+            "ON li.entity_id = t.id"
         )
-        rows = await Postgres.fetch(query, *(entity_ids[1] if entity_ids else []))
+        rows = await Postgres.fetch(query)
 
-        return await cls._return_items(as_csv, field_names, rows)
+        return await cls._return_items(field_names, rows)
 
 
 # list entity types whose entities have a name to match rows by
