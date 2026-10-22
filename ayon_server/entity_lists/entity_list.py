@@ -83,6 +83,7 @@ class EntityList:
             access=self._payload.access,
             level=level,
             owner=self._payload.owner,
+            project=await ProjectEntity.load(self._project_name),
             default_open=default_open,
         )
 

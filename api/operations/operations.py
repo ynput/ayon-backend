@@ -163,7 +163,7 @@ async def _execute_background_operations(
             task_id,
             {
                 "status": "completed",
-                "result": response.dict(),
+                "result": response.model_dump(),
                 "progress": 100.0,
             },
             ttl=BACKGROUND_OPS_TTL,

@@ -326,7 +326,7 @@ class Redis:
                             )
                         else:
                             val = (
-                                result.dict()
+                                result.model_dump()
                                 if isinstance(result, BaseModel)
                                 else result
                             )

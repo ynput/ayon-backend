@@ -116,7 +116,7 @@ async def create_entity_list_folder(
                 payload.parent_id,
                 user.name,
                 payload.access,
-                payload.data.dict(exclude_unset=True),
+                payload.data.model_dump(exclude_unset=True),
             )
         except Postgres.UniqueViolationError:
             raise ConflictException("Folder with the given ID already exists")
@@ -143,7 +143,7 @@ async def update_entity_list_folder(
         if not user.is_manager and res["owner"] != user.name:
             raise ForbiddenException("Only owner or manager can update this folder")
 
-        payload_dict = payload.dict(exclude_unset=True)
+        payload_dict = payload.model_dump(exclude_unset=True)
 
         new_payload = {
             "label": payload_dict.get("label", res["label"]),

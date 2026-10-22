@@ -21,7 +21,7 @@ class DeployProjectRequestModel(OPModel):
         Field(
             title="Project name",
             example="example_project",
-            regex=PROJECT_NAME_REGEX,
+            pattern=PROJECT_NAME_REGEX,
             min_length=1,
         ),
     ]
@@ -30,7 +30,7 @@ class DeployProjectRequestModel(OPModel):
         Field(
             title="Project code",
             example="prj",
-            regex=PROJECT_NAME_REGEX,
+            pattern=PROJECT_NAME_REGEX,
         ),
     ]
     label: Annotated[
@@ -110,9 +110,10 @@ async def deploy_project(
         pass
 
     else:
-        msg = (
-            f"Project {existing_project.name} ({existing_project.code}) already exists"
-        )
+        if existing_project.name.lower() == payload.name.lower():
+            msg = f"Project {existing_project.name} already exists"
+        else:
+            msg = f"Project with code {payload.code} already exists"
         if existing_project.skeleton:
             msg += " as a skeleton."
 
