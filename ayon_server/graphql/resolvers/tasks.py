@@ -460,6 +460,7 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            project_name=project_name,
             column_map={
                 "attrib": "(coalesce(f_ex.attrib, '{}'::jsonb ) || tasks.attrib)"
             },
@@ -489,6 +490,7 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
+            project_name=project_name,
             column_map={"attrib": "f_ex.attrib"},
         ):
             sql_conditions.append(fcond)
