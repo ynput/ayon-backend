@@ -1,4 +1,4 @@
-"""Project-scoped JSON documents for addons
+"""JSON documents for addons (project or studio scope)
 
 Documents are generic JSON records (configurations, dashboards, markdown
 content...) stored in the `documents` table of the project schema or public schema.
@@ -49,6 +49,11 @@ def _validate_kind(kind: str) -> None:
         raise BadRequestException(f"Invalid document kind: {kind!r}")
 
 
+def _table(project_name: str | None) -> str:
+    """Project schema table, or the studio-wide one if no project is given"""
+    return f"project_{project_name}.documents" if project_name else "public.documents"
+
+
 def _get_user_name() -> str | None:
     user = get_request_context().user
     return user.name if user else None
@@ -60,7 +65,7 @@ class Documents:
     @classmethod
     async def save(
         cls,
-        project_name: str,
+        project_name: str | None,
         kind: str,
         *,
         document_id: str | None = None,
@@ -82,7 +87,7 @@ class Documents:
 
         res = await Postgres.fetchrow(
             f"""
-            INSERT INTO project_{project_name}.documents
+            INSERT INTO {_table(project_name)}
             (id, kind, label, data, payload, access, created_by, updated_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
             ON CONFLICT (id) DO UPDATE
@@ -109,11 +114,11 @@ class Documents:
         return document_id
 
     @classmethod
-    async def get(cls, project_name: str, document_id: str) -> DocumentRecord:
+    async def get(cls, project_name: str | None, document_id: str) -> DocumentRecord:
         """Return the document record."""
         document_id = EntityID.parse(document_id)
         res = await Postgres.fetchrow(
-            f"SELECT * FROM project_{project_name}.documents WHERE id = $1",
+            f"SELECT * FROM {_table(project_name)} WHERE id = $1",
             document_id,
         )
         if res is None:
@@ -123,7 +128,7 @@ class Documents:
     @classmethod
     async def update(
         cls,
-        project_name: str,
+        project_name: str | None,
         document_id: str,
         *,
         label: str | None = None,
@@ -140,7 +145,7 @@ class Documents:
         document_id = EntityID.parse(document_id)
         res = await Postgres.fetchrow(
             f"""
-            UPDATE project_{project_name}.documents
+            UPDATE {_table(project_name)}
             SET
                 label = COALESCE($2, label),
                 data = data || COALESCE($3::JSONB, '{{}}'::JSONB),
@@ -162,12 +167,12 @@ class Documents:
             raise NotFoundException(f"Document {document_id} not found")
 
     @classmethod
-    async def delete(cls, project_name: str, document_id: str) -> None:
+    async def delete(cls, project_name: str | None, document_id: str) -> None:
         """Remove the document."""
         document_id = EntityID.parse(document_id)
         res = await Postgres.fetchrow(
             f"""
-            DELETE FROM project_{project_name}.documents WHERE id = $1
+            DELETE FROM {_table(project_name)} WHERE id = $1
             RETURNING id
             """,
             document_id,
@@ -178,7 +183,7 @@ class Documents:
     @classmethod
     async def list(
         cls,
-        project_name: str,
+        project_name: str | None,
         kind: str | None = None,
         *,
         data: dict[str, Any] | None = None,
@@ -220,7 +225,7 @@ class Documents:
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"""
             SELECT {", ".join(cols)}
-            FROM project_{project_name}.documents
+            FROM {_table(project_name)}
             {where}
             ORDER BY created_at, id
         """
