@@ -15,6 +15,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.project_list import reads_all_projects
 from ayon_server.helpers.users import get_manager_names
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -110,6 +111,7 @@ async def get_accessible_users(
     return result
 
 
+@reads_all_projects
 async def get_kanban(
     root,
     info: Info,

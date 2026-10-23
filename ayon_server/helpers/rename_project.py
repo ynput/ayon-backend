@@ -1,7 +1,7 @@
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
-from ayon_server.helpers.project_list import build_project_list
+from ayon_server.helpers.project_list import build_project_list, lock_project_schemas
 from ayon_server.lib.postgres import Postgres
 
 
@@ -63,6 +63,8 @@ async def rename_project(
         - Non-skeleton projects cannot be renamed if they contain files.
     """
     async with Postgres.transaction():
+        # first, so rename and delete take their locks in the same order
+        await lock_project_schemas()
         project = await ProjectEntity.load(old_name)
         etype = "project_skeleton" if project.skeleton else "project"
 
