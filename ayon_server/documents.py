@@ -1,0 +1,228 @@
+"""Project-scoped JSON documents for addons
+
+Documents are generic JSON records (configurations, dashboards, markdown
+content...) stored in the `documents` table of the project schema or public schema.
+
+- `kind` is a namespaced identifier set by the addon (e.g. `io.ynput.reports.chart`).
+  The owner of the kind is responsible for the data model migrations
+  (e.g. by storing `data["model_version"]`).
+- `data` holds top-level display metadata (icon, color...).
+- `payload` holds the main JSON content of the document.
+- `access` holds the access control object used for permission evaluation.
+"""
+
+import re
+from collections.abc import AsyncGenerator
+from datetime import datetime
+from typing import Any
+
+from ayon_server.api.context import get_request_context
+from ayon_server.exceptions import (
+    BadRequestException,
+    ConflictException,
+    NotFoundException,
+)
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID
+
+# Namespaced identifier, e.g. "io.ynput.reports.chart"
+DOCUMENT_KIND_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]{0,126}[a-zA-Z0-9_])?$"
+
+
+class DocumentRecord(OPModel):
+    id: str = Field(..., title="Document ID", description="32 hex characters (UUID)")
+    kind: str = Field(..., title="Document kind")
+    label: str = Field("", title="Document label")
+    data: dict[str, Any] = Field(default_factory=dict, title="Display metadata")
+    payload: dict[str, Any] = Field(default_factory=dict, title="Document payload")
+    access: dict[str, Any] = Field(default_factory=dict, title="Access control")
+    created_at: datetime = Field(..., title="Created at")
+    updated_at: datetime = Field(..., title="Updated at")
+    created_by: str | None = Field(None, title="Created by")
+    updated_by: str | None = Field(None, title="Updated by")
+
+
+def _validate_kind(kind: str) -> None:
+    # fullmatch: re.match with "$" would accept a trailing newline
+    if not re.fullmatch(DOCUMENT_KIND_REGEX, kind):
+        raise BadRequestException(f"Invalid document kind: {kind!r}")
+
+
+def _get_user_name() -> str | None:
+    user = get_request_context().user
+    return user.name if user else None
+
+
+class Documents:
+    """CRUD helpers for the project `documents` table"""
+
+    @classmethod
+    async def save(
+        cls,
+        project_name: str,
+        kind: str,
+        *,
+        document_id: str | None = None,
+        label: str = "",
+        data: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+        access: dict[str, Any] | None = None,
+    ) -> str:
+        """Create a document or fully overwrite an existing one.
+
+        Raises `ConflictException` if the id belongs to a document
+        of another kind. Returns the document id.
+        """
+        _validate_kind(kind)
+        document_id = (
+            EntityID.create() if document_id is None else EntityID.parse(document_id)
+        )
+        user_name = _get_user_name()
+
+        res = await Postgres.fetchrow(
+            f"""
+            INSERT INTO project_{project_name}.documents
+            (id, kind, label, data, payload, access, created_by, updated_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+            ON CONFLICT (id) DO UPDATE
+            SET
+                label = EXCLUDED.label,
+                data = EXCLUDED.data,
+                payload = EXCLUDED.payload,
+                access = EXCLUDED.access,
+                updated_at = NOW(),
+                updated_by = EXCLUDED.updated_by
+            WHERE documents.kind = EXCLUDED.kind
+            RETURNING id
+            """,
+            document_id,
+            kind,
+            label,
+            data or {},
+            payload or {},
+            access or {},
+            user_name,
+        )
+        if res is None:
+            raise ConflictException(f"Document {document_id} belongs to another kind")
+        return document_id
+
+    @classmethod
+    async def get(cls, project_name: str, document_id: str) -> DocumentRecord:
+        """Return the document record."""
+        document_id = EntityID.parse(document_id)
+        res = await Postgres.fetchrow(
+            f"SELECT * FROM project_{project_name}.documents WHERE id = $1",
+            document_id,
+        )
+        if res is None:
+            raise NotFoundException(f"Document {document_id} not found")
+        return DocumentRecord(**res)
+
+    @classmethod
+    async def update(
+        cls,
+        project_name: str,
+        document_id: str,
+        *,
+        label: str | None = None,
+        data: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+        access: dict[str, Any] | None = None,
+    ) -> None:
+        """Selectively patch a document.
+
+        `label` is replaced. Keys of `data`, `payload` and `access`
+        are shallow-merged into the existing values.
+        Omitted (None) arguments are left untouched.
+        """
+        document_id = EntityID.parse(document_id)
+        res = await Postgres.fetchrow(
+            f"""
+            UPDATE project_{project_name}.documents
+            SET
+                label = COALESCE($2, label),
+                data = data || COALESCE($3::JSONB, '{{}}'::JSONB),
+                payload = payload || COALESCE($4::JSONB, '{{}}'::JSONB),
+                access = access || COALESCE($5::JSONB, '{{}}'::JSONB),
+                updated_at = NOW(),
+                updated_by = $6
+            WHERE id = $1
+            RETURNING id
+            """,
+            document_id,
+            label,
+            data,
+            payload,
+            access,
+            _get_user_name(),
+        )
+        if res is None:
+            raise NotFoundException(f"Document {document_id} not found")
+
+    @classmethod
+    async def delete(cls, project_name: str, document_id: str) -> None:
+        """Remove the document."""
+        document_id = EntityID.parse(document_id)
+        res = await Postgres.fetchrow(
+            f"""
+            DELETE FROM project_{project_name}.documents WHERE id = $1
+            RETURNING id
+            """,
+            document_id,
+        )
+        if res is None:
+            raise NotFoundException(f"Document {document_id} not found")
+
+    @classmethod
+    async def list(
+        cls,
+        project_name: str,
+        kind: str | None = None,
+        *,
+        data: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+        with_payload: bool = True,
+    ) -> AsyncGenerator[DocumentRecord]:
+        """Yield documents, oldest first.
+
+        Optionally filtered by kind and by containment: only documents whose
+        `data` / `payload` contain all the given key-value pairs are returned.
+        Use `with_payload=False` to skip the (possibly large) payload.
+        """
+        conditions = []
+        args: list[Any] = []
+        if kind is not None:
+            args.append(kind)
+            conditions.append(f"kind = ${len(args)}")
+        if data:
+            args.append(data)
+            conditions.append(f"data @> ${len(args)}::JSONB")
+        if payload:
+            args.append(payload)
+            conditions.append(f"payload @> ${len(args)}::JSONB")
+
+        cols = [
+            "id",
+            "kind",
+            "label",
+            "data",
+            "access",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+        if with_payload:
+            cols.append("payload")
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"""
+            SELECT {", ".join(cols)}
+            FROM project_{project_name}.documents
+            {where}
+            ORDER BY created_at, id
+        """
+        async for row in Postgres.iterate(query, *args):
+            yield DocumentRecord(**row)
