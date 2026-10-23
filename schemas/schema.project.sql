@@ -600,3 +600,24 @@ CREATE TABLE IF NOT EXISTS blobs(
 );
 
 CREATE INDEX IF NOT EXISTS blob_kind_idx ON blobs(kind);
+
+---------------
+-- DOCUMENTS --
+---------------
+
+CREATE TABLE IF NOT EXISTS documents(
+  id UUID NOT NULL PRIMARY KEY,
+  kind VARCHAR NOT NULL,
+  label VARCHAR NOT NULL DEFAULT '',
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by VARCHAR,
+  updated_by VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS document_kind_idx ON documents(kind);
+CREATE INDEX IF NOT EXISTS document_created_by_idx ON documents(created_by);
+CREATE INDEX IF NOT EXISTS document_updated_at_idx ON documents(updated_at);
