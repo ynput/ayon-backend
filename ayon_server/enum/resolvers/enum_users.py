@@ -98,12 +98,8 @@ def should_hide_user(
         # we don't show support users to non-support users
         return True
 
-    if context.get("hide_inactive"):
-        if not active:
-            return True
-
-        if user_pool_ids and (udata.get("userPool") not in user_pool_ids):
-            return True
+    if context.get("hide_inactive") and not active:
+        return True
 
     return False
 
