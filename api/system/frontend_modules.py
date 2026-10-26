@@ -15,7 +15,7 @@ class FrontendModuleListItem(OPModel):
     modules: FrontendModules
 
 
-async def get_developer_bundle_name(user_name: str) -> str | None:
+async def _get_developer_bundle_name(user_name: str) -> str | None:
     """Return the user's active dev bundle, or None if they have none."""
     row = await Postgres.fetchrow(
         """
@@ -41,7 +41,7 @@ async def list_frontend_modules(
 
     if variant == "developer":
         # no dev bundle means there is nothing dev specific to load, use production
-        variant = await get_developer_bundle_name(user.name) or "production"
+        variant = await _get_developer_bundle_name(user.name) or "production"
 
     bundle_addons = await addon_library.get_addons_by_variant(variant)
     for addon in bundle_addons.values():
