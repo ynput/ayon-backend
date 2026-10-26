@@ -16,22 +16,15 @@ class FrontendModuleListItem(OPModel):
 
 
 async def get_developer_bundle_name(user_name: str) -> str | None:
-    """Return the dev bundle the user is working on.
-
-    Same choice the frontend makes in developer mode: the bundle active for the user,
-    otherwise the newest dev bundle.
-    """
-    rows = await Postgres.fetch(
+    """Return the user's active dev bundle, or None if they have none."""
+    row = await Postgres.fetchrow(
         """
-        SELECT name, active_user FROM bundles
-        WHERE is_dev AND is_archived IS FALSE
-        ORDER BY created_at DESC
-        """
+        SELECT name FROM bundles
+        WHERE is_dev AND is_archived IS FALSE AND active_user = $1
+        """,
+        user_name,
     )
-    for row in rows:
-        if row["active_user"] == user_name:
-            return row["name"]
-    return rows[0]["name"] if rows else None
+    return row["name"] if row else None
 
 
 @router.get("/frontendModules", dependencies=[AllowGuests])
