@@ -77,7 +77,11 @@ class QueryCondition(OPModel):
         OperatorType,
         Field(
             title="Operator",
-            description="Comparison operator",
+            description=(
+                "Comparison operator. like and notlike perform case-insensitive "
+                "substring matching. One surrounding pair of % is treated as a "
+                "substring wrapper; %, _ and backslashes within it are literal."
+            ),
             example="eq",
         ),
     ] = "eq"
@@ -207,6 +211,12 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     )
     value = c.value
     operator = c.operator
+    if operator in ("like", "notlike") and isinstance(value, str):
+        # The frontend wraps search text in %, before sending the filter.
+        if len(value) >= 2 and value.startswith("%") and value.endswith("%"):
+            value = value[1:-1]
+        value = value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        value = f"%{value}%"
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
@@ -406,6 +416,14 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if safe_value is None:
         raise ValueError(f"Invalid value: {value}")
 
+    if operator in ("like", "notlike", "re"):
+        # replace last -> with ->> to get text value
+        column = re.sub(r"->(?!.*->)", "->>", column)
+
+    if path == ["attrib", "description"] and operator in ("like", "notlike"):
+        # Markdown escapes punctuation; preserve backslashes before other text.
+        column = f"regexp_replace({column}, " r"'\\([[:punct:]])', '\1', 'g')"
+
     if operator == "eq":
         if type(value) is bool:
             if value:
@@ -413,17 +431,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             return f"NOT coalesce({column}, 'false'::jsonb)::boolean"
         return f"{column} = {safe_value}"
     elif operator == "like":
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
     elif operator == "notlike":
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
         # a missing value does not match the pattern, so it passes the filter
         return f"NOT coalesce(({column}) ILIKE {safe_value}, FALSE)"
     elif operator == "re":
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) SIMILAR TO {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
