@@ -160,3 +160,47 @@ def test_list_without_payload(db):
     asyncio.run(_collect(with_payload=False))
     select = db.calls[0][0].split("FROM")[0]
     assert "payload" not in select
+
+
+@pytest.mark.parametrize("project_name", ["proj", None])
+def test_list_by_ids(db, project_name):
+    other_id = "f" * 32
+    db.rows = [_row(), _row(id=other_id)]
+
+    async def collect():
+        return [
+            r
+            async for r in Documents.list(project_name, ids=[DOC_ID.upper(), other_id])
+        ]
+
+    records = asyncio.run(collect())
+    assert [r.id for r in records] == [DOC_ID, other_id]
+    query, args = db.calls[0]
+    table = "project_proj.documents" if project_name else "public.documents"
+    assert table in query
+    assert "id = ANY($1::uuid[])" in query
+    assert args == ([DOC_ID, other_id],)
+    assert len(db.calls) == 1
+
+
+def test_list_by_ids_combines_filters(db):
+    asyncio.run(_collect(ids=[DOC_ID], kind=KIND, data={"icon": "x"}, payload={"a": 1}))
+    query, args = db.calls[0]
+    assert (
+        "kind = $1 AND id = ANY($2::uuid[]) "
+        "AND data @> $3::JSONB AND payload @> $4::JSONB"
+    ) in query
+    assert args == (KIND, [DOC_ID], {"icon": "x"}, {"a": 1})
+
+
+def test_list_by_empty_ids(db):
+    assert asyncio.run(_collect(ids=[])) == []
+    query, args = db.calls[0]
+    assert "id = ANY($1::uuid[])" in query
+    assert args == ([],)
+
+
+def test_list_rejects_invalid_ids(db):
+    with pytest.raises(ValueError, match="Invalid entity ID"):
+        asyncio.run(_collect(ids=[DOC_ID, "invalid"]))
+    assert db.calls == []

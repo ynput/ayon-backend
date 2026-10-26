@@ -186,14 +186,17 @@ class Documents:
         project_name: str | None,
         kind: str | None = None,
         *,
+        ids: list[str] | None = None,
         data: dict[str, Any] | None = None,
         payload: dict[str, Any] | None = None,
         with_payload: bool = True,
     ) -> AsyncGenerator[DocumentRecord]:
         """Yield documents, oldest first.
 
-        Optionally filtered by kind and by containment: only documents whose
-        `data` / `payload` contain all the given key-value pairs are returned.
+        Optionally filtered by document IDs, kind and by containment: only
+        documents whose `data` / `payload` contain all the given key-value pairs
+        are returned.
+        An empty `ids` list matches no documents; None does not filter by ID.
         Use `with_payload=False` to skip the (possibly large) payload.
         """
         conditions = []
@@ -201,6 +204,9 @@ class Documents:
         if kind is not None:
             args.append(kind)
             conditions.append(f"kind = ${len(args)}")
+        if ids is not None:
+            args.append([EntityID.parse(document_id) for document_id in ids])
+            conditions.append(f"id = ANY(${len(args)}::uuid[])")
         if data:
             args.append(data)
             conditions.append(f"data @> ${len(args)}::JSONB")
