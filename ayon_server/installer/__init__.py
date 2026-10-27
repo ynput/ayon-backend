@@ -8,6 +8,7 @@ from ayon_server.installer.dependency_packages import download_dependency_packag
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
+from ayon_server.utils import create_background_task
 
 from .addons import AddonZipInfo
 
@@ -88,7 +89,7 @@ class BackgroundInstaller(BackgroundWorker):
                 None, "Restart the server to apply the addon changes."
             )
         else:
-            asyncio.create_task(handle_need_restart(self))
+            create_background_task(handle_need_restart(self))
 
     async def run(self) -> None:
         # load past unprocessed events

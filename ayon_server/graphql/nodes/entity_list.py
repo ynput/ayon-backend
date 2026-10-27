@@ -2,8 +2,11 @@ from datetime import datetime
 from typing import Annotated, Any
 
 import strawberry
+from strawberry.scalars import JSON
 
 from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.activities.guest_access import get_guest_activity_category
+from ayon_server.entities.core.attrib import resolve_attrib
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
@@ -11,7 +14,7 @@ from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.graphql.resolvers.field_stats import MetricTargetInput
 from ayon_server.graphql.types import BaseConnection, BaseEdge, ColumnStats, Info
-from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.graphql.utils import attrib_to_json, process_attrib_data
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
@@ -30,7 +33,6 @@ class EntityListItemEdge(BaseEdge):
     entity_id: str = strawberry.field()
     position: int = strawberry.field(default=0)
 
-    attrib: str = strawberry.field(default="{}")
     folder_path: str = strawberry.field(default="")
 
     tags: list[str] = strawberry.field(default_factory=list)
@@ -46,45 +48,74 @@ class EntityListItemEdge(BaseEdge):
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+    _list_attributes: strawberry.Private[dict[str, str]]  # list attribute types
     _user: strawberry.Private[UserEntity]
+    _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
 
-    @strawberry.field()
-    def all_attrib(self, info: Info) -> str:
-        """All attributes field is a JSON string."""
-        if self._entity is None:
-            return "{}"
+    def _entity_values(self, with_item_values: bool) -> dict[str, Any]:
+        """Attributes of the listed entity, with the item's values over them or not."""
+        if (entity := self._entity) is None or self._forbidden:
+            return {}
 
-        own_attrib: dict[str, Any] = {}
-        inherited_attrib: dict[str, Any] = {}
-        project_attrib: dict[str, Any] = {}
-
-        if self._entity:
-            if hasattr(self._entity, "_project_attrib"):
-                project_attrib = self._entity._project_attrib or {}
-            if hasattr(self._entity, "_inherited_attrib"):
-                inherited_attrib = self._entity._inherited_attrib or {}
-            if hasattr(self._entity, "_attrib"):
-                own_attrib = self._entity._attrib or {}
-
-        own_attrib.update(self._attrib or {})
-
-        return json_dumps(
-            process_attrib_data(
-                self.entity_type,
-                own_attrib,
-                user=self._user,
-                project_name=self.project_name,
-                inherited_attrib=inherited_attrib,
-                project_attrib=project_attrib,
-                list_attribute_config=info.context.get("list_attributes"),
-            )
+        item = (self._attrib or {}) if with_item_values else {}
+        item = {k: v for k, v in item.items() if v is not None}
+        list_attributes = self._list_attributes if with_item_values else {}
+        # Attributes of the list item override the entity's own ones
+        # (empty values don't, the entity's value is used).
+        # List attributes (list_attributes) are not entity attributes.
+        own = {**(getattr(entity, "_attrib", None) or {}), **item}
+        resolved = resolve_attrib(
+            self.entity_type,
+            {k: v for k, v in own.items() if k not in list_attributes},
+            inherited=getattr(entity, "_inherited_attrib", None),
+            project=getattr(entity, "_project_attrib", None),
+        )
+        values = {
+            **resolved.values,
+            **{k: v for k, v in own.items() if k in list_attributes},
+        }
+        return process_attrib_data(
+            values,
+            user=self._user,
+            project_name=self.project_name,
+            list_attribute_config=list_attributes,
         )
 
+    def processed_attrib(self) -> dict[str, Any]:
+        if self._processed_attrib is None:
+            self._processed_attrib = self._entity_values(with_item_values=True)
+        return self._processed_attrib
+
     @strawberry.field()
-    def own_attrib(self, info: Info) -> list[str]:
-        """Own attributes field is a JSON string."""
-        configured_keys = info.context.get("list_attributes") or {}
-        return [key for key in self._attrib.keys() if key in configured_keys]
+    def attrib(self) -> JSON:
+        """Attributes of the entity with the list item's values over them."""
+        return JSON(attrib_to_json(self.entity_type, self.processed_attrib()))
+
+    @strawberry.field()
+    def all_attrib(self) -> str:
+        """Legacy: attrib as a JSON string."""
+        return json_dumps(self.processed_attrib())
+
+    @strawberry.field()
+    def own_attrib(self) -> list[str]:
+        """Names of the attributes set on the list item itself.
+
+        The list's own attributes and the entity's attributes the list overrides.
+        Only the ones returned in `attrib`: not the empty values, attributes
+        no longer configured or defined, or ones the user can't read.
+        """
+        values = self.processed_attrib()
+        return [
+            key
+            for key, value in (self._attrib or {}).items()
+            if value is not None and key in values
+        ]
+
+    @strawberry.field()
+    def entity_attrib(self) -> JSON:
+        """Attributes of the entity, without the list item's values."""
+        values = self._entity_values(with_item_values=False)
+        return JSON(attrib_to_json(self.entity_type, values))
 
     @strawberry.field()
     def data(self) -> str:
@@ -159,6 +190,9 @@ class EntityListItemEdge(BaseEdge):
             cursor=record["cursor"],
             _data=record["data"],
             _attrib=record["attrib"],
+            _list_attributes=context.get("list_attributes", {}).get(
+                record["entity_list_id"], {}
+            ),
             _entity=entity,
             _forbidden=node_access_forbidden,
             _user=context["user"],
@@ -228,7 +262,7 @@ class EntityListNode:
         after: str | None = None,
         last: int | None = None,
         before: str | None = None,
-        sort_by: str | None = None,
+        sort_by: list[str] | None = None,
         accessible_only: bool = False,
         filter: str | None = None,
         search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
@@ -287,36 +321,23 @@ async def get_activity_categories(
     user: UserEntity,
     record: dict[str, Any],
 ) -> list[str]:
-
-    if user.is_guest:
-        if guest_access := user.get_guest_access(
-            project_name=project.name,
-            type="entityList",
-            id=record.get("id"),
-        ):
-            cat = guest_access.get("activityCategory")
-            if not cat:
-                raise ForbiddenException(
-                    "Guest has no comment category [no category defined]"
-                )
-            return cat
-
-        if user.attrib.email not in project.data.get("guestUsers", {}):
-            raise ForbiddenException("You are not allowed to access this project")
-        #
-        # map guest email to category, in which the guest can comment
-        list_guest_categories = record["data"].get("guestActivityCategories", {})
-        list_guest_category = list_guest_categories.get(user.attrib.email)
-        if not list_guest_category:
-            raise ForbiddenException(
-                "Guest has no comment category [no category defined]"
-            )
-
-    return await ActivityCategories.get_accessible_categories(
+    writable_categories = await ActivityCategories.get_accessible_categories(
         user,
         project=project,
         level=EntityAccessHelper.UPDATE,
     )
+
+    if user.is_guest:
+        # Guests comment in the category set for them on the list
+        # (the same rules as when they comment, see post_project_activity)
+        category = await get_guest_activity_category(
+            user, project, record.get("id"), entity_list=record
+        )
+        if category not in writable_categories:
+            return []
+        return [category]
+
+    return writable_categories
 
 
 async def entity_list_from_record(

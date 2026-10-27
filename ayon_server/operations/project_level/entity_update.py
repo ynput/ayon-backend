@@ -6,6 +6,10 @@ from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
+    invalidate_version_parents_thumbnails,
+    thumbnail_updated_event,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -73,7 +77,7 @@ async def sanitize_folder_update(
     """
 
     folder_entity = cast(FolderEntity, entity)
-    existing_folder_data = folder_entity.payload.dict(exclude_none=True)
+    existing_folder_data = folder_entity.payload.model_dump(exclude_none=True)
     if not operation.force:
         for key in ("name", "folder_type", "parent_id"):
             if key not in update_payload_dict:
@@ -120,7 +124,7 @@ async def update_project_level_entity(
 
     hooks = OperationHooks.hooks()
     if hooks:
-        temp_entity = entity_class(project_name, entity.payload.dict())
+        temp_entity = entity_class(project_name, entity.payload.model_dump())
         temp_entity.inherited_attrib = entity.inherited_attrib.copy()
         temp_payload = entity_class.model.patch_model(**operation.data)
         temp_entity.patch(temp_payload, user=user)
@@ -138,7 +142,7 @@ async def update_project_level_entity(
     # top-level fields. This is the format, that is going to be used
     # in the database update query.
 
-    update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
+    update_payload_dict = payload.model_dump(exclude_unset=True, by_alias=False)
 
     if user:
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
@@ -164,7 +168,13 @@ async def update_project_level_entity(
     # pre_save method of the entity, that expects the payload to be
     # updated (that covers various entity-specific logic, validtion, etc.).
 
-    entity.patch(payload, user=user)
+    version_thumbnail_changed = (
+        entity.entity_type == "version"
+        and "thumbnail_id" in update_payload_dict
+        and update_payload_dict["thumbnail_id"] != entity.thumbnail_id
+    )
+
+    entity.patch(payload, user=user, calculated_attributes=calculated_attributes)
 
     if "thumbnail_id" in update_payload_dict:
         # if thumbnail is updated, we need to bump thumbnail hash in data
@@ -202,5 +212,14 @@ async def update_project_level_entity(
 
     await entity.pre_save(False)
     await Postgres.execute(query, *params)
+
+    if version_thumbnail_changed:
+        # Folders and tasks may inherit the version thumbnail,
+        # so their thumbnails need to be invalidated as well.
+        # Events are returned, so they are dispatched after the commit.
+        for affected in await invalidate_version_parents_thumbnails(
+            project_name, [entity.id]
+        ):
+            events.append(thumbnail_updated_event(project_name, affected))
 
     return entity.id, events, 204

@@ -15,7 +15,13 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
+    create_pagination,
+    get_sort_keys,
+    sort_columns,
+    with_tiebreakers,
+)
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool, json_loads
@@ -56,7 +62,7 @@ async def get_entity_lists(
     ids: ARGIds = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> EntityListsConnection:
     project_name = root.project_name
     sql_conditions = []
@@ -110,14 +116,19 @@ async def get_entity_lists(
     # Pagination and sorting
     #
 
-    order_by = ["creation_order"]
-    if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by == "path":
-            order_by = ["hierarchy.path", "tasks.name"]
+    order_by: OrderBy = []
+    for sort_key, descending in get_sort_keys(sort_by):
+        columns: list[str] = []
+        if sort_key in SORT_OPTIONS:
+            columns.append(SORT_OPTIONS[sort_key])
+        elif sort_key == "path":
+            columns.extend(["hierarchy.path", "tasks.name"])
         else:
-            raise BadRequestException(f"Invalid sort_by value: {sort_by}")
+            raise BadRequestException(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
+
+    order_by = with_tiebreakers(order_by, "creation_order")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,

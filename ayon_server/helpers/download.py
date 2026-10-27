@@ -11,10 +11,12 @@ from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
 
 
-def shorten_string(s: str, length: int) -> str:
+def shorten_url_string(s: str, length: int) -> str:
     """If the given string is longer than the specified length,
     it will be shortened by removing the middle part and replacing it with '...'.
     """
+
+    s = s.split("?")[0]  # Remove query parameters
 
     if len(s) <= length:
         return s
@@ -141,7 +143,7 @@ async def download_file(
                 # to track the download progress
                 file_size = int(response.headers.get("content-length", 0))
 
-                short_url = shorten_string(url, 50)
+                short_url = shorten_url_string(url, 50)
                 logger.debug(f"Downloading {short_url} to {target_path}")
 
                 async with aiofiles.open(temp_file_path, "wb") as f:

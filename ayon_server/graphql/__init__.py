@@ -29,6 +29,12 @@ from ayon_server.graphql.dataloaders import (
     version_loader,
     workfile_loader,
 )
+from ayon_server.graphql.dataloaders.entity_lists import (
+    entity_lists_by_entity_loader,
+    get_entity_lists_info,
+)
+from ayon_server.graphql.legacy_attrib import LegacyAttribSelection
+from ayon_server.graphql.legacy_sort_by import LegacySortByVariables
 from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.nodes.entity_list import entity_list_from_record
 from ayon_server.graphql.nodes.folder import folder_from_record
@@ -78,10 +84,14 @@ async def graphql_get_context(request: Request, user: CurrentUser) -> dict[str, 
         "user_loader": DataLoader(load_fn=user_loader),
         "workfile_loader": DataLoader(load_fn=workfile_loader),
         "representation_loader": DataLoader(load_fn=representation_loader),
+        "entity_lists_by_entity_loader": DataLoader(
+            load_fn=entity_lists_by_entity_loader
+        ),
         # Other
         "activities_resolver": get_activities,
         "links_resolver": get_links,
         "entity_list_items_resolver": get_entity_list_items,
+        "entity_lists_info_resolver": get_entity_lists_info,
     }
 
 
@@ -137,7 +147,7 @@ class Query:
             active=user.active,
             updated_at=user.updated_at,
             created_at=user.created_at,
-            _attrib=user.attrib.dict(),
+            _attrib=user.attrib.model_dump(),
             access_groups=json_dumps(user.data.get("accessGroups", {})),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
@@ -235,7 +245,14 @@ class QueryNameExtension(SchemaExtension):
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
-    schema=AyonSchema(query=Query, extensions=[QueryNameExtension]),
+    schema=AyonSchema(
+        query=Query,
+        extensions=[
+            LegacyAttribSelection,
+            LegacySortByVariables,
+            QueryNameExtension,
+        ],
+    ),
     graphql_ide=None,
     context_getter=graphql_get_context,
 )

@@ -10,7 +10,7 @@ from ayon_server.helpers.deploy_project import (
 from ayon_server.helpers.project_list import get_project_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
-from ayon_server.types import Field, OPModel
+from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
 
 from .router import router
 
@@ -20,13 +20,17 @@ class DeployProjectRequestModel(OPModel):
         str,
         Field(
             title="Project name",
-            example="Example project",
+            example="example_project",
+            pattern=PROJECT_NAME_REGEX,
+            min_length=1,
         ),
     ]
     code: Annotated[
         str,
         Field(
             title="Project code",
+            example="prj",
+            pattern=PROJECT_NAME_REGEX,
         ),
     ]
     label: Annotated[
@@ -106,9 +110,10 @@ async def deploy_project(
         pass
 
     else:
-        msg = (
-            f"Project {existing_project.name} ({existing_project.code}) already exists"
-        )
+        if existing_project.name.lower() == payload.name.lower():
+            msg = f"Project {existing_project.name} already exists"
+        else:
+            msg = f"Project with code {payload.code} already exists"
         if existing_project.skeleton:
             msg += " as a skeleton."
 

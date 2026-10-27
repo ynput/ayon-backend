@@ -2,7 +2,14 @@ import re
 from base64 import b64encode
 from typing import Any, Literal, NotRequired, Self, TypedDict
 
-from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import (
+    ConfigDict,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    with_config,
+)
 
 # EnumItem is only accepted here as convenience input (e.g. passing through
 # an item a resolver already produced) - options are coalesced down into the
@@ -35,6 +42,13 @@ SimpleFormHighlightType = Literal[
 ]
 
 
+# Form definitions are sent to the client as they are (snake_case keys).
+# Own config prevents inheriting the alias generator of a model
+# they are used in.
+_FORM_CONFIG = ConfigDict()
+
+
+@with_config(_FORM_CONFIG)
 class FormOptionItem(TypedDict):
     """A single `select`/`multiselect` option.
 
@@ -68,6 +82,7 @@ class FormOptionItem(TypedDict):
 FormSelectOption = FormOptionItem
 
 
+@with_config(_FORM_CONFIG)
 class FormFileData(TypedDict):
     filename: str
     payload: str  # base64 encoded
@@ -86,6 +101,7 @@ ValueType = (
 )
 
 
+@with_config(_FORM_CONFIG)
 class FormFieldPatch(TypedDict, total=False):
     """Properties a :class:`FormFieldRule` may override on a field.
 
@@ -108,6 +124,7 @@ class FormFieldPatch(TypedDict, total=False):
     highlight: SimpleFormHighlightType
 
 
+@with_config(_FORM_CONFIG)
 class FormFieldRule(TypedDict):
     """A single conditional rule attached to a field.
 
@@ -206,6 +223,7 @@ def normalize_options(
     return result
 
 
+@with_config(_FORM_CONFIG)
 class SimpleFormField(TypedDict):
     type: SimpleFormFieldType
     name: str
@@ -266,7 +284,7 @@ class SimpleForm(list[SimpleFormField]):
         for rule in rules:
             when = rule["when"]
             if not isinstance(when, QueryFilter):
-                when = QueryFilter.parse_obj(when)
+                when = QueryFilter.model_validate(when)
 
             patch = rule["set"]
             unknown_patch_keys = set(patch) - _PATCH_KEYS

@@ -1,8 +1,12 @@
 from typing import Any
 
-from ayon_server.entities import UserEntity
+from ayon_server.entities import UserEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
+    invalidate_version_parents_thumbnails,
+    thumbnail_updated_event,
+)
 
 from .hooks import OperationHooks
 from .models import OperationModel
@@ -23,8 +27,8 @@ async def create_project_level_entity(
         # this won't be saved
         temp_payload = entity_class.model.post_model(**operation.data)
         if operation.entity_id is not None:
-            temp_payload.id = operation.entity_id  # type: ignore
-        temp_entity = entity_class(project_name, temp_payload.dict())
+            temp_payload.id = operation.entity_id
+        temp_entity = entity_class(project_name, temp_payload.model_dump())
         for hook in hooks:
             await hook(operation, temp_entity, user)
 
@@ -34,8 +38,8 @@ async def create_project_level_entity(
 
     payload = entity_class.model.post_model(**operation.data)
     if operation.entity_id is not None:
-        payload.id = operation.entity_id  # type: ignore
-    payload_dict = payload.dict()
+        payload.id = operation.entity_id
+    payload_dict = payload.model_dump()
 
     #
     # Sanity checks
@@ -73,4 +77,12 @@ async def create_project_level_entity(
         }
     ]
     await entity.save(auto_commit=False, user_name=user.name if user else None)
+
+    if isinstance(entity, VersionEntity) and entity.thumbnail_id:
+        # Folders and tasks may inherit the version thumbnail
+        for affected in await invalidate_version_parents_thumbnails(
+            project_name, [entity.id]
+        ):
+            events.append(thumbnail_updated_event(project_name, affected))
+
     return entity.id, events, 201

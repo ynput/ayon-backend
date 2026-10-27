@@ -24,7 +24,13 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
+    create_pagination,
+    get_sort_keys,
+    sort_columns,
+    with_tiebreakers,
+)
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
@@ -35,7 +41,11 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-from .common import ARGVisibility, EntityVisibility, build_search_conditions
+from .common import (
+    ARGVisibility,
+    EntityVisibility,
+    build_search_conditions,
+)
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -129,12 +139,18 @@ async def get_products(
         str | None,
         argdesc("Filter products by their tasks (via versions) using QueryFilter"),
     ] = None,
+    representation_filter: Annotated[
+        str | None,
+        argdesc(
+            "Filter products by their representations (via versions) using QueryFilter"
+        ),
+    ] = None,
     has_reviewables: Annotated[
         bool | None,
         argdesc("Filter products that have at least one version with reviewables"),
     ] = None,
     sort_by: Annotated[
-        str | None,
+        list[str] | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
     calculate_statistics: Annotated[
@@ -495,12 +511,13 @@ async def get_products(
             use_folder_query = True
 
     #
-    # Filtering products by versions and tasks
+    # Filtering products by versions, tasks and representations
     #
 
-    if version_filter or task_filter:
+    if version_filter or task_filter or representation_filter:
         version_cond = ""
         task_cond = ""
+        representation_cond = ""
 
         if version_filter:
             column_whitelist = [
@@ -563,7 +580,43 @@ async def get_products(
             if fcond:
                 task_cond = f"{fcond}"
 
-        if version_cond or task_cond:
+        if representation_filter:
+            column_whitelist = [
+                "id",
+                "name",
+                "version_id",
+                "files",
+                "attrib",
+                "data",
+                "traits",
+                "status",
+                "tags",
+                "active",
+                "created_at",
+                "updated_at",
+            ]
+
+            fdata = json.loads(representation_filter)
+            fq = QueryFilter(**fdata)
+            fcond = build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="representations",
+            )
+            if fcond:
+                # The representation has to belong to the same version that
+                # matches the version and task filters, as in the versions
+                # resolver.
+                representation_cond = f"""
+                EXISTS (
+                    SELECT 1
+                    FROM project_{project_name}.representations AS representations
+                    WHERE representations.version_id = versions.id
+                    AND {fcond}
+                )
+                """
+
+        if version_cond or task_cond or representation_cond:
             vtconds = []
             tjoin = ""
             if version_cond:
@@ -574,6 +627,8 @@ async def get_products(
                 LEFT JOIN project_{project_name}.tasks
                 ON versions.task_id = tasks.id
                 """
+            if representation_cond:
+                vtconds.append(representation_cond)
 
             vtcondstr = "WHERE " + " AND ".join(vtconds)
 
@@ -598,10 +653,11 @@ async def get_products(
                 """
             )
 
+    sort_keys = get_sort_keys(sort_by)
     if (
         use_folder_query
         or "folder" in fields
-        or sort_by in ["folderName", "folderType"]
+        or not {key.name for key in sort_keys}.isdisjoint(["folderName", "folderType"])
     ):
         folder_columns, folder_joins = get_folder_fields_block(
             project_name, "products.folder_id", sql_joins=sql_joins
@@ -613,16 +669,17 @@ async def get_products(
     # Pagination
     #
 
-    order_by = ["products.creation_order"]
-    if sort_by is not None:
-        if sort_by == "status":
+    order_by: OrderBy = []
+    for sort_key, descending in sort_keys:
+        columns: list[str] = []
+        if sort_key == "status":
             status_type_case = get_status_sort_case(project, "products.status")
-            order_by.insert(0, status_type_case)
+            columns.append(status_type_case)
 
-        elif sort_by == "path":
-            order_by = ["folder_ex.path", "products.name"]
+        elif sort_key == "path":
+            columns.extend(["folder_ex.path", "products.name"])
 
-        elif sort_by == "version":
+        elif sort_key == "version":
             # count by product version count
             sql_cte.append(
                 f"""
@@ -642,21 +699,25 @@ async def get_products(
                 ON pvc.product_id = products.id
                 """
             )
-            order_by.insert(0, "COALESCE(pvc.version_count, 0)")
+            columns.append("COALESCE(pvc.version_count, 0)")
 
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
+        elif sort_key.startswith("attrib."):
+            attr_name = sort_key[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.insert(0, attr_case)
+            columns.append(attr_case)
 
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_key in SORT_OPTIONS:
+            columns.append(SORT_OPTIONS[sort_key])
 
-        elif sort_by.startswith("task"):
+        elif sort_key.startswith("task"):
             pass  # this is not supported - not easily solvable
 
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise ValueError(f"Invalid sort_by value: {sort_key}")
+
+        order_by.extend(sort_columns(columns, descending))
+
+    order_by = with_tiebreakers(order_by, "products.creation_order")
 
     ordering = ""
     cursor = "''"

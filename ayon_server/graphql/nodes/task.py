@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.versions import get_versions
@@ -23,11 +22,6 @@ else:
     WorkfilesConnection = Annotated[
         "WorkfilesConnection", strawberry.lazy("..connections")
     ]
-
-
-@TaskEntity.strawberry_attrib()
-class TaskAttribType:
-    pass
 
 
 @strawberry.type
@@ -101,13 +95,9 @@ class TaskNode(BaseNode):
         )
 
     @strawberry.field
-    def attrib(self) -> TaskAttribType:
-        return TaskAttribType(**self.processed_attrib())
-
-    @strawberry.field
     def own_attrib(self) -> list[str]:
-        """Return a list of attributes that are defined on the task."""
-        return list(self._attrib.keys())
+        """Return a list of attributes that are set on the entity itself."""
+        return self.resolved_attrib().own
 
     @strawberry.field()
     def parents(self) -> list[str]:

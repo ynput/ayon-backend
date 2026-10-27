@@ -30,7 +30,7 @@ async def get_enum(
         str,
         Path(
             description="Name of the enum",
-            regex=r"^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$",
+            pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$",
         ),
     ],
     current_user: CurrentUser,

@@ -26,7 +26,7 @@ MemberName = Annotated[
     Path(
         alias="member_name",
         title="User Name",
-        regex=USER_NAME_REGEX,
+        pattern=USER_NAME_REGEX,
     ),
 ]
 
@@ -99,7 +99,7 @@ async def save_team(
     ]
 
     # Add new team
-    new_team_data = team.dict(exclude_unset=True)
+    new_team_data = team.model_dump(exclude_unset=True)
     new_team_data["name"] = team_name
     existing_teams.append(new_team_data)
 
@@ -148,7 +148,7 @@ async def save_team_member(
     ]
 
     # Add new member
-    new_member_data = member.dict(exclude_unset=True)
+    new_member_data = member.model_dump(exclude_unset=True)
     new_member_data["name"] = member_name
     existing_team["members"].append(new_member_data)
 
@@ -260,7 +260,7 @@ async def update_teams(
     ]
 
     for new_team in payload:
-        existing_teams.append(new_team.dict())
+        existing_teams.append(new_team.model_dump())
 
     project.data["teams"] = existing_teams
 

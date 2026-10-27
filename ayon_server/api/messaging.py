@@ -17,7 +17,7 @@ from ayon_server.events import EventStream, HandlerType
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils import create_background_task, json_dumps, json_loads
 
 ALWAYS_SUBSCRIBE = (
     "server.started",
@@ -56,7 +56,7 @@ async def handle_subscribers(message: dict[str, Any]) -> None:
     handlers = EventStream.global_hooks.get(topic, {}).values()
     if not handlers:
         return
-    asyncio.create_task(_handle_subscribers_task(event_id, list(handlers)))
+    create_background_task(_handle_subscribers_task(event_id, list(handlers)))
 
 
 class Client:

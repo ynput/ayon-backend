@@ -382,15 +382,18 @@ async def get_reviewables_for_version(
     if not user.is_guest:
         await version.ensure_read_access(user)
 
-    return (
-        await get_reviewables(
-            project_name,
-            version_id=version_id,
-            user=user,
-            latest=latest,
-            latest_done=latest_done,
-        )
-    )[0]
+    try:
+        return (
+            await get_reviewables(
+                project_name,
+                version_id=version_id,
+                user=user,
+                latest=latest,
+                latest_done=latest_done,
+            )
+        )[0]
+    except IndexError:
+        raise BadRequestException("No reviewables found for the specified version.")
 
 
 @router.get("/tasks/{task_id}/reviewables", dependencies=[AllowGuests])

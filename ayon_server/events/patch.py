@@ -90,19 +90,22 @@ def build_pl_entity_change_events(
 
     """
 
-    patch_data = patch.dict(exclude_unset=True)
+    patch_data = patch.model_dump(exclude_unset=True)
     entity_type = original_entity.entity_type
     parent_id = original_entity.parent_id
 
     result: list[EventData] = []
-    common_data = {
-        "project": original_entity.project_name,
-        "summary": {
-            "entityId": original_entity.id,
-            "parentId": parent_id,
-            "entityPath": original_entity.path,
-        },
-    }
+
+    def common_data() -> dict[str, Any]:
+        # a new summary for every event: some of them add their own "value" to it
+        return {
+            "project": original_entity.project_name,
+            "summary": {
+                "entityId": original_entity.id,
+                "parentId": parent_id,
+                "entityPath": original_entity.path,
+            },
+        }
 
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
@@ -113,7 +116,7 @@ def build_pl_entity_change_events(
                 {
                     "topic": f"entity.{entity_type}.renamed",
                     "description": description,
-                    **common_data,
+                    **common_data(),
                 }
             )
             result[-1]["summary"]["value"] = new_name
@@ -131,7 +134,7 @@ def build_pl_entity_change_events(
                 {
                     "topic": f"entity.{entity_type}.status_changed",
                     "description": description,
-                    **common_data,
+                    **common_data(),
                 }
             )
             result[-1]["summary"]["value"] = new_status
@@ -152,7 +155,7 @@ def build_pl_entity_change_events(
                     {
                         "topic": f"entity.{entity_type}.tags_changed",
                         "description": description,
-                        **common_data,
+                        **common_data(),
                     }
                 )
                 result[-1]["summary"]["value"] = new_tags
@@ -164,12 +167,12 @@ def build_pl_entity_change_events(
     if new_attributes := patch_data.get("attrib", {}):
         evt = {
             "topic": f"entity.{entity_type}.attrib_changed",
-            **common_data,
+            **common_data(),
         }
 
         old_attributes = {
             k: v
-            for k, v in original_entity.attrib.dict().items()
+            for k, v in original_entity.attrib.model_dump().items()
             if k in original_entity.own_attrib
         }
 
@@ -187,7 +190,7 @@ def build_pl_entity_change_events(
         }
 
         if calculated_attributes:
-            evt["payload"]["calculatedAttributes"] = list(calculated_attributes)  # type: ignore[index]
+            evt["payload"]["calculatedAttributes"] = list(calculated_attributes)
 
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())
@@ -230,7 +233,7 @@ def build_pl_entity_change_events(
             {
                 "topic": f"entity.{entity_type}.{topic_name}",
                 "description": description,
-                **common_data,
+                **common_data(),
             }
         )
 
@@ -258,7 +261,7 @@ def build_project_change_events(
     original_entity: ProjectEntity,
     patch: BaseModel,
 ) -> list[EventData]:
-    patch_data = patch.dict(exclude_unset=True)
+    patch_data = patch.model_dump(exclude_unset=True)
     result: list[EventData] = []
     common_data = {"project": original_entity.name}
     oval: Any
@@ -277,7 +280,7 @@ def build_project_change_events(
         # all the attributes
         oval = {}
         nval = {}
-        old_attributes = original_entity.attrib.dict()
+        old_attributes = original_entity.attrib.model_dump()
         for key, new_value in new_attributes.items():
             if old_attributes.get(key) == new_value:
                 continue
