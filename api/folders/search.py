@@ -2,7 +2,10 @@ from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.graphql.resolvers.common import build_search_conditions
+from ayon_server.graphql.resolvers.common import (
+    build_search_conditions,
+    get_task_attrib_expression,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
@@ -163,7 +166,9 @@ async def search_folders(
                 payload.task_filter,
                 table_prefix="tasks",
                 column_whitelist=TASK_ALLOWED_KEYS,
-                column_map={"attrib": "(ex.attrib || tasks.attrib)"},
+                column_map={
+                    "attrib": get_task_attrib_expression("ex.attrib", "tasks.attrib")
+                },
             ):
                 task_conditions.append(tcond)
 

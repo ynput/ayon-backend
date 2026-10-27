@@ -7,6 +7,7 @@ import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
@@ -430,6 +431,23 @@ def get_has_links_conds(
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
         ]
     raise ValueError("Wrong has_links value")
+
+
+def get_task_attrib_expression(folder_attrib: str, task_attrib: str) -> str:
+    """Task attributes merged with the inheritable parent folder attributes.
+
+    The exported attributes of a folder contain its own non-inheritable
+    values too. These must not leak to the tasks.
+    """
+    all_names = {
+        attr["name"] for attrs in attribute_library.data.values() for attr in attrs
+    }
+    excluded = sorted(all_names - attribute_library.inheritable)
+    folder_exp = f"coalesce({folder_attrib}, '{{}}'::jsonb)"
+    if excluded:
+        quoted = ", ".join("'" + n.replace("'", "''") + "'" for n in excluded)
+        folder_exp = f"({folder_exp} - ARRAY[{quoted}]::text[])"
+    return f"({folder_exp} || {task_attrib})"
 
 
 def build_search_conditions(

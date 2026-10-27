@@ -44,6 +44,7 @@ from .common import (
     ARGVisibility,
     EntityVisibility,
     build_search_conditions,
+    get_task_attrib_expression,
 )
 from .field_stats import (
     MetricTargetInput,
@@ -421,6 +422,8 @@ async def get_tasks(
                 if sql_acl_conds:
                     sql_conditions.append(f"({' OR '.join(sql_acl_conds)})")
 
+    task_attrib_exp = get_task_attrib_expression("f_ex.attrib", "tasks.attrib")
+
     if attributes:
         for attribute_input in attributes:
             if not attribute_library.is_valid("task", attribute_input.name):
@@ -428,7 +431,7 @@ async def get_tasks(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                (coalesce(f_ex.attrib, '{{}}'::jsonb ) || tasks.attrib)
+                {task_attrib_exp}
                 ->>'{attribute_input.name}' IN {SQLTool.array(values)}
                 """
             )
@@ -460,9 +463,7 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
-            column_map={
-                "attrib": "(coalesce(f_ex.attrib, '{}'::jsonb ) || tasks.attrib)"
-            },
+            column_map={"attrib": task_attrib_exp},
         ):
             sql_conditions.append(fcond)
 
@@ -541,8 +542,7 @@ async def get_tasks(
             columns.extend(["hierarchy.path", "tasks.name"])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
-            exp = "(f_ex.attrib || tasks.attrib)"
-            attr_case = await get_attrib_sort_case(attr_name, exp)
+            attr_case = await get_attrib_sort_case(attr_name, task_attrib_exp)
             columns.append(attr_case)
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_key}")
@@ -639,6 +639,9 @@ async def get_tasks(
         field_stats = await generate_field_stats(query)
 
         return TasksConnection(edges=[], field_stats=field_stats)
+
+    with open("/storage/server/projects/tasks.sql", "w") as f:
+        f.write(query)
 
     return await resolve(
         TasksConnection,

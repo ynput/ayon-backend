@@ -27,6 +27,7 @@ from .common import (
     argdesc,
     build_search_conditions,
     create_folder_access_list,
+    get_task_attrib_expression,
     resolve,
 )
 from .field_stats import (
@@ -464,7 +465,7 @@ async def get_entity_list_items(
     if entity_type == "folder":
         entity_attrib = "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
     elif entity_type == "task":
-        entity_attrib = "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
+        entity_attrib = get_task_attrib_expression("px.attrib", "e.attrib")
     else:
         entity_attrib = "e.attrib"
     # empty item values don't override the entity's ones
