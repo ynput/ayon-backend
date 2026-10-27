@@ -1,20 +1,19 @@
 """Data models for data import/export functionality."""
 
-import copy
 from collections.abc import Iterable
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import (
     Annotated,
     Any,
     Literal,
     Union,
-    cast,
     get_args,
     get_origin,
 )
 
-from pydantic import BaseModel
-from pydantic.fields import FieldInfo, ModelField
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.attributes.models import AttributeData
@@ -32,6 +31,7 @@ from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.field_info import get_field_extra
 from ayon_server.types import AttributeType, Field, OPModel, ProjectLevelEntityType
 
 from .common import (
@@ -118,12 +118,12 @@ class ImportableColumn(OPModel):
 
     default_value: Annotated[
         str | None, Field(description="If value in field is required")
-    ]
+    ] = None
 
     enum_items: Annotated[
         list[EnumItem] | None,
         Field(description=("A list of possible enum items for this column (if set)")),
-    ]
+    ] = None
 
     enum_name: Annotated[
         str | None,
@@ -159,11 +159,11 @@ class ColumnValueMapping(OPModel):
     source: Annotated[
         str | None,  # allow replacement of empty value with some default
         Field(description=("The source value from csv")),
-    ]
+    ] = None
     target: Annotated[
         str | None,
         Field(description=("The target value from csv")),
-    ]
+    ] = None
     action: Annotated[
         Literal["map", "skip", "create"],
         Field(description="Map, skip or create missing"),
@@ -311,6 +311,14 @@ class ImportUpload(OPModel):
     id: str
 
 
+@dataclass
+class EntityModelField:
+    """Named field of an entity model"""
+
+    name: str
+    field_info: FieldInfo
+
+
 class EntityExportImport:
     """Base model for exporting and importing entities.
 
@@ -371,36 +379,32 @@ class EntityExportImport:
         return None
 
     @classmethod
-    def main(cls) -> list[ModelField]:
+    def main(cls) -> list[EntityModelField]:
         """Return main fields from entity model"""
         if cls._entity_model is None:
             return []
 
         return [
-            value
-            for value in _get_model_fields(cls._entity_model.model.main_model).values()
-            if value.name not in ["attrib", "data", "own_attrib"]
-            and value.name not in cls._entity_model.model.dynamic_fields
+            EntityModelField(name, field_info)
+            for name, field_info in (
+                cls._entity_model.model.main_model.model_fields.items()
+            )
+            if name not in ["attrib", "data", "own_attrib"]
+            and name not in cls._entity_model.model.dynamic_fields
         ]
 
     @classmethod
-    def attrib(cls) -> list[ModelField]:
+    def attrib(cls) -> list[EntityModelField]:
         """Return attribute fields from entity model with 'attrib.' prefix."""
         if cls._entity_model is None:
             return []
 
-        result: list[ModelField] = []
-        for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
-            new_field = copy.copy(f)
-            if f.field_info:
-                new_field.field_info = copy.deepcopy(f.field_info)
-
-            new_field.alias = f"attrib.{f.name}"
-            if new_field.field_info:
-                new_field.field_info.alias = f"attrib.{f.name}"
-
-            result.append(new_field)
-        return result
+        return [
+            EntityModelField(f"attrib.{name}", field_info)
+            for name, field_info in (
+                cls._entity_model.model.attrib_model.model_fields.items()
+            )
+        ]
 
     @classmethod
     def data(cls) -> list[ImportableColumn]:
@@ -432,24 +436,18 @@ class EntityExportImport:
         all_fields = [field for source in sources for field in source]
         for field in all_fields:
             name: str | None = None  # because of MyPy
-            if isinstance(field, ModelField):
-                name = (
-                    field.alias
-                    if (field.alias and field.alias.startswith("attrib."))
-                    else field.name
-                )
+            if isinstance(field, EntityModelField):
+                name = field.name
                 field_info = field.field_info
-                annotation = field.annotation
-                required = field.required
-                default = field.default if not required else None
+                annotation = field_info.annotation
+                required = field_info.is_required()
+                default = None
+                if not required and field_info.default is not PydanticUndefined:
+                    default = field_info.default
             elif isinstance(field, FieldInfo):
                 # Handle FieldInfo directly (e.g., from _calculated_fields)
-                # Note: 'name' may be stored in extra dict in pydantic v2
-                name = getattr(field, "name", None)
-                if name is None:
-                    extra = getattr(field, "extra", {})
-                    if isinstance(extra, dict):
-                        name = extra.get("name")
+                # Note: 'name' may be stored in json_schema_extra
+                name = get_field_extra(field).get("name")
                 if name is None:
                     name = getattr(field, "title", None)
                 if not name:
@@ -458,8 +456,8 @@ class EntityExportImport:
                 name = str(name).lower()
                 field_info = field
                 annotation = getattr(field, "annotation", Any)
-                required = getattr(field, "required", False)
-                default = getattr(field, "default", None)
+                required = field.is_required()
+                default = None if required else field.default
             elif isinstance(field, tuple) and len(field) == 2:
                 name, field_info = field
                 annotation = getattr(field_info, "annotation", Any)
@@ -541,20 +539,17 @@ class EntityExportImport:
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all entities from the database.
 
         Args:
             field_names: List of field names to include. Supports prefixes like
                     'attrib.field' or 'data.field' to access nested values.
-            as_csv: If True, returns CSV-compatible rows with header
             project_name: Project name for table resolution
 
         Returns:
-            List of entity dictionaries or CSV rows (including header)
+            List of entity dictionaries
         """
         if field_names is None:
             fields = await cls.fields()
@@ -566,15 +561,6 @@ class EntityExportImport:
         table_name = cls._table_name
         if project_name and "{project_name}" in table_name:
             table_name = table_name.format(project_name=project_name)
-
-        where = ""
-        query_values = []
-        if entity_ids:
-            id_field = entity_ids[0]
-            id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
-            where = f"WHERE {id_field} IN ({placeholders})"
-            query_values = id_list
 
         select_field_names = "*"
         join_str = ""
@@ -595,29 +581,16 @@ class EntityExportImport:
             select_field_names = f"{table_name}.*, {full_path}"
 
         query = (
-            f"SELECT {select_field_names} "
-            f"FROM {table_name} "
-            f"{join_str} "
-            f"{where} ORDER BY name"
+            f"SELECT {select_field_names} FROM {table_name} {join_str} ORDER BY name"
         )
-        rows = await Postgres.fetch(query, *query_values)
+        rows = await Postgres.fetch(query)
 
-        return await cls._return_items(as_csv, field_names, rows)
+        return await cls._return_items(field_names, rows)
 
     @classmethod
-    async def _return_items(cls, as_csv, field_names, rows):
-        if as_csv:
-            # Create CSV rows with header
-            csv_rows = [field_names]  # Header row
-            for row in rows:
-                csv_row = []
-                for field_name in field_names:
-                    value = _get_field_value(row, field_name)
-                    csv_row.append(str(value) if value is not None else "")
-                csv_rows.append(csv_row)
-            return csv_rows
-
-        # Return dictionaries
+    async def _return_items(
+        cls, field_names: list[str], rows: list[Any]
+    ) -> list[dict[str, Any]]:
         items = []
         for row in rows:
             item = {}
@@ -849,10 +822,8 @@ class FolderTaskExportImportModel(EntityExportImport):
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all tasks with folder path information.
 
         Calls get_all_items from FolderExportImportModel and TaskExportImportModel
@@ -865,30 +836,12 @@ class FolderTaskExportImportModel(EntityExportImport):
                 field.key for field in fields if field.key not in IMPORT_ONLY_COLUMNS
             ]
 
-        # Get folders and tasks sequentially (as dictionaries, not CSV)
-        folder_items: list[dict[str, Any]] = cast(
-            "list[dict[str, Any]]",
-            await FolderExportImportModel.get_all_items(
-                field_names=field_names,
-                as_csv=False,
-                project_name=project_name,
-                entity_ids=entity_ids,
-            ),
+        # Get folders and tasks sequentially
+        folder_items = await FolderExportImportModel.get_all_items(
+            field_names=field_names, project_name=project_name
         )
-
-        # Determine task entity_ids if needed
-        task_entity_ids = None
-        if entity_ids:
-            task_entity_ids = entity_ids
-
-        task_items: list[dict[str, Any]] = cast(
-            "list[dict[str, Any]]",
-            await TaskExportImportModel.get_all_items(
-                field_names=field_names,
-                as_csv=False,
-                project_name=project_name,
-                entity_ids=task_entity_ids,
-            ),
+        task_items = await TaskExportImportModel.get_all_items(
+            field_names=field_names, project_name=project_name
         )
 
         # Add entity_type to each item
@@ -904,17 +857,6 @@ class FolderTaskExportImportModel(EntityExportImport):
             )
         else:
             result_items = await cls._build_hierarchy_by_ids(folder_items, task_items)
-
-        if as_csv:
-            # Create CSV rows with header
-            csv_rows = [field_names]
-            for item in result_items:
-                csv_row = []
-                for field in field_names:
-                    value = item.get(field)
-                    csv_row.append(str(value) if value is not None else "")
-                csv_rows.append(csv_row)
-            return csv_rows
 
         return result_items
 
@@ -1186,20 +1128,17 @@ class EntityListExportImportModel(EntityExportImport):
     async def get_all_items(
         cls,
         field_names: list[str] | None,
-        as_csv: bool = False,
         project_name: str | None = None,
-        entity_ids: tuple[str, list[str]] | None = None,
-    ) -> list[dict[str, Any]] | list[list[str]]:
+    ) -> list[dict[str, Any]]:
         """Get all entities from the database.
 
         Args:
             field_names: List of field names to include. Supports prefixes like
                     'attrib.field' or 'data.field' to access nested values.
-            as_csv: If True, returns CSV-compatible rows with header
             project_name: Project name for table resolution
 
         Returns:
-            List of entity dictionaries or CSV rows (including header)
+            List of entity dictionaries
         """
         if field_names is None:
             fields = await cls.fields(project_name=project_name)
@@ -1209,12 +1148,6 @@ class EntityListExportImportModel(EntityExportImport):
                 if field.key not in IMPORT_ONLY_COLUMNS | {"name"}
             ]
 
-        where = ""
-        if entity_ids:
-            id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
-            where = f"WHERE  li.entity_list_id IN ({placeholders})"
-
         query = (
             "SELECT li.entity_id, li.entity_list_id, li.attrib, "
             "CASE "
@@ -1223,12 +1156,11 @@ class EntityListExportImportModel(EntityExportImport):
             "END AS folder_path "
             f"FROM project_{project_name}.entity_list_items li "
             f"LEFT JOIN project_{project_name}.tasks t "
-            "ON li.entity_id = t.id "
-            f"{where}"
+            "ON li.entity_id = t.id"
         )
-        rows = await Postgres.fetch(query, *(entity_ids[1] if entity_ids else []))
+        rows = await Postgres.fetch(query)
 
-        return await cls._return_items(as_csv, field_names, rows)
+        return await cls._return_items(field_names, rows)
 
 
 # list entity types whose entities have a name to match rows by
@@ -1392,17 +1324,6 @@ def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
         )
     else:
         return row.get(field_name)
-
-
-def _get_model_fields(model: type[BaseModel]) -> dict[str, Any]:
-    """Get fields from a Pydantic model, compatible with both v1 and v2.
-
-    Pydantic v2 uses 'model_fields' while v1 uses '__fields__'.
-    This helper provides compatibility with both versions.
-    """
-    if hasattr(model, "model_fields"):
-        return model.model_fields
-    return model.__fields__
 
 
 def _get_attr_type_from_annotation(annotation: Any) -> str:

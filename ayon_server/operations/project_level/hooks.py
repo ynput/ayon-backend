@@ -49,6 +49,10 @@ class OperationHooks:
 
     In both cases, hook should not modify the entity, but the operation data
     (operation.data) or raise exceptions to prevent the operation.
+
+    Attributes returned in HookResult.calculated_attributes are writable for
+    this update even when the user's attribute-write whitelist excludes them.
+    Only return attributes calculated by the hook.
     """
 
     _hooks: dict[str, HookType] = {}

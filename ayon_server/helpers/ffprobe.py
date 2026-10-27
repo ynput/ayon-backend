@@ -102,7 +102,7 @@ def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailab
 
     # video files
 
-    if codec not in ["h264", "vp9"]:
+    if codec not in ["h264", "vp9", "av1"]:
         return "conversionRequired"
 
     if major_brand not in ["mp42", "isom"]:

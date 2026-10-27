@@ -1067,7 +1067,7 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
         Tuple of (header_fields, list of row dictionaries)
     """
     try:
-        content = file_bytes.decode("utf-8")
+        content = file_bytes.decode("utf-8-sig")
     except UnicodeDecodeError:
         content = file_bytes.decode("latin-1")
 
@@ -1526,10 +1526,8 @@ async def _get_existing_identifiers(
     """
     existing_items = await model.get_all_items(
         field_names=model.unique_fields(),
-        as_csv=False,
         project_name=project_name,
     )
-    existing_items = cast("list[dict[str, Any]]", existing_items)
     existing_identifiers = {
         tuple(item[field] for field in model.unique_fields()) for item in existing_items
     }

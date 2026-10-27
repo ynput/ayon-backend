@@ -12,6 +12,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
+from ayon_server.entities.models.user import UserModel, UserPatchModel, UserPostModel
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
@@ -40,7 +41,7 @@ from .router import router
 )
 async def get_current_user(
     user: CurrentUser,
-) -> UserEntity.model.main_model:  # type: ignore
+) -> UserModel:
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -51,8 +52,9 @@ async def get_current_user(
     """
 
     payload = user.payload
-    payload.ui_exposure_level = await user.get_ui_exposure_level()  # type: ignore
-    payload.data.pop("supportToken", None)  # type: ignore
+    payload.ui_exposure_level = await user.get_ui_exposure_level()
+    if payload.data:
+        payload.data.pop("supportToken", None)
     return payload
 
 
@@ -64,7 +66,7 @@ async def get_current_user(
 @router.get("/{user_name}", response_model_exclude_none=True)
 async def get_user(
     user: CurrentUser, user_name: UserName
-) -> UserEntity.model.main_model | dict[str, str]:  # type: ignore
+) -> UserModel | dict[str, Any]:
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -88,7 +90,7 @@ async def get_user(
     }
 
 
-class NewUserModel(UserEntity.model.post_model):  # type: ignore
+class NewUserModel(UserPostModel):
     password: str | None = Field(None, description="Password for the new user")
     api_key: str | None = Field(None, description="API Key for the new service user")
 
@@ -137,7 +139,7 @@ async def create_user(
     try:
         nuser = await UserEntity.load(user_name)
     except NotFoundException:
-        nuser = UserEntity(put_data.dict() | {"name": user_name})
+        nuser = UserEntity(put_data.model_dump() | {"name": user_name})
         nuser.created_by = user.name
     else:
         raise ConflictException("User already exists")
@@ -193,10 +195,12 @@ async def delete_user(
 
 @router.patch("/{user_name}")
 async def patch_user(
-    payload: UserEntity.model.patch_model,  # type: ignore
+    payload: UserPatchModel,
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
+    if payload.data is None:
+        payload.data = {}
     payload.data["updatedBy"] = user.name
     target_user = await UserEntity.load(user_name)
 
@@ -232,7 +236,7 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
-    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    attrib_dict = payload.attrib.model_dump(exclude_unset=True)
     avatar_changed = False
     if (
         "avatarUrl" in attrib_dict
@@ -280,7 +284,7 @@ async def change_password(
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
-    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_dict = patch_data.model_dump(exclude_unset=True)
 
     if "password" in patch_data_dict:
         if (user_name != user.name) and not (user.is_manager):

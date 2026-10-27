@@ -27,6 +27,7 @@ async def entity_lists_by_entity_loader(
     query = f"""
         SELECT
             items.entity_id,
+            items.item_ids,
             lists.id,
             lists.label,
             lists.entity_list_type,
@@ -36,9 +37,13 @@ async def entity_lists_by_entity_loader(
             lists.access
         FROM project_{project_name}.entity_lists AS lists
         JOIN (
-            SELECT DISTINCT entity_list_id, entity_id
+            SELECT
+                entity_list_id,
+                entity_id,
+                array_agg(id ORDER BY position) AS item_ids
             FROM project_{project_name}.entity_list_items
             WHERE entity_id IN {SQLTool.id_array([k[1] for k in keys])}
+            GROUP BY entity_list_id, entity_id
         ) AS items
         ON items.entity_list_id = lists.id
         ORDER BY lists.label, lists.creation_order
@@ -142,6 +147,7 @@ async def get_entity_lists_info(
                 entity_list_type=record["entity_list_type"],
                 entity_type=record["entity_type"],
                 active=record["active"],
+                item_ids=[str(item_id) for item_id in record["item_ids"]],
             )
         )
     return result
