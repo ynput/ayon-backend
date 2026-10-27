@@ -640,9 +640,6 @@ async def get_tasks(
 
         return TasksConnection(edges=[], field_stats=field_stats)
 
-    with open("/storage/server/projects/tasks.sql", "w") as f:
-        f.write(query)
-
     return await resolve(
         TasksConnection,
         TaskEdge,
