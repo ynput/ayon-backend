@@ -16,6 +16,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.sqlfilter import QueryCondition, QueryFilter
 
 DOC_ID = "0123456789abcdef0123456789abcdef"
 KIND = "io.ynput.reports.chart"
@@ -252,4 +253,66 @@ def test_list_by_empty_ids(db):
 def test_list_rejects_invalid_ids(db):
     with pytest.raises(ValueError, match="Invalid entity ID"):
         asyncio.run(_collect(ids=[DOC_ID, "invalid"]))
+    assert db.calls == []
+
+
+@pytest.mark.parametrize("project_name", ["proj", None])
+def test_list_query_filter(db, project_name):
+    query_filter = QueryFilter(
+        conditions=[
+            QueryCondition(key="payload/settings/count", operator="gte", value=3),
+            QueryFilter(
+                operator="or",
+                conditions=[
+                    QueryCondition(key="label", operator="like", value="chart"),
+                    QueryCondition(key="data.icon", value="O'Reilly"),
+                ],
+            ),
+            QueryCondition(key="access.private", value=True),
+        ]
+    )
+    db.rows = [_row()]
+
+    async def collect():
+        return [
+            row
+            async for row in Documents.list(
+                project_name,
+                kind=KIND,
+                ids=[DOC_ID],
+                data={"icon": "x"},
+                payload={"a": 1},
+                filter=query_filter,
+                with_payload=False,
+            )
+        ]
+
+    assert len(asyncio.run(collect())) == 1
+    query, args = db.calls[0]
+    table = "project_proj.documents" if project_name else "public.documents"
+    assert table in query
+    assert (
+        "kind = $1 AND id = ANY($2::uuid[]) "
+        "AND data @> $3::JSONB AND payload @> $4::JSONB AND ("
+    ) in query
+    assert "payload->'settings'->'count' >= '3'::jsonb" in query
+    assert "((label) ILIKE '%chart%' OR data->'icon' = '\"O''Reilly\"'::jsonb)" in query
+    assert "coalesce(access->'private', 'false'::jsonb)::boolean" in query
+    assert "payload" not in query.split("FROM")[0]
+    assert args == (KIND, [DOC_ID], {"icon": "x"}, {"a": 1})
+
+
+def test_list_empty_query_filter(db):
+    asyncio.run(_collect(filter=QueryFilter()))
+    assert "WHERE" not in db.calls[0][0]
+    assert db.calls[0][1] == ()
+
+
+@pytest.mark.parametrize(
+    "key", ["unknown", "unknown.key", "payload.bad-key", "label.key"]
+)
+def test_list_rejects_invalid_query_filter(db, key):
+    query_filter = QueryFilter(conditions=[QueryCondition(key=key, value="x")])
+    with pytest.raises(ValueError):
+        asyncio.run(_collect(filter=query_filter))
     assert db.calls == []

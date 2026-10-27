@@ -23,6 +23,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, dict_patch
 
@@ -197,6 +198,7 @@ class Documents:
         data: dict[str, Any] | None = None,
         payload: dict[str, Any] | None = None,
         with_payload: bool = True,
+        filter: QueryFilter | None = None,
     ) -> AsyncGenerator[DocumentRecord]:
         """Yield documents, oldest first.
 
@@ -204,6 +206,9 @@ class Documents:
         documents whose `data` / `payload` contain all the given key-value pairs
         are returned.
         An empty `ids` list matches no documents; None does not filter by ID.
+        `filter` supports QueryFilter conditions on document fields, including
+        nested `data`, `payload` and `access` keys. It is ANDed with the other
+        filters. Invalid filter fields or paths raise ValueError.
         Use `with_payload=False` to skip the (possibly large) payload.
         """
         conditions = []
@@ -220,6 +225,12 @@ class Documents:
         if payload:
             args.append(payload)
             conditions.append(f"payload @> ${len(args)}::JSONB")
+        if condition := build_filter(
+            filter,
+            column_whitelist=list(DocumentRecord.model_fields),
+            json_fields=["data", "payload", "access"],
+        ):
+            conditions.append(condition)
 
         cols = [
             "id",
