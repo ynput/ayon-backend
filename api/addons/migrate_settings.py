@@ -1,12 +1,14 @@
-import asyncio
 from typing import Any
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, ForbiddenException
-from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
+from ayon_server.helpers.migrate_addon_settings import (
+    dispatch_settings_events,
+    migrate_addon_settings,
+)
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import create_background_task
 
 from .router import router
 
@@ -25,12 +27,6 @@ class MigrateAddonSettingsResponseModel(OPModel):
     events: list[dict[str, Any]] = Field(
         ..., title="Events created during the migration"
     )
-
-
-async def _dispatch_events(events: list[dict[str, Any]], user_name: str | None) -> None:
-    for event in events:
-        event["user"] = user_name
-        await EventStream.dispatch("settings.changed", **event)
 
 
 @router.post("/{addon_name}/migrate")
@@ -59,6 +55,6 @@ async def migrate_addon_settings_endpoint(
     )
 
     if events:
-        asyncio.create_task(_dispatch_events(events, user.name))
+        create_background_task(dispatch_settings_events(events, user.name))
 
     return MigrateAddonSettingsResponseModel(events=events)

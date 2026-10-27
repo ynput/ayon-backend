@@ -3,9 +3,11 @@ __all__ = ["migrate_settings"]
 from typing import Any
 
 from ayon_server.addons.library import AddonLibrary
-from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
-from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
+from ayon_server.helpers.migrate_addon_settings import (
+    dispatch_settings_events,
+    migrate_addon_settings,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_background_task
@@ -46,15 +48,6 @@ async def _get_bundles_addons(
         raise NotFoundException(f"Target bundle {target_bundle} has no addons")
 
     return source_addons, target_addons
-
-
-async def dispatch_settings_events(
-    events: list[dict[str, Any]],
-    user_name: str | None,
-) -> None:
-    for event in events:
-        event["user"] = user_name
-        await EventStream.dispatch("settings.changed", **event)
 
 
 async def migrate_settings(
@@ -144,7 +137,7 @@ async def migrate_server_addon_settings(
     """Migrate production settings of a server addon to a new version.
 
     Returns settings.changed events, which the caller should dispatch
-    using dispatch_settings_events (after the commit, if in a transaction)
+    using dispatch_settings_events.
     """
     try:
         source_addon = AddonLibrary.addon(addon_name, source_version)

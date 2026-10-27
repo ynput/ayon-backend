@@ -13,22 +13,19 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.migrate_addon_settings import dispatch_settings_events
 from ayon_server.installer.common import (
     list_dependency_packages,
     list_installer_versions,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel, Platform
 from ayon_server.utils import RequestCoalescer
 
 from .actions import copy_staging_settings
 from .check_bundle import CheckBundleResponseModel, check_bundle
-from .migration import (
-    dispatch_settings_events,
-    migrate_server_addon_settings,
-    migrate_settings,
-)
+from .migration import migrate_server_addon_settings, migrate_settings
 from .models import BundleDataModel, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -100,6 +97,18 @@ async def list_bundles(
 ) -> ListBundleModel:
     coalesce = RequestCoalescer()
     return await coalesce(_list_bundles, archived)
+
+
+async def _post_commit(message: str, coro: Awaitable[Any]) -> None:
+    """Await a post-commit step, logging its failure instead of raising.
+
+    The change is already committed at this point, so failing the request
+    (or skipping the remaining steps) would only hide it from other replicas.
+    """
+    try:
+        await coro
+    except Exception:
+        log_traceback(message)
 
 
 #
@@ -174,17 +183,26 @@ async def _create_new_bundle(
         stat = " development"
 
     async def finalize() -> None:
-        await EventStream.dispatch(
-            "bundle.created",
-            user=user.name if user else None,
-            description=f"New{stat} bundle '{bundle.name}' created",
-            summary={
-                "name": bundle.name,
-                "isProduction": bundle.is_production,
-                "isStaging": bundle.is_staging,
-                "isDev": bundle.is_dev,
-            },
-            payload=data,
+        if bundle.is_production or bundle.is_staging:
+            await _post_commit(
+                "Unable to clear addon list cache",
+                AddonLibrary.clear_addon_list_cache(),
+            )
+
+        await _post_commit(
+            "Unable to dispatch bundle.created event",
+            EventStream.dispatch(
+                "bundle.created",
+                user=user.name if user else None,
+                description=f"New{stat} bundle '{bundle.name}' created",
+                summary={
+                    "name": bundle.name,
+                    "isProduction": bundle.is_production,
+                    "isStaging": bundle.is_staging,
+                    "isDev": bundle.is_dev,
+                },
+                payload=data,
+            ),
         )
 
     return finalize
@@ -239,8 +257,6 @@ async def create_new_bundle(
 
     async with Postgres.transaction():
         finalize = await _create_new_bundle(bundle, user=user)
-    if bundle.is_production or bundle.is_staging:
-        await AddonLibrary.clear_addon_list_cache()
     await finalize()
 
     return EmptyResponse(status_code=201)
@@ -510,40 +526,57 @@ async def _update_bundle(
             bundle_name,
         )
 
+    async def finalize() -> None:
+        # Server addon settings migration walks all project schemas,
+        # so it runs after the commit to avoid holding the bundle locks.
         settings_events: list[dict[str, Any]] = []
         if bundle.is_production:
             for addon_name, previous_version, new_version in server_bundle_migrations:
                 if not (previous_version and new_version):
                     continue
-                settings_events += await migrate_server_addon_settings(
-                    addon_name,
-                    previous_version,
-                    new_version,
-                )
+                try:
+                    settings_events += await migrate_server_addon_settings(
+                        addon_name,
+                        previous_version,
+                        new_version,
+                    )
+                except Exception:
+                    log_traceback(
+                        f"Unable to migrate {addon_name} settings "
+                        f"from {previous_version} to {new_version}"
+                    )
 
-    async def finalize() -> None:
         if (
             patch.is_production is not None
             or patch.is_staging is not None
             or bundle.addons != original_addons
         ):
-            await addon_library.clear_addon_list_cache()
+            await _post_commit(
+                "Unable to clear addon list cache",
+                addon_library.clear_addon_list_cache(),
+            )
 
-        await EventStream.dispatch(
-            "bundle.updated",
-            description=patch.get_changes_description(bundle_name),
-            summary={
-                "name": bundle_name,
-                "changedFields": patch.get_changed_fields(),
-                "isProduction": bundle.is_production,
-                "isStaging": bundle.is_staging,
-                "isArchived": bundle.is_archived,
-                "isDev": bundle.is_dev,
-                "isProject": bundle.is_project,
-            },
-            payload=data,
+        await _post_commit(
+            "Unable to dispatch bundle.updated event",
+            EventStream.dispatch(
+                "bundle.updated",
+                description=patch.get_changes_description(bundle_name),
+                summary={
+                    "name": bundle_name,
+                    "changedFields": patch.get_changed_fields(),
+                    "isProduction": bundle.is_production,
+                    "isStaging": bundle.is_staging,
+                    "isArchived": bundle.is_archived,
+                    "isDev": bundle.is_dev,
+                    "isProject": bundle.is_project,
+                },
+                payload=data,
+            ),
         )
-        await dispatch_settings_events(settings_events, user.name)
+        await _post_commit(
+            "Unable to dispatch settings.changed events",
+            dispatch_settings_events(settings_events, user.name),
+        )
 
     return finalize
 
@@ -589,7 +622,7 @@ async def delete_bundle(bundle_name: str):
     if row is None:
         return
 
-    if row["is_production"] or row["is_staging"]:
+    if row["is_production"] or row["is_staging"] or row["is_dev"]:
         await AddonLibrary.clear_addon_list_cache()
 
     await EventStream.dispatch(
