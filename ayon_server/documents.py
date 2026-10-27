@@ -24,7 +24,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
-from ayon_server.utils import EntityID
+from ayon_server.utils import EntityID, dict_patch
 
 # Namespaced identifier, e.g. "io.ynput.reports.chart"
 DOCUMENT_KIND_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]{0,126}[a-zA-Z0-9_])?$"
@@ -139,32 +139,39 @@ class Documents:
         """Selectively patch a document.
 
         `label` is replaced. Keys of `data`, `payload` and `access`
-        are shallow-merged into the existing values.
+        are shallow-merged into the existing values; keys set to None are removed.
         Omitted (None) arguments are left untouched.
         """
         document_id = EntityID.parse(document_id)
-        res = await Postgres.fetchrow(
-            f"""
-            UPDATE {_table(project_name)}
-            SET
-                label = COALESCE($2, label),
-                data = data || COALESCE($3::JSONB, '{{}}'::JSONB),
-                payload = payload || COALESCE($4::JSONB, '{{}}'::JSONB),
-                access = access || COALESCE($5::JSONB, '{{}}'::JSONB),
-                updated_at = NOW(),
-                updated_by = $6
-            WHERE id = $1
-            RETURNING id
-            """,
-            document_id,
-            label,
-            data,
-            payload,
-            access,
-            _get_user_name(),
-        )
-        if res is None:
-            raise NotFoundException(f"Document {document_id} not found")
+        async with Postgres.transaction():
+            res = await Postgres.fetchrow(
+                f"""
+                SELECT data, payload, access FROM {_table(project_name)}
+                WHERE id = $1 FOR UPDATE
+                """,
+                document_id,
+            )
+            if res is None:
+                raise NotFoundException(f"Document {document_id} not found")
+            await Postgres.execute(
+                f"""
+                UPDATE {_table(project_name)}
+                SET
+                    label = COALESCE($2, label),
+                    data = $3,
+                    payload = $4,
+                    access = $5,
+                    updated_at = NOW(),
+                    updated_by = $6
+                WHERE id = $1
+                """,
+                document_id,
+                label,
+                dict_patch(res["data"], data or {}),
+                dict_patch(res["payload"], payload or {}),
+                dict_patch(res["access"], access or {}),
+                _get_user_name(),
+            )
 
     @classmethod
     async def delete(cls, project_name: str | None, document_id: str) -> None:

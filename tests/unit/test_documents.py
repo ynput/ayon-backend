@@ -1,6 +1,7 @@
 """Unit tests of the Documents helper with a mocked database."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
@@ -52,8 +53,17 @@ def db(monkeypatch):
         for row in state.rows:
             yield row
 
+    async def execute(query: str, *args: Any, **kwargs: Any):
+        state.calls.append((query, args))
+
+    @asynccontextmanager
+    async def transaction():
+        yield
+
     monkeypatch.setattr(Postgres, "fetchrow", fetchrow)
     monkeypatch.setattr(Postgres, "iterate", iterate)
+    monkeypatch.setattr(Postgres, "execute", execute)
+    monkeypatch.setattr(Postgres, "transaction", transaction)
     user = SimpleNamespace(name="alice")
     monkeypatch.setattr(
         documents_module,
@@ -111,15 +121,54 @@ def test_get_not_found(db):
 
 
 def test_update_passes_only_given_values(db):
-    db.result = {"id": DOC_ID}
+    db.result = _row(data={"icon": "chart"}, access={"private": True})
     asyncio.run(Documents.update("proj", DOC_ID, payload={"a": 1}))
-    _, args = db.calls[0]
-    assert args == (DOC_ID, None, None, {"a": 1}, None, "alice")
+    assert "FOR UPDATE" in db.calls[0][0]
+    _, args = db.calls[1]
+    assert args == (
+        DOC_ID,
+        None,
+        {"icon": "chart"},
+        {"a": 1},
+        {"private": True},
+        "alice",
+    )
+
+
+@pytest.mark.parametrize("project_name", ["proj", None])
+def test_update_removes_null_keys(db, project_name):
+    db.result = _row(
+        data={"icon": "chart", "color": "red"},
+        payload={"keep": 1, "remove": 2, "nested": {"old": True}},
+        access={"users": ["alice"], "private": True},
+    )
+    asyncio.run(
+        Documents.update(
+            project_name,
+            DOC_ID,
+            data={"color": None, "missing": None, "count": 0},
+            payload={"remove": None, "nested": {"new": None}},
+            access={"users": None, "private": False},
+        )
+    )
+    query, args = db.calls[1]
+    table = "project_proj.documents" if project_name else "public.documents"
+    assert table in query
+    assert args == (
+        DOC_ID,
+        None,
+        {"icon": "chart", "count": 0},
+        {"keep": 1, "nested": {"new": None}},
+        {"private": False},
+        "alice",
+    )
+    assert db.result["data"] == {"icon": "chart", "color": "red"}
 
 
 def test_update_not_found(db):
     with pytest.raises(NotFoundException):
         asyncio.run(Documents.update("proj", DOC_ID, label="x"))
+    assert len(db.calls) == 1
 
 
 def test_delete(db):
