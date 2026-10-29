@@ -13,6 +13,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGLast,
     argdesc,
+    create_folder_access_list,
     resolve,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
@@ -268,6 +269,46 @@ async def get_activities(
             # user has no access to any categories,
             # so can see only activities without category
             sql_conditions.append("activity_data->>'category' IS NULL")
+
+        access_list = await create_folder_access_list(root, info)
+        if access_list is not None:
+            origin_id = "(activity_data->'origin'->>'id')::UUID"
+            sql_joins.append(
+                f"""
+                LEFT JOIN project_{project_name}.hierarchy AS origin_folder
+                ON origin_folder.id = CASE activity_data->'origin'->>'type'
+                    WHEN 'folder' THEN {origin_id}
+                    WHEN 'task' THEN (
+                        SELECT t.folder_id FROM project_{project_name}.tasks t
+                        WHERE t.id = {origin_id}
+                    )
+                    WHEN 'product' THEN (
+                        SELECT p.folder_id FROM project_{project_name}.products p
+                        WHERE p.id = {origin_id}
+                    )
+                    WHEN 'version' THEN (
+                        SELECT p.folder_id FROM project_{project_name}.versions v
+                        JOIN project_{project_name}.products p ON p.id = v.product_id
+                        WHERE v.id = {origin_id}
+                    )
+                    WHEN 'representation' THEN (
+                        SELECT p.folder_id
+                        FROM project_{project_name}.representations r
+                        JOIN project_{project_name}.versions v ON v.id = r.version_id
+                        JOIN project_{project_name}.products p ON p.id = v.product_id
+                        WHERE r.id = {origin_id}
+                    )
+                    WHEN 'workfile' THEN (
+                        SELECT t.folder_id FROM project_{project_name}.workfiles w
+                        JOIN project_{project_name}.tasks t ON t.id = w.task_id
+                        WHERE w.id = {origin_id}
+                    )
+                END
+                """
+            )
+            sql_conditions.append(
+                f"origin_folder.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
 
     if categories:
         cat_conds = []
