@@ -6,8 +6,6 @@ from typing import Any, Literal, TypedDict, overload
 
 from pydantic import Field
 
-from ayon_server.exceptions import BadRequestException
-
 from .hashing import create_uuid
 
 
@@ -69,7 +67,7 @@ class EntityID:
             _entity_id = entity_id.replace("-", "").lower()
             if _ENTITY_ID_PATTERN.fullmatch(_entity_id):
                 return _entity_id
-        raise BadRequestException(f"Invalid entity ID {entity_id}")
+        raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod
     def field(cls, name: str = "entity") -> Any:
