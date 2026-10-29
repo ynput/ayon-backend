@@ -356,6 +356,10 @@ class ProjectEntity(TopLevelEntity[ProjectModel]):
         """Post-update commit."""
         await Redis.delete("project-anatomy", self.name)
         await Redis.delete("project-data", self.name)
+        # The folder list cache holds the inherited attributes, which may
+        # have changed. Dropped after the commit, so it is not rebuilt
+        # from the uncommitted data. It is rebuilt on the next request.
+        await Redis.delete("project-folders", self.name)
         await self.refresh_views()
 
     async def save(self, *args, **kwargs) -> bool:
