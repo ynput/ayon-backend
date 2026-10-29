@@ -22,6 +22,7 @@ from ayon_server.exceptions import (
     ConflictException,
     NotFoundException,
 )
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
@@ -85,6 +86,8 @@ class Documents:
             EntityID.create() if document_id is None else EntityID.parse(document_id)
         )
         user_name = _get_user_name()
+        if project_name is not None:
+            project_name = await normalize_project_name(project_name)
 
         res = await Postgres.fetchrow(
             f"""
@@ -118,6 +121,9 @@ class Documents:
     async def get(cls, project_name: str | None, document_id: str) -> DocumentRecord:
         """Return the document record."""
         document_id = EntityID.parse(document_id)
+        if project_name is not None:
+            project_name = await normalize_project_name(project_name)
+
         res = await Postgres.fetchrow(
             f"SELECT * FROM {_table(project_name)} WHERE id = $1",
             document_id,
@@ -144,6 +150,8 @@ class Documents:
         Omitted (None) arguments are left untouched.
         """
         document_id = EntityID.parse(document_id)
+        if project_name is not None:
+            project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
             res = await Postgres.fetchrow(
                 f"""
@@ -178,6 +186,8 @@ class Documents:
     async def delete(cls, project_name: str | None, document_id: str) -> None:
         """Remove the document."""
         document_id = EntityID.parse(document_id)
+        if project_name is not None:
+            project_name = await normalize_project_name(project_name)
         res = await Postgres.fetchrow(
             f"""
             DELETE FROM {_table(project_name)} WHERE id = $1
@@ -245,6 +255,9 @@ class Documents:
         ]
         if with_payload:
             cols.append("payload")
+
+        if project_name is not None:
+            project_name = await normalize_project_name(project_name)
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"""
