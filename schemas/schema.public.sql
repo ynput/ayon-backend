@@ -314,6 +314,24 @@ CREATE TABLE IF NOT EXISTS public.user_stats(
     users JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-- Studio-scoped documents (project-scoped ones live in project schemas)
+CREATE TABLE IF NOT EXISTS public.documents(
+    id UUID NOT NULL PRIMARY KEY,
+    kind VARCHAR NOT NULL,
+    label VARCHAR NOT NULL DEFAULT '',
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    access JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS document_kind_idx ON public.documents(kind);
+CREATE INDEX IF NOT EXISTS document_created_by_idx ON public.documents(created_by);
+CREATE INDEX IF NOT EXISTS document_updated_at_idx ON public.documents(updated_at);
+
 
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
