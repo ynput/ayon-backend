@@ -162,6 +162,7 @@ async def search_folders(
             if tcond := build_filter(
                 payload.task_filter,
                 table_prefix="tasks",
+                project_name=project_name,
                 column_whitelist=TASK_ALLOWED_KEYS,
                 column_map={"attrib": "(ex.attrib || tasks.attrib)"},
             ):
@@ -202,6 +203,7 @@ async def search_folders(
             payload.folder_filter,
             column_whitelist=FOLDER_ALLOWED_FIELDS,
             table_prefix="folders",
+            project_name=project_name,
             column_map={
                 "attrib": "e.attrib",
                 "path": "e.path",
