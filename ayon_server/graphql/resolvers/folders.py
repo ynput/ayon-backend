@@ -36,6 +36,7 @@ from .common import (
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
+    get_task_attrib_expression,
     resolve,
     sortdesc,
 )
@@ -588,7 +589,7 @@ async def get_folders(
                 column_whitelist=column_whitelist,
                 table_prefix="tasks",
                 column_map={
-                    "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
+                    "attrib": get_task_attrib_expression("ex.attrib", "tasks.attrib")
                 },
             ):
                 task_conditions.append(tfilter)
