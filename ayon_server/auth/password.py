@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from fastapi import Request
@@ -5,8 +6,9 @@ from fastapi import Request
 from ayon_server.auth.session import Session, SessionModel
 from ayon_server.auth.utils import (
     create_password,
-    hash_password,
+    needs_rehash,
     validate_password,
+    verify_password,
 )
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
@@ -100,12 +102,24 @@ class PasswordAuth:
         if user.data.get("disablePasswordLogin", False):
             raise ForbiddenException("Password login is disabled")
 
-        pass_hash, pass_salt = user.data["password"].split(":")
-
-        if pass_hash != hash_password(password, pass_salt):
+        stored = user.data["password"]
+        # scrypt takes tens of ms, keep it off the event loop
+        if not await asyncio.to_thread(verify_password, password, stored):
             if request is not None:
                 await set_failed_login(get_real_ip_from_request(request))
             raise ForbiddenException("Invalid login/password combination")
+
+        if needs_rehash(stored):
+            user.data["password"] = await asyncio.to_thread(create_password, password)
+            await Postgres.execute(
+                """
+                UPDATE public.users
+                SET data = jsonb_set(data, '{password}', to_jsonb($1::text))
+                WHERE name = $2
+                """,
+                user.data["password"],
+                user.name,
+            )
 
         if request is not None:
             await clear_failed_login(get_real_ip_from_request(request))
