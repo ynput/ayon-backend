@@ -92,6 +92,14 @@ class YnputCloudInfoModel(OPModel):
         ),
     ] = False
 
+    server_url: Annotated[
+        str | None,
+        Field(
+            description="Public URL of the instance known to Ynput Cloud",
+            example="https://ayon.example.com",
+        ),
+    ] = None
+
     offline_mode: Annotated[
         bool,
         Field(

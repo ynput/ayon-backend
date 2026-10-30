@@ -13,6 +13,7 @@ from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities.models.user import UserModel
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.email import is_mailing_enabled
+from ayon_server.helpers.server_url import remember_server_url
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -319,6 +320,7 @@ async def get_site_info(
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
+            await remember_server_url(request)
 
     if full:
         customization = server_config.customization
