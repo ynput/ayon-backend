@@ -9,8 +9,12 @@ from ayon_server.api.dependencies import (
     ProjectName,
 )
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.entity_lists.duplicate_entity_list import (
+    duplicate_entity_list as create_entity_list_copy,
+)
 from ayon_server.entity_lists.entity_list import EntityList
 from ayon_server.entity_lists.models import (
+    EntityListDuplicatePostModel,
     EntityListModel,
     EntityListPatchModel,
     EntityListPostModel,
@@ -171,6 +175,42 @@ async def get_entity_list(
 
     payload.data.pop("publicLinks", None)
     return payload
+
+
+@router.post("/lists/{entity_list_id}/duplicate", status_code=201)
+async def duplicate_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    entity_list_id: EntityListID,
+    payload: EntityListDuplicatePostModel | None = None,
+) -> EntityListSummary:
+    """Create a copy of an entity list
+
+    The copy keeps the type, attributes, template, tags, data (including
+    custom list attribute definitions), access of users, teams and access
+    groups, and all items in the same order.
+
+    It does not keep the ids, owner and creation info (the copy is owned
+    by the current user), guest access, public links and the active flag
+    (the copy is always active).
+
+    Anyone who can read the source list can duplicate it.
+    """
+
+    payload = payload or EntityListDuplicatePostModel()
+
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        # reading permissions are checked by the load method
+        source = await EntityList.load(project_name, entity_list_id, user=user)
+        return await create_entity_list_copy(
+            project_name,
+            source,
+            user,
+            label=payload.label,
+            entity_list_folder_id=payload.entity_list_folder_id,
+            use_source_folder="entity_list_folder_id" not in payload.model_fields_set,
+        )
 
 
 @router.delete("/lists/{entity_list_id}")

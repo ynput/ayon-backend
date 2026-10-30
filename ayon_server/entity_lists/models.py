@@ -212,6 +212,30 @@ class EntityListPatchModel(OPModel):
     active: Annotated[bool | None, FListActive] = None
 
 
+class EntityListDuplicatePostModel(OPModel):
+    label: Annotated[
+        str | None,
+        Field(
+            title="Label of the copy",
+            description=(
+                "When omitted, a free label is picked, "
+                "e.g. `My list (copy)`, then `My list (copy 2)`"
+            ),
+            example="My list (copy)",
+        ),
+    ] = None
+    entity_list_folder_id: Annotated[
+        str | None,
+        Field(
+            title="Folder ID of the copy",
+            description=(
+                "When omitted, the copy is placed in the folder of the source list. "
+                "Explicit `null` places it outside of any folder."
+            ),
+        ),
+    ] = None
+
+
 class EntityListSummary(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType]
