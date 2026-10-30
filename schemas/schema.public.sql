@@ -241,6 +241,22 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
 
+-- Private per-user preferences of frontend and desktop tools.
+-- project_name NULL means the preference is global.
+CREATE TABLE IF NOT EXISTS public.user_preferences(
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  project_name VARCHAR REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  key VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- COALESCE makes the global (NULL) scope unique too
+CREATE UNIQUE INDEX IF NOT EXISTS user_preferences_unique_idx
+  ON public.user_preferences (user_name, key, (COALESCE(project_name, '')));
+CREATE INDEX IF NOT EXISTS user_preferences_project_name_idx
+  ON public.user_preferences (project_name);
+
 
 
 CREATE TABLE IF NOT EXISTS public.addon_data(
