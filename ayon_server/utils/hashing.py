@@ -1,8 +1,7 @@
 __all__ = ["hash_data", "create_hash", "create_uuid"]
 
 import hashlib
-import random
-import time
+import secrets
 import uuid
 from typing import Any
 
@@ -20,8 +19,8 @@ def hash_data(data: Any) -> str:
 
 
 def create_hash() -> str:
-    """Create a pseudo-random hash"""
-    return hash_data([time.time(), random.random()])
+    """Create a random 64 characters long hex string, safe to use as a secret"""
+    return secrets.token_hex(32)
 
 
 def create_uuid() -> str:
