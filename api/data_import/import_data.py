@@ -1379,6 +1379,10 @@ def _parse_naive_datetime(value: str) -> datetime:
         raise BadRequestException(f"Invalid date '{value}'") from None
 
 
+# Enums whose items are suggestions, not a closed set of allowed values
+FREE_VALUE_ENUMS = {"tags"}
+
+
 async def _validate_enum_value(
     value: str,
     enum_items: list[EnumItem],
@@ -1431,6 +1435,9 @@ async def _validate_enum_value(
                 new_item,
                 project_name=project_name,
             )
+            return
+        if enum_name in FREE_VALUE_ENUMS:
+            # Suggestions only: entities may carry values not in the anatomy
             return
         missing_values_str = ", ".join(map(str, missing_values))
         raise BadRequestException(
