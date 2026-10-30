@@ -124,6 +124,16 @@ class ServerConfigModel(BaseSettingsModel):
         ),
     ] = ""
 
+    server_url: Annotated[
+        str,
+        SettingsField(
+            title="Server URL",
+            description="Public URL of the server, used in links sent by email. "
+            "Set automatically when an administrator first opens the web interface.",
+            example="https://ayon.example.com",
+        ),
+    ] = ""
+
     customization: Annotated[
         CustomizationModel,
         SettingsField(
