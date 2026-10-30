@@ -316,6 +316,37 @@ class AyonConfig(BaseModel):
         description="Max width/height of generated thumbnails in pixels",
     )
 
+    filmstrip_frames: int = Field(
+        default=20,
+        ge=2,
+        le=100,
+        description="Number of frames sampled from a video reviewable "
+        "to create a filmstrip (hover-scrub thumbnail)",
+    )
+
+    filmstrip_frame_size: int = Field(
+        default=480,
+        ge=64,
+        le=1280,
+        description="Max width/height of a single filmstrip frame in pixels",
+    )
+
+    filmstrip_creation: Literal["auto", "on_upload", "off"] = Field(
+        default="auto",
+        description="When filmstrips are created. 'auto': when a reviewable "
+        "is uploaded and on the first request for older videos, "
+        "'on_upload': only when a reviewable is uploaded, "
+        "'off': never (existing filmstrips are still served)",
+    )
+
+    filmstrip_concurrency: int = Field(
+        default=2,
+        ge=1,
+        le=16,
+        description="Max number of filmstrips created at the same time "
+        "by one server instance. A 4K video takes up to ~0.6 GB of memory.",
+    )
+
     # Temporary / workarounds
 
     limit_user_visibility: bool = Field(
