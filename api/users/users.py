@@ -28,6 +28,15 @@ from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
+# Never returned for other users: they allow logging in as the user
+SECRET_USER_DATA_KEYS = (
+    "password",
+    "apiKey",
+    "apiKeys",
+    "passwordResetRequest",
+    "supportToken",
+)
+
 #
 # [GET] /api/users/me
 #
@@ -79,6 +88,8 @@ async def get_user(
     result = await UserEntity.load(user_name)
 
     if user.is_manager:
+        for key in SECRET_USER_DATA_KEYS:
+            result.data.pop(key, None)
         return result.payload
 
     # Non-managers can only see basic info about other users

@@ -12,6 +12,7 @@ from ayon_server.helpers.email import EmailTemplate
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import hash_data
 from ayon_server.utils.server import server_url_from_request
 
 from .router import router
@@ -50,7 +51,7 @@ async def password_reset_request(payload: PasswordResetRequestModel, request: Re
     token = secrets.token_urlsafe(32)
     password_reset_request = {
         "time": time.time(),
-        "token": token,
+        "token": hash_data(token),  # only the emailed link holds the token
     }
 
     user = await UserEntity.load(res["name"])
@@ -91,7 +92,7 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
 
     ERROR_MESSAGE = "Invalid reset token or token has expired"
 
-    res = await Postgres.fetchrow(query, request.token)
+    res = await Postgres.fetchrow(query, hash_data(request.token))
     if res is None:
         logger.error("Attempted password reset using invalid token")
         raise ForbiddenException(ERROR_MESSAGE)
