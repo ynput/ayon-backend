@@ -243,6 +243,21 @@ def test_filter(graphql: GraphQL, lists: ListFixture, key, value, expected):
     assert names(lists, items) == expected
 
 
+@pytest.mark.parametrize("key, allowed", [("label", True), ("data.foo", False)])
+def test_list_filter_columns(lists: ListFixture, key: str, allowed: bool):
+    """Lists can only be filtered by the columns in FILTER_OPTIONS."""
+    condition = {"key": key, "operator": "eq", "value": "x"}
+    query = (
+        f'{{ project(name: "{lists.project.name}") {{ '
+        f"entityLists(filter: {json.dumps(json.dumps({'conditions': [condition]}))}) "
+        "{ edges { node { id } } } } }"
+    )
+    response = lists.api.post("/graphql", json={"query": query})
+    assert response.status_code == 200, response.text
+    errors = [e["message"] for e in response.json().get("errors") or []]
+    assert errors == ([] if allowed else [f"Invalid key: {key.split('.')[0]}"])
+
+
 def test_task_items(graphql: GraphQL, lists: ListFixture):
     """Tasks inherit the values of their folder"""
     list_id = lists.create_list("task", [(new_id(), lists.task, {"fps": 25.0})])
