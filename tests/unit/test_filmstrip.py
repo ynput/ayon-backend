@@ -211,6 +211,50 @@ def test_current_filmstrip_is_not_recreated():
     assert ensure("file", {**VIDEO_DATA, "filmstrip": info}) == info
 
 
+@pytest.mark.parametrize(
+    "creation, on_upload, created",
+    [
+        ("auto", False, True),
+        ("on_upload", False, False),
+        ("on_upload", True, True),
+        ("off", True, False),
+    ],
+)
+def test_creation_setting(
+    monkeypatch: pytest.MonkeyPatch, creation: str, on_upload: bool, created: bool
+):
+    info = current_info()
+
+    async def no_failures(key: str) -> None:
+        pass
+
+    async def build(*args: Any) -> FilmstripInfo:
+        return info
+
+    monkeypatch.setattr(filmstrip.ayonconfig, "filmstrip_creation", creation)
+    monkeypatch.setattr(filmstrip, "_check_failures", no_failures)
+    monkeypatch.setattr(filmstrip, "_build_file_filmstrip", build)
+
+    async def run() -> FilmstripInfo:
+        return await filmstrip._ensure_file_filmstrip(
+            "project", "file", VIDEO_DATA, on_upload=on_upload
+        )
+
+    if created:
+        assert asyncio.run(run()) == info
+    else:
+        with pytest.raises(NotFoundException):
+            asyncio.run(run())
+
+
+def test_existing_filmstrip_is_served_when_creation_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(filmstrip.ayonconfig, "filmstrip_creation", "off")
+    info = current_info()
+    assert ensure("file", {**VIDEO_DATA, "filmstrip": info}) == info
+
+
 def test_build_queue_is_capped(monkeypatch: pytest.MonkeyPatch):
     async def no_failures(key: str) -> None:
         pass

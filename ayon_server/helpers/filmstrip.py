@@ -56,7 +56,7 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 # Max number of filmstrips generated at the same time by this server instance
-FILMSTRIP_SEMAPHORE = asyncio.Semaphore(2)
+FILMSTRIP_SEMAPHORE = asyncio.Semaphore(ayonconfig.filmstrip_concurrency)
 
 # Max number of filmstrips queued for creation by this server instance.
 # Sweeping the cursor over a grid of videos without filmstrips (e.g. after
@@ -78,6 +78,11 @@ SINGLE_PASS_MAX_FRAMES = 1500
 
 # Max number of ffmpeg processes extracting frames for a single filmstrip
 FRAME_CONCURRENCY = 4
+
+# Decoder threads of a single-pass decode. ffmpeg defaults to one per CPU core
+# it sees, which in a container is usually the host's, not the CPU limit.
+# Every thread holds its own frames, so the memory would grow with the node size.
+DECODE_THREADS = 2
 
 # Max time to extract frames (seconds)
 FRAME_TIMEOUT = 30
@@ -179,7 +184,7 @@ async def _decode_frames(
 
     async with aiofiles.tempfile.TemporaryDirectory() as temp_dir:
         cmd = _ffmpeg_base_args()
-        cmd.extend(["-i", video_path])
+        cmd.extend(["-threads", str(DECODE_THREADS), "-i", video_path])
         cmd.extend(_output_args(frame_size, stream_index, select_filter))
         cmd.extend(
             [
@@ -691,11 +696,14 @@ async def _ensure_file_filmstrip(
     project_name: str,
     file_id: str,
     data: dict[str, Any],
+    *,
+    on_upload: bool = False,
 ) -> FilmstripInfo:
     """Return the filmstrip info of a file, creating the filmstrip if needed.
 
     Raises NotFoundException if a filmstrip cannot be created for the file
-    (not a video, broken file...)
+    (not a video, broken file...) or creation is disabled by
+    the `filmstrip_creation` setting.
     """
 
     mime = data.get("mime", "application/octet-stream")
@@ -710,6 +718,10 @@ async def _ensure_file_filmstrip(
 
     if _is_current(info):
         return info
+
+    creation = ayonconfig.filmstrip_creation
+    if creation == "off" or (creation == "on_upload" and not on_upload):
+        raise NotFoundException("Filmstrip is not available for this file")
 
     key = f"{project_name}:{file_id}"
     await _check_failures(key)
@@ -825,7 +837,7 @@ def schedule_filmstrip_creation(project_name: str, file_id: str) -> None:
     async def create() -> None:
         try:
             data = await _get_file_data(project_name, file_id)
-            await _ensure_file_filmstrip(project_name, file_id, data)
+            await _ensure_file_filmstrip(project_name, file_id, data, on_upload=True)
         except (NotFoundException, ServiceUnavailableException):
             pass
         except Exception:
