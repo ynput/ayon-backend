@@ -23,13 +23,18 @@ async def get_server_url() -> str | None:
     """
     server_config = await get_server_config()
     stored_url = server_config.server_url.rstrip("/")
-    cloud_info = await CloudUtils.get_cloud_info()
-    if cloud_info.server_url:
+    try:
+        cloud_info = await CloudUtils.get_cloud_info()
+    except Exception:
+        return stored_url or None
+
+    if cloud_info.server_url and cloud_info.managed:
         cloud_url = cloud_info.server_url.rstrip("/")
         if cloud_url != stored_url:
             await update_server_config({"server_url": cloud_url})
             logger.info(f"Server URL set to {cloud_url} (from Ynput Cloud)")
         return cloud_url
+
     return stored_url or None
 
 
