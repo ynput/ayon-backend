@@ -60,6 +60,27 @@ def graphql(api: httpx.Client) -> GraphQL:
     return execute
 
 
+@pytest.fixture(scope="module")
+def other_user(api: httpx.Client) -> Iterator[httpx.Client]:
+    """Client logged in as a new (non-manager) user, deleted afterwards."""
+    name = f"apitest_{uuid.uuid4().hex[:8]}"
+    password = uuid.uuid4().hex
+    response = api.put(f"/api/users/{name}", json={"password": password})
+    assert response.status_code == 204, response.text
+    try:
+        response = httpx.post(
+            f"{API_URL}/api/auth/login", json={"name": name, "password": password}
+        )
+        assert response.status_code == 200, response.text
+        token = response.json()["token"]
+        with httpx.Client(
+            base_url=API_URL, headers={"Authorization": f"Bearer {token}"}
+        ) as client:
+            yield client
+    finally:
+        api.delete(f"/api/users/{name}")
+
+
 @pytest.fixture(scope="session")
 def project_name(api: httpx.Client, graphql: GraphQL) -> str:
     """Name of a project with folders and tasks."""
