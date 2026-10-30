@@ -40,6 +40,15 @@ async def load_access_groups() -> None:
     EventStream.subscribe("access_group.deleted", AccessGroups.update_hook, True)
 
 
+async def init_trait_definitions() -> None:
+    """Reset cached trait definitions and keep them in sync with bundles."""
+    from ayon_server.addons.traits import clear_trait_definitions_cache
+
+    # Installed addons may have changed while the server was down
+    await clear_trait_definitions_cache()
+    EventStream.subscribe("bundle.updated", clear_trait_definitions_cache, True)
+
+
 def init_addon_endpoints(target_app: "FastAPI") -> None:
     library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():
@@ -235,6 +244,7 @@ async def _startup(app: "FastAPI") -> None:
 
     await ayon_init()
     await load_access_groups()
+    await init_trait_definitions()
     await CloudUtils.clear_cloud_info_cache()
 
     # Start background tasks
