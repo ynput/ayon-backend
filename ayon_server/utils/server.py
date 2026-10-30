@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 from fastapi import Request
 
+from ayon_server.config import ayonconfig
+
 
 def is_internal_ip(ip: str) -> bool:
     """Check if the given IP address is internal (private)"""
@@ -21,8 +23,14 @@ def get_real_ip_from_request(request: Request) -> str:
     """Get the real client IP address from the request, considering possible proxies."""
     if request.client is None:
         return "0.0.0.0"
-    xff = request.headers.get("x-forwarded-for", request.client.host)
-    return xff.split(",")[0].strip()
+    hops = ayonconfig.trusted_proxy_hops
+    xff = request.headers.get("x-forwarded-for")
+    if not hops or not xff:
+        return request.client.host
+    # Each proxy appends the address it got the request from, so only the
+    # last `hops` entries are trustworthy. Anything before is set by the client.
+    entries = [ip.strip() for ip in xff.split(",")]
+    return entries[-hops] if hops <= len(entries) else entries[0]
 
 
 def server_url_from_request(request: Request) -> str:
