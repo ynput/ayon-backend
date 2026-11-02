@@ -16,5 +16,5 @@ BUILD_DATE
 venv/
 cspell*
 mise.toml
-test_*
+/test_*
 .env

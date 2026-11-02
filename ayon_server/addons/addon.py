@@ -602,7 +602,7 @@ class BaseServerAddon:
                 return None
             data = row["data"]
 
-        return site_settings_model(**data).dict()
+        return site_settings_model(**data).model_dump()
 
     async def on_settings_changed(
         self,
@@ -630,7 +630,13 @@ class BaseServerAddon:
         Override this method to return the default settings for the addon.
         By default it returns defaults from the addon's settings model, but
         if you need to use a complex model or force required fields, you should
-        do something like: `return self.get_settings_model(**YOUR_ADDON_DEFAULTS)`.
+        do something like:
+
+        ```python
+                async def get_default_settings(self):
+                    settings_model_cls = self.get_settings_model()
+                    return settings_model_cls(**YOUR_ADDON_DEFAULTS)
+        ```
         """
 
         if (model := self.get_settings_model()) is None:
@@ -682,7 +688,8 @@ class BaseServerAddon:
         return migrate_settings_overrides(
             overrides,
             new_model_class=model_class,
-            defaults=defaults.dict(),
+            defaults=defaults.model_dump(),
+            log_context=f"{self.name} {source_version} -> {self.version}",
         )
 
     async def get_app_host_names(self) -> list[str]:

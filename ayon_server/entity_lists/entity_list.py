@@ -83,6 +83,7 @@ class EntityList:
             access=self._payload.access,
             level=level,
             owner=self._payload.owner,
+            project=await ProjectEntity.load(self._project_name),
             default_open=default_open,
         )
 
@@ -284,7 +285,7 @@ class EntityList:
         item = EntityListItemModel(
             id=id or create_uuid(),
             entity_id=entity_id,
-            position=position or 99999999,
+            position=position if position is not None else 99999999,
             label=label,
             attrib=attrib or {},
             data=data or {},

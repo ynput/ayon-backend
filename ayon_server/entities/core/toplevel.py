@@ -2,11 +2,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ayon_server.entities.core.base import BaseEntity
-from ayon_server.utils import dict_exclude
+from ayon_server.entities.core.base import BaseEntity, ModelT
 
 
-class TopLevelEntity(BaseEntity):
+class TopLevelEntity(BaseEntity[ModelT]):
     def __init__(
         self,
         payload: dict[str, Any],
@@ -15,16 +14,7 @@ class TopLevelEntity(BaseEntity):
     ) -> None:
         """Return a new entity instance from given data."""
 
-        attrib_dict = payload.get("attrib", {})
-        if isinstance(attrib_dict, BaseModel):
-            attrib_dict = attrib_dict.dict()
-        self.own_attrib = list(attrib_dict.keys())
-
-        self._payload = self.model.main_model(
-            **dict_exclude(payload, ["own_attrib"]),
-            own_attrib=self.own_attrib,
-        )
-        self.exists = exists
+        self._init_payload(payload, exists=exists)
 
     @classmethod
     def from_record(
@@ -39,7 +29,7 @@ class TopLevelEntity(BaseEntity):
         and reformats ids.
         """
         parsed = {}
-        for key in cls.model.main_model.__fields__:
+        for key in cls.model.main_model.model_fields:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
@@ -47,27 +37,29 @@ class TopLevelEntity(BaseEntity):
 
     def as_user(self, user):
         # TODO
-        return self._payload.copy()
+        return self._payload.model_copy()
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
-        self._payload = self.model.main_model(name=self.name, **replace_data.dict())
+        self._payload = self.model.main_model.model_validate(
+            {"name": self.name, **replace_data.model_dump()}
+        )
 
     @property
     def created_by(self) -> str | None:
-        return self._payload.data.get("createdBy")  # type: ignore
+        return self._payload.data.get("createdBy")
 
     @created_by.setter
     def created_by(self, value: str) -> None:
-        self._payload.data["createdBy"] = value  # type: ignore
+        self._payload.data["createdBy"] = value
 
     @property
     def updated_by(self) -> str | None:
-        return self._payload.data.get("updatedBy")  # type: ignore
+        return self._payload.data.get("updatedBy")
 
     @updated_by.setter
     def updated_by(self, value: str) -> None:
-        self._payload.data["updatedBy"] = value  # type: ignore
+        self._payload.data["updatedBy"] = value
 
     async def commit(self):
         """Post-update commit."""

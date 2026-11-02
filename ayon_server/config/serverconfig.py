@@ -124,6 +124,16 @@ class ServerConfigModel(BaseSettingsModel):
         ),
     ] = ""
 
+    server_url: Annotated[
+        str,
+        SettingsField(
+            title="Server URL",
+            description="Public URL of the server, used in links sent by email. "
+            "Set automatically when an administrator first opens the web interface.",
+            example="https://ayon.example.com",
+        ),
+    ] = ""
+
     customization: Annotated[
         CustomizationModel,
         SettingsField(
@@ -235,7 +245,7 @@ async def update_server_config(
     """
 
     current_config = await get_server_config()
-    current_dict = current_config.dict()
+    current_dict = current_config.model_dump()
     updated_dict = _recursive_merge(current_dict, updates)
 
     # Validate and normalize; also drops any unknown keys

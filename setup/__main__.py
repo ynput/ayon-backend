@@ -6,6 +6,7 @@ from typing import Any
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import critical_error, log_traceback, logger
 from ayon_server.version import __version__ as server_version
 from setup.access_groups import deploy_access_groups
@@ -69,6 +70,13 @@ async def main(force: bool | None = None) -> None:
     # they are up-to-date, when the container is started.
 
     await deploy_attributes()
+
+    # The attribute library is loaded on import (before the attributes
+    # were deployed), so it must be reloaded before it is used
+    # to rebuild the inherited attributes below.
+    from ayon_server.entities.core import attribute_library
+
+    await attribute_library.reload()
 
     # When the setup is started for the first time, or
     # is invoked using `make setup`, we  apply the
@@ -138,6 +146,9 @@ async def main(force: bool | None = None) -> None:
             continue
         try:
             await rebuild_inherited_attributes(project.name)
+            # The folder list cache holds the old inherited values,
+            # it is rebuilt on the next request
+            await Redis.delete("project-folders", project.name)
         except Exception:
             log_traceback(
                 f"Unable to rebuild attributes for {project.name}. "

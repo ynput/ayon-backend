@@ -41,7 +41,7 @@ class GuestUserPatchModel(OPModel):
             title="New Email",
             example="foo.bar@example.com",
         ),
-    ]
+    ] = None
 
     avatar_url: Annotated[
         str | None,
@@ -49,7 +49,7 @@ class GuestUserPatchModel(OPModel):
             title="Avatar URL",
             example="http://example.com/avatar.png",
         ),
-    ]
+    ] = None
 
     full_name: Annotated[
         str | None,
@@ -140,5 +140,5 @@ async def patch_guest_user(
     payload: GuestUserPatchModel,
 ):
     user.check_permissions("project.access", project_name, write=True)
-    patch_data_dict = payload.dict(exclude_unset=True)
+    patch_data_dict = payload.model_dump(exclude_unset=True)
     await GuestUsers.update(email, project_name=project_name, payload=patch_data_dict)

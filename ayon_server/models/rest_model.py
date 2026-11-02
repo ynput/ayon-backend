@@ -1,110 +1,46 @@
-from typing import Any
+from typing import Any, Unpack
 
-from pydantic import BaseModel
-from pydantic.fields import FieldInfo, Undefined
-from pydantic.typing import NoArgAnyCallable
+from pydantic import ConfigDict, Field
+from pydantic_core import PydanticUndefined
 
-from ayon_server.logging import logger
-from ayon_server.utils import camelize, json_dumps, json_loads
+from ayon_server.models.base_model import AyonBaseModel
+from ayon_server.models.field_info import (
+    FieldExtra,
+    FieldKwargs,
+    known_field_kwargs,
+    translate_field_kwargs,
+)
+from ayon_server.utils import camelize
 
 
-class RestModel(BaseModel):
+class RestModel(AyonBaseModel):
     """Base API model."""
 
-    class Config:
-        """API model config."""
-
-        orm_mode = True
-        allow_population_by_field_name = True
-        alias_generator = camelize
-        json_loads = json_loads
-        json_dumps = json_dumps
+    model_config = ConfigDict(alias_generator=camelize)
 
 
 def RestField(
-    default: Any = Undefined,
+    default: Any = PydanticUndefined,
     *,
-    default_factory: NoArgAnyCallable | None = None,
-    alias: str | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    gt: float | None = None,
-    ge: float | None = None,
-    lt: float | None = None,
-    le: float | None = None,
-    multiple_of: float | None = None,
-    allow_inf_nan: bool | None = None,
-    max_digits: int | None = None,
-    decimal_places: int | None = None,
-    min_items: int | None = None,
-    max_items: int | None = None,
-    unique_items: bool | None = None,
-    min_length: int | None = None,
-    max_length: int | None = None,
-    allow_mutation: bool = True,
-    regex: str | None = None,
-    pattern: str | None = None,  # pydantic 2 name for regex
-    discriminator: str | None = None,
-    repr: bool = True,
-    # AYON settings specifics
-    example: Any = None,
     deprecated: bool = False,
-    examples: list[Any] | None = None,
-    # everything else
-    **kwargs: Any,
+    **kwargs: Unpack[FieldKwargs],
 ) -> Any:
-    # sanity checks
+    """Define a field of a RestModel.
 
-    if kwargs:
-        logger.debug(f"RestField: unsupported argument: {kwargs}")
+    Accepts both the Pydantic 1 (regex, min_items...) and the
+    Pydantic 2 (pattern, min_length...) style arguments.
+    """
 
-    # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
-    # We will support both, but before Pydantic 2 is used, `examples` will
-    # just use the first example. No one provides multiple examples anyway.
-
-    examples = examples or []
-    if example is not None:
-        examples.append(example)
-    if not examples:
-        examples = None
-
-    # extras
-
-    extra: dict[str, Any] = {}
-
-    if examples and isinstance(examples, list):
-        extra["example"] = examples[0]
-        # in pydantic 2, use:
-        # extra["examples"] = examples
-
-    # construct FieldInfo
-
-    field_info = FieldInfo(
-        default,
-        default_factory=default_factory,
-        alias=alias,
-        title=title,
-        description=description,
-        gt=gt,
-        ge=ge,
-        lt=lt,
-        le=le,
-        multiple_of=multiple_of,
-        allow_inf_nan=allow_inf_nan,
-        max_digits=max_digits,
-        decimal_places=decimal_places,
-        min_items=min_items,
-        max_items=max_items,
-        unique_items=unique_items,
-        min_length=min_length,
-        max_length=max_length,
-        allow_mutation=allow_mutation,
-        regex=pattern or regex,
-        discriminator=discriminator,
-        deprecated=deprecated,
-        repr=repr,
-        **extra,
+    field_kwargs, extra = translate_field_kwargs(
+        default, known_field_kwargs("RestField", dict(kwargs))
     )
 
-    field_info._validate()
-    return field_info
+    if deprecated:
+        # Only mark the field as deprecated in the schema.
+        # Using pydantic's `deprecated` would emit runtime warnings
+        # each time the attribute is accessed.
+        extra["deprecated"] = True
+
+    if extra:
+        field_kwargs["json_schema_extra"] = FieldExtra(extra)
+    return Field(default, **field_kwargs)

@@ -1,5 +1,6 @@
 import time
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -90,6 +91,14 @@ class YnputCloudInfoModel(OPModel):
             description="Is the instance connected to Ynput Cloud?",
         ),
     ] = False
+
+    server_url: Annotated[
+        str | None,
+        Field(
+            description="Public URL of the instance known to Ynput Cloud",
+            example="https://ayon.example.com",
+        ),
+    ] = None
 
     offline_mode: Annotated[
         bool,
@@ -324,6 +333,21 @@ class CloudUtils:
         except Exception as e:
             logger.debug(f"Failed to fetch required addons list: {e}")
             return []
+
+    @classmethod
+    def is_official_download_link(cls, url: str) -> bool:
+        """Check if the given URL is an official download link."""
+
+        parsed = urlparse(url)
+
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname is not None
+            and (
+                parsed.hostname == "ynput.cloud"
+                or parsed.hostname.endswith(".ynput.cloud")
+            )
+        )
 
 
 #

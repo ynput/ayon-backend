@@ -36,6 +36,8 @@ async def build_project_list() -> list[ProjectListItem]:
     result: list[dict[str, Any]] = []
     try:
         async with Postgres.transaction():
+            # held until the cache is written, so a stale rebuild can never write last
+            await Postgres.advisory_xact_lock("project-list:rebuild")
             stmt = await Postgres.prepare(q)
             async for row in stmt.cursor():
                 result.append(
@@ -52,10 +54,10 @@ async def build_project_list() -> list[ProjectListItem]:
                         "skeleton": row["skeleton"] == "true",
                     }
                 )
+            await Redis.set_json("global", "project-list", result)
     except Postgres.UndefinedTableError:
         # No projects table, return an empty list
-        pass
-    await Redis.set_json("global", "project-list", result)
+        await Redis.set_json("global", "project-list", result)
     return [ProjectListItem(**item) for item in result]
 
 

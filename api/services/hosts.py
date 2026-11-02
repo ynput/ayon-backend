@@ -95,7 +95,7 @@ async def host_heartbeat(
             """,
             payload.hostname,
             now,
-            payload.health.dict(),
+            payload.health.model_dump(),
         )
 
         await Postgres.execute(

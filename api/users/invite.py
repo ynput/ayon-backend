@@ -11,6 +11,7 @@ from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.email import EmailTemplate
+from ayon_server.helpers.server_url import get_server_url
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -40,7 +41,7 @@ async def invite_user(
 
     user = await UserEntity.load(user_name)
 
-    server_url = server_url_from_request(request)
+    server_url = await get_server_url() or server_url_from_request(request)
     server_config = await get_server_config()
     password_enabled = (not server_config.authentication.hide_password_auth) and (
         not user.data.get("disablePasswordLogin", False)

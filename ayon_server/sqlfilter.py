@@ -7,8 +7,8 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
-    root_validator,
-    validator,
+    field_validator,
+    model_validator,
 )
 
 from ayon_server.logging import logger
@@ -30,6 +30,7 @@ ValueType = (
 OperatorType = Literal[
     "eq",
     "like",
+    "notlike",
     "re",
     "lt",
     "gt",
@@ -76,17 +77,25 @@ class QueryCondition(OPModel):
         OperatorType,
         Field(
             title="Operator",
-            description="Comparison operator",
+            description=(
+                "Comparison operator. like and notlike perform case-insensitive "
+                "substring matching. One surrounding pair of % is treated as a "
+                "substring wrapper; %, _ and backslashes within it are literal."
+            ),
             example="eq",
         ),
     ] = "eq"
 
-    @validator("operator", pre=True)
+    @field_validator("operator", mode="before")
+    @classmethod
     def convert_operator_to_lowercase(cls, v):
         return v.lower().replace("-", "").replace("_", "")
 
-    @root_validator(pre=True)
-    def validate_value(cls, values: dict[str, Any]):
+    @model_validator(mode="before")
+    @classmethod
+    def validate_value(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         operator = (
             values.get("operator", "eq").lower().replace("-", "").replace("_", "")
         )
@@ -120,7 +129,8 @@ class QueryFilter(OPModel):
         ),
     ] = "and"
 
-    @validator("operator", pre=True, always=True)
+    @field_validator("operator", mode="before")
+    @classmethod
     def convert_operator_to_lowercase(cls, v):
         return v.lower()
 
@@ -201,6 +211,12 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     )
     value = c.value
     operator = c.operator
+    if operator in ("like", "notlike") and isinstance(value, str):
+        # The frontend wraps search text in %, before sending the filter.
+        if len(value) >= 2 and value.startswith("%") and value.endswith("%"):
+            value = value[1:-1]
+        value = value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        value = f"%{value}%"
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
@@ -258,13 +274,15 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like", "re"):
+        if operator in ("like", "notlike", "re"):
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{safe_value}'"
             else:
-                raise ValueError("Value must be a string for 'like' or 're' operators")
+                raise ValueError(
+                    "Value must be a string for 'like', 'notlike' or 're' operators"
+                )
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -398,6 +416,14 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if safe_value is None:
         raise ValueError(f"Invalid value: {value}")
 
+    if operator in ("like", "notlike", "re"):
+        # replace last -> with ->> to get text value
+        column = re.sub(r"->(?!.*->)", "->>", column)
+
+    if path == ["attrib", "description"] and operator in ("like", "notlike"):
+        # Markdown escapes punctuation; preserve backslashes before other text.
+        column = f"regexp_replace({column}, " r"'\\([[:punct:]])', '\1', 'g')"
+
     if operator == "eq":
         if type(value) is bool:
             if value:
@@ -405,12 +431,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             return f"NOT coalesce({column}, 'false'::jsonb)::boolean"
         return f"{column} = {safe_value}"
     elif operator == "like":
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) ILIKE {safe_value}"
+    elif operator == "notlike":
+        # a missing value does not match the pattern, so it passes the filter
+        return f"NOT coalesce(({column}) ILIKE {safe_value}, FALSE)"
     elif operator == "re":
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
         return f"({column}) SIMILAR TO {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
@@ -454,7 +479,7 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
         return None
 
     if not f.conditions:
-        logger.trace(f"Empty conditions {f.dict()}")
+        logger.trace(f"Empty conditions {f.model_dump()}")
         return None
 
     result = []
