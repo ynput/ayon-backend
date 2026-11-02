@@ -44,6 +44,7 @@ from .common import (
     ARGVisibility,
     EntityVisibility,
     build_search_conditions,
+    get_resolved_attrib_expression,
     get_task_attrib_expression,
 )
 from .field_stats import (
@@ -431,8 +432,8 @@ async def get_tasks(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                {task_attrib_exp}
-                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                ({task_attrib_exp(attribute_input.name)})
+                #>> '{{}}' IN {SQLTool.array(values)}
                 """
             )
 
@@ -490,7 +491,14 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
-            column_map={"attrib": "f_ex.attrib"},
+            column_map={
+                "attrib": get_resolved_attrib_expression(
+                    "folder",
+                    "folders.attrib",
+                    inherited="folder_ex.attrib",
+                    project="projects.attrib",
+                )
+            },
         ):
             sql_conditions.append(fcond)
             use_folder_query = True

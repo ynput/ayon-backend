@@ -4,6 +4,7 @@ from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.graphql.resolvers.common import (
     build_search_conditions,
+    get_resolved_attrib_expression,
     get_task_attrib_expression,
 )
 from ayon_server.lib.postgres import Postgres
@@ -208,11 +209,28 @@ async def search_folders(
             column_whitelist=FOLDER_ALLOWED_FIELDS,
             table_prefix="folders",
             column_map={
-                "attrib": "e.attrib",
+                "attrib": get_resolved_attrib_expression(
+                    "folder",
+                    "folders.attrib",
+                    inherited="parent_ex.attrib",
+                    project="pr.attrib",
+                ),
                 "path": "e.path",
             },
         ):
             sql_conditions.append(fcond)
+            sql_joins.extend(
+                [
+                    f"""
+                    LEFT JOIN project_{project_name}.exported_attributes AS parent_ex
+                    ON folders.parent_id = parent_ex.folder_id
+                    """,
+                    f"""
+                    INNER JOIN public.projects AS pr
+                    ON pr.name ILIKE '{project_name}'
+                    """,
+                ]
+            )
 
     if payload.folder_search:
         if cond := build_search_conditions(

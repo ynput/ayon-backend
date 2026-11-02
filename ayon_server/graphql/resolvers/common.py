@@ -1,4 +1,4 @@
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Any, Literal
@@ -8,11 +8,12 @@ from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.entities.core import attribute_library
+from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, json_dumps
 
 from .pagination import OrderBySequence, encode_cursor
 
@@ -433,21 +434,84 @@ def get_has_links_conds(
     raise ValueError("Wrong has_links value")
 
 
-def get_task_attrib_expression(folder_attrib: str, task_attrib: str) -> str:
-    """Task attributes merged with the inheritable parent folder attributes.
+@dataclass
+class ResolvedAttribExpression:
+    """Resolve a single JSON value, or the full object when no name is given."""
 
-    The exported attributes of a folder contain its own non-inheritable
-    values too. These must not leak to the tasks.
+    values: dict[str, str]
+
+    def __call__(self, name: str | None = None) -> str:
+        if name is not None:
+            return self.values.get(name, "NULL::jsonb")
+        if not self.values:
+            return "'{}'::jsonb"
+        rows = []
+        for name, value in self.values.items():
+            key = name.replace("'", "''")
+            rows.append(f"('{key}', {value})")
+        # Only drop top-level missing values, not nested JSON nulls.
+        return (
+            "(SELECT COALESCE(jsonb_object_agg(key, value) "
+            "FILTER (WHERE value IS NOT NULL), '{}'::jsonb) "
+            f"FROM (VALUES {', '.join(rows)}) AS resolved_attrib(key, value))"
+        )
+
+    def __str__(self) -> str:
+        return self()
+
+
+def get_resolved_attrib_expression(
+    entity_type: str,
+    own: str,
+    *,
+    inherited: str | None = None,
+    project: str | None = None,
+    overrides: str | None = None,
+    list_attributes: Iterable[str] = (),
+) -> ResolvedAttribExpression:
+    """SQL equivalent of resolve_attrib(). Inputs are trusted SQL expressions.
+
+    List items may override entity values. List-defined attributes are own-only,
+    even when their names also exist in the entity's attribute definitions.
     """
-    all_names = {
-        attr["name"] for attrs in attribute_library.data.values() for attr in attrs
-    }
-    excluded = sorted(all_names - attribute_library.inheritable)
-    folder_exp = f"coalesce({folder_attrib}, '{{}}'::jsonb)"
-    if excluded:
-        quoted = ", ".join("'" + n.replace("'", "''") + "'" for n in excluded)
-        folder_exp = f"({folder_exp} - ARRAY[{quoted}]::text[])"
-    return f"({folder_exp} || {task_attrib})"
+    defined = {attr["name"] for attr in attribute_library[entity_type]}
+    list_names = set(list_attributes)
+    defaults = resolve_attrib(entity_type, None).values
+    values = {}
+
+    def literal(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    for name in sorted(defined | list_names):
+        key = literal(name)
+        layers = []
+        if overrides is not None:
+            layers.append(f"NULLIF(({overrides})->{key}, 'null'::jsonb)")
+        # A list-defined attribute can preserve a stored entity JSON null,
+        # just as EntityListItemEdge._entity_values does.
+        own_value = f"({own})->{key}"
+        if name not in list_names:
+            own_value = f"NULLIF({own_value}, 'null'::jsonb)"
+        layers.append(own_value)
+        if name not in list_names:
+            if (
+                entity_type in INHERITING_ENTITY_TYPES
+                and name in attribute_library.inheritable
+            ):
+                for layer in (inherited, project):
+                    if layer is not None:
+                        layers.append(f"NULLIF(({layer})->{key}, 'null'::jsonb)")
+            if name in defaults:
+                layers.append(f"{literal(json_dumps(defaults[name]))}::jsonb")
+        value = f"COALESCE({', '.join(layers)})" if len(layers) > 1 else layers[0]
+        values[name] = value
+    return ResolvedAttribExpression(values)
+
+
+def get_task_attrib_expression(
+    folder_attrib: str, task_attrib: str
+) -> ResolvedAttribExpression:
+    return get_resolved_attrib_expression("task", task_attrib, inherited=folder_attrib)
 
 
 def build_search_conditions(

@@ -27,7 +27,7 @@ from .common import (
     argdesc,
     build_search_conditions,
     create_folder_access_list,
-    get_task_attrib_expression,
+    get_resolved_attrib_expression,
     resolve,
 )
 from .field_stats import (
@@ -462,16 +462,20 @@ async def get_entity_list_items(
     # _listed_entity_attrib has the entity's attributes without the item's
     # values (not prefixed with _entity_, so it's not passed to the node)
 
-    if entity_type == "folder":
-        entity_attrib = "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib)"
-    elif entity_type == "task":
-        entity_attrib = get_task_attrib_expression("px.attrib", "e.attrib")
-    else:
-        entity_attrib = "e.attrib"
-    # empty item values don't override the entity's ones
-    sql_columns.append(
-        f"({entity_attrib} || jsonb_strip_nulls(i.attrib)) as _all_attrib"
+    inherited = "px.attrib" if entity_type in ("folder", "task") else None
+    project = "pr.attrib" if entity_type == "folder" else None
+    entity_attrib = get_resolved_attrib_expression(
+        entity_type, "e.attrib", inherited=inherited, project=project
     )
+    item_attrib = get_resolved_attrib_expression(
+        entity_type,
+        "e.attrib",
+        inherited=inherited,
+        project=project,
+        overrides="i.attrib",
+        list_attributes=info.context["list_attributes"][root.id],
+    )
+    sql_columns.append(f"{item_attrib} as _all_attrib")
     sql_columns.append(f"{entity_attrib} as _listed_entity_attrib")
 
     #
