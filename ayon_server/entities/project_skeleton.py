@@ -7,9 +7,7 @@ from ayon_server.entities.project_aux_tables import (
     aux_table_update,
     link_types_update,
 )
-from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -89,25 +87,6 @@ class ProjectSkeletonEntity(ProjectEntity):
                 )
             )
         await self.commit()
-        return True
-
-    async def delete(self, *args, **kwargs) -> bool:
-        """Delete existing project."""
-        if not self.name:
-            raise KeyError("Unable to delete project. Not loaded")
-
-        async with Postgres.transaction():
-            try:
-                await Postgres.execute(
-                    "DELETE FROM public.projects WHERE name = $1", self.name
-                )
-            finally:
-                await Redis.delete("global", "project-list")
-                await Redis.delete("project-anatomy", self.name)
-                await Redis.delete("project-data", self.name)
-                await Redis.delete("project-folders", self.name)
-        # after commit: a rebuild during the transaction still saw the project
-        await build_project_list()
         return True
 
     async def promote(self) -> None:

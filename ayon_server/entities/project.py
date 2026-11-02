@@ -459,7 +459,8 @@ class ProjectEntity(TopLevelEntity[ProjectModel]):
         async with Postgres.transaction():
             await Postgres.advisory_xact_lock(PROJECT_SCHEMAS_LOCK)
             try:
-                await Postgres.execute(f"DROP SCHEMA project_{self.name} CASCADE")
+                if not self.skeleton:
+                    await Postgres.execute(f"DROP SCHEMA project_{self.name} CASCADE")
                 await Postgres.execute(
                     "DELETE FROM public.projects WHERE name = $1", self.name
                 )
