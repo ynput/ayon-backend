@@ -208,6 +208,7 @@ async def duplicate_entity_list(
             source,
             user,
             label=payload.label,
+            id=payload.id,
             entity_list_folder_id=payload.entity_list_folder_id,
             use_source_folder="entity_list_folder_id" not in payload.model_fields_set,
         )

@@ -301,6 +301,20 @@ def test_duplicate_list(lists: ListFixture):
     )
     assert response.status_code == 409, response.text
 
+    # Explicit id
+    explicit_id = new_id()
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] == explicit_id
+
+    # Taken id
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 409, response.text
+
 
 #
 # Saving items (merge)

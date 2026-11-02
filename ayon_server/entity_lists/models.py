@@ -213,6 +213,14 @@ class EntityListPatchModel(OPModel):
 
 
 class EntityListDuplicatePostModel(OPModel):
+    id: Annotated[
+        str | None,
+        Field(
+            title="ID of the copy",
+            description="When omitted, a new ID is generated",
+            example=create_uuid(),
+        ),
+    ] = None
     label: Annotated[
         str | None,
         Field(

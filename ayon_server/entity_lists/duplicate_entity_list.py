@@ -50,6 +50,7 @@ async def duplicate_entity_list(
     user: UserEntity,
     *,
     label: str | None = None,
+    id: str | None = None,
     entity_list_folder_id: str | None = None,
     use_source_folder: bool = True,
 ) -> EntityListSummary:
@@ -63,6 +64,12 @@ async def duplicate_entity_list(
     src = source.payload
 
     await Postgres.set_project_schema(project_name)
+
+    if id is None:
+        id = create_uuid()
+    elif await Postgres.fetchrow("SELECT 1 FROM entity_lists WHERE id = $1", id):
+        # save() would silently overwrite an existing list
+        raise ConflictException(f"Entity list {id} already exists")
 
     if label is None:
         label = await find_free_label(src.label)
@@ -110,7 +117,7 @@ async def duplicate_entity_list(
     ]
 
     payload = EntityListModel(
-        id=create_uuid(),
+        id=id,
         entity_list_type=src.entity_list_type,
         entity_list_folder_id=folder_id,
         entity_type=src.entity_type,
