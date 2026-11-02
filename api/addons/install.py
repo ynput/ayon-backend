@@ -72,7 +72,7 @@ async def upload_addon_zip_file(
         "addon.install",
         hash=event_hash,
         description=f"Installing addon {zip_info.name} {zip_info.version}",
-        summary=zip_info.dict(exclude_none=True),
+        summary=zip_info.model_dump(exclude_none=True),
         user=user.name,
         finished=False,
         reuse=True,

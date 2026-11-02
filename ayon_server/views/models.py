@@ -1,8 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import Field
-
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
 #

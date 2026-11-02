@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
-from ayon_server.entities import ProductEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
@@ -33,11 +32,6 @@ class VersionListItem:
             return "HERO"
         # TODO: configurable zero pad / format?
         return f"v{self.version:03d}"
-
-
-@ProductEntity.strawberry_attrib()
-class ProductAttribType:
-    pass
 
 
 @strawberry.type
@@ -99,10 +93,6 @@ class ProductNode(BaseNode):
         return await info.context["version_from_record"](
             self.project_name, record, info.context
         )
-
-    @strawberry.field
-    def attrib(self) -> ProductAttribType:
-        return ProductAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:

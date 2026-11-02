@@ -36,9 +36,6 @@ def reads_all_projects[**P, R](
     return wrapper
 
 
-PROJECT_LIST_REBUILD_LOCK = 0x41594F50
-
-
 class ProjectListItem(OPModel):
     name: str
     code: str
@@ -67,9 +64,7 @@ async def build_project_list() -> list[ProjectListItem]:
     try:
         async with Postgres.transaction():
             # held until the cache is written, so a stale rebuild can never write last
-            await Postgres.execute(
-                "SELECT pg_advisory_xact_lock($1)", PROJECT_LIST_REBUILD_LOCK
-            )
+            await Postgres.advisory_xact_lock("project-list:rebuild")
             stmt = await Postgres.prepare(q)
             async for row in stmt.cursor():
                 result.append(

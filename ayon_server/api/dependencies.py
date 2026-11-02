@@ -185,7 +185,7 @@ async def dep_attribute_name(
         str,
         Path(
             title="Attribute name",
-            regex=ATTRIBUTE_NAME_REGEX,
+            pattern=ATTRIBUTE_NAME_REGEX,
         ),
     ],
 ) -> str:
@@ -200,7 +200,7 @@ async def dep_new_project_name(
         str,
         Path(
             title="Project name",
-            regex=PROJECT_NAME_REGEX,
+            pattern=PROJECT_NAME_REGEX,
         ),
     ],
 ) -> str:
@@ -223,7 +223,7 @@ async def dep_project_name(
         str,
         Path(
             title="Project name",
-            regex=PROJECT_NAME_REGEX,
+            pattern=PROJECT_NAME_REGEX,
         ),
     ],
 ) -> str:
@@ -277,7 +277,7 @@ ProjectNameOrUnderscore = Annotated[str, Depends(dep_project_name_or_underscore)
 
 
 async def dep_user_name(
-    user_name: Annotated[str, Path(title="User name", regex=USER_NAME_REGEX)],
+    user_name: Annotated[str, Path(title="User name", pattern=USER_NAME_REGEX)],
 ) -> str:
     """Validate and return a user name specified in an endpoint path."""
     return user_name
@@ -291,7 +291,7 @@ async def dep_access_group_name(
         str,
         Path(
             title="Access group name",
-            regex=NAME_REGEX,
+            pattern=NAME_REGEX,
         ),
     ],
 ) -> str:
@@ -307,7 +307,7 @@ async def dep_secret_name(
         str,
         Path(
             title="Secret name",
-            regex=NAME_REGEX,
+            pattern=NAME_REGEX,
         ),
     ],
 ) -> str:
@@ -620,7 +620,7 @@ async def dep_sender(
         str | None,
         Header(
             title="Sender",
-            regex=NAME_REGEX,
+            pattern=NAME_REGEX,
         ),
     ] = None,
 ) -> str | None:
@@ -635,7 +635,7 @@ async def dep_sender_type(
         str,
         Header(
             title="Sender type",
-            regex=NAME_REGEX,
+            pattern=NAME_REGEX,
         ),
     ] = "api",
 ) -> str:

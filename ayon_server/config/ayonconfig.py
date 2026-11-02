@@ -4,7 +4,7 @@ import os
 from typing import Literal
 
 from aiocache import caches
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 caches.set_config(
     {
@@ -78,7 +78,7 @@ class AyonConfig(BaseModel):
     redis_url: str = Field(
         default="redis://redis/",
         description="Connection string for Redis.",
-        example="redis://user:password123@redis.example.com:6379",
+        examples=["redis://user:password123@redis.example.com:6379"],
     )
 
     redis_channel: str = Field(
@@ -94,24 +94,32 @@ class AyonConfig(BaseModel):
     postgres_url: str = Field(
         default="postgres://ayon:ayon@postgres/ayon",
         description="Connection string for Postgres.",
-        example="postgres://user:password123@postgres.example.com:5432/ayon",
+        examples=["postgres://user:password123@postgres.example.com:5432/ayon"],
     )
 
     postgres_pool_size: int = Field(
         64,
         description="Postgres connection pool size",
-        example=64,
+        examples=[64],
     )
 
     postgres_pool_timeout: int = Field(
         20,
         description="Postgres connection pool timeout",
-        example=20,
+        examples=[20],
     )
 
     session_ttl: int = Field(
         default=72 * 3600,
         description="Session lifetime in seconds",
+    )
+
+    trusted_proxy_hops: int = Field(
+        default=1,
+        ge=0,
+        description="Number of reverse proxies in front of the server. "
+        "The client IP is taken from X-Forwarded-For this many entries "
+        "from the end. Set to 0 when the server is accessed directly.",
     )
 
     disable_check_session_ip: bool = Field(
@@ -138,7 +146,7 @@ class AyonConfig(BaseModel):
     motd: str | None = Field(
         default=None,
         description="Message of the day",
-        example="Welcome to Ayon!",
+        examples=["Welcome to Ayon!"],
     )
 
     motd_path: str | None = Field(
@@ -149,13 +157,13 @@ class AyonConfig(BaseModel):
     login_page_background: str | None = Field(
         default=None,
         description="Login page background image",
-        example="https://example.com/background.jpg",
+        examples=["https://example.com/background.jpg"],
     )
 
     login_page_brand: str | None = Field(
         default=None,
         description="Login page brand image",
-        example="https://example.com/brand.png",
+        examples=["https://example.com/brand.png"],
     )
 
     geoip_db_path: str = Field(
@@ -201,7 +209,7 @@ class AyonConfig(BaseModel):
     event_retention_days: int | None = Field(
         default=None,
         description="Number of days to keep events in the event log",
-        example=90,
+        examples=[90],
     )
 
     http_timeout: int = Field(
@@ -215,8 +223,8 @@ class AyonConfig(BaseModel):
     )
 
     ynput_cloud_api_url: str | None = Field(
-        "https://im.ynput.cloud",
-        description="YnputConnect URL",
+        "https://ynput.cloud",
+        description="Ynput Cloud URL",
     )
 
     disable_feedback: bool = Field(
@@ -252,7 +260,8 @@ class AyonConfig(BaseModel):
         description="Log level stored in the event stream",
     )
 
-    @validator("log_level", "log_level_db", pre=True)
+    @field_validator("log_level", "log_level_db", mode="before")
+    @classmethod
     def validate_log_level(cls, value: str) -> str:
         return value.upper()
 
@@ -315,6 +324,37 @@ class AyonConfig(BaseModel):
         description="Max width/height of generated thumbnails in pixels",
     )
 
+    filmstrip_frames: int = Field(
+        default=20,
+        ge=2,
+        le=100,
+        description="Number of frames sampled from a video reviewable "
+        "to create a filmstrip (hover-scrub thumbnail)",
+    )
+
+    filmstrip_frame_size: int = Field(
+        default=480,
+        ge=64,
+        le=1280,
+        description="Max width/height of a single filmstrip frame in pixels",
+    )
+
+    filmstrip_creation: Literal["auto", "on_upload", "off"] = Field(
+        default="auto",
+        description="When filmstrips are created. 'auto': when a reviewable "
+        "is uploaded and on the first request for older videos, "
+        "'on_upload': only when a reviewable is uploaded, "
+        "'off': never (existing filmstrips are still served)",
+    )
+
+    filmstrip_concurrency: int = Field(
+        default=2,
+        ge=1,
+        le=16,
+        description="Max number of filmstrips created at the same time "
+        "by one server instance. A 4K video takes up to ~0.6 GB of memory.",
+    )
+
     # Temporary / workarounds
 
     limit_user_visibility: bool = Field(
@@ -342,7 +382,18 @@ def load_config() -> AyonConfig:
             continue
 
         key = key.lower().removeprefix(prefix)
-        if key in AyonConfig.__fields__:
+        if key in AyonConfig.model_fields:
+            # Replace deprecated endpoints
+
+            if key == "ynput_cloud_api_url" and value == "https://im.ynput.cloud":
+                value = "https://ynput.cloud"
+
+            if (
+                key == "default_project_storage_cdn_resolver"
+                and value == "https://im.ynput.cloud/api/v1/cdn"
+            ):
+                value = "https://ynput.cloud/api/ayon/cdn"
+
             env_data[key] = value
 
     config = AyonConfig(**env_data)

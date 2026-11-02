@@ -26,11 +26,14 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity):
     if bundle.is_dev:
         raise BadRequestException("Dev bundles cannot be promoted")
 
-    await Postgres.execute("UPDATE bundles SET is_production = FALSE")
+    await Postgres.execute(
+        "UPDATE bundles SET is_production = FALSE, updated_at = NOW()"
+        " WHERE is_production = TRUE"
+    )
     await Postgres.execute(
         """
         UPDATE bundles
-        SET is_production = TRUE
+        SET is_production = TRUE, updated_at = NOW()
         WHERE name = $1
         """,
         bundle.name,

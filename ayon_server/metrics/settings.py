@@ -1,5 +1,6 @@
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings.overrides import list_overrides
 from ayon_server.types import Field, OPModel
 
@@ -54,7 +55,13 @@ async def get_studio_settings_overrides(
         except Exception:
             continue
 
-        if (default_settings := await addon.get_default_settings()) is None:
+        try:
+            if (default_settings := await addon.get_default_settings()) is None:
+                continue
+        except Exception:
+            logger.trace(
+                f"Failed to get default settings for {addon_name} {addon_version}"
+            )
             continue
 
         paths = []
@@ -81,7 +88,6 @@ async def get_studio_settings_overrides(
             continue
         results.append(
             SettingsOverrides(
-                project_name=None,
                 addon_name=addon_name,
                 addon_version=addon_version,
                 paths=paths,

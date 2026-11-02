@@ -216,7 +216,7 @@ async def _get_template_names_project(
 
 async def _get_template_names_studio(category: TemplateItemsCategory) -> list[str]:
     anatomy = await get_primary_anatomy_preset()
-    data = anatomy.dict()
+    data = anatomy.model_dump()
 
     return [template["name"] for template in data["templates"].get(category, {})]
 

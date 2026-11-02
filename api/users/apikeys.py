@@ -16,18 +16,18 @@ class ApiKeyModel(OPModel):
     label: str
     preview: str
     created: float
-    expires: float | None
+    expires: float | None = None
 
 
 class ApiKeyPostModel(OPModel):
     label: str
     key: str
-    expires: float | None
+    expires: float | None = None
 
 
 class ApiKeyPatchModel(OPModel):
-    label: str | None
-    expires: float | None
+    label: str | None = None
+    expires: float | None = None
 
 
 async def get_api_key_records(user_name: str) -> list[dict[str, Any]]:

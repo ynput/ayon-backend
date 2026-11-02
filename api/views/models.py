@@ -81,13 +81,7 @@ class GenericViewPatchModel(OPModel):
 #
 
 
-ViewModel = Annotated[
-    GenericViewModel,
-    Field(
-        discriminator="view_type",
-        title="View model",
-    ),
-]
+ViewModel = Annotated[GenericViewModel, Field(title="View model")]
 
 ViewPostModel = GenericViewPostModel
 

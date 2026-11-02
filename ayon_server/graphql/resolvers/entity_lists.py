@@ -105,7 +105,7 @@ async def get_entity_lists(
     if filter:
         fdata = json_loads(filter)
         fq = QueryFilter(**fdata)
-        if fcond := build_filter(fq, columns=FILTER_OPTIONS):
+        if fcond := build_filter(fq, column_whitelist=FILTER_OPTIONS):
             sql_conditions.append(fcond)
 
     if search:

@@ -583,3 +583,41 @@ CREATE TABLE IF NOT EXISTS views(
 CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
 CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
 CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
+
+-----------
+-- BLOBS --
+-----------
+
+CREATE TABLE IF NOT EXISTS blobs(
+  id UUID NOT NULL PRIMARY KEY,
+  kind VARCHAR NOT NULL,
+  size BIGINT NOT NULL DEFAULT 0,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by VARCHAR,
+  updated_by VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS blob_kind_idx ON blobs(kind);
+
+---------------
+-- DOCUMENTS --
+---------------
+
+CREATE TABLE IF NOT EXISTS documents(
+  id UUID NOT NULL PRIMARY KEY,
+  kind VARCHAR NOT NULL,
+  label VARCHAR NOT NULL DEFAULT '',
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by VARCHAR,
+  updated_by VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS document_kind_idx ON documents(kind);
+CREATE INDEX IF NOT EXISTS document_created_by_idx ON documents(created_by);
+CREATE INDEX IF NOT EXISTS document_updated_at_idx ON documents(updated_at);

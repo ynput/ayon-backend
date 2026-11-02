@@ -1,6 +1,6 @@
 import base64
 import functools
-from typing import Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from fastapi import Response
 
@@ -31,6 +31,8 @@ class ThumbnailInfo(TypedDict):
     thumbnail_id: NotRequired[str | None]
     file_id: NotRequired[str | None]
     thumbnail_source: NotRequired[str | None]
+    # filmstrip of the reviewable (file_id), if it has been created
+    filmstrip: NotRequired[dict[str, Any] | None]
 
 
 class ThumbnailData(TypedDict):

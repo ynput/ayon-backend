@@ -6,7 +6,7 @@ This is all the information needed to display the action in the frontend.
 
 from typing import Annotated, Any
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.forms.simple_form import SimpleFormField
 from ayon_server.models import IconModel
@@ -107,7 +107,8 @@ class BaseActionManifest(OPModel):
         ),
     ] = None
 
-    @validator("config_fields", pre=True)
+    @field_validator("config_fields", mode="before")
+    @classmethod
     def validate_config_fields(cls, v: Any) -> list[dict[str, Any]] | None:
         return list(v) if isinstance(v, list) else None
 
