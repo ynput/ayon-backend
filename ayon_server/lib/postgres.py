@@ -310,15 +310,19 @@ class Postgres:
         # Never set() a ContextVar in a context that may yield to caller
         # and then try to reset() it as async context may change
 
-        conn = await cls.pool.acquire()
+        conn = _current_connection.get()
+        if conn is not None and conn.is_in_transaction():
+            # Run in the caller's transaction, so it sees its locks and writes.
+            # Only then: a cursor opened outside one would need its own transaction,
+            # left open on the shared connection if the caller stops iterating early.
+            statement = await conn.prepare(query)
+            async for record in statement.cursor(*args):
+                yield dict(record)
+            return
 
+        conn = await cls.pool.acquire()
         try:
-            if not conn.is_in_transaction():
-                async with conn.transaction():
-                    statement = await conn.prepare(query)
-                    async for record in statement.cursor(*args):
-                        yield dict(record)
-            else:
+            async with conn.transaction():
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
                     yield dict(record)
