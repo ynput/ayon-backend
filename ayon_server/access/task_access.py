@@ -58,7 +58,7 @@ async def create_task_acl(
 async def ensure_task_read_access(
     user: "UserEntity",
     project_name: str,
-    folder_id: str,
+    folder_id: str | None,
     assignees: list[str],
 ) -> None:
     """Apply the "show sibling tasks" setting to reading a single task."""
