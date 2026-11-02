@@ -1,8 +1,7 @@
 import json
 from typing import Annotated
 
-from ayon_server.access.access_groups import AccessGroups
-from ayon_server.access.utils import path_to_paths
+from ayon_server.access.task_access import FullAccess, create_task_acl
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -75,52 +74,6 @@ SORT_OPTIONS = {
     "updatedBy": "tasks.updated_by",
     "folderName": "folders.name",
 }
-
-
-class FullAccess(Exception):
-    pass
-
-
-async def create_task_acl(
-    project_name: str, access_group_names: list[str]
-) -> tuple[set[str], bool]:
-    """Get the access control list for tasks based on access groups.
-
-    - set of folder paths we have full access to
-    - bool indicating if we have 'assigned' access
-
-    raises FullAccess if we have full access to all tasks
-
-    """
-
-    full_access = set()
-    assigned_access: bool = False
-
-    for ag_name in access_group_names:
-        if (ag_name, project_name) in AccessGroups.access_groups:
-            ag_perms = AccessGroups.access_groups[(ag_name, project_name)]
-        elif (ag_name, "_") in AccessGroups.access_groups:
-            ag_perms = AccessGroups.access_groups[(ag_name, "_")]
-        else:
-            continue
-        read_perms = ag_perms.read
-        if not read_perms.enabled:
-            # we have an access group that does not restrict read access,
-            # so we have full access
-            raise FullAccess()
-        for acl in read_perms.access_list:
-            if acl.access_type == "assigned":
-                assigned_access = True
-                continue
-
-            if acl.path is None:
-                # make linter happy. path is nullable only for 'assigned' type
-                continue
-
-            for p in path_to_paths(acl.path, True, True):
-                full_access.add(p)
-
-    return full_access, assigned_access
 
 
 async def get_tasks(
