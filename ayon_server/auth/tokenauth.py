@@ -14,9 +14,10 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
 from ayon_server.helpers.email import EmailTemplate, is_mailing_enabled, send_mail
 from ayon_server.helpers.guest_users import GuestUsers
+from ayon_server.helpers.server_url import get_server_url
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
-from ayon_server.utils import server_url_from_request, slugify
+from ayon_server.utils import slugify
 
 from .models import LoginResponseModel
 
@@ -187,7 +188,12 @@ async def handle_token_auth_callback(
 
     if not await enc_data.validate_nonce():
         logger.debug(f"Token for guest user {payload.email} expired")
-        await send_extend_email(payload, base_url=server_url_from_request(request))
+        # Never from the request: a replayed link would send a valid token
+        # to whatever site the caller put in the headers
+        if base_url := await get_server_url():
+            await send_extend_email(payload, base_url=base_url)
+        else:
+            logger.error("Unable to send login link: server URL is not set")
         raise UnauthorizedException(
             "Your email link already expired or was used before. "
             "We're sending you a new one."
