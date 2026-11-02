@@ -1,3 +1,5 @@
+import functools
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +9,23 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
+
+# Project delete/rename hold it exclusively, queries over all project schemas shared
+PROJECT_SCHEMAS_LOCK = "projects:schemas"
+
+
+def reads_all_projects[**P, R](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Run a query over many project schemas without racing project deletion."""
+
+    @functools.wraps(func)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        async with Postgres.transaction():
+            await Postgres.advisory_xact_lock(PROJECT_SCHEMAS_LOCK, shared=True)
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 class ProjectListItem(OPModel):

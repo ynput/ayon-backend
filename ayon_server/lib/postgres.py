@@ -210,19 +210,21 @@ class Postgres:
         return conn.is_in_transaction()
 
     @classmethod
-    async def advisory_xact_lock(cls, key: str) -> None:
+    async def advisory_xact_lock(cls, key: str, *, shared: bool = False) -> None:
         """Wait for an advisory lock on `key`, held until the transaction ends.
 
         Keys are hashed strings, so callers share a single key space
         (use a "<domain>:<id>" prefix to avoid clashes).
+        Shared locks only block, and are blocked by, exclusive ones.
         """
+        fn = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
         async with cls.acquire() as connection:
             # outside a transaction the lock would be released immediately
             assert connection.is_in_transaction(), (
                 "Advisory xact lock requires a transaction"
             )
             await connection.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key, timeout=60
+                f"SELECT {fn}(hashtextextended($1, 0))", key, timeout=60
             )
 
     @classmethod
@@ -308,15 +310,19 @@ class Postgres:
         # Never set() a ContextVar in a context that may yield to caller
         # and then try to reset() it as async context may change
 
-        conn = await cls.pool.acquire()
+        conn = _current_connection.get()
+        if conn is not None and conn.is_in_transaction():
+            # Run in the caller's transaction, so it sees its locks and writes.
+            # Only then: a cursor opened outside one would need its own transaction,
+            # left open on the shared connection if the caller stops iterating early.
+            statement = await conn.prepare(query)
+            async for record in statement.cursor(*args):
+                yield dict(record)
+            return
 
+        conn = await cls.pool.acquire()
         try:
-            if not conn.is_in_transaction():
-                async with conn.transaction():
-                    statement = await conn.prepare(query)
-                    async for record in statement.cursor(*args):
-                        yield dict(record)
-            else:
+            async with conn.transaction():
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
                     yield dict(record)
