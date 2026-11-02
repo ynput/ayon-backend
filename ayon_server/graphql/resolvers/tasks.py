@@ -45,7 +45,6 @@ from .common import (
     EntityVisibility,
     build_search_conditions,
     get_resolved_attrib_expression,
-    get_task_attrib_expression,
 )
 from .field_stats import (
     MetricTargetInput,
@@ -423,7 +422,9 @@ async def get_tasks(
                 if sql_acl_conds:
                     sql_conditions.append(f"({' OR '.join(sql_acl_conds)})")
 
-    task_attrib_exp = get_task_attrib_expression("f_ex.attrib", "tasks.attrib")
+    task_attrib_exp = get_resolved_attrib_expression(
+        "task", "tasks.attrib", inherited="f_ex.attrib"
+    )
 
     if attributes:
         for attribute_input in attributes:

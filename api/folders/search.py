@@ -5,7 +5,6 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.graphql.resolvers.common import (
     build_search_conditions,
     get_resolved_attrib_expression,
-    get_task_attrib_expression,
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
@@ -168,7 +167,9 @@ async def search_folders(
                 table_prefix="tasks",
                 column_whitelist=TASK_ALLOWED_KEYS,
                 column_map={
-                    "attrib": get_task_attrib_expression("ex.attrib", "tasks.attrib")
+                    "attrib": get_resolved_attrib_expression(
+                        "task", "tasks.attrib", inherited="ex.attrib"
+                    )
                 },
             ):
                 task_conditions.append(tcond)

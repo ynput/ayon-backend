@@ -87,14 +87,16 @@ def test_description_matching_with_mapped_attributes():
 
 
 def test_description_matching_resolves_only_description():
-    from ayon_server.graphql.resolvers.common import get_task_attrib_expression
+    from ayon_server.graphql.resolvers.common import get_resolved_attrib_expression
 
     condition = QueryCondition(key="attrib.description", operator="like", value="world")
     result = build_condition(
         condition,
         table_prefix="tasks",
         column_map={
-            "attrib": get_task_attrib_expression("f_ex.attrib", "tasks.attrib")
+            "attrib": get_resolved_attrib_expression(
+                "task", "tasks.attrib", inherited="f_ex.attrib"
+            )
         },
     )
     assert result == (
@@ -106,9 +108,11 @@ def test_description_matching_resolves_only_description():
 
 
 def test_inherited_text_matching_does_not_change_coalesce_operands():
-    from ayon_server.graphql.resolvers.common import get_task_attrib_expression
+    from ayon_server.graphql.resolvers.common import get_resolved_attrib_expression
 
-    expression = get_task_attrib_expression("f_ex.attrib", "tasks.attrib")
+    expression = get_resolved_attrib_expression(
+        "task", "tasks.attrib", inherited="f_ex.attrib"
+    )
     condition = QueryCondition(key="attrib.fps", operator="like", value="25")
     result = build_condition(condition, column_map={"attrib": expression})
     assert result == f"(({expression('fps')}) #>> '{{}}') ILIKE '%25%'"

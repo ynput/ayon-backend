@@ -508,12 +508,6 @@ def get_resolved_attrib_expression(
     return ResolvedAttribExpression(values)
 
 
-def get_task_attrib_expression(
-    folder_attrib: str, task_attrib: str
-) -> ResolvedAttribExpression:
-    return get_resolved_attrib_expression("task", task_attrib, inherited=folder_attrib)
-
-
 def build_search_conditions(
     search: str,
     columns: list[str],
