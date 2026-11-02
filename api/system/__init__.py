@@ -1,4 +1,5 @@
 __all__ = [
+    "deprecations",
     "frontend_modules",
     "info",
     "metrics",
@@ -20,7 +21,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
-from . import dbimport, frontend_modules, info, metrics, secrets, sites
+from . import dbimport, deprecations, frontend_modules, info, metrics, secrets, sites
 from .router import router
 
 

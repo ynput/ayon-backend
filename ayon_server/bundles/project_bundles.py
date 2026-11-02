@@ -1,6 +1,7 @@
 import copy
 from typing import Any, Literal
 
+from api.bundles.models import BundleDataModel
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.entities import ProjectEntity
@@ -9,6 +10,7 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.models.field_info import get_field_extra, get_inner_type
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.set_addon_settings import set_addon_settings
 from ayon_server.types import Platform
@@ -42,7 +44,7 @@ async def has_project_bundle(
 
 async def get_studio_bundle_addons(
     variant: Literal["production", "staging"],
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     """Get the addons for the studio bundle for the given variant"""
 
     if variant == "production":
@@ -53,10 +55,12 @@ async def get_studio_bundle_addons(
     row = await Postgres.fetchrow(query)
     if not row:
         return {}
-    return row["data"].get("addons", {})
+    return BundleDataModel.model_validate(row["data"]).addons
 
 
-async def get_project_bundle_addons(project_name: str, variant: str) -> dict[str, str]:
+async def get_project_bundle_addons(
+    project_name: str, variant: str
+) -> dict[str, str | None]:
     query = """
         SELECT b.data FROM public.projects p
         JOIN public.bundles b
@@ -67,7 +71,7 @@ async def get_project_bundle_addons(project_name: str, variant: str) -> dict[str
     if not row:
         return {}
 
-    return row["data"].get("addons", {})
+    return BundleDataModel.model_validate(row["data"]).addons
 
 
 async def has_project_bundle_addon(
@@ -122,7 +126,7 @@ async def process_addon_settings(
     project_settings = await addon.get_project_settings(project_name, variant)
     # TODO: load original overrides so, we can create a change event
 
-    project_settings_dict = project_settings.dict() if project_settings else {}
+    project_settings_dict = project_settings.model_dump() if project_settings else {}
 
     # Save the entire object as project settings overrides
 
@@ -158,12 +162,12 @@ async def freeze_project_bundle(
 
     bundle_name = get_project_bundle_name(project_name, variant)
 
-    bundle_data = {
-        "addons": addons,
-        "installer_version": installer_version,
-        "dependency_packages": dependency_packages,
-        "is_project": True,
-    }
+    bundle_data = BundleDataModel(
+        addons=addons,
+        installer_version=installer_version,
+        dependency_packages=dependency_packages,
+        is_project=True,
+    )
 
     query = """
         INSERT INTO public.bundles (name, is_production, is_staging, is_dev, data)
@@ -172,7 +176,8 @@ async def freeze_project_bundle(
             is_production = FALSE,
             is_staging = FALSE,
             is_dev = FALSE,
-            data = EXCLUDED.data
+            data = bundles.data || EXCLUDED.data,
+            updated_at = NOW()
     """
 
     events = []
@@ -188,7 +193,7 @@ async def freeze_project_bundle(
         await Postgres.execute(
             query,
             bundle_name,
-            bundle_data,
+            bundle_data.model_dump(exclude_unset=True, by_alias=False),
         )
 
         # Enforce all overrides for project settings
@@ -243,18 +248,18 @@ async def _remove_studio_overrides_from_project_addon(
     def crawl(override_obj: dict[str, Any], model: type[BaseSettingsModel]) -> None:
         dict_keys = list(override_obj.keys())
         for key in dict_keys:
-            field = model.__fields__.get(key)
+            field = model.model_fields.get(key)
             if not field:
                 continue
 
-            scopes = field.field_info.extra.get("scope", ["studio", "project"])
+            scopes = get_field_extra(field).get("scope", ["studio", "project"])
             if "project" not in scopes:
                 # Field is not project-overridable, remove it
                 override_obj.pop(key)
                 continue
 
             try:
-                field_type = field.type_
+                field_type = get_inner_type(field.annotation)
 
                 if issubclass(field_type, BaseSettingsModel):
                     if isinstance(override_obj[key], dict):

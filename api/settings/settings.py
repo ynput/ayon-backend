@@ -10,6 +10,7 @@ from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
+from ayon_server.models.field_info import get_field_extra
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX
 from ayon_server.utils import hash_data
@@ -106,7 +107,7 @@ async def _get_all_settings(
                         title=addon_name,
                         version=addon_version,
                         settings={},
-                        site_settings=None,
+                        site_settings={},
                         is_broken=bool(broken_reason),
                         reason=broken_reason,
                     )
@@ -132,8 +133,8 @@ async def _get_all_settings(
             has_site_settings = bool(addon.site_settings_model)
             if model:
                 has_project_settings = False
-                for field in model.__fields__.values():
-                    scope = field.field_info.extra.get("scope", ["studio", "project"])
+                for field in model.model_fields.values():
+                    scope = get_field_extra(field).get("scope", ["studio", "project"])
                     if "project" in scope:
                         has_project_settings = True
                     if "site" in scope:
@@ -196,7 +197,7 @@ async def _get_all_settings(
                         title=addon_name,
                         version=addon_version,
                         settings={},
-                        site_settings=None,
+                        site_settings={},
                         is_broken=True,
                         reason={
                             "error": "Unable to load settings",
@@ -230,8 +231,11 @@ async def _get_all_settings(
                     has_project_site_overrides=settings._has_site_overrides
                     if settings
                     else None,
-                    settings=settings.dict() if (settings and not summary) else {},
-                    site_settings=site_settings,
+                    settings=settings.model_dump()
+                    if (settings and not summary)
+                    else {},
+                    # Clients expect a dict, even without site settings
+                    site_settings=site_settings or {},
                     is_project_bundle=addon_list["is_project_bundle"]
                     and (addon_name not in addon_list.get("inherited_addons", [])),
                 )
@@ -255,7 +259,7 @@ async def _get_all_settings(
         await Redis.set(
             "all-settings",
             cache_key,
-            result.json(),
+            result.model_dump_json(),
             ttl=60 * 60,  # Cache for 1 hour
         )
 
@@ -273,7 +277,7 @@ async def get_all_settings(
             "Use explicit bundle name to get the addon list. "
             "Current production (or staging) will be used if not set"
         ),
-        regex=NAME_REGEX,
+        pattern=NAME_REGEX,
     ),
     project_name: str | None = Query(
         None,
@@ -282,7 +286,7 @@ async def get_all_settings(
             "Return project settings for the given project name. "
             "Studio settings will be returned if not set"
         ),
-        regex=PROJECT_NAME_REGEX,
+        pattern=PROJECT_NAME_REGEX,
     ),
     project_bundle_name: str | None = Query(
         None,

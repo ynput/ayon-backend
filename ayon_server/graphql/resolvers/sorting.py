@@ -1,6 +1,13 @@
+from typing import Any
+
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import BadRequestException
+
+
+def _literal(value: Any) -> str:
+    """Return the value as a quoted SQL string literal"""
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 def get_task_types_sort_case(project: ProjectEntity) -> str:
@@ -14,7 +21,7 @@ def get_task_types_sort_case(project: ProjectEntity) -> str:
         return "tasks.task_type"
     case = "CASE"
     for i, task_type_name in enumerate(task_type_names):
-        case += f" WHEN tasks.task_type = '{task_type_name}' THEN {i}"
+        case += f" WHEN tasks.task_type = {_literal(task_type_name)} THEN {i}"
     case += f" ELSE {i + 1}"
     case += " END"
     return case
@@ -31,7 +38,7 @@ def get_folder_types_sort_case(project: ProjectEntity) -> str:
         return "folders.folder_type"
     case = "CASE"
     for i, folder_type_name in enumerate(folder_type_names):
-        case += f" WHEN folders.folder_type = '{folder_type_name}' THEN {i}"
+        case += f" WHEN folders.folder_type = {_literal(folder_type_name)} THEN {i}"
     case += f" ELSE {i + 1}"
     case += " END"
     return case
@@ -48,7 +55,7 @@ def get_status_sort_case(project: ProjectEntity, exp: str) -> str:
         return "tasks.status"
     case = "CASE"
     for i, status_name in enumerate(status_names):
-        case += f" WHEN {exp} = '{status_name}' THEN {i}"
+        case += f" WHEN {exp} = {_literal(status_name)} THEN {i}"
     case += f" ELSE {i + 1}"
     case += " END"
     return case
@@ -59,16 +66,23 @@ async def get_attrib_sort_case(attr: str, exp: str) -> str:
         raise BadRequestException("Invalid attribute name")
     try:
         attr_data = attribute_library.by_name(attr)
-        enum = attr_data.get("enum", [])
     except KeyError:
-        enum = []
+        return f"{exp}->>'{attr}'"
+
+    attr_type = attr_data.get("type")
+    if attr_type == "integer":
+        return f"({exp}->>'{attr}')::bigint"
+    if attr_type == "float":
+        return f"({exp}->>'{attr}')::double precision"
+
+    enum = attr_data.get("enum", [])
     if not enum:
         return f"{exp}->>'{attr}'"
     case = "CASE"
     i = 0
     for i, eval in enumerate(enum):
-        e = eval["value"]
-        case += f" WHEN {exp}->>'{attr}' = '{e}' THEN {i}"
+        e = _literal(eval["value"])
+        case += f" WHEN {exp}->>'{attr}' = {e} THEN {i}"
     case += f" ELSE {i + 1}"
     case += " END"
     return case

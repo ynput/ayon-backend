@@ -59,4 +59,4 @@ class InstallResponseModel(OPModel):
     event_id: str | None = Field(None, title="Event ID")
 
 
-FileNameInPath = Annotated[str, Path(title="File name", regex=r"^[\w\-. ]+$")]
+FileNameInPath = Annotated[str, Path(title="File name", pattern=r"^[\w\-. ]+$")]

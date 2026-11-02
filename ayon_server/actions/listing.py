@@ -259,7 +259,7 @@ class SimpleActionCache:
             try:
                 r = await addon.get_simple_actions(project_name, variant)
                 # Cache the data
-                cached_data = [x.dict() for x in r]
+                cached_data = [x.model_dump() for x in r]
                 result = [SimpleActionManifest(**x) for x in cached_data]
             except Exception as e:
                 log_traceback(

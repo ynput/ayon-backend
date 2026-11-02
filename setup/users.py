@@ -75,26 +75,3 @@ async def deploy_users(
             attrib,
             data,
         )
-
-    # Migration from 0.3.0 to 0.4.0
-    # TODO: remove in 0.5.0
-
-    async for row in Postgres.iterate("SELECT name, data FROM users"):
-        name = row["name"]
-        data = row["data"]
-        need_update = False
-
-        dr = data.pop("defaultRoles", None)
-        if dr:
-            need_update = True
-            data["defaultAccessGroups"] = dr
-
-        r = data.pop("roles", None)
-        if r:
-            need_update = True
-            data["accessGroups"] = r
-
-        if need_update:
-            await Postgres.execute(
-                "UPDATE users SET data = $1 WHERE name = $2", data, name
-            )

@@ -1,6 +1,6 @@
 from typing import get_args
 
-from pydantic import validator
+from pydantic import field_validator
 
 from ayon_server.entities.project_aux_tables import State
 from ayon_server.settings.settings_field import SettingsField
@@ -53,7 +53,8 @@ class Status(BaseAuxModel):
         example="#3498db",
     )
     scope: list[str] | None = SettingsField(
-        default_factory=get_default_scopes,
+        # not default_factory: pydantic v1 leaves that out of the schema the UI uses
+        list(get_default_scopes()),
         example=get_default_scopes(),
         enum_resolver=scope_enum,
         description="Limit the status to specific entity types.",
@@ -62,10 +63,12 @@ class Status(BaseAuxModel):
         None,
         scope=[],
         example=None,
+        validate_default=True,  # see BaseAuxModel
     )  # Used for renaming, we don't show it in the UI
 
-    @validator("scope")
-    def validate_scope(cls, v, values):
+    @field_validator("scope")
+    @classmethod
+    def validate_scope(cls, v):
         if v is None:
             return get_default_scopes()
         return v

@@ -1,7 +1,7 @@
 from typing import Any
 
 import aiocache
-from pydantic import validator
+from pydantic import ValidationInfo, field_validator
 
 from ayon_server.enum import EnumRegistry
 from ayon_server.enum.enum_item import EnumItem
@@ -89,12 +89,13 @@ class FolderAccess(BaseSettingsModel):
     )
 
     def __hash__(self):
-        return hash(json_dumps(self.dict()))
+        return hash(json_dumps(self.model_dump()))
 
-    @validator("path")
-    def validate_path(cls, value, values):
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, value, info: ValidationInfo):
         # Do not store path if the access_type does not support it
-        if values["access_type"] not in ["hierarchy", "children"]:
+        if info.data["access_type"] not in ["hierarchy", "children"]:
             return None
         # We display path WITH a leading slash
         # access control filters remove it when conditions are evaluated

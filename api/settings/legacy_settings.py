@@ -37,8 +37,8 @@ async def get_all_addons_settings(
         "production",
         title="Settings variant",
     ),
-    project: str | None = Query(None, regex=NAME_REGEX),
-    site: str | None = Query(None, regex=NAME_REGEX),
+    project: str | None = Query(None, pattern=NAME_REGEX),
+    site: str | None = Query(None, pattern=NAME_REGEX),
 ) -> AddonSettingsResponse:
     """Return all addon settings for the project."""
 
@@ -79,14 +79,14 @@ async def get_all_addons_settings(
                     variant=variant,
                 )
             if settings:
-                result[addon_name] = settings.dict()
+                result[addon_name] = settings.model_dump()
                 versions[addon_name] = addon_version
                 continue
 
         settings = await active_addon.get_studio_settings(variant=variant)
         if settings is None:
             continue
-        result[addon_name] = settings.dict()
+        result[addon_name] = settings.model_dump()
         versions[addon_name] = addon_version
 
     return AddonSettingsResponse(settings=result, versions=versions)
@@ -99,7 +99,7 @@ async def get_all_site_settings(
         "production",
         title="Settings variant",
     ),
-    site: str | None = Query(None, regex=NAME_REGEX),
+    site: str | None = Query(None, pattern=NAME_REGEX),
 ) -> AddonSettingsResponse:
     """Return site settings for all enabled addons.
 
@@ -147,7 +147,7 @@ async def get_all_site_settings(
             data = row["data"]
             break
 
-        result[addon_name] = site_settings_model(**data).dict()
+        result[addon_name] = site_settings_model(**data).model_dump()
         versions[addon_name] = addon_version
 
     return AddonSettingsResponse(settings=result, versions=versions)
