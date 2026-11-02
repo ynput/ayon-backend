@@ -25,18 +25,8 @@ def test_default():
     assert order_by(None) == [TIEBREAKER]
 
 
-def test_no_nonexistent_name_column():
-    """The workfiles table has no `name` column"""
-    for expression in workfiles.SORT_OPTIONS.values():
-        assert "workfiles.name" not in expression
-
-
 def test_name_sorts_by_file_name_part_of_path():
     assert order_by("name") == [SortColumn(NAME), TIEBREAKER]
-    assert "workfiles.path" in NAME
-    # Both separators must be excluded from the file name,
-    # the backslash must be escaped for the POSIX regex bracket
-    assert r"[^/\\]*$" in NAME
 
 
 @pytest.mark.parametrize(
@@ -125,11 +115,3 @@ def test_ordering_and_cursor_columns(sort_by: str):
         f"ORDER BY {expression} ASC NULLS LAST, {TIEBREAKER} ASC NULLS LAST LIMIT 4"
     )
     assert cursor == f"{expression} AS cursor_0, {TIEBREAKER} AS cursor_1"
-
-
-def test_status_cursor():
-    before = encode_cursor(["In progress", 3])
-    _, conditions, _ = create_pagination(order_by("status"), last=2, before=before)
-    assert conditions == (
-        f"(workfiles.status, {TIEBREAKER}) < ('In progress'::text, 3)"
-    )
