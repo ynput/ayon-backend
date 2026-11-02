@@ -468,6 +468,8 @@ class ProjectEntity(TopLevelEntity[ProjectModel]):
                 await Redis.delete("project-anatomy", self.name)
                 await Redis.delete("project-data", self.name)
                 await Redis.delete("project-folders", self.name)
+        # after commit: a rebuild during the transaction still saw the project
+        await build_project_list()
         return True
 
     def as_user(self, user):
