@@ -34,6 +34,7 @@ SECRET_USER_DATA_KEYS = (
     "apiKey",
     "apiKeys",
     "passwordResetRequest",
+    "inviteRequest",
     "supportToken",
 )
 
