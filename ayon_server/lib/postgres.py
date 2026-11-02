@@ -210,6 +210,22 @@ class Postgres:
         return conn.is_in_transaction()
 
     @classmethod
+    async def advisory_xact_lock(cls, key: str) -> None:
+        """Wait for an advisory lock on `key`, held until the transaction ends.
+
+        Keys are hashed strings, so callers share a single key space
+        (use a "<domain>:<id>" prefix to avoid clashes).
+        """
+        async with cls.acquire() as connection:
+            # outside a transaction the lock would be released immediately
+            assert connection.is_in_transaction(), (
+                "Advisory xact lock requires a transaction"
+            )
+            await connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key
+            )
+
+    @classmethod
     def get_current_project_name(cls) -> str | None:
         """Return the name of the current project schema."""
         return _current_project.get()
