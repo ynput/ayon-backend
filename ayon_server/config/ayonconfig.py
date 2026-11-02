@@ -114,6 +114,14 @@ class AyonConfig(BaseModel):
         description="Session lifetime in seconds",
     )
 
+    trusted_proxy_hops: int = Field(
+        default=1,
+        ge=0,
+        description="Number of reverse proxies in front of the server. "
+        "The client IP is taken from X-Forwarded-For this many entries "
+        "from the end. Set to 0 when the server is accessed directly.",
+    )
+
     disable_check_session_ip: bool = Field(
         default=False,
         description="Skip checking session IP match real IP",
