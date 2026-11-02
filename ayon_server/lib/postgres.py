@@ -210,19 +210,21 @@ class Postgres:
         return conn.is_in_transaction()
 
     @classmethod
-    async def advisory_xact_lock(cls, key: str) -> None:
+    async def advisory_xact_lock(cls, key: str, *, shared: bool = False) -> None:
         """Wait for an advisory lock on `key`, held until the transaction ends.
 
         Keys are hashed strings, so callers share a single key space
         (use a "<domain>:<id>" prefix to avoid clashes).
+        Shared locks only block, and are blocked by, exclusive ones.
         """
+        fn = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
         async with cls.acquire() as connection:
             # outside a transaction the lock would be released immediately
             assert connection.is_in_transaction(), (
                 "Advisory xact lock requires a transaction"
             )
             await connection.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key, timeout=60
+                f"SELECT {fn}(hashtextextended($1, 0))", key, timeout=60
             )
 
     @classmethod

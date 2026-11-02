@@ -29,7 +29,7 @@ from ayon_server.entities.project_aux_tables import (
 from ayon_server.exceptions import NotFoundException, ServiceUnavailableException
 from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
-from ayon_server.helpers.project_list import build_project_list, lock_project_schemas
+from ayon_server.helpers.project_list import PROJECT_SCHEMAS_LOCK, build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -457,7 +457,7 @@ class ProjectEntity(TopLevelEntity[ProjectModel]):
             raise KeyError("Unable to delete project. Not loaded")
 
         async with Postgres.transaction():
-            await lock_project_schemas()
+            await Postgres.advisory_xact_lock(PROJECT_SCHEMAS_LOCK)
             try:
                 await Postgres.execute(f"DROP SCHEMA project_{self.name} CASCADE")
                 await Postgres.execute(

@@ -11,13 +11,7 @@ from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
 # Project delete/rename hold it exclusively, queries over all project schemas shared
-PROJECT_SCHEMA_LOCK = 0x41594F4E
-
-
-async def lock_project_schemas() -> None:
-    """Wait for running cross-project queries and keep new ones out until commit."""
-    assert await Postgres.is_in_transaction(), "must be called in a transaction"
-    await Postgres.execute("SELECT pg_advisory_xact_lock($1)", PROJECT_SCHEMA_LOCK)
+PROJECT_SCHEMAS_LOCK = "projects:schemas"
 
 
 def reads_all_projects[**P, R](
@@ -28,9 +22,7 @@ def reads_all_projects[**P, R](
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         async with Postgres.transaction():
-            await Postgres.execute(
-                "SELECT pg_advisory_xact_lock_shared($1)", PROJECT_SCHEMA_LOCK
-            )
+            await Postgres.advisory_xact_lock(PROJECT_SCHEMAS_LOCK, shared=True)
             return await func(*args, **kwargs)
 
     return wrapper
