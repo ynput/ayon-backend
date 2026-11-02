@@ -61,10 +61,17 @@ def db(monkeypatch):
     async def transaction():
         yield
 
+    async def normalize_project_name(project_name: str, **kwargs: Any) -> str:
+        return project_name
+
     monkeypatch.setattr(Postgres, "fetchrow", fetchrow)
     monkeypatch.setattr(Postgres, "iterate", iterate)
     monkeypatch.setattr(Postgres, "execute", execute)
     monkeypatch.setattr(Postgres, "transaction", transaction)
+    # the real one reads the project list from Redis
+    monkeypatch.setattr(
+        documents_module, "normalize_project_name", normalize_project_name
+    )
     user = SimpleNamespace(name="alice")
     monkeypatch.setattr(
         documents_module,
