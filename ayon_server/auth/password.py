@@ -115,10 +115,11 @@ class PasswordAuth:
                 """
                 UPDATE public.users
                 SET data = jsonb_set(data, '{password}', to_jsonb($1::text))
-                WHERE name = $2
+                WHERE name = $2 AND data->>'password' = $3
                 """,
                 user.data["password"],
                 user.name,
+                stored,  # don't overwrite a password changed meanwhile
             )
 
         if request is not None:
