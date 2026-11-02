@@ -129,6 +129,25 @@ async def save_entity_list(
                     folder_path = $9,
                     updated_at = NOW(),
                     updated_by = $11
+                WHERE (
+                    entity_list_items.entity_list_id,
+                    entity_list_items.entity_id,
+                    entity_list_items.position,
+                    entity_list_items.label,
+                    entity_list_items.attrib,
+                    entity_list_items.data,
+                    entity_list_items.tags,
+                    entity_list_items.folder_path
+                ) IS DISTINCT FROM (
+                    EXCLUDED.entity_list_id,
+                    EXCLUDED.entity_id,
+                    EXCLUDED.position,
+                    EXCLUDED.label,
+                    EXCLUDED.attrib,
+                    EXCLUDED.data,
+                    EXCLUDED.tags,
+                    EXCLUDED.folder_path
+                )
                 """,
                 item.id,
                 payload.id,

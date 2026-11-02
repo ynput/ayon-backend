@@ -52,6 +52,7 @@ app = FastAPI(
     # Keep a single OpenAPI schema per model (as with Pydantic 1),
     # so the names of the generated client types do not change.
     separate_input_output_schemas=False,
+    generate_unique_id_function=lambda route: route.name,
     **app_meta,
 )
 
@@ -376,12 +377,6 @@ def init_api(target_app: FastAPI, plugin_dir: str = "api") -> None:
             continue
 
         target_app.include_router(module.router, prefix="/api")
-
-    # Use endpoints function names as operation_ids
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            if route.operation_id is None:
-                route.operation_id = route.name
 
 
 def init_global_static(target_app: FastAPI) -> None:

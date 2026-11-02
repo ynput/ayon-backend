@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from strawberry.scalars import JSON
 
+from ayon_server.attributes.models import AttributeData, AttributeModel
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core.attrib import attribute_library, resolve_attrib
 from ayon_server.entities.core.patch import apply_patch
@@ -36,6 +37,7 @@ from ayon_server.graphql.nodes.common import (
 from ayon_server.graphql.utils import attrib_to_json
 from ayon_server.models.attrib_values import AttribDict
 from ayon_server.settings.anatomy import Anatomy
+from setup.attributes import default_attribute_rows
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "api"))
 
@@ -51,10 +53,14 @@ def attribute(name: str, scope: list[str], position: int, **data: Any):
 
 
 BASE_ATTRIBUTES = [
-    attribute("fps", ["project", "folder"], 1, type="float", default=25.0),
-    attribute("resolutionWidth", ["project", "folder"], 2, type="integer"),
+    attribute(
+        "fps", ["project", "folder"], 1, type="float", default=25.0, inherit=True
+    ),
+    attribute(
+        "resolutionWidth", ["project", "folder"], 2, type="integer", inherit=True
+    ),
     attribute("description", ["project", "folder"], 3, type="string", inherit=False),
-    attribute("startDate", ["project", "folder"], 4, type="datetime"),
+    attribute("startDate", ["project", "folder"], 4, type="datetime", inherit=True),
     attribute("email", ["user"], 5, type="string"),
 ]
 
@@ -155,6 +161,28 @@ def test_reload_callbacks():
 
 def test_reload_hook_is_installed_on_all_nodes():
     assert ("server.attributes_updated", reload_attributes, True) in DEFAULT_HOOKS
+
+
+def test_attributes_are_not_inherited_by_default():
+    """The same default as in the AttributeData model"""
+    no_flag = attribute("noFlag", ["project", "folder"], 20, type="integer")
+    load_attributes([*BASE_ATTRIBUTES, no_flag])
+    assert "noFlag" not in attribute_library.inheritable
+    assert "fps" in attribute_library.inheritable
+    assert "description" not in attribute_library.inheritable
+    assert AttributeData(type="integer", title="No flag").inherit is False
+
+
+def test_built_in_attributes_store_the_inherit_flag():
+    rows = {row["name"]: row for row in default_attribute_rows()}
+    for name, row in rows.items():
+        assert isinstance(row["data"].get("inherit"), bool), name
+    assert rows["fps"]["data"]["inherit"] is True
+    assert rows["description"]["data"]["inherit"] is False
+
+    # saving a built-in attribute using the API keeps the flag
+    data = AttributeModel(**rows["fps"]).data.model_dump(exclude_none=True)
+    assert data["inherit"] is True
 
 
 #

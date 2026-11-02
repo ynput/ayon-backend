@@ -9,7 +9,6 @@ from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import TaskEntity
 from ayon_server.entities.models.task import TaskModel, TaskPatchModel, TaskPostModel
 from ayon_server.events import EventStream
-from ayon_server.exceptions import ForbiddenException
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import Field, OPModel
 
@@ -127,10 +126,8 @@ async def assign_users_to_task(
 ) -> EmptyResponse:
     """Change the list of users assigned to a task."""
 
-    if not user.is_manager and post_data.users != [user.name]:  # TBD
-        raise ForbiddenException("Normal users can only assign themselves")
-
     task = await TaskEntity.load(project_name, task_id)
+    await task.ensure_update_access(user)
     assignees = set(task.assignees)
     original_assignees = set(task.assignees)
 
@@ -148,7 +145,8 @@ async def assign_users_to_task(
         # nothing changed
         return EmptyResponse()
 
-    task.assignees = list(assignees)
+    # patch() checks the "assignees" field permission, as entity updates do
+    task.patch(TaskPatchModel(assignees=list(assignees)), user=user)
     await task.save(user_name=user.name)
 
     event_payload: dict[str, Any] = {

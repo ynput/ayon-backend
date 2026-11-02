@@ -1,19 +1,8 @@
-# ruff: noqa
-import asyncio
-import os
-import sys
-from unittest.mock import MagicMock, AsyncMock
-
-# Add project root to sys.path
-
-# Mock statistics and other file modules to avoid circular imports and postgres connections
-mock_stats = MagicMock()
-mock_stats.update_traffic_stats = AsyncMock()
-sys.modules["ayon_server.helpers.statistics"] = mock_stats
-sys.modules["ayon_server.files.project_file_record"] = MagicMock()
-sys.modules["ayon_server.files.project_storage"] = MagicMock()
+from unittest.mock import AsyncMock
 
 import pytest
+
+from ayon_server.files import s3
 from ayon_server.files.s3 import handle_s3_upload
 
 
@@ -48,7 +37,10 @@ class MockRequest:
 
 
 @pytest.mark.anyio
-async def test_handle_s3_upload_chunk_sizes():
+async def test_handle_s3_upload_chunk_sizes(monkeypatch):
+    # Traffic statistics are stored in the database
+    monkeypatch.setattr(s3, "update_traffic_stats", AsyncMock())
+
     # Setup mock S3 client and storage
     mock_client = MockS3Client()
     mock_storage = MockStorage(mock_client)

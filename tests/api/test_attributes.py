@@ -151,7 +151,8 @@ def test_attributes_can_change_at_runtime(api, graphql, project_name):
     payload = {
         "position": 999,
         "scope": ["project", "folder"],
-        "data": {"type": "integer", "title": "API test", "default": 7},
+        # attributes are not inherited by default
+        "data": {"type": "integer", "title": "API test", "default": 7, "inherit": True},
     }
 
     def check(expected: int | None) -> None:

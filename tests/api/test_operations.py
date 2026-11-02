@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from .conftest import TempProject, operation
+from .conftest import GraphQL, TempProject, operation
 
 
 def uid() -> str:
@@ -260,44 +260,280 @@ class TestFolders:
 
 
 class TestAttributes:
+    """Attribute values and their inheritance.
+
+    Values are read using both REST and GraphQL (`attrib`), which must agree,
+    including the names of the attributes set on the entity (`ownAttrib`).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _graphql(self, graphql: GraphQL) -> None:
+        self.graphql = graphql
+
+    def attrib(
+        self, project: TempProject, entity_type: str, entity_id: str
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Return `attrib` and sorted `ownAttrib` of an entity.
+
+        GraphQL is queried for a single entity, using a list query and (for
+        tasks) nested in the folder, as these may load the values differently.
+
+        Only folders and tasks inherit values, other entities have
+        only their own values (and no `ownAttrib` in GraphQL).
+        """
+        inherits = entity_type in ("folder", "task")
+        fields = "attrib ownAttrib" if inherits else "attrib"
+        rest = project.get(entity_type, entity_id)
+        selections = [f'single: {entity_type}(id: "{entity_id}") {{ {fields} }}']
+        if inherits:
+            selections.append(
+                f'list: {entity_type}s(ids: ["{entity_id}"]) '
+                f"{{ edges {{ node {{ {fields} }} }} }}"
+            )
+        if entity_type == "task":
+            selections.append(
+                f'nested: folder(id: "{rest["folderId"]}") '
+                f'{{ tasks(ids: ["{entity_id}"]) '
+                f"{{ edges {{ node {{ {fields} }} }} }} }}"
+            )
+        data = self.graphql(
+            f'{{ project(name: "{project.name}") {{ {" ".join(selections)} }} }}'
+        )["project"]
+        nodes = {"single": data["single"]}
+        if "list" in data:
+            [edge] = data["list"]["edges"]
+            nodes["list"] = edge["node"]
+        if "nested" in data:
+            [edge] = data["nested"]["tasks"]["edges"]
+            nodes["nested"] = edge["node"]
+
+        attrib = {k: v for k, v in rest["attrib"].items() if v is not None}
+        own = sorted(rest["ownAttrib"]) if inherits else sorted(attrib)
+        for label, node in nodes.items():
+            values = {k: v for k, v in node["attrib"].items() if v is not None}
+            assert values == attrib, f"{entity_type} {label}"
+            if inherits:
+                assert sorted(node["ownAttrib"]) == own, f"{entity_type} {label}"
+        return attrib, own
+
     def test_inheritance(self, project: TempProject):
         root = folder(project, attrib={"fps": 30})
         child = folder(project, root)
         task_id = task(project, child)
+        assert self.attrib(project, "folder", root)[1] == ["fps"]
         for entity_type, entity_id in (("folder", child), ("task", task_id)):
-            data = project.get(entity_type, entity_id)
-            assert data["attrib"]["fps"] == 30.0, entity_type  # inherited
-            assert "fps" not in data["ownAttrib"]
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 30.0, entity_type  # inherited
+            assert own == [], entity_type
 
         # a change of the parent is inherited
         assert project.op("update", "folder", root, {"attrib": {"fps": 50}})["success"]
-        assert project.get("task", task_id)["attrib"]["fps"] == 50.0
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 50.0, entity_type
+            assert own == [], entity_type
+
+    def test_own_values_override_inherited(self, project: TempProject):
+        root = folder(project, attrib={"fps": 30})
+        child = folder(project, root, attrib={"fps": 24})
+        task_id = task(project, child)
+        grandchild = folder(project, child)
+
+        assert project.op("update", "folder", root, {"attrib": {"fps": 50}})["success"]
+        attrib, own = self.attrib(project, "folder", child)
+        assert attrib["fps"] == 24.0
+        assert own == ["fps"]
+        # descendants inherit the closest value
+        for entity_type, entity_id in (("folder", grandchild), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 24.0, entity_type
+            assert own == [], entity_type
+
+    def test_own_value_equal_to_inherited(self, project: TempProject):
+        """An explicitly set value is own even when it equals the inherited one"""
+        root = folder(project, attrib={"fps": 30})
+        child = folder(project, root, attrib={"fps": 30})
+        task_id = task(project, child, attrib={"fps": 30})
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 30.0, entity_type
+            assert own == ["fps"], entity_type
+
+        # so it is kept when the parent changes
+        assert project.op("update", "folder", root, {"attrib": {"fps": 50}})["success"]
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            assert self.attrib(project, entity_type, entity_id)[0]["fps"] == 30.0
+
+    def test_deep_hierarchy(self, project: TempProject):
+        folders = [folder(project, attrib={"fps": 30})]
+        for _ in range(5):
+            folders.append(folder(project, folders[-1]))
+        middle = folders[2]
+        assert project.op("update", "folder", middle, {"attrib": {"fps": 60}})[
+            "success"
+        ]
+        task_id = task(project, folders[-1])
+
+        for i, folder_id in enumerate(folders):
+            attrib, own = self.attrib(project, "folder", folder_id)
+            assert attrib["fps"] == (30.0 if i < 2 else 60.0), i
+            assert own == (["fps"] if i in (0, 2) else []), i
+        attrib, own = self.attrib(project, "task", task_id)
+        assert attrib["fps"] == 60.0
+        assert own == []
+
+        # reverting the middle folder exposes the root value again
+        assert project.op("update", "folder", middle, {"attrib": {"fps": None}})[
+            "success"
+        ]
+        assert self.attrib(project, "task", task_id)[0]["fps"] == 30.0
+
+    def test_inheritance_within_a_batch(self, project: TempProject):
+        """Entities created in a batch inherit values changed in the same batch"""
+        root = folder(project, attrib={"fps": 30})
+        child, task_id = uid(), uid()
+        ft, tt = project.folder_types[0], project.task_types[0]
+        result = project.ops(
+            operation("update", "folder", root, {"attrib": {"fps": 50}}),
+            operation(
+                "create",
+                "folder",
+                child,
+                {"name": name(), "folderType": ft, "parentId": root},
+            ),
+            operation(
+                "create",
+                "task",
+                task_id,
+                {"name": name(), "taskType": tt, "folderId": child},
+            ),
+        )
+        assert result["success"], result
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 50.0, entity_type
+            assert own == [], entity_type
+
+        # update of the parent after the children are created
+        result = project.ops(
+            operation("update", "folder", child, {"attrib": {"resolutionWidth": 640}}),
+            operation("update", "folder", root, {"attrib": {"fps": 60}}),
+        )
+        assert result["success"], result
+        attrib, own = self.attrib(project, "task", task_id)
+        assert attrib["fps"] == 60.0
+        assert attrib["resolutionWidth"] == 640
+        assert own == []
+
+    def test_project_values_are_inherited(self, project: TempProject):
+        root = folder(project)
+        child = folder(project, root, attrib={"pixelAspect": 2.0})
+        task_id = task(project, root)
+
+        response = project.api.patch(
+            f"/api/projects/{project.name}", json={"attrib": {"pixelAspect": 1.5}}
+        )
+        assert response.status_code == 204, response.text
+        for entity_type, entity_id in (("folder", root), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["pixelAspect"] == 1.5, entity_type
+            assert "pixelAspect" not in own, entity_type
+        attrib, own = self.attrib(project, "folder", child)
+        assert attrib["pixelAspect"] == 2.0
+        assert own == ["pixelAspect"]
+
+    def test_other_entities_do_not_inherit(self, project: TempProject):
+        """Products, versions, representations and workfiles have own values only"""
+        response = project.api.patch(
+            f"/api/projects/{project.name}", json={"attrib": {"pixelAspect": 1.5}}
+        )
+        assert response.status_code == 204, response.text
+        folder_id = folder(project, attrib={"fps": 30, "description": "folder"})
+        task_id = task(project, folder_id)
+        product_id = product(project, folder_id, attrib={"description": "product"})
+        version_id = version(project, product_id, 1, taskId=task_id)
+        own_version_id = version(project, product_id, 2, attrib={"fps": 24})
+        representation_id = project.create(
+            "representation", name="ma", versionId=version_id, files=[]
+        )
+        workfile_id = project.create(
+            "workfile", path=f"/work/{name()}/scene.ma", taskId=task_id
+        )
+
+        for entity_type, entity_id, expected in (
+            ("product", product_id, {"description": "product"}),
+            ("version", version_id, {}),
+            ("version", own_version_id, {"fps": 24.0}),
+            ("representation", representation_id, {}),
+            ("workfile", workfile_id, {}),
+        ):
+            attrib, _ = self.attrib(project, entity_type, entity_id)
+            assert attrib == expected, entity_type
 
     def test_own_values_are_merged(self, project: TempProject):
         folder_id = folder(project, attrib={"fps": 24, "resolutionWidth": 1920})
         assert project.op(
             "update", "folder", folder_id, {"attrib": {"resolutionHeight": 1080}}
         )["success"]
-        data = project.get("folder", folder_id)
-        assert data["attrib"]["fps"] == 24.0
-        assert data["attrib"]["resolutionWidth"] == 1920
-        assert data["attrib"]["resolutionHeight"] == 1080
-        assert sorted(data["ownAttrib"]) == [
-            "fps",
-            "resolutionHeight",
-            "resolutionWidth",
-        ]
+        attrib, own = self.attrib(project, "folder", folder_id)
+        assert attrib["fps"] == 24.0
+        assert attrib["resolutionWidth"] == 1920
+        assert attrib["resolutionHeight"] == 1080
+        assert own == ["fps", "resolutionHeight", "resolutionWidth"]
 
     def test_null_reverts_to_inherited(self, project: TempProject):
         root = folder(project, attrib={"fps": 30})
         child = folder(project, root, attrib={"fps": 24})
-        assert project.get("folder", child)["attrib"]["fps"] == 24.0
-        assert project.op("update", "folder", child, {"attrib": {"fps": None}})[
-            "success"
-        ]
-        data = project.get("folder", child)
-        assert data["attrib"]["fps"] == 30.0
-        assert "fps" not in data["ownAttrib"]
+        task_id = task(project, child, attrib={"fps": 12})
+        assert self.attrib(project, "folder", child)[0]["fps"] == 24.0
+        assert self.attrib(project, "task", task_id)[0]["fps"] == 12.0
+
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            result = project.op(
+                "update", entity_type, entity_id, {"attrib": {"fps": None}}
+            )
+            assert result["success"], entity_type
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 30.0, entity_type
+            assert "fps" not in own, entity_type
+
+    def test_non_inheritable_attributes(self, project: TempProject):
+        response = project.api.patch(
+            f"/api/projects/{project.name}",
+            json={"attrib": {"description": "project"}},
+        )
+        assert response.status_code == 204, response.text
+        root = folder(project, attrib={"description": "root"})
+        child = folder(project, root)
+        task_id = task(project, root)
+
+        attrib, own = self.attrib(project, "folder", root)
+        assert attrib["description"] == "root"
+        assert own == ["description"]
+        for entity_type, entity_id in (("folder", child), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert "description" not in attrib, entity_type
+            assert own == [], entity_type
+
+    def test_move_changes_inherited_values(self, project: TempProject):
+        source = folder(project, attrib={"fps": 30})
+        target = folder(project, attrib={"fps": 60})
+        moved = folder(project, source)
+        task_id = task(project, moved)
+        assert self.attrib(project, "task", task_id)[0]["fps"] == 30.0
+
+        assert project.op("update", "folder", moved, {"parentId": target})["success"]
+        for entity_type, entity_id in (("folder", moved), ("task", task_id)):
+            attrib, own = self.attrib(project, entity_type, entity_id)
+            assert attrib["fps"] == 60.0, entity_type
+            assert own == [], entity_type
+
+        # moving a task to another folder
+        other = folder(project, attrib={"fps": 12})
+        assert project.op("update", "task", task_id, {"folderId": other})["success"]
+        attrib, own = self.attrib(project, "task", task_id)
+        assert attrib["fps"] == 12.0
+        assert own == []
 
     def test_values_are_validated(self, project: TempProject):
         folder_id = folder(project, attrib={"fps": "25"})

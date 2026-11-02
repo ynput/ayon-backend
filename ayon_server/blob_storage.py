@@ -66,10 +66,7 @@ async def _blob_lock(project_name: str, blob_id: str) -> AsyncGenerator[None]:
         raise AyonException("Blobs cannot be saved or deleted inside a transaction")
 
     async with Postgres.transaction():
-        await Postgres.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-            f"blob:{project_name}:{blob_id}",
-        )
+        await Postgres.advisory_xact_lock(f"blob:{project_name}:{blob_id}")
         yield
 
 
