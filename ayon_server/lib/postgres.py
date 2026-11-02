@@ -222,7 +222,7 @@ class Postgres:
                 "Advisory xact lock requires a transaction"
             )
             await connection.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key
+                "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key, timeout=60
             )
 
     @classmethod
