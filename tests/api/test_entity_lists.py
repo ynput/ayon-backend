@@ -276,6 +276,62 @@ def test_task_items(graphql: GraphQL, lists: ListFixture):
 
 
 #
+# Duplicating
+#
+
+
+def test_duplicate_list(lists: ListFixture):
+    list_id = lists.list_id
+    original = lists.api.get(lists.url(f"/{list_id}")).json()
+
+    response = lists.api.post(lists.url(f"/{list_id}/duplicate"))
+    assert response.status_code == 201, response.text
+    summary = response.json()
+    assert summary["label"] == f"{original['label']} (copy)"
+    assert summary["count"] == len(original["items"])
+    assert summary["id"] != list_id
+
+    copy = lists.api.get(lists.url(f"/{summary['id']}")).json()
+    assert copy["active"] is True
+    assert copy["data"]["attributes"] == original["data"]["attributes"]
+    assert [i["entityId"] for i in copy["items"]] == [
+        i["entityId"] for i in original["items"]
+    ]
+    assert not {i["id"] for i in copy["items"]} & {i["id"] for i in original["items"]}
+    assert [i["folderPath"] for i in copy["items"]] == [
+        i["folderPath"] for i in original["items"]
+    ]
+
+    # The next copy gets the next free label
+    response = lists.api.post(lists.url(f"/{list_id}/duplicate"))
+    assert response.json()["label"] == f"{original['label']} (copy 2)"
+
+    # Explicit label, taken label
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"label": f"copy {new_id()}"}
+    )
+    assert response.status_code == 201, response.text
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"label": original["label"]}
+    )
+    assert response.status_code == 409, response.text
+
+    # Explicit id
+    explicit_id = new_id()
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] == explicit_id
+
+    # Taken id
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 409, response.text
+
+
+#
 # Saving items (merge)
 #
 
