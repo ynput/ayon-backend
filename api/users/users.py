@@ -35,6 +35,14 @@ SECRET_USER_DATA_KEYS = (
     "apiKeys",
     "passwordResetRequest",
     "supportToken",
+    "inviteRequest",
+)
+
+# Only admins may set these: each of them grants admin powers
+ADMIN_USER_DATA_KEYS = (
+    "isAdmin",
+    "isService",
+    "isDeveloper",
 )
 
 #
@@ -145,6 +153,10 @@ async def create_user(
     if not user.is_manager:
         raise ForbiddenException
 
+    if not user.is_admin:
+        for key in ADMIN_USER_DATA_KEYS:
+            put_data.data.pop(key, None)
+
     validate_user_data(put_data.data)
 
     try:
@@ -188,10 +200,12 @@ async def delete_user(
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
+    if target_user.is_admin and not user.is_admin:
+        raise ForbiddenException("Admins can only be deleted by other admins")
 
     entity_data = target_user.dict_simple()
-    entity_data["data"].pop("password", None)
-    entity_data["data"].pop("apiKey", None)
+    for key in SECRET_USER_DATA_KEYS:
+        entity_data["data"].pop(key, None)
 
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
@@ -228,8 +242,8 @@ async def patch_user(
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
-        payload.data.pop("isAdmin", None)
-        payload.data.pop("isDeveloper", None)
+        for key in ADMIN_USER_DATA_KEYS:
+            payload.data.pop(key, None)
     elif target_user.name == user.name:
         # Admins cannot demote themselves
         payload.data.pop("isAdmin", None)
@@ -304,6 +318,8 @@ async def change_password(
             raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
+        if target_user.is_admin and not user.is_admin:
+            raise ForbiddenException("Admin passwords can only be set by admins")
         target_user.set_password(
             patch_data.password,
             complexity_check=not user.is_admin,
