@@ -453,7 +453,8 @@ class UserSessionsResponseModel(OPModel):
 async def get_user_sessions(
     current_user: CurrentUser, user_name: UserName
 ) -> UserSessionsResponseModel:
-    if (not current_user.is_manager) and (current_user.name != user_name):
+    # Admin only: the response contains tokens that allow acting as the user
+    if (not current_user.is_admin) and (current_user.name != user_name):
         raise ForbiddenException("You are not allowed to list other users' sessions")
 
     return UserSessionsResponseModel(

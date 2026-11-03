@@ -11,7 +11,8 @@ from .router import router
 
 @router.get("/sessions")
 async def list_active_sessions(user: CurrentUser) -> list[SessionModel]:
-    if not user.is_manager:
+    # Admin only: the response contains tokens that allow acting as the users
+    if not user.is_admin:
         raise ForbiddenException()
 
     result: list[SessionModel] = []
