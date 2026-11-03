@@ -10,7 +10,7 @@ from ayon_server.entities.models.task import (
     TaskPostModel,
 )
 from ayon_server.exceptions import AyonException
-from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
@@ -88,7 +88,7 @@ class TaskEntity(ProjectLevelEntity[TaskModel]):
 
     @classmethod
     async def refresh_views(cls, project_name: str, **kwargs: Any) -> None:
-        await rebuild_hierarchy_cache(project_name)
+        await Postgres.on_commit(lambda: invalidate_hierarchy_cache(project_name))
 
     async def ensure_read_access(self, user, **kwargs) -> None:
         await super().ensure_read_access(user, **kwargs)

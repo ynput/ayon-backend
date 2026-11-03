@@ -34,7 +34,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
@@ -302,7 +302,7 @@ async def create_activity(
         # Publishing reviewables must invalidate the hierarchy cache
 
         if activity_type == "reviewable":
-            await rebuild_hierarchy_cache(project_name)
+            await Postgres.on_commit(lambda: invalidate_hierarchy_cache(project_name))
 
     # Notify the front-end about the new activity
 

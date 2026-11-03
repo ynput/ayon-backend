@@ -3,6 +3,7 @@ invalidated by every write it shows. Each test reads the list first to make
 sure the cache is warm, then writes and checks the list again.
 """
 
+import base64
 from collections.abc import Iterator
 from typing import Any
 
@@ -10,6 +11,12 @@ import httpx
 import pytest
 
 from .conftest import TempProject, create_temp_project
+
+# 1x1 PNG
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 
 @pytest.fixture
@@ -117,3 +124,60 @@ def test_task_create(project: TempProject):
     folder = folder_list(project)[folder_id]
     assert folder["hasTasks"]
     assert folder["taskNames"] == ["comp"]
+
+
+# REST writes commit after `refresh_views` ran (inside their transaction)
+
+
+def test_task_rest_update(project: TempProject):
+    folder_id = create_folder(project)
+    task_id = project.create(
+        "task", name="comp", taskType=project.task_types[0], folderId=folder_id
+    )
+    assert folder_list(project)[folder_id]["taskNames"] == ["comp"]
+
+    response = project.api.patch(
+        f"/api/projects/{project.name}/tasks/{task_id}", json={"name": "light"}
+    )
+    assert response.status_code == 204, response.text
+    assert folder_list(project)[folder_id]["taskNames"] == ["light"]
+
+
+def test_folder_thumbnail(project: TempProject):
+    folder_id = create_folder(project)
+    before = folder_list(project)[folder_id]["thumbnailHash"]
+
+    response = project.api.post(
+        f"/api/projects/{project.name}/folders/{folder_id}/thumbnail",
+        content=PNG,
+        headers={"content-type": "image/png"},
+    )
+    assert response.status_code == 200, response.text
+    after = folder_list(project)[folder_id]["thumbnailHash"]
+    assert after != before
+
+    # Updating the thumbnail by its ID saves no entity
+    response = project.api.put(
+        f"/api/projects/{project.name}/thumbnails/{response.json()['id']}",
+        content=PNG,
+        headers={"content-type": "image/png"},
+    )
+    assert response.status_code == 200, response.text
+    assert folder_list(project)[folder_id]["thumbnailHash"] != after
+
+
+def test_reviewable_upload(project: TempProject):
+    folder_id = create_folder(project)
+    product_id = project.create(
+        "product", name="review", folderId=folder_id, productType="review"
+    )
+    version_id = project.create("version", productId=product_id, version=1)
+    assert not folder_list(project)[folder_id]["hasReviewables"]
+
+    response = project.api.post(
+        f"/api/projects/{project.name}/versions/{version_id}/reviewables",
+        content=PNG,
+        headers={"x-file-name": "review.png", "content-type": "image/png"},
+    )
+    assert response.status_code == 200, response.text
+    assert folder_list(project)[folder_id]["hasReviewables"]
