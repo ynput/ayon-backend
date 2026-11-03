@@ -43,6 +43,7 @@ from .common import (
     ARGVisibility,
     EntityVisibility,
     build_search_conditions,
+    get_resolved_attrib_expression,
 )
 from .field_stats import (
     MetricTargetInput,
@@ -374,6 +375,10 @@ async def get_tasks(
                 if sql_acl_conds:
                     sql_conditions.append(f"({' OR '.join(sql_acl_conds)})")
 
+    task_attrib_exp = get_resolved_attrib_expression(
+        "task", "tasks.attrib", inherited="f_ex.attrib"
+    )
+
     if attributes:
         for attribute_input in attributes:
             if not attribute_library.is_valid("task", attribute_input.name):
@@ -381,8 +386,8 @@ async def get_tasks(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                (coalesce(f_ex.attrib, '{{}}'::jsonb ) || tasks.attrib)
-                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                ({task_attrib_exp(attribute_input.name)})
+                #>> '{{}}' IN {SQLTool.array(values)}
                 """
             )
 
@@ -413,9 +418,7 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
-            column_map={
-                "attrib": "(coalesce(f_ex.attrib, '{}'::jsonb ) || tasks.attrib)"
-            },
+            column_map={"attrib": task_attrib_exp},
         ):
             sql_conditions.append(fcond)
 
@@ -442,7 +445,14 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
-            column_map={"attrib": "f_ex.attrib"},
+            column_map={
+                "attrib": get_resolved_attrib_expression(
+                    "folder",
+                    "folders.attrib",
+                    inherited="folder_ex.attrib",
+                    project="projects.attrib",
+                )
+            },
         ):
             sql_conditions.append(fcond)
             use_folder_query = True
@@ -494,8 +504,7 @@ async def get_tasks(
             columns.extend(["hierarchy.path", "tasks.name"])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
-            exp = "(f_ex.attrib || tasks.attrib)"
-            attr_case = await get_attrib_sort_case(attr_name, exp)
+            attr_case = await get_attrib_sort_case(attr_name, task_attrib_exp)
             columns.append(attr_case)
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_key}")

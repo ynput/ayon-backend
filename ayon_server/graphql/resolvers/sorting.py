@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from ayon_server.entities import ProjectEntity
@@ -61,28 +62,29 @@ def get_status_sort_case(project: ProjectEntity, exp: str) -> str:
     return case
 
 
-async def get_attrib_sort_case(attr: str, exp: str) -> str:
+async def get_attrib_sort_case(attr: str, exp: str | Callable[[str], str]) -> str:
     if not attr.isidentifier():
         raise BadRequestException("Invalid attribute name")
+    value = f"({exp(attr)}) #>> '{{}}'" if callable(exp) else f"{exp}->>'{attr}'"
     try:
         attr_data = attribute_library.by_name(attr)
     except KeyError:
-        return f"{exp}->>'{attr}'"
+        return value
 
     attr_type = attr_data.get("type")
     if attr_type == "integer":
-        return f"({exp}->>'{attr}')::bigint"
+        return f"({value})::bigint"
     if attr_type == "float":
-        return f"({exp}->>'{attr}')::double precision"
+        return f"({value})::double precision"
 
     enum = attr_data.get("enum", [])
     if not enum:
-        return f"{exp}->>'{attr}'"
+        return value
     case = "CASE"
     i = 0
     for i, eval in enumerate(enum):
         e = _literal(eval["value"])
-        case += f" WHEN {exp}->>'{attr}' = {e} THEN {i}"
+        case += f" WHEN {value} = {e} THEN {i}"
     case += f" ELSE {i + 1}"
     case += " END"
     return case

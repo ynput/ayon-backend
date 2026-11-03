@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Callable
 from typing import Annotated, Any, Literal, Union, cast
 
 from pydantic import (
@@ -202,7 +203,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     single_json_column = kwargs.get("single_json_column", None)
     table_prefix = kwargs.get("table_prefix")
     column_whitelist = kwargs.get("column_whitelist", None)
-    column_map: dict[str, str] = kwargs.get("column_map", {})
+    column_map: dict[str, str | Callable[[str | None], str]] = kwargs.get(
+        "column_map", {}
+    )
 
     path = create_path_from_key(
         c.key,
@@ -222,8 +225,14 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     json_list_column: str | None = None
 
     column = path[0]
+    mapped_attribute = False
     if column in column_map:
-        column = column_map[column]
+        mapped = column_map[column]
+        if callable(mapped):
+            mapped_attribute = len(path) > 1 and path[0] in json_fields
+            column = mapped(path[1] if mapped_attribute else None)
+        else:
+            column = mapped
 
     if len(path) == 1 and path[0] not in json_fields:
         # Hack to map project and user to their respective db column names
@@ -246,7 +255,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         if single_json_column:
             column = single_json_column
 
-        for k in path[1:]:
+        for k in path[2:] if mapped_attribute else path[1:]:
             column += f"->'{k}'"
 
         if operator in (
@@ -417,8 +426,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         raise ValueError(f"Invalid value: {value}")
 
     if operator in ("like", "notlike", "re"):
-        # replace last -> with ->> to get text value
-        column = re.sub(r"->(?!.*->)", "->>", column)
+        if mapped_attribute:
+            # A resolved value may be a COALESCE of several JSON accesses.
+            column = f"({column}) #>> '{{}}'"
+        else:
+            column = re.sub(r"->(?!.*->)", "->>", column)
 
     if path == ["attrib", "description"] and operator in ("like", "notlike"):
         # Markdown escapes punctuation; preserve backslashes before other text.

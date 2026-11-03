@@ -86,6 +86,65 @@ def test_description_matching_with_mapped_attributes():
     )
 
 
+def test_description_matching_resolves_only_description():
+    from ayon_server.graphql.resolvers.common import get_resolved_attrib_expression
+
+    condition = QueryCondition(key="attrib.description", operator="like", value="world")
+    result = build_condition(
+        condition,
+        table_prefix="tasks",
+        column_map={
+            "attrib": get_resolved_attrib_expression(
+                "task", "tasks.attrib", inherited="f_ex.attrib"
+            )
+        },
+    )
+    assert result == (
+        "(regexp_replace((NULLIF((tasks.attrib)->'description', 'null'::jsonb)) "
+        r"#>> '{}', '\\([[:punct:]])', '\1', 'g')) ILIKE '%world%'"
+    )
+    assert "f_ex.attrib" not in result
+    assert "jsonb_object_agg" not in result
+
+
+def test_inherited_text_matching_does_not_change_coalesce_operands():
+    from ayon_server.graphql.resolvers.common import get_resolved_attrib_expression
+
+    expression = get_resolved_attrib_expression(
+        "task", "tasks.attrib", inherited="f_ex.attrib"
+    )
+    condition = QueryCondition(key="attrib.fps", operator="like", value="25")
+    result = build_condition(condition, column_map={"attrib": expression})
+    assert result == f"(({expression('fps')}) #>> '{{}}') ILIKE '%25%'"
+    assert "->>" not in result
+
+
+def test_nested_callable_attribute_mapping():
+    calls = []
+
+    def resolve(name):
+        calls.append(name)
+        return "resolved_value"
+
+    result = build_condition(
+        QueryCondition(key="attrib.payload.nested", operator="eq", value="world"),
+        column_map={"attrib": resolve},
+    )
+    assert calls == ["payload"]
+    assert result == """resolved_value->'nested' = '"world"'::jsonb"""
+
+
+def test_callable_attribute_mapping_validates_path_before_resolving():
+    def resolve(name):
+        pytest.fail("Invalid paths must not be resolved")
+
+    with pytest.raises(ValueError, match="Invalid path element"):
+        build_condition(
+            QueryCondition(key="attrib.invalid-key", operator="eq", value="world"),
+            column_map={"attrib": resolve},
+        )
+
+
 @pytest.mark.parametrize("operator", ["eq", "ne", "re"])
 def test_other_description_operators_preserve_markdown(operator):
     condition = QueryCondition(

@@ -2,7 +2,10 @@ from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.graphql.resolvers.common import build_search_conditions
+from ayon_server.graphql.resolvers.common import (
+    build_search_conditions,
+    get_resolved_attrib_expression,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
@@ -163,7 +166,11 @@ async def search_folders(
                 payload.task_filter,
                 table_prefix="tasks",
                 column_whitelist=TASK_ALLOWED_KEYS,
-                column_map={"attrib": "(ex.attrib || tasks.attrib)"},
+                column_map={
+                    "attrib": get_resolved_attrib_expression(
+                        "task", "tasks.attrib", inherited="ex.attrib"
+                    )
+                },
             ):
                 task_conditions.append(tcond)
 
@@ -203,11 +210,28 @@ async def search_folders(
             column_whitelist=FOLDER_ALLOWED_FIELDS,
             table_prefix="folders",
             column_map={
-                "attrib": "e.attrib",
+                "attrib": get_resolved_attrib_expression(
+                    "folder",
+                    "folders.attrib",
+                    inherited="parent_ex.attrib",
+                    project="pr.attrib",
+                ),
                 "path": "e.path",
             },
         ):
             sql_conditions.append(fcond)
+            sql_joins.extend(
+                [
+                    f"""
+                    LEFT JOIN project_{project_name}.exported_attributes AS parent_ex
+                    ON folders.parent_id = parent_ex.folder_id
+                    """,
+                    f"""
+                    INNER JOIN public.projects AS pr
+                    ON pr.name ILIKE '{project_name}'
+                    """,
+                ]
+            )
 
     if payload.folder_search:
         if cond := build_search_conditions(
