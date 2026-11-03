@@ -4,16 +4,13 @@ sure the cache is warm, then writes and checks the list again.
 """
 
 import base64
-import shutil
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
 
 from .conftest import TempProject, create_temp_project
-from .test_filmstrips import make_video
 
 # 1x1 PNG
 PNG = base64.b64decode(
@@ -156,11 +153,20 @@ def test_folder_thumbnail(project: TempProject):
         headers={"content-type": "image/png"},
     )
     assert response.status_code == 200, response.text
-    assert folder_list(project)[folder_id]["thumbnailHash"] != before
+    after = folder_list(project)[folder_id]["thumbnailHash"]
+    assert after != before
+
+    # Updating the thumbnail by its ID saves no entity
+    response = project.api.put(
+        f"/api/projects/{project.name}/thumbnails/{response.json()['id']}",
+        content=PNG,
+        headers={"content-type": "image/png"},
+    )
+    assert response.status_code == 200, response.text
+    assert folder_list(project)[folder_id]["thumbnailHash"] != after
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not available")
-def test_reviewable_upload(project: TempProject, tmp_path: Path):
+def test_reviewable_upload(project: TempProject):
     folder_id = create_folder(project)
     product_id = project.create(
         "product", name="review", folderId=folder_id, productType="review"
@@ -170,8 +176,8 @@ def test_reviewable_upload(project: TempProject, tmp_path: Path):
 
     response = project.api.post(
         f"/api/projects/{project.name}/versions/{version_id}/reviewables",
-        content=make_video(tmp_path / "review.mp4"),
-        headers={"x-file-name": "review.mp4", "content-type": "video/mp4"},
+        content=PNG,
+        headers={"x-file-name": "review.png", "content-type": "image/png"},
     )
     assert response.status_code == 200, response.text
     assert folder_list(project)[folder_id]["hasReviewables"]
