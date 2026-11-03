@@ -745,6 +745,7 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="versions",
+            project_name=project_name,
             column_map={
                 column: expression
                 for column, (expression, _) in FILTER_COLUMN_SOURCES.items()
@@ -779,6 +780,7 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+            project_name=project_name,
             column_map={
                 "product_base_type": PRODUCT_BASE_TYPE,
             },
@@ -809,6 +811,7 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            project_name=project_name,
         ):
             sql_conditions.append(fcond)
             joins.for_filter("tasks")
@@ -836,6 +839,7 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
+            project_name=project_name,
             column_map={"attrib": "folder_ex.attrib"},
         ):
             sql_conditions.append(fcond)
@@ -865,6 +869,7 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="representations",
+            project_name=project_name,
         ):
             representation_filter_conditions.append(fcond)
 
