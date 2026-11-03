@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -62,6 +62,24 @@ _current_connection: ContextVar["Connection | None"] = ContextVar(
 )
 
 _current_project: ContextVar[str | None] = ContextVar("_current_project", default=None)
+
+CommitHook = Callable[[], Awaitable[Any]]
+
+# Hooks of the current (outermost) transaction, run after it commits
+_commit_hooks: ContextVar[list[CommitHook] | None] = ContextVar(
+    "_commit_hooks", default=None
+)
+
+
+async def _run_commit_hooks(hooks: list[CommitHook]) -> None:
+    # The data is already committed: one failing hook must not skip the others
+    # or turn the request into an error
+    for hook in hooks:
+        try:
+            await hook()
+        except Exception:
+            logger.exception("Post-commit hook failed")
+
 
 #
 # Postgres acccess
@@ -194,12 +212,35 @@ class Postgres:
                 yield connection
             else:
                 token = _current_project.set(None)
+                hooks: list[CommitHook] = []
+                hooks_token = _commit_hooks.set(hooks)
                 try:
                     async with connection.transaction():
                         with logger.contextualize(transaction_id=id(connection)):
                             yield connection
                 finally:
+                    _commit_hooks.reset(hooks_token)
                     _current_project.reset(token)
+                # Only reached when the transaction committed
+                await _run_commit_hooks(hooks)
+
+    @classmethod
+    async def on_commit(cls, hook: CommitHook) -> None:
+        """Run `hook` after the current transaction commits (now if there is none).
+
+        Hooks can be added anywhere inside the transaction (also in nested
+        `transaction()` blocks, which join the outer one). They run in the order
+        they were added, after the outermost transaction commits, and are
+        dropped on rollback.
+        """
+        hooks = _commit_hooks.get()
+        conn = _current_connection.get()
+        if hooks is not None and conn is not None and conn.is_in_transaction():
+            hooks.append(hook)
+        else:
+            # Async only for this: callers outside a transaction (operations
+            # refresh their views after it) need the hook done when it returns
+            await hook()
 
     @classmethod
     async def is_in_transaction(cls) -> bool:
