@@ -12,7 +12,7 @@ from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ServiceUnavailableException
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 
 from .postgres_setup import postgres_setup
 
@@ -78,7 +78,7 @@ async def _run_commit_hooks(hooks: list[CommitHook]) -> None:
         try:
             await hook()
         except Exception:
-            logger.exception("Post-commit hook failed")
+            log_traceback("Post-commit hook failed")
 
 
 #
