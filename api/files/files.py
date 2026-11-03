@@ -80,6 +80,17 @@ async def upload_project_file(
         file_id = create_uuid()
 
     async with Postgres.transaction():
+        if x_file_id and not user.is_manager:
+            res = await Postgres.fetch(
+                f"""
+                SELECT author FROM project_{project_name}.files
+                WHERE id = $1 FOR UPDATE
+                """,
+                file_id,
+            )
+            if res and res[0]["author"] != user.name:
+                raise ForbiddenException("Cannot overwrite another user's file")
+
         await create_project_file_record(
             project_name,
             x_file_name,
