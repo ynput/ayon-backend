@@ -241,6 +241,22 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
 
+-- Private per-user preferences of frontend and desktop tools.
+-- project_name NULL means the preference is global.
+CREATE TABLE IF NOT EXISTS public.user_preferences(
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  project_name VARCHAR REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  key VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- COALESCE makes the global (NULL) scope unique too
+CREATE UNIQUE INDEX IF NOT EXISTS user_preferences_unique_idx
+  ON public.user_preferences (user_name, key, (COALESCE(project_name, '')));
+CREATE INDEX IF NOT EXISTS user_preferences_project_name_idx
+  ON public.user_preferences (project_name);
+
 
 
 CREATE TABLE IF NOT EXISTS public.addon_data(
@@ -313,6 +329,24 @@ CREATE TABLE IF NOT EXISTS public.user_stats(
     date DATE NOT NULL PRIMARY KEY,
     users JSONB NOT NULL DEFAULT '{}'::JSONB
 );
+
+-- Studio-scoped documents (project-scoped ones live in project schemas)
+CREATE TABLE IF NOT EXISTS public.documents(
+    id UUID NOT NULL PRIMARY KEY,
+    kind VARCHAR NOT NULL,
+    label VARCHAR NOT NULL DEFAULT '',
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    access JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS document_kind_idx ON public.documents(kind);
+CREATE INDEX IF NOT EXISTS document_created_by_idx ON public.documents(created_by);
+CREATE INDEX IF NOT EXISTS document_updated_at_idx ON public.documents(updated_at);
 
 
 -- CREATE THE SITE ID

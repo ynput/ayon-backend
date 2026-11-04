@@ -45,7 +45,7 @@ async def delete_activity(
 
         if user_name and not is_admin:
             data = res[0]["data"]
-            if "author" in data and data["author"] != user_name:
+            if data.get("author") != user_name:
                 raise ForbiddenException("You are not the author of this activity")
         activity_type = res[0]["activity_type"]
 

@@ -1,3 +1,5 @@
+import functools
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
@@ -8,7 +10,22 @@ from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
-PROJECT_LIST_REBUILD_LOCK = 0x41594F50
+# Project delete/rename hold it exclusively, queries over all project schemas shared
+PROJECT_SCHEMAS_LOCK = "projects:schemas"
+
+
+def reads_all_projects[**P, R](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Run a query over many project schemas without racing project deletion."""
+
+    @functools.wraps(func)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        async with Postgres.transaction():
+            await Postgres.advisory_xact_lock(PROJECT_SCHEMAS_LOCK, shared=True)
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 class ProjectListItem(OPModel):
@@ -39,9 +56,7 @@ async def build_project_list() -> list[ProjectListItem]:
     try:
         async with Postgres.transaction():
             # held until the cache is written, so a stale rebuild can never write last
-            await Postgres.execute(
-                "SELECT pg_advisory_xact_lock($1)", PROJECT_LIST_REBUILD_LOCK
-            )
+            await Postgres.advisory_xact_lock("project-list:rebuild")
             stmt = await Postgres.prepare(q)
             async for row in stmt.cursor():
                 result.append(

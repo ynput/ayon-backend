@@ -28,6 +28,23 @@ from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
+# Never returned for other users: they allow logging in as the user
+SECRET_USER_DATA_KEYS = (
+    "password",
+    "apiKey",
+    "apiKeys",
+    "passwordResetRequest",
+    "supportToken",
+    "inviteRequest",
+)
+
+# Only admins may set these: each of them grants admin powers
+ADMIN_USER_DATA_KEYS = (
+    "isAdmin",
+    "isService",
+    "isDeveloper",
+)
+
 #
 # [GET] /api/users/me
 #
@@ -79,6 +96,8 @@ async def get_user(
     result = await UserEntity.load(user_name)
 
     if user.is_manager:
+        for key in SECRET_USER_DATA_KEYS:
+            result.data.pop(key, None)
         return result.payload
 
     # Non-managers can only see basic info about other users
@@ -134,6 +153,10 @@ async def create_user(
     if not user.is_manager:
         raise ForbiddenException
 
+    if not user.is_admin:
+        for key in ADMIN_USER_DATA_KEYS:
+            put_data.data.pop(key, None)
+
     validate_user_data(put_data.data)
 
     try:
@@ -177,10 +200,12 @@ async def delete_user(
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
+    if target_user.is_admin and not user.is_admin:
+        raise ForbiddenException("Admins can only be deleted by other admins")
 
     entity_data = target_user.dict_simple()
-    entity_data["data"].pop("password", None)
-    entity_data["data"].pop("apiKey", None)
+    for key in SECRET_USER_DATA_KEYS:
+        entity_data["data"].pop(key, None)
 
     event: dict[str, Any] = {
         "description": f"User {user_name} deleted",
@@ -217,8 +242,8 @@ async def patch_user(
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
-        payload.data.pop("isAdmin", None)
-        payload.data.pop("isDeveloper", None)
+        for key in ADMIN_USER_DATA_KEYS:
+            payload.data.pop(key, None)
     elif target_user.name == user.name:
         # Admins cannot demote themselves
         payload.data.pop("isAdmin", None)
@@ -293,6 +318,8 @@ async def change_password(
             raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
+        if target_user.is_admin and not user.is_admin:
+            raise ForbiddenException("Admin passwords can only be set by admins")
         target_user.set_password(
             patch_data.password,
             complexity_check=not user.is_admin,
@@ -426,7 +453,8 @@ class UserSessionsResponseModel(OPModel):
 async def get_user_sessions(
     current_user: CurrentUser, user_name: UserName
 ) -> UserSessionsResponseModel:
-    if (not current_user.is_manager) and (current_user.name != user_name):
+    # Admin only: the response contains tokens that allow acting as the user
+    if (not current_user.is_admin) and (current_user.name != user_name):
         raise ForbiddenException("You are not allowed to list other users' sessions")
 
     return UserSessionsResponseModel(

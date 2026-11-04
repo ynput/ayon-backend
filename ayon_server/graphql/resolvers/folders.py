@@ -36,6 +36,7 @@ from .common import (
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
+    get_resolved_attrib_expression,
     resolve,
     sortdesc,
 )
@@ -497,6 +498,9 @@ async def get_folders(
         path_ex = path_ex.replace("'", "''")
         sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
+    folder_attrib_exp = get_resolved_attrib_expression(
+        "folder", "folders.attrib", inherited="ex.attrib", project="pr.attrib"
+    )
     if attributes:
         for attribute_input in attributes:
             if not attribute_library.is_valid("folder", attribute_input.name):
@@ -504,8 +508,8 @@ async def get_folders(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                (pr.attrib || coalesce(ex.attrib, '{{}}'::jsonb ) || folders.attrib)
-                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                ({folder_attrib_exp(attribute_input.name)})
+                #>> '{{}}' IN {SQLTool.array(values)}
                 """
             )
 
@@ -555,7 +559,7 @@ async def get_folders(
             column_whitelist=column_whitelist,
             table_prefix="folders",
             column_map={
-                "attrib": "(pr.attrib || coalesce(ex.attrib, '{}'::jsonb ) || folders.attrib)",  # noqa: E501
+                "attrib": folder_attrib_exp,
             },
         ):
             sql_conditions.append(fcond)
@@ -588,7 +592,9 @@ async def get_folders(
                 column_whitelist=column_whitelist,
                 table_prefix="tasks",
                 column_map={
-                    "attrib": "(coalesce(ex.attrib, '{}'::jsonb ) || tasks.attrib)"
+                    "attrib": get_resolved_attrib_expression(
+                        "task", "tasks.attrib", inherited="ex.attrib"
+                    )
                 },
             ):
                 task_conditions.append(tfilter)
@@ -711,8 +717,7 @@ async def get_folders(
             columns.append(SORT_OPTIONS[sort_key])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
-            exp = "(coalesce(ex.attrib, '{}'::JSONB) || folders.attrib)"
-            attr_case = await get_attrib_sort_case(attr_name, exp)
+            attr_case = await get_attrib_sort_case(attr_name, folder_attrib_exp)
             columns.append(attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_key}")

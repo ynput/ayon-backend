@@ -243,6 +243,21 @@ def test_filter(graphql: GraphQL, lists: ListFixture, key, value, expected):
     assert names(lists, items) == expected
 
 
+@pytest.mark.parametrize("key, allowed", [("label", True), ("data.foo", False)])
+def test_list_filter_columns(lists: ListFixture, key: str, allowed: bool):
+    """Lists can only be filtered by the columns in FILTER_OPTIONS."""
+    condition = {"key": key, "operator": "eq", "value": "x"}
+    query = (
+        f'{{ project(name: "{lists.project.name}") {{ '
+        f"entityLists(filter: {json.dumps(json.dumps({'conditions': [condition]}))}) "
+        "{ edges { node { id } } } } }"
+    )
+    response = lists.api.post("/graphql", json={"query": query})
+    assert response.status_code == 200, response.text
+    errors = [e["message"] for e in response.json().get("errors") or []]
+    assert errors == ([] if allowed else [f"Invalid key: {key.split('.')[0]}"])
+
+
 def test_task_items(graphql: GraphQL, lists: ListFixture):
     """Tasks inherit the values of their folder"""
     list_id = lists.create_list("task", [(new_id(), lists.task, {"fps": 25.0})])
@@ -258,6 +273,62 @@ def test_task_items(graphql: GraphQL, lists: ListFixture):
         graphql, lists, list_id=list_id, filter=fps_filter("entityAttrib", 25.0)
     )
     assert items == []
+
+
+#
+# Duplicating
+#
+
+
+def test_duplicate_list(lists: ListFixture):
+    list_id = lists.list_id
+    original = lists.api.get(lists.url(f"/{list_id}")).json()
+
+    response = lists.api.post(lists.url(f"/{list_id}/duplicate"))
+    assert response.status_code == 201, response.text
+    summary = response.json()
+    assert summary["label"] == f"{original['label']} (copy)"
+    assert summary["count"] == len(original["items"])
+    assert summary["id"] != list_id
+
+    copy = lists.api.get(lists.url(f"/{summary['id']}")).json()
+    assert copy["active"] is True
+    assert copy["data"]["attributes"] == original["data"]["attributes"]
+    assert [i["entityId"] for i in copy["items"]] == [
+        i["entityId"] for i in original["items"]
+    ]
+    assert not {i["id"] for i in copy["items"]} & {i["id"] for i in original["items"]}
+    assert [i["folderPath"] for i in copy["items"]] == [
+        i["folderPath"] for i in original["items"]
+    ]
+
+    # The next copy gets the next free label
+    response = lists.api.post(lists.url(f"/{list_id}/duplicate"))
+    assert response.json()["label"] == f"{original['label']} (copy 2)"
+
+    # Explicit label, taken label
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"label": f"copy {new_id()}"}
+    )
+    assert response.status_code == 201, response.text
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"label": original["label"]}
+    )
+    assert response.status_code == 409, response.text
+
+    # Explicit id
+    explicit_id = new_id()
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] == explicit_id
+
+    # Taken id
+    response = lists.api.post(
+        lists.url(f"/{list_id}/duplicate"), json={"id": explicit_id}
+    )
+    assert response.status_code == 409, response.text
 
 
 #

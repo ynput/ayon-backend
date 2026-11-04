@@ -139,6 +139,28 @@ ayon_server/
 a `ContextVar`, so nested calls reuse the same connection/transaction instead
 of passing it around.
 
+### Resolved attributes in queries
+
+`resolve_attrib()` in `ayon_server/entities/core/attrib.py` resolves returned
+attribute values. GraphQL folder/task filters and sorting, entity-list item
+queries, and REST folder search use `get_resolved_attrib_expression()` in
+`ayon_server/graphql/resolvers/common.py` for the equivalent SQL values.
+Own values override parent exports, project values (when supplied), and project
+defaults. Only inheritable attributes in the entity's scope participate in
+inheritance; null values fall back to the next layer. Non-inheriting entities
+use only their own scoped values (projects also use their defaults).
+List items apply non-null overrides and treat list-defined attributes as
+own-only values, separate from entity attributes.
+
+Keep the Python and SQL resolution rules in sync. The SQL expression is built
+from current attribute definitions on each query, so definition reloads do not
+require a restart. `tests/integration/test_attribute_sql.py` compares SQL results
+against the returned values, including filtering and cursor pagination.
+The expression resolves individual keys for attribute filters and sorting;
+only entity-list attribute columns build the full JSON object. `build_filter()`
+accepts callable column mappings to resolve a requested JSON attribute without
+evaluating unrelated attributes.
+
 ## Events and messaging
 
 `EventStream.dispatch()` stores an event in `public.events` and publishes it

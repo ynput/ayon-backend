@@ -14,7 +14,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -172,22 +172,17 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
-        # Do not change the order of these calls!
-        #
-        # Inherited attributes call:
-        #  - refreshes hierarchy materialized view
-        #  - rebuilds exported_attributes table
-        #
-        # Hierarchy cache call:
-        #  - caches the hierarchy table in Redis
-        #  - which depends on the exported_attributes table
-
+        # Refreshes the hierarchy materialized view
+        # and rebuilds the exported_attributes table
         refresh_hierarchy = kwargs.get("refresh_hierarchy", True)
         await rebuild_inherited_attributes(
             project_name,
             refresh_hierarchy=refresh_hierarchy,
         )
-        await rebuild_hierarchy_cache(project_name)
+        # The Redis folder list (built from exported_attributes) is rebuilt
+        # on the next read. Dropped after the commit, so it is not rebuilt
+        # from uncommitted data.
+        await Postgres.on_commit(lambda: invalidate_hierarchy_cache(project_name))
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():

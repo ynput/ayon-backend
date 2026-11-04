@@ -1,8 +1,7 @@
 import json
 from typing import Annotated
 
-from ayon_server.access.access_groups import AccessGroups
-from ayon_server.access.utils import path_to_paths
+from ayon_server.access.task_access import FullAccess, create_task_acl
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -44,6 +43,7 @@ from .common import (
     ARGVisibility,
     EntityVisibility,
     build_search_conditions,
+    get_resolved_attrib_expression,
 )
 from .field_stats import (
     MetricTargetInput,
@@ -75,52 +75,6 @@ SORT_OPTIONS = {
     "updatedBy": "tasks.updated_by",
     "folderName": "folders.name",
 }
-
-
-class FullAccess(Exception):
-    pass
-
-
-async def create_task_acl(
-    project_name: str, access_group_names: list[str]
-) -> tuple[set[str], bool]:
-    """Get the access control list for tasks based on access groups.
-
-    - set of folder paths we have full access to
-    - bool indicating if we have 'assigned' access
-
-    raises FullAccess if we have full access to all tasks
-
-    """
-
-    full_access = set()
-    assigned_access: bool = False
-
-    for ag_name in access_group_names:
-        if (ag_name, project_name) in AccessGroups.access_groups:
-            ag_perms = AccessGroups.access_groups[(ag_name, project_name)]
-        elif (ag_name, "_") in AccessGroups.access_groups:
-            ag_perms = AccessGroups.access_groups[(ag_name, "_")]
-        else:
-            continue
-        read_perms = ag_perms.read
-        if not read_perms.enabled:
-            # we have an access group that does not restrict read access,
-            # so we have full access
-            raise FullAccess()
-        for acl in read_perms.access_list:
-            if acl.access_type == "assigned":
-                assigned_access = True
-                continue
-
-            if acl.path is None:
-                # make linter happy. path is nullable only for 'assigned' type
-                continue
-
-            for p in path_to_paths(acl.path, True, True):
-                full_access.add(p)
-
-    return full_access, assigned_access
 
 
 async def get_tasks(
@@ -421,6 +375,10 @@ async def get_tasks(
                 if sql_acl_conds:
                     sql_conditions.append(f"({' OR '.join(sql_acl_conds)})")
 
+    task_attrib_exp = get_resolved_attrib_expression(
+        "task", "tasks.attrib", inherited="f_ex.attrib"
+    )
+
     if attributes:
         for attribute_input in attributes:
             if not attribute_library.is_valid("task", attribute_input.name):
@@ -428,8 +386,8 @@ async def get_tasks(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                (coalesce(f_ex.attrib, '{{}}'::jsonb ) || tasks.attrib)
-                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                ({task_attrib_exp(attribute_input.name)})
+                #>> '{{}}' IN {SQLTool.array(values)}
                 """
             )
 
@@ -460,9 +418,7 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
-            column_map={
-                "attrib": "(coalesce(f_ex.attrib, '{}'::jsonb ) || tasks.attrib)"
-            },
+            column_map={"attrib": task_attrib_exp},
         ):
             sql_conditions.append(fcond)
 
@@ -489,7 +445,14 @@ async def get_tasks(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="folders",
-            column_map={"attrib": "f_ex.attrib"},
+            column_map={
+                "attrib": get_resolved_attrib_expression(
+                    "folder",
+                    "folders.attrib",
+                    inherited="folder_ex.attrib",
+                    project="projects.attrib",
+                )
+            },
         ):
             sql_conditions.append(fcond)
             use_folder_query = True
@@ -541,8 +504,7 @@ async def get_tasks(
             columns.extend(["hierarchy.path", "tasks.name"])
         elif sort_key.startswith("attrib."):
             attr_name = sort_key[7:]
-            exp = "(f_ex.attrib || tasks.attrib)"
-            attr_case = await get_attrib_sort_case(attr_name, exp)
+            attr_case = await get_attrib_sort_case(attr_name, task_attrib_exp)
             columns.append(attr_case)
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_key}")

@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -12,7 +12,7 @@ from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ServiceUnavailableException
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 
 from .postgres_setup import postgres_setup
 
@@ -62,6 +62,24 @@ _current_connection: ContextVar["Connection | None"] = ContextVar(
 )
 
 _current_project: ContextVar[str | None] = ContextVar("_current_project", default=None)
+
+CommitHook = Callable[[], Awaitable[Any]]
+
+# Hooks of the current (outermost) transaction, run after it commits
+_commit_hooks: ContextVar[list[CommitHook] | None] = ContextVar(
+    "_commit_hooks", default=None
+)
+
+
+async def _run_commit_hooks(hooks: list[CommitHook]) -> None:
+    # The data is already committed: one failing hook must not skip the others
+    # or turn the request into an error
+    for hook in hooks:
+        try:
+            await hook()
+        except Exception:
+            log_traceback("Post-commit hook failed")
+
 
 #
 # Postgres acccess
@@ -194,12 +212,35 @@ class Postgres:
                 yield connection
             else:
                 token = _current_project.set(None)
+                hooks: list[CommitHook] = []
+                hooks_token = _commit_hooks.set(hooks)
                 try:
                     async with connection.transaction():
                         with logger.contextualize(transaction_id=id(connection)):
                             yield connection
                 finally:
+                    _commit_hooks.reset(hooks_token)
                     _current_project.reset(token)
+                # Only reached when the transaction committed
+                await _run_commit_hooks(hooks)
+
+    @classmethod
+    async def on_commit(cls, hook: CommitHook) -> None:
+        """Run `hook` after the current transaction commits (now if there is none).
+
+        Hooks can be added anywhere inside the transaction (also in nested
+        `transaction()` blocks, which join the outer one). They run in the order
+        they were added, after the outermost transaction commits, and are
+        dropped on rollback.
+        """
+        hooks = _commit_hooks.get()
+        conn = _current_connection.get()
+        if hooks is not None and conn is not None and conn.is_in_transaction():
+            hooks.append(hook)
+        else:
+            # Async only for this: callers outside a transaction (operations
+            # refresh their views after it) need the hook done when it returns
+            await hook()
 
     @classmethod
     async def is_in_transaction(cls) -> bool:
@@ -208,6 +249,24 @@ class Postgres:
         if conn is None:
             return False
         return conn.is_in_transaction()
+
+    @classmethod
+    async def advisory_xact_lock(cls, key: str, *, shared: bool = False) -> None:
+        """Wait for an advisory lock on `key`, held until the transaction ends.
+
+        Keys are hashed strings, so callers share a single key space
+        (use a "<domain>:<id>" prefix to avoid clashes).
+        Shared locks only block, and are blocked by, exclusive ones.
+        """
+        fn = "pg_advisory_xact_lock_shared" if shared else "pg_advisory_xact_lock"
+        async with cls.acquire() as connection:
+            # outside a transaction the lock would be released immediately
+            assert connection.is_in_transaction(), (
+                "Advisory xact lock requires a transaction"
+            )
+            await connection.execute(
+                f"SELECT {fn}(hashtextextended($1, 0))", key, timeout=60
+            )
 
     @classmethod
     def get_current_project_name(cls) -> str | None:
@@ -292,15 +351,19 @@ class Postgres:
         # Never set() a ContextVar in a context that may yield to caller
         # and then try to reset() it as async context may change
 
-        conn = await cls.pool.acquire()
+        conn = _current_connection.get()
+        if conn is not None and conn.is_in_transaction():
+            # Run in the caller's transaction, so it sees its locks and writes.
+            # Only then: a cursor opened outside one would need its own transaction,
+            # left open on the shared connection if the caller stops iterating early.
+            statement = await conn.prepare(query)
+            async for record in statement.cursor(*args):
+                yield dict(record)
+            return
 
+        conn = await cls.pool.acquire()
         try:
-            if not conn.is_in_transaction():
-                async with conn.transaction():
-                    statement = await conn.prepare(query)
-                    async for record in statement.cursor(*args):
-                        yield dict(record)
-            else:
+            async with conn.transaction():
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
                     yield dict(record)

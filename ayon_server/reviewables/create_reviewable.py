@@ -5,6 +5,8 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.ffprobe import availability_from_media_info
+from ayon_server.helpers.filmstrip import schedule_filmstrip_creation
+from ayon_server.helpers.mimetypes import is_video_mime_type
 from ayon_server.helpers.preview import obtain_file_preview
 from ayon_server.logging import log_traceback, logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
@@ -137,6 +139,11 @@ async def create_reviewable(
             f"Unable to create thumbnail for reviewable {file_id} "
             f"for version {version.id}"
         )
+
+    # The thumbnail info of the version, its task and folder is invalidated
+    # once the filmstrip is created
+    if is_video_mime_type(content_type):
+        schedule_filmstrip_creation(project_name, file_id)
 
     if create_events:
         await EventStream.dispatch(
