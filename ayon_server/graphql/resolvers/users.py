@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGLast,
     argdesc,
+    build_search_conditions,
     resolve,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
@@ -59,6 +60,10 @@ async def get_users(
     is_support: Annotated[
         bool | None, argdesc("Deprecated: Filter users by isSupport flag in data")
     ] = None,
+    search: Annotated[
+        str | None,
+        argdesc("Fuzzy text search filter (name, full name and email)"),
+    ] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -96,6 +101,15 @@ async def get_users(
         sql_conditions.append(
             f"LOWER(users.attrib->>'email') IN {SQLTool.array(emails)}"
         )
+
+    if search:
+        search_columns = ["users.name", "users.attrib->>'fullName'"]
+        # Only managers can see emails (see UserNode), so don't let
+        # others probe them through the search
+        if user.is_manager:
+            search_columns.append("users.attrib->>'email'")
+        if cond := build_search_conditions(search, search_columns):
+            sql_conditions.append(cond)
 
     # Support users
 
