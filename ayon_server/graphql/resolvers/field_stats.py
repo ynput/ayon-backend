@@ -1,10 +1,12 @@
 import json
+import re
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 import strawberry
 
+from ayon_server.exceptions import BadRequestException
 from ayon_server.graphql.resolvers.common import (
     ColumnMetadata,
     ColumnMetadataDataType,
@@ -125,6 +127,12 @@ def _get_stats_for_column(
     return []
 
 
+# Field names are interpolated into SQL, so only plain identifiers
+# with an optional single JSON key (e.g. "attrib.fps") are accepted.
+# Attribute names may start with a digit (see ATTRIBUTE_NAME_REGEX).
+_SAFE_FIELD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)?")
+
+
 def generate_specific_stats_columns(
     calculate_specific_statistics: list[MetricTargetInput],
     has_project_attributes: bool = False,
@@ -134,6 +142,8 @@ def generate_specific_stats_columns(
 
     for definition in calculate_specific_statistics:
         raw_field = definition.field
+        if not _SAFE_FIELD_RE.fullmatch(raw_field):
+            raise BadRequestException(f"Invalid statistics field: {raw_field!r}")
         column_name = raw_field.replace(".", "_")
 
         # Handle JSON nested extraction syntax safely
