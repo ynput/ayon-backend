@@ -1,7 +1,11 @@
 from typing import Annotated
 
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
 from ayon_server.graphql.nodes.user import UserNode
@@ -13,8 +17,15 @@ from ayon_server.graphql.resolvers.common import (
     argdesc,
     build_search_conditions,
     resolve,
+    sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import (
+    OrderBy,
+    create_pagination,
+    get_sort_keys,
+    sort_columns,
+    with_tiebreakers,
+)
 from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_email_list,
@@ -22,6 +33,15 @@ from ayon_server.types import (
     validate_user_name,
 )
 from ayon_server.utils import SQLTool
+
+SORT_OPTIONS = {
+    "name": "users.name",
+    "fullName": "users.attrib->>'fullName'",
+    "email": "users.attrib->>'email'",
+}
+
+# Only managers can see emails of other users (see UserNode)
+MANAGER_ONLY_SORT_OPTIONS = {"email"}
 
 
 async def get_users(
@@ -64,6 +84,7 @@ async def get_users(
         str | None,
         argdesc("Fuzzy text search filter (name, full name and email)"),
     ] = None,
+    sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -146,10 +167,21 @@ async def get_users(
         sql_conditions.append(cnd)
 
     #
-    # Pagination
+    # Pagination and sorting
     #
 
-    order_by = ["name"]
+    order_by: OrderBy = []
+    for sort_key, descending in get_sort_keys(sort_by):
+        if sort_key not in SORT_OPTIONS:
+            raise BadRequestException(f"Invalid sort_by value: {sort_key}")
+        if sort_key in MANAGER_ONLY_SORT_OPTIONS and not user.is_manager:
+            raise ForbiddenException(f"Only managers can sort users by {sort_key}")
+        order_by.extend(sort_columns([SORT_OPTIONS[sort_key]], descending))
+
+    # User names are unique, so sorting by name last
+    # gives a stable order for the cursors
+    order_by = with_tiebreakers(order_by, "users.name")
+
     ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
