@@ -351,8 +351,8 @@ class CloudUtils:
         )
 
     @classmethod
-    async def get_registry_auth_data(cls) -> dict[str, Any]:
-        if cls.registry_auth is not None:
+    async def get_registry_auth_data(cls, *, force: bool = False) -> dict[str, Any]:
+        if cls.registry_auth is not None and not force:
             return cls.registry_auth
 
         try:
