@@ -170,6 +170,7 @@ async def import_data(
     ] = None,
     new_list_label: str | None = None,
     new_list_entity_type: ProjectLevelEntityType | None = None,
+    new_list_folder_id: str | None = None,
     update_listed_entities: bool = False,
     project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
@@ -198,6 +199,7 @@ async def import_data(
             and no entity type column is needed
         new_list_label: For list items, create a new list with this label and
             import into it (with new_list_entity_type) instead of folder_id
+        new_list_folder_id: The list folder to create the new list in
         update_listed_entities: For list items, set the values (status,
             attributes, ...) on the listed entities. Otherwise attribute values
             are stored on the list items and other entity values are ignored.
@@ -289,7 +291,9 @@ async def import_data(
             if update_only:
                 raise BadRequestException("A new list can only get new items")
             new_list = await list_items.create_list(
-                new_list_label.strip(), new_list_entity_type
+                new_list_label.strip(),
+                new_list_entity_type,
+                folder_id=new_list_folder_id,
             )
         elif folder_id:
             list_attribute_keys = {
