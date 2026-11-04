@@ -129,7 +129,8 @@ def _get_stats_for_column(
 
 # Field names are interpolated into SQL, so only plain identifiers
 # with an optional single JSON key (e.g. "attrib.fps") are accepted.
-_SAFE_FIELD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?")
+# Attribute names may start with a digit (see ATTRIBUTE_NAME_REGEX).
+_SAFE_FIELD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)?")
 
 
 def generate_specific_stats_columns(
