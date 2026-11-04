@@ -19,6 +19,12 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.field_stats import (
+    MetricTargetInput,
+    StatsAggregation,
+    generate_field_stats,
+    generate_specific_stats_columns,
+)
 from ayon_server.graphql.resolvers.pagination import (
     OrderBy,
     create_pagination,
@@ -42,6 +48,35 @@ SORT_OPTIONS = {
 
 # Only managers can see emails of other users (see UserNode)
 MANAGER_ONLY_SORT_OPTIONS = {"email"}
+
+# Fields are put into the SQL as they are, so only these are accepted
+STATS_FIELDS = {"name", "attrib.fullName", "attrib.email"}
+MANAGER_ONLY_STATS_FIELDS = {"attrib.email"}
+
+# The fields are text, numeric and boolean aggregations would fail on them
+STATS_AGGREGATIONS = {
+    StatsAggregation.COUNT,
+    StatsAggregation.FILLED,
+    StatsAggregation.NOT_FILLED,
+    StatsAggregation.PERCENTAGE_FILLED,
+    StatsAggregation.PERCENTAGE_NOT_FILLED,
+    StatsAggregation.DISTRIBUTION,
+}
+
+
+def validate_stats_targets(targets: list[MetricTargetInput], is_manager: bool) -> None:
+    for target in targets:
+        if target.field not in STATS_FIELDS:
+            raise BadRequestException(f"Invalid statistics field: {target.field}")
+        if target.field in MANAGER_ONLY_STATS_FIELDS and not is_manager:
+            raise ForbiddenException(
+                f"Only managers can calculate statistics of {target.field}"
+            )
+        for aggregation in target.aggregations:
+            if aggregation not in STATS_AGGREGATIONS:
+                raise BadRequestException(
+                    f"Invalid aggregation for {target.field}: {aggregation.value}"
+                )
 
 
 async def get_users(
@@ -85,6 +120,16 @@ async def get_users(
         argdesc("Fuzzy text search filter (name, full name and email)"),
     ] = None,
     sort_by: Annotated[list[str] | None, sortdesc(SORT_OPTIONS)] = None,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc(
+            """
+            Statistics of the filtered users (e.g. COUNT of name) returned
+            in fieldStats instead of the edges. Pagination is ignored.
+            Fields: name, attrib.fullName, attrib.email (managers only).
+            """
+        ),
+    ] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -165,6 +210,26 @@ async def get_users(
 
         cnd = f"({cnd1} OR {cnd2} OR ({cnd3}))"
         sql_conditions.append(cnd)
+
+    #
+    # Statistics
+    #
+
+    if calculate_specific_statistics:
+        validate_stats_targets(calculate_specific_statistics, user.is_manager)
+        if stats_select_clause := generate_specific_stats_columns(
+            calculate_specific_statistics
+        ):
+            query = f"""
+                WITH raw_data AS (
+                    SELECT * FROM public.users
+                    {SQLTool.conditions(sql_conditions)}
+                )
+                SELECT {stats_select_clause}
+                FROM raw_data
+            """
+            field_stats = await generate_field_stats(query)
+            return UsersConnection(edges=[], field_stats=field_stats)
 
     #
     # Pagination and sorting
