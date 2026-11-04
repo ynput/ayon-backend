@@ -64,21 +64,6 @@ STATS_AGGREGATIONS = {
 }
 
 
-def validate_stats_targets(targets: list[MetricTargetInput], is_manager: bool) -> None:
-    for target in targets:
-        if target.field not in STATS_FIELDS:
-            raise BadRequestException(f"Invalid statistics field: {target.field}")
-        if target.field in MANAGER_ONLY_STATS_FIELDS and not is_manager:
-            raise ForbiddenException(
-                f"Only managers can calculate statistics of {target.field}"
-            )
-        for aggregation in target.aggregations:
-            if aggregation not in STATS_AGGREGATIONS:
-                raise BadRequestException(
-                    f"Invalid aggregation for {target.field}: {aggregation.value}"
-                )
-
-
 async def get_users(
     root,
     info: Info,
@@ -216,7 +201,7 @@ async def get_users(
     #
 
     if calculate_specific_statistics:
-        validate_stats_targets(calculate_specific_statistics, user.is_manager)
+        _validate_stats_targets(calculate_specific_statistics, user.is_manager)
         if stats_select_clause := generate_specific_stats_columns(
             calculate_specific_statistics
         ):
@@ -282,3 +267,18 @@ async def get_user(root, info: Info, name: str) -> UserNode:
     if not connection.edges:
         raise NotFoundException("User not found")
     return connection.edges[0].node
+
+
+def _validate_stats_targets(targets: list[MetricTargetInput], is_manager: bool) -> None:
+    for target in targets:
+        if target.field not in STATS_FIELDS:
+            raise BadRequestException(f"Invalid statistics field: {target.field}")
+        if target.field in MANAGER_ONLY_STATS_FIELDS and not is_manager:
+            raise ForbiddenException(
+                f"Only managers can calculate statistics of {target.field}"
+            )
+        for aggregation in target.aggregations:
+            if aggregation not in STATS_AGGREGATIONS:
+                raise BadRequestException(
+                    f"Invalid aggregation for {target.field}: {aggregation.value}"
+                )
