@@ -103,6 +103,7 @@ async def link_types_enum(project_name: str | None = None) -> list[EnumItem]:
                     label=label,
                     value=value,
                     color=link_type.color,
+                    colorLight=link_type.colorLight,
                 )
             )
 
@@ -120,6 +121,7 @@ async def link_types_enum(project_name: str | None = None) -> list[EnumItem]:
                 label=label,
                 value=value,
                 color=row["data"].get("color", None),
+                colorLight=row["data"].get("colorLight"),
             )
         )
     return result

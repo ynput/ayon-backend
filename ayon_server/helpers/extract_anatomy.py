@@ -30,7 +30,7 @@ def process_link_types(src: Sequence[LinkTypeModel]) -> list[dict[str, Any]]:
             "input_type": ltdata.input_type,
             "output_type": ltdata.output_type,
         }
-        for key in ["color", "style"]:
+        for key in ["color", "colorLight", "style"]:
             if value := ltdata.data.get(key):
                 row[key] = value
         result.append(row)

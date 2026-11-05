@@ -68,6 +68,17 @@ class EnumItem(OPModel):
         ),
     ] = None
 
+    # camelCase, unlike short_name: attribute enum items are stored by field
+    # name, so this keeps the stored key the same as the API key
+    colorLight: Annotated[
+        str | None,
+        Field(
+            title="Color for the light theme in RGB hex format",
+            regex="^#[0-9a-fA-F]{6}$",
+            example="#B30000",
+        ),
+    ] = None
+
     short_name: Annotated[
         str | None,
         Field(

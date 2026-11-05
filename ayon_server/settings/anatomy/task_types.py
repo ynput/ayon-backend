@@ -6,6 +6,12 @@ from .aux_model import BaseAuxModel
 class TaskType(BaseAuxModel):
     shortName: str = SettingsField("", title="Short name")
     color: str = SettingsField("#cccccc", title="Color", widget="color")
+    colorLight: str | None = SettingsField(
+        None,
+        title="Light theme",
+        widget="color",
+        description="Leave empty to use the color on the light theme too.",
+    )
     icon: str = SettingsField("task_alt", title="Icon", widget="icon")
 
 

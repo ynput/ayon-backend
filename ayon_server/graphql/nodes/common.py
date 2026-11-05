@@ -50,6 +50,7 @@ class ProductBaseType(BaseEdge):
     name: str = strawberry.field()
     icon: str = strawberry.field()
     color: str = strawberry.field()
+    color_light: str | None = strawberry.field(default=None)
 
 
 async def _get_entity(

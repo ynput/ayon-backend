@@ -40,6 +40,15 @@ class EntityGroup(OPModel):
         ),
     ] = None
 
+    color_light: Annotated[
+        str | None,
+        Field(
+            title="Task Grouping Light Color",
+            description="The color of the grouping on the light theme, if set.",
+            example="#B32400",
+        ),
+    ] = None
+
     count: Annotated[
         int,
         Field(

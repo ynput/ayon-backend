@@ -72,7 +72,11 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     link_types: list[LinkTypeModel] = []
     for link_type in anatomy.link_types:
         name = f"{link_type.link_type}|{link_type.input_type}|{link_type.output_type}"
-        data = {"color": link_type.color, "style": link_type.style}
+        data = {
+            "color": link_type.color,
+            "colorLight": link_type.colorLight,
+            "style": link_type.style,
+        }
         link_types.append(
             LinkTypeModel(
                 name=name,

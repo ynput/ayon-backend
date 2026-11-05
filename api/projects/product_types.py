@@ -11,11 +11,13 @@ class ProductTypeListItem(OPModel):
     name: Annotated[str, Field(title="Product Type Name")]
     base_type: Annotated[str | None, Field(title="Base Product Type Name")] = None
     color: Annotated[str | None, Field(title="Color")] = None
+    color_light: Annotated[str | None, Field(title="Color (light theme)")] = None
     icon: Annotated[str | None, Field(title="Icon")] = None
 
 
 class DefaultProductType(OPModel):
     color: Annotated[str, Field(title="Color")]
+    color_light: Annotated[str | None, Field(title="Color (light theme)")] = None
     icon: Annotated[str, Field(title="Icon")]
 
 
@@ -43,6 +45,7 @@ async def get_product_types(
 
     default = DefaultProductType(
         color=anatomy.product_base_types.default.color,
+        color_light=anatomy.product_base_types.default.colorLight,
         icon=anatomy.product_base_types.default.icon,
     )
 
@@ -54,6 +57,9 @@ async def get_product_types(
                 name=pt.name,
                 base_type=pt.name,
                 color=pt.color or anatomy.product_base_types.default.color,
+                color_light=pt.colorLight
+                if pt.color
+                else anatomy.product_base_types.default.colorLight,
                 icon=pt.icon or anatomy.product_base_types.default.icon,
             )
         )

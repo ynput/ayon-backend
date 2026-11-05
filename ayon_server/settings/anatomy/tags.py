@@ -7,6 +7,12 @@ class Tag(BaseAuxModel):
     color: str = SettingsField(
         "#cacaca", title="Color", widget="color", example="#3498db"
     )
+    colorLight: str | None = SettingsField(
+        None,
+        title="Light theme",
+        widget="color",
+        description="Leave empty to use the color on the light theme too.",
+    )
 
 
 default_tags = [
