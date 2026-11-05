@@ -2,6 +2,7 @@ __all__ = [
     "ActionsEnumResolver",
     "AttributeEnumResolver",
     "UsersEnumResolver",
+    "ProjectsEnumResolver",
     "LinkTypesEnumResolver",
     "FolderTypesEnumResolver",
     "StatusesEnumResolver",
@@ -18,4 +19,5 @@ from .enum_anatomy import (
 )
 from .enum_attributes import AttributeEnumResolver
 from .enum_link_types import LinkTypesEnumResolver
+from .enum_projects import ProjectsEnumResolver
 from .enum_users import UsersEnumResolver
