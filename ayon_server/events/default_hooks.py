@@ -27,5 +27,6 @@ DEFAULT_HOOKS: list[tuple[str, HandlerType, bool]] = [
     ("settings.changed", clear_settings_cache, False),
     ("bundle.created", clear_settings_cache, False),
     ("bundle.updated", clear_settings_cache, False),
+    ("bundle.deleted", clear_settings_cache, False),
     ("server.attributes_updated", reload_attributes, True),
 ]

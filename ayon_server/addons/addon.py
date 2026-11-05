@@ -193,6 +193,20 @@ class BaseServerAddon:
         """
         return None
 
+    async def on_bundle_status_change(self, variants: list[str]) -> None:
+        """Hook called when the bundle variants of this addon version change.
+
+        `variants` is the list of variants ("production", "staging")
+        whose bundles contain this addon version. An empty list means
+        the addon version is not used in production or staging.
+
+        It is called for every loaded addon version on server start
+        (after setup), and then whenever the variants change.
+        It runs on every server replica, so the implementation
+        must be idempotent.
+        """
+        pass
+
     def request_server_restart(self):
         """Request the server to restart.
 
