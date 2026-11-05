@@ -75,7 +75,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
         vers = active_versions.get(definition.name, {})
         versions = {}
         items = list(definition.versions.items())
-        items.sort(key=lambda x: semver.VersionInfo.parse(x[0]))
+        items.sort(key=lambda x: semver.Version.parse(x[0]))
         for version, addon in items:
             pcoav = addon.get_project_can_override_addon_version()
             vinf = {

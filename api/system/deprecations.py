@@ -76,10 +76,10 @@ def _get_addon_versions() -> dict[tuple[str, str], tuple[str, str]]:
     return result
 
 
-def _version_key(version: str) -> tuple[int, semver.VersionInfo | str]:
+def _version_key(version: str) -> tuple[int, semver.Version | str]:
     """Sort key of addon versions. Non-semver versions go first."""
     try:
-        return 1, semver.VersionInfo.parse(version)
+        return 1, semver.Version.parse(version)
     except ValueError:
         return 0, version
 

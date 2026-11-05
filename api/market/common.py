@@ -88,9 +88,10 @@ async def get_local_production_addon_versions() -> dict[str, str]:
 def is_compatible(requirement: str | None = None) -> bool:
     if requirement is None:
         return True
+    parsed_version = semver.Version.parse(ayon_version)
     conditions = requirement.split(",")
     for condition in conditions:
         condition = condition.strip()
-        if not semver.match(ayon_version, condition):
+        if not parsed_version.match(condition):
             return False
     return True
