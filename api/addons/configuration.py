@@ -58,7 +58,7 @@ async def copy_addon_variant(
         source_settings.append({"addon_version": source_version, "data": {}})
 
     source_settings.sort(
-        key=lambda x: semver.VersionInfo.parse(x["addon_version"]),
+        key=lambda x: semver.Version.parse(x["addon_version"]),
         reverse=True,
     )
 

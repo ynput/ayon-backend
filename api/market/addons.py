@@ -39,9 +39,8 @@ async def market_addon_list(
 
         if (
             addon.latest_version
-            and semver.compare(
-                addon.latest_version,
-                addon.current_latest_version or "0.0.0",
+            and semver.Version.parse(addon.latest_version).compare(
+                addon.current_latest_version or "0.0.0"
             )
             > 0
         ):
@@ -74,17 +73,13 @@ async def market_addon_detail(user: CurrentUser, addon_name: str) -> AddonDetail
 
         else:
             version.is_compatible = True
-            if (
-                semver.compare(
-                    version.version, installed_addons.get(addon_name, "0.0.0")
-                )
-                > 0
-            ):
+            parsed_version = semver.Version.parse(version.version)
+            if parsed_version.compare(installed_addons.get(addon_name, "0.0.0")) > 0:
                 is_outdated = True
 
             if latest_compatible_version is None:
                 latest_compatible_version = version.version
-            elif semver.compare(version.version, latest_compatible_version) > 0:
+            elif parsed_version.compare(latest_compatible_version) > 0:
                 latest_compatible_version = version.version
 
         version.is_installed = (

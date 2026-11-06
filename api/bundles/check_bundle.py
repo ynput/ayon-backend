@@ -21,10 +21,11 @@ PLACEHOLDER_VERSIONS = ("__inherit__", "__disable__")
 
 
 def is_compatible(version: str, requirements: str) -> bool:
+    parsed_version = semver.Version.parse(version)
     conditions = requirements.split(",")
     for condition in conditions:
         condition = condition.strip()
-        if not semver.match(version, condition):
+        if not parsed_version.match(condition):
             return False
     return True
 

@@ -121,7 +121,7 @@ def get_addon_zip_info(path: str) -> AddonZipInfo:
         conditions = ayon_version.split(",")
         for condition in conditions:
             condition = condition.strip()
-            if not semver.match(ayon_version, condition):
+            if not semver.Version.parse(ayon_version).match(condition):
                 raise UnsupportedAddonException(
                     f"Ayon version {ayon_version} is not supported by this addon"
                 )
