@@ -80,8 +80,9 @@ class QueryCondition(OPModel):
             title="Operator",
             description=(
                 "Comparison operator. like and notlike perform case-insensitive "
-                "substring matching. One surrounding pair of % is treated as a "
-                "substring wrapper; %, _ and backslashes within it are literal."
+                "substring matching. A leading or trailing % anchors the match "
+                "to the end or start (%.abc, abc%); other %, _ and backslashes "
+                "are literal."
             ),
             example="eq",
         ),
@@ -215,11 +216,14 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     value = c.value
     operator = c.operator
     if operator in ("like", "notlike") and isinstance(value, str):
-        # The frontend wraps search text in %, before sending the filter.
-        if len(value) >= 2 and value.startswith("%") and value.endswith("%"):
-            value = value[1:-1]
-        value = value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        value = f"%{value}%"
+        # A leading or trailing % anchors the match; without either it is contains.
+        starts = value.startswith("%")
+        ends = len(value) > 1 and value.endswith("%")
+        core = value[1 if starts else 0 : -1 if ends else None]
+        core = core.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        if not (starts or ends):
+            starts = ends = True
+        value = f"{'%' if starts else ''}{core}{'%' if ends else ''}"
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
