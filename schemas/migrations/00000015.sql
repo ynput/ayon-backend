@@ -8,7 +8,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_attribute
     WHERE attrelid = 'public.bundles'::regclass
-    AND attname = 'updated_at' AND attnotnull AND NOT attisdropped
+    AND attname = 'updated_at' AND attnotnull AND atthasdef AND NOT attisdropped
   ) THEN
     ALTER TABLE public.bundles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
 
