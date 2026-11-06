@@ -10,10 +10,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'events'
-        AND table_schema = 'public'
-        AND column_name = 'sender_type'
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('public.events')
+        AND attname = 'sender_type' AND NOT attisdropped
     ) THEN
         ALTER TABLE IF EXISTS public.events
         ADD COLUMN sender_type VARCHAR;
@@ -24,12 +23,45 @@ END $$;
 DO $$
 DECLARE rec RECORD;
 BEGIN
-    FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+    -- Only schemas that need it, so a migrated database costs one query
+    FOR rec IN
+      SELECT nspname FROM pg_namespace ns
+      WHERE nspname LIKE 'project_%'
+      AND (
+      EXISTS (
+        SELECT 1 FROM pg_class cl
+        WHERE cl.relnamespace = ns.oid AND cl.relname = 'representations'
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_attribute
+          WHERE attrelid = cl.oid AND attname = 'traits' AND NOT attisdropped
+        )
+      )
+      OR EXISTS (
+        SELECT 1 FROM pg_class cl
+        WHERE cl.relnamespace = ns.oid AND cl.relname = 'activities'
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_attribute
+          WHERE attrelid = cl.oid AND attname = 'tags' AND NOT attisdropped
+        )
+      ))
     LOOP
         BEGIN
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
-          ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
-          ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+          -- ALTER TABLE locks the table even if the column exists
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_attribute
+            WHERE attrelid = to_regclass(format('%I.representations', rec.nspname))
+            AND attname = 'traits' AND NOT attisdropped
+          ) THEN
+            ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_attribute
+            WHERE attrelid = to_regclass(format('%I.activities', rec.nspname))
+            AND attname = 'tags' AND NOT attisdropped
+          ) THEN
+            ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+          END IF;
         EXCEPTION
           WHEN OTHERS THEN
              RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;

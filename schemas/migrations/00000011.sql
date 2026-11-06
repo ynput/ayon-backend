@@ -18,10 +18,16 @@ BEGIN
 
         EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
 
-        CREATE INDEX IF NOT EXISTS product_base_type_idx ON products(product_base_type);
+        -- Checked first: CREATE INDEX and UPDATE lock the table even if there
+        -- is nothing to do (and setup runs on every start)
+        IF to_regclass(format('%I.product_base_type_idx', rec.nspname)) IS NULL THEN
+          CREATE INDEX IF NOT EXISTS product_base_type_idx ON products(product_base_type);
+        END IF;
 
-        UPDATE products SET product_base_type = product_type
-          WHERE product_base_type IS NULL;
+        IF EXISTS (SELECT 1 FROM products WHERE product_base_type IS NULL) THEN
+          UPDATE products SET product_base_type = product_type
+            WHERE product_base_type IS NULL;
+        END IF;
 
 
         -- TODO. In future, we will enable this constraint after ensuring all existing rows are populated.

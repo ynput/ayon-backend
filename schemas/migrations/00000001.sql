@@ -12,6 +12,24 @@ DECLARE rec RECORD;
 BEGIN
     FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
     LOOP
+        -- Skip complete schemas: CREATE INDEX IF NOT EXISTS locks the table
+        -- even if the index exists (and setup runs on every start)
+        IF (
+            SELECT count(*) FROM pg_class
+            WHERE relnamespace = quote_ident(rec.nspname)::regnamespace
+            AND relname IN (
+                'idx_activity_type',
+                'idx_activity_id',
+                'idx_activity_entity_id',
+                'idx_activity_reference_created_at',
+                'idx_activity_reference_unique',
+                'entity_paths_path_idx',
+                'idx_files_activity_id'
+            )
+        ) = 7 THEN
+            CONTINUE;
+        END IF;
+
         EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
 
         CREATE TABLE IF NOT EXISTS activities (
