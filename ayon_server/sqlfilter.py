@@ -78,11 +78,7 @@ class QueryCondition(OPModel):
         OperatorType,
         Field(
             title="Operator",
-            description=(
-                "Comparison operator. like and notlike perform case-insensitive "
-                "substring matching. One surrounding pair of % is treated as a "
-                "substring wrapper; %, _ and backslashes within it are literal."
-            ),
+            description="Comparison operator",
             example="eq",
         ),
     ] = "eq"
@@ -214,12 +210,6 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     )
     value = c.value
     operator = c.operator
-    if operator in ("like", "notlike") and isinstance(value, str):
-        # The frontend wraps search text in %, before sending the filter.
-        if len(value) >= 2 and value.startswith("%") and value.endswith("%"):
-            value = value[1:-1]
-        value = value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-        value = f"%{value}%"
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
@@ -432,10 +422,6 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             column = f"({column}) #>> '{{}}'"
         else:
             column = re.sub(r"->(?!.*->)", "->>", column)
-
-    if path == ["attrib", "description"] and operator in ("like", "notlike"):
-        # Markdown escapes punctuation; preserve backslashes before other text.
-        column = f"regexp_replace({column}, " r"'\\([[:punct:]])', '\1', 'g')"
 
     if operator == "eq":
         if type(value) is bool:

@@ -11,12 +11,12 @@ from ayon_server.sqlfilter import (
 
 
 def test_like_on_attribute():
-    condition = QueryCondition(key="attrib.note", operator="like", value="foo")
+    condition = QueryCondition(key="attrib.note", operator="like", value="%foo%")
     assert build_condition(condition) == "(attrib->>'note') ILIKE '%foo%'"
 
 
 def test_notlike_on_attribute_keeps_missing_values():
-    condition = QueryCondition(key="attrib.note", operator="notlike", value="foo")
+    condition = QueryCondition(key="attrib.note", operator="notlike", value="%foo%")
     assert (
         build_condition(condition)
         == "NOT coalesce((attrib->>'note') ILIKE '%foo%', FALSE)"
@@ -24,7 +24,7 @@ def test_notlike_on_attribute_keeps_missing_values():
 
 
 def test_notlike_on_column():
-    condition = QueryCondition(key="name", operator="notlike", value="foo")
+    condition = QueryCondition(key="name", operator="notlike", value="%foo%")
     assert (
         build_condition(condition, table_prefix="tasks")
         == "NOT coalesce((tasks.name) ILIKE '%foo%', FALSE)"
@@ -38,7 +38,7 @@ def test_notlike_operator_spelling(operator: str):
 
 
 def test_notlike_escapes_quotes():
-    condition = QueryCondition(key="attrib.note", operator="notlike", value="it's")
+    condition = QueryCondition(key="attrib.note", operator="notlike", value="%it's%")
     assert "ILIKE '%it''s%'" in build_condition(condition)
 
 
@@ -52,8 +52,8 @@ def test_notlike_conditions_in_filter():
     f = QueryFilter(
         operator="and",
         conditions=[
-            QueryCondition(key="attrib.note", operator="notlike", value="a"),
-            QueryCondition(key="attrib.note", operator="notlike", value="b"),
+            QueryCondition(key="attrib.note", operator="notlike", value="%a%"),
+            QueryCondition(key="attrib.note", operator="notlike", value="%b%"),
         ],
     )
     assert build_filter(f) == (
@@ -62,34 +62,12 @@ def test_notlike_conditions_in_filter():
     )
 
 
-@pytest.mark.parametrize("operator", ["like", "notlike"])
-@pytest.mark.parametrize("key", ["attrib.description", "attrib/description"])
-def test_description_matching_removes_markdown_escapes(operator, key):
-    condition = QueryCondition(key=key, operator=operator, value="foo_bar")
-    column = r"regexp_replace(attrib->>'description', '\\([[:punct:]])', '\1', 'g')"
-    expected = f"({column}) ILIKE " r"'%foo\_bar%'"
-    if operator == "notlike":
-        expected = f"NOT coalesce({expected}, FALSE)"
-    assert build_condition(condition) == expected
-
-
-def test_description_matching_with_mapped_attributes():
-    condition = QueryCondition(
-        key="attrib.description", operator="like", value="foo_bar"
-    )
-    result = build_condition(
-        condition, table_prefix="folders", column_map={"attrib": "f_ex.attrib"}
-    )
-    assert result == (
-        r"(regexp_replace(f_ex.attrib->>'description', "
-        r"'\\([[:punct:]])', '\1', 'g')) ILIKE '%foo\_bar%'"
-    )
-
-
 def test_description_matching_resolves_only_description():
     from ayon_server.graphql.resolvers.common import get_resolved_attrib_expression
 
-    condition = QueryCondition(key="attrib.description", operator="like", value="world")
+    condition = QueryCondition(
+        key="attrib.description", operator="like", value="%world%"
+    )
     result = build_condition(
         condition,
         table_prefix="tasks",
@@ -100,8 +78,8 @@ def test_description_matching_resolves_only_description():
         },
     )
     assert result == (
-        "(regexp_replace((NULLIF((tasks.attrib)->'description', 'null'::jsonb)) "
-        r"#>> '{}', '\\([[:punct:]])', '\1', 'g')) ILIKE '%world%'"
+        "((NULLIF((tasks.attrib)->'description', 'null'::jsonb)) #>> '{}') "
+        "ILIKE '%world%'"
     )
     assert "f_ex.attrib" not in result
     assert "jsonb_object_agg" not in result
@@ -113,7 +91,7 @@ def test_inherited_text_matching_does_not_change_coalesce_operands():
     expression = get_resolved_attrib_expression(
         "task", "tasks.attrib", inherited="f_ex.attrib"
     )
-    condition = QueryCondition(key="attrib.fps", operator="like", value="25")
+    condition = QueryCondition(key="attrib.fps", operator="like", value="%25%")
     result = build_condition(condition, column_map={"attrib": expression})
     assert result == f"(({expression('fps')}) #>> '{{}}') ILIKE '%25%'"
     assert "->>" not in result
@@ -143,38 +121,3 @@ def test_callable_attribute_mapping_validates_path_before_resolving():
             QueryCondition(key="attrib.invalid-key", operator="eq", value="world"),
             column_map={"attrib": resolve},
         )
-
-
-@pytest.mark.parametrize("operator", ["eq", "ne", "re"])
-def test_other_description_operators_preserve_markdown(operator):
-    condition = QueryCondition(
-        key="attrib.description", operator=operator, value=r"foo\_bar"
-    )
-    assert "regexp_replace" not in build_condition(condition)
-
-
-@pytest.mark.parametrize("operator", ["like", "notlike"])
-@pytest.mark.parametrize("key", ["name", "attrib.note", "attrib.description"])
-@pytest.mark.parametrize(
-    ("value", "pattern"),
-    [
-        ("foo", "%foo%"),
-        ("%foo%", "%foo%"),
-        ("foo_bar", r"%foo\_bar%"),
-        ("%foo_bar%", r"%foo\_bar%"),
-        (r"foo\_bar", r"%foo\\\_bar%"),
-        ("_%it's_%", r"%\_\%it''s\_\%%"),
-        ("50%", r"%50\%%"),
-        ("%50%", "%50%"),
-        ("%50%%", r"%50\%%"),
-        ("%%50%%", r"%\%50\%%"),
-        ("%", r"%\%%"),
-        ("%%", "%%"),
-        (r"50\%", r"%50\\\%%"),
-        ("foo\\", "%foo\\\\%"),
-    ],
-)
-def test_like_escapes_bare_wildcards(operator, key, value, pattern):
-    condition = QueryCondition(key=key, operator=operator, value=value)
-    assert f"ILIKE '{pattern}'" in build_condition(condition)
-    assert condition.value == value
