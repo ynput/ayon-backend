@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.project_list import PROJECT_SCHEMAS_LOCK, get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -15,6 +15,46 @@ from setup.database import db_migration
 from setup.initial_bundle import create_initial_bundle
 from setup.template import get_setup_template
 from setup.users import deploy_users
+
+
+async def deploy_schema(has_schema: bool) -> None:
+    """Create/migrate the database schema under the project schemas lock.
+
+    The lock is a session lock on the connection that runs the migrations
+    (acquire() reuses it), so Postgres can detect deadlocks that go through it.
+    It blocks project deletion/renaming, queries over all project schemas
+    and other setups until the schema is deployed.
+    """
+    async with Postgres.acquire() as conn:
+        await conn.execute(
+            "SELECT pg_advisory_lock(hashtextextended($1, 0))", PROJECT_SCHEMAS_LOCK
+        )
+        try:
+            if ("--with-schema" in sys.argv) or (not has_schema):
+                logger.info("(re)creating database schema")
+
+                schema = Path("schemas/schema.drop.sql").read_text()
+                await Postgres.execute(schema, timeout=120)
+
+            db_version = await db_migration(has_schema)
+
+            schema = Path("schemas/schema.public.sql").read_text()
+            await Postgres.execute(schema, timeout=120)
+
+            # Save the current database version (latest migration applied)
+
+            await Postgres.execute(
+                """
+                INSERT INTO config (key, value) VALUES ('dbVersion', $1)
+                ON CONFLICT (key) DO UPDATE SET value = $1
+                """,
+                db_version,
+            )
+        finally:
+            await conn.execute(
+                "SELECT pg_advisory_unlock(hashtextextended($1, 0))",
+                PROJECT_SCHEMAS_LOCK,
+            )
 
 
 async def main(force: bool | None = None) -> None:
@@ -43,26 +83,7 @@ async def main(force: bool | None = None) -> None:
         else:
             force_install = force
 
-    if ("--with-schema" in sys.argv) or (not has_schema):
-        logger.info("(re)creating database schema")
-
-        schema = Path("schemas/schema.drop.sql").read_text()
-        await Postgres.execute(schema, timeout=120)
-
-    db_version = await db_migration(has_schema)
-
-    schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema, timeout=120)
-
-    # Save the current database version (latest migration applied)
-
-    await Postgres.execute(
-        """
-        INSERT INTO config (key, value) VALUES ('dbVersion', $1)
-        ON CONFLICT (key) DO UPDATE SET value = $1
-        """,
-        db_version,
-    )
+    await deploy_schema(has_schema)
 
     # This is something we can do every time.
     # Similar to database migrations, built-in attributes
