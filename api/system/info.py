@@ -1,7 +1,6 @@
 from typing import Any
 from urllib.parse import urlparse
 
-import aiocache
 from attributes.attributes import list_attributes  # type: ignore
 from fastapi import Query, Request
 
@@ -113,7 +112,7 @@ class InfoResponseModel(OPModel):
 # Get all SSO options from the active addons
 
 
-@aiocache.cached(ttl=10)
+# Not cached: options may contain a per-browser login state
 async def get_sso_options(request: Request) -> list[SSOOption]:
     referer = request.headers.get("referer")
     if referer:
