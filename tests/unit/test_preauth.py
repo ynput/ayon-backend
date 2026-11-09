@@ -4,6 +4,8 @@ from typing import Any
 
 import pytest
 from cryptography.fernet import Fernet
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -108,6 +110,44 @@ def test_cookie_deleted_after_login() -> None:
     response = Response()
     preauth.apply_pre_auth_cookie(request, response)
     assert "Max-Age=0" in response.headers["set-cookie"]
+
+
+@pytest.mark.anyio
+async def test_existing_id_refreshes_cookie() -> None:
+    pre_auth = PreAuth(id=BROWSER_A)
+    async with request_context_manager(RequestContext(pre_auth=pre_auth)):
+        await preauth.create_login_state("sso")
+    assert pre_auth.id == BROWSER_A and pre_auth.created
+
+
+def test_cookie_flows_through_server_middlewares() -> None:
+    """The handler sees the PreAuth set by AuthMiddleware, in the server's order."""
+    from ayon_server.api.auth import AuthMiddleware
+    from ayon_server.api.context import RequestContextMiddleware
+    from ayon_server.api.server import app as server_app
+
+    app = FastAPI()
+    app.user_middleware = [
+        m
+        for m in server_app.user_middleware
+        if m.cls in (AuthMiddleware, RequestContextMiddleware)  # type: ignore[comparison-overlap]
+    ]
+
+    @app.get("/state")
+    async def state() -> str:
+        return await preauth.create_login_state("sso", {"provider": "google"})
+
+    @app.get("/verify")
+    async def verify(state: str) -> dict[str, Any]:
+        return await preauth.verify_login_state(state, "sso")
+
+    client = TestClient(app, base_url="https://testserver")
+    res = client.get("/state")
+    assert preauth.COOKIE_NAME in res.cookies
+    # The client sends the cookie back, as the browser does in the callback
+    assert client.get("/verify", params={"state": res.json()}).json() == {
+        "provider": "google"
+    }
 
 
 def test_malformed_cookie_ignored() -> None:

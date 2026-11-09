@@ -72,8 +72,10 @@ def _get_pre_auth_id(create: bool) -> str | None:
         if create:
             raise RuntimeError("Login state requires an HTTP request context")
         return None
-    if pre_auth.id is None and create:
-        pre_auth.id = secrets.token_urlsafe(32)
+    if create:
+        if pre_auth.id is None:
+            pre_auth.id = secrets.token_urlsafe(32)
+        # Re-send the cookie, so it cannot expire during the login
         pre_auth.created = True
     return pre_auth.id
 
