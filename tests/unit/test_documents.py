@@ -271,7 +271,7 @@ def test_list_query_filter(db, project_name):
             QueryFilter(
                 operator="or",
                 conditions=[
-                    QueryCondition(key="label", operator="like", value="chart"),
+                    QueryCondition(key="label", operator="like", value="%chart%"),
                     QueryCondition(key="data.icon", value="O'Reilly"),
                 ],
             ),

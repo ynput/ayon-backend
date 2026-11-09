@@ -48,8 +48,12 @@ def test_upload_cannot_overwrite_others_file(
         )
         assert response.status_code == 403, response.text
         response = api.get(f"{url}/{file_id}")
-        if response.is_redirect:  # S3 storage: plain client, no API key to S3
-            response = httpx.get(response.headers["location"])
+        if response.is_redirect:
+            location = response.headers["location"]
+            if location.startswith("/"):  # local storage: payload endpoint
+                response = api.get(location)
+            else:  # S3 storage: plain client, no API key to S3
+                response = httpx.get(location)
         assert response.content == b"original"
     finally:
         api.delete(group_url)

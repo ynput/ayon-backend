@@ -89,11 +89,9 @@ class ServerAddonDefinition:
 
             def custom_sort_key(v):
                 try:
-                    return semver.VersionInfo.parse(v)
+                    return semver.Version.parse(v)
                 except ValueError:
-                    return semver.VersionInfo(
-                        0, 0, 0, prerelease=slugify(v, separator="")
-                    )
+                    return semver.Version(0, 0, 0, prerelease=slugify(v, separator=""))
 
             try:
                 version_names.sort(key=custom_sort_key)
@@ -167,7 +165,7 @@ class ServerAddonDefinition:
                 metadata["version"] = version
 
         try:
-            semver.VersionInfo.parse(metadata["version"])
+            semver.Version.parse(metadata["version"])
         except ValueError:
             raise AssertionError(
                 f"Addon {metadata['name']} has invalid version {metadata['version']}"
@@ -222,7 +220,7 @@ class ServerAddonDefinition:
         if not self.versions:
             return None
         versions = list(self.versions.keys())
-        max_version = max(versions, key=semver.VersionInfo.parse)
+        max_version = max(versions, key=semver.Version.parse)
         return self.versions[max_version]
 
     @property
@@ -236,7 +234,7 @@ class ServerAddonDefinition:
     def addon_type(self) -> str:
         sorted_versions = sorted(
             self.versions.values(),
-            key=lambda x: semver.VersionInfo.parse(x.version),
+            key=lambda x: semver.Version.parse(x.version),
         )
         if not sorted_versions:
             return "pipeline"

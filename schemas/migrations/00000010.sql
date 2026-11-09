@@ -74,22 +74,24 @@ END $$;
 DO $$
 DECLARE rec RECORD;
 BEGIN
-  FOR rec IN SELECT t.table_schema, t.table_name
-    FROM information_schema.tables t
-    LEFT JOIN information_schema.columns c
-    ON t.table_schema = c.table_schema
-    AND t.table_name = c.table_name
-    AND c.column_name IN ('created_by', 'updated_by')
-    WHERE t.table_schema LIKE 'project_%'
-    AND t.table_name IN (
+  FOR rec IN SELECT ns.nspname AS table_schema, cl.relname AS table_name
+    FROM pg_class cl
+    JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+    LEFT JOIN pg_attribute att
+    ON att.attrelid = cl.oid
+    AND att.attname IN ('created_by', 'updated_by')
+    AND NOT att.attisdropped
+    WHERE ns.nspname LIKE 'project_%'
+    AND cl.relkind = 'r'
+    AND cl.relname IN (
       'folders',
       'tasks',
       'products',
       'versions',
       'representations'
     )
-    GROUP BY t.table_schema, t.table_name
-    HAVING COUNT(c.column_name) < 2
+    GROUP BY ns.nspname, cl.relname
+    HAVING COUNT(att.attname) < 2
     LOOP
         BEGIN
           RAISE WARNING 'Adding created_by and updated_by to %.%', rec.table_schema, rec.table_name;

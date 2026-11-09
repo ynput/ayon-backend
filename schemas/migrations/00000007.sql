@@ -8,11 +8,10 @@ DO $$
 DECLARE rec RECORD;
 BEGIN
   FOR rec IN (
-    SELECT DISTINCT nspname FROM pg_namespace 
+    SELECT nspname FROM pg_namespace ns
     WHERE nspname LIKE 'project_%'
-    AND nspname NOT IN (
-      SELECT DISTINCT table_schema FROM information_schema.tables 
-      WHERE table_name = 'views'
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_class WHERE relnamespace = ns.oid AND relname = 'views'
     )
   )
   LOOP
@@ -53,10 +52,22 @@ END $$;
 -- This happened during the development, so just a few projects
 -- might be affected. This migration will be removed in the future.
 
+-- Only views tables that still need it: ALTER TABLE locks the table
+-- even if there is nothing to do (and setup runs on every start)
+
 DO $$
 DECLARE rec RECORD;
   BEGIN
-  FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+  FOR rec IN
+    SELECT ns.nspname
+    FROM pg_namespace ns
+    JOIN pg_class cl ON cl.relnamespace = ns.oid AND cl.relname = 'views'
+    WHERE (ns.nspname LIKE 'project_%' OR ns.nspname = 'public')
+    AND (
+      SELECT count(*) FILTER (WHERE attname = 'personal') = 1
+        OR count(*) FILTER (WHERE attname IN ('created_at', 'updated_at')) < 2
+      FROM pg_attribute WHERE attrelid = cl.oid AND NOT attisdropped
+    )
   LOOP
     EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
     BEGIN
@@ -68,15 +79,6 @@ DECLARE rec RECORD;
     ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   END LOOP;
-
-  BEGIN
-    ALTER TABLE public.views RENAME COLUMN personal to working;
-  EXCEPTION
-    WHEN OTHERS THEN RAISE NOTICE 'column personal does not exist';
-  END;
-
-  ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-  ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
   RETURN;
 END $$;

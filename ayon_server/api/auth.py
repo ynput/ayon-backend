@@ -8,6 +8,7 @@ import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
@@ -264,8 +265,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user = None
             request.state.unauthorized_reason = str(e)
 
+        request.state.pre_auth = pre_auth_from_request(request)
+
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):
                 response = await call_next(request)
 
+        apply_pre_auth_cookie(request, response)
         return response

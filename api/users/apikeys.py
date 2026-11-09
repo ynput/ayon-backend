@@ -2,6 +2,7 @@ import time
 from typing import Any
 
 from ayon_server.api.dependencies import CurrentUser, PathEntityID, UserName
+from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -35,7 +36,22 @@ async def get_api_key_records(user_name: str) -> list[dict[str, Any]]:
     res = await Postgres.fetch(query, user_name)
     if not res:
         return []
-    return res[0].get("api_keys", [])
+    # NULL for a user who never had a personal key
+    return res[0]["api_keys"] or []
+
+
+async def end_api_key_sessions(user_name: str, hashed_keys: set[str]) -> None:
+    """End the sessions opened with the given (hashed) keys.
+
+    The first request with a key caches a session under the key itself,
+    and later requests use it without reading the database. Without this,
+    a revoked key keeps working until that session expires.
+    """
+    if not hashed_keys:
+        return
+    async for session in Session.list(user_name):
+        if session.is_api_key and hash_password(session.token) in hashed_keys:
+            await Session.delete(session.token, message="API key revoked")
 
 
 @router.get("/{user_name}/apikeys")
@@ -94,15 +110,19 @@ async def update_user_api_key(
         raise ForbiddenException()
 
     records = await get_api_key_records(user_name)
+    changed_expiry: set[str] = set()
     for key in records:
         if key["id"] == entity_id:
             if payload.label is not None:
                 key["label"] = payload.label
             if payload.expires is not None:
                 key["expires"] = payload.expires
+                changed_expiry.add(key["key"])
 
     query = "UPDATE users SET data = jsonb_set(data, '{apiKeys}', $1) WHERE name = $2"
     await Postgres.execute(query, records, user_name)
+    # the next request checks the new expiry
+    await end_api_key_sessions(user_name, changed_expiry)
 
 
 @router.delete("/{user_name}/apikeys/{entity_id}")
@@ -115,7 +135,9 @@ async def delete_user_api_key(
         raise ForbiddenException()
 
     records = await get_api_key_records(user_name)
+    removed = {key["key"] for key in records if key["id"] == entity_id}
     records = [key for key in records if key["id"] != entity_id]
 
     query = "UPDATE users SET data = jsonb_set(data, '{apiKeys}', $1) WHERE name = $2"
     await Postgres.execute(query, records, user_name)
+    await end_api_key_sessions(user_name, removed)

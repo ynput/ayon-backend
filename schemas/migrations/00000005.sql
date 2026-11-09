@@ -13,10 +13,9 @@ BEGIN
 
         IF EXISTS (
             SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = rec.nspname
-            AND table_name = 'activity_feed'
-            AND column_name = 'tags'
+            FROM pg_attribute
+            WHERE attrelid = to_regclass(format('%I.activity_feed', rec.nspname))
+            AND attname = 'tags' AND NOT attisdropped
         ) THEN
             -- Skip if we already have activity_feed view with tags column
             CONTINUE;

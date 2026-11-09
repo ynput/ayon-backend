@@ -13,9 +13,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'bundles'
-        AND column_name = 'is_archived'
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('public.bundles')
+        AND attname = 'is_archived' AND NOT attisdropped
     ) THEN
         ALTER TABLE IF EXISTS bundles
         ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT FALSE;
@@ -32,9 +32,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'bundles'
-        AND column_name = 'is_dev'
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('public.bundles')
+        AND attname = 'is_dev' AND NOT attisdropped
     ) THEN
         ALTER TABLE IF EXISTS bundles
         ADD COLUMN is_dev BOOLEAN NOT NULL DEFAULT FALSE;
@@ -70,7 +70,7 @@ DROP FUNCTION IF EXISTS delete_project_roles();
 -- Rename roles table to access_groups
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'access_groups') THEN
+  IF to_regclass('public.access_groups') IS NULL THEN
     ALTER TABLE IF EXISTS public.roles RENAME TO access_groups;
   ELSE
     DROP TABLE IF EXISTS public.roles;
@@ -106,9 +106,9 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'bundles'
-        AND column_name = 'active_user'
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('public.bundles')
+        AND attname = 'active_user' AND NOT attisdropped
     ) THEN
         ALTER TABLE IF EXISTS bundles
         ADD COLUMN active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL;
@@ -123,10 +123,10 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'bundles'
-        AND column_name = 'active_user'
-    ) THEN
+        FROM pg_attribute
+        WHERE attrelid = to_regclass('public.bundles')
+        AND attname = 'active_user' AND NOT attisdropped
+    ) AND to_regclass('public.bundle_active_user_idx') IS NULL THEN
         CREATE UNIQUE INDEX IF NOT EXISTS bundle_active_user_idx
         ON public.bundles(active_user) WHERE (active_user IS NOT NULL);
     END IF;
@@ -145,7 +145,15 @@ CREATE OR REPLACE FUNCTION add_thumbnail_id_to_tasks ()
    $$
    DECLARE rec RECORD;
    BEGIN
-        FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
+        -- Only tasks tables without the column: ALTER TABLE locks the table
+        -- even if the column exists (and setup runs on every start)
+        FOR rec IN
+          SELECT ns.nspname
+          FROM pg_namespace ns
+          JOIN pg_class cl ON cl.relnamespace = ns.oid AND cl.relname = 'tasks'
+          LEFT JOIN pg_attribute att
+            ON att.attrelid = cl.oid AND att.attname = 'thumbnail_id' AND NOT att.attisdropped
+          WHERE ns.nspname LIKE 'project_%' AND att.attname IS NULL
         LOOP
              EXECUTE
               'ALTER TABLE IF EXISTS ' || rec.nspname || '.tasks ' ||
@@ -170,7 +178,7 @@ DROP FUNCTION IF EXISTS add_thumbnail_id_to_tasks();
 DO $$
 BEGIN
     -- Check if the 'config' table exists
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'config') THEN
+    IF to_regclass('public.config') IS NOT NULL THEN
 
         INSERT INTO config (key, value)
         SELECT 'instanceId', value
@@ -197,10 +205,9 @@ BEGIN
   FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
   LOOP
     IF NOT EXISTS(
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = rec.nspname
-      AND table_name = 'links'
-      AND column_name = 'name'
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid = to_regclass(format('%I.links', rec.nspname))
+      AND attname = 'name' AND NOT attisdropped
     )
     THEN
       -- project links table does not have name column, so we need to create it
