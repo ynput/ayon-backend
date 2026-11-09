@@ -14,6 +14,18 @@ _NAME_PATTERN = re.compile(NAME_REGEX)
 
 
 @dataclass
+class PreAuth:
+    """Anonymous browser id from the `ayonPreAuth` cookie (see auth/preauth.py).
+
+    Shared by reference between AuthMiddleware and the request handler,
+    so the middleware can set the cookie when the handler created the id.
+    """
+
+    id: str | None = None
+    created: bool = False
+
+
+@dataclass
 class RequestContext:
     """
     Context of the request, which can be used to store additional information
@@ -23,6 +35,7 @@ class RequestContext:
     user: UserEntity | None = None
     sender: str | None = None
     sender_type: str | None = None
+    pre_auth: PreAuth | None = None
 
 
 request_context: ContextVar[RequestContext | None] = ContextVar(
@@ -68,6 +81,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
         context = RequestContext(
             user=user,
+            pre_auth=getattr(request.state, "pre_auth", None),
             sender=self._validated_header(request.headers.get("X-Sender")),
             sender_type=self._validated_header(
                 request.headers.get("X-Sender-Type"), default="api"
