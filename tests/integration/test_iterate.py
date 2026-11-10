@@ -46,6 +46,8 @@ async def _iterate_read_timeout(monkeypatch) -> None:
     with pytest.raises(asyncpg.exceptions.QueryCanceledError):
         async for _ in Postgres.iterate("SELECT pg_sleep(5)"):
             pass
+    # a caller (e.g. a maintenance task) can lift the limit
+    assert [r async for r in Postgres.iterate("SELECT pg_sleep(1.2)", timeout=0)]
     # the limit is transaction-local: the pooled connections are not affected
     assert await _value("SELECT current_setting('statement_timeout')::int") == 0
 

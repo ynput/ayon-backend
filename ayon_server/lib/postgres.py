@@ -342,9 +342,17 @@ class Postgres:
         cls,
         query: str,
         *args: Any,
+        timeout: float | None = None,
         **kwargs: Any,
     ) -> AsyncGenerator[dict[str, Any]]:
-        """Run a query and return a generator yielding rows as dictionaries."""
+        """Run a query and return a generator yielding rows as dictionaries.
+
+        `timeout` is the statement timeout in seconds (0 for no limit,
+        default `postgres_read_timeout`). It is ignored inside a transaction,
+        which keeps its own settings.
+        """
+        if timeout is None:
+            timeout = ayonconfig.postgres_read_timeout
         _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
         assert cls.pool is not None, "Connection pool is not initialized. "
 
@@ -374,8 +382,7 @@ class Postgres:
                 # Nobody waits for a read this long: stop it, so abandoned
                 # queries don't pile up on the database
                 await conn.execute(
-                    "SET LOCAL statement_timeout = "
-                    f"{int(ayonconfig.postgres_read_timeout) * 1000}"
+                    f"SET LOCAL statement_timeout = {int(timeout * 1000)}"
                 )
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
