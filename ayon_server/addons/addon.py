@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import os
 
@@ -309,7 +310,8 @@ class BaseServerAddon:
         if toml is None:
             return {"error": "Toml is not installed (but pyproject exists)"}
         try:
-            return toml.load(open(pyproject_path))
+            # pure-python parser: keep it off the event loop
+            return await asyncio.to_thread(toml.load, pyproject_path)
         except Exception:
             raise AyonException("Unable to parse pyproject.toml") from None
 
