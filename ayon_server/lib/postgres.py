@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import asyncpg
 import asyncpg.pool
-from asyncpg.exceptions import TooManyConnectionsError
+from asyncpg.exceptions import QueryCanceledError, TooManyConnectionsError
 from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
@@ -133,7 +133,8 @@ class Postgres:
             return
         cls.pool = await asyncpg.create_pool(
             ayonconfig.postgres_url,
-            min_size=10,
+            min_size=0,
+            init_size=min(10, ayonconfig.postgres_pool_size),
             max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
             init=postgres_setup,
@@ -162,6 +163,22 @@ class Postgres:
     #
 
     @classmethod
+    async def _pool_acquire(cls, timeout: float | None = None) -> Connection:
+        """Take a connection from the pool, or fail with 503 when none is free.
+
+        The caller must release it. Sets no context, so `iterate` can use it.
+        """
+        assert cls.pool is not None, "Connection pool is not initialized."
+        if timeout is None:
+            timeout = ayonconfig.postgres_pool_timeout
+        try:
+            return await cls.pool.acquire(timeout=timeout)
+        except TimeoutError:
+            raise ServiceUnavailableException("Database pool timeout")
+        except TooManyConnectionsError:
+            raise ServiceUnavailableException("Database pool is full")
+
+    @classmethod
     @asynccontextmanager
     async def acquire(
         cls,
@@ -176,17 +193,7 @@ class Postgres:
             return
 
         assert cls.pool is not None, "Connection pool is not initialized."
-
-        if timeout is None:
-            timeout = ayonconfig.postgres_pool_timeout
-
-        try:
-            connection_proxy = await cls.pool.acquire(timeout=timeout)
-        except TimeoutError:
-            raise ServiceUnavailableException("Database pool timeout")
-        except TooManyConnectionsError:
-            raise ServiceUnavailableException("Database pool is full")
-
+        connection_proxy = await cls._pool_acquire(timeout)
         token = _current_connection.set(connection_proxy)
 
         try:
@@ -341,9 +348,17 @@ class Postgres:
         cls,
         query: str,
         *args: Any,
+        timeout: float | None = None,
         **kwargs: Any,
     ) -> AsyncGenerator[dict[str, Any]]:
-        """Run a query and return a generator yielding rows as dictionaries."""
+        """Run a query and return a generator yielding rows as dictionaries.
+
+        `timeout` is the statement timeout in seconds (0 for no limit,
+        default `postgres_read_timeout`). It is ignored inside a transaction,
+        which keeps its own settings.
+        """
+        if timeout is None:
+            timeout = ayonconfig.postgres_read_timeout
         _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
         assert cls.pool is not None, "Connection pool is not initialized. "
 
@@ -361,11 +376,19 @@ class Postgres:
                 yield dict(record)
             return
 
-        conn = await cls.pool.acquire()
+        # Shed load instead of queueing forever when the pool is exhausted
+        conn = await cls._pool_acquire()
         try:
             async with conn.transaction():
+                # Nobody waits for a read this long: stop it, so abandoned
+                # queries don't pile up on the database
+                await conn.execute(
+                    f"SET LOCAL statement_timeout = {int(timeout * 1000)}"
+                )
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
                     yield dict(record)
+        except QueryCanceledError:
+            raise ServiceUnavailableException("Database query timed out")
         finally:
             await cls.pool.release(conn)
