@@ -689,6 +689,8 @@ async def bundle_actions(
             raise BadRequestException("Archived bundles cannot be modified")
 
         if action.action == "promote":
+            if not user.is_admin:
+                raise ForbiddenException("Only admins can promote bundles")
             bstat = await check_bundle(bundle)
             if not bstat.success:
                 raise BadRequestException(bstat.message())
