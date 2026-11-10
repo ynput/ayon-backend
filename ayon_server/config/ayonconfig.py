@@ -111,8 +111,8 @@ class AyonConfig(BaseModel):
 
     postgres_read_timeout: int = Field(
         120,
+        ge=0,
         description="Statement timeout in seconds for streamed read queries. "
-        "0 disables the limit.",
         examples=[120],
     )
 
