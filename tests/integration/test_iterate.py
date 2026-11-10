@@ -1,7 +1,7 @@
-import asyncpg
 import pytest
 
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import ServiceUnavailableException
 from ayon_server.lib.postgres import Postgres
 
 PID = "SELECT pg_backend_pid() AS pid FROM generate_series(1, 3)"
@@ -43,7 +43,7 @@ def test_iterate_uses_the_current_transaction(run) -> None:
 
 async def _iterate_read_timeout(monkeypatch) -> None:
     monkeypatch.setattr(ayonconfig, "postgres_read_timeout", 1)
-    with pytest.raises(asyncpg.exceptions.QueryCanceledError):
+    with pytest.raises(ServiceUnavailableException):
         async for _ in Postgres.iterate("SELECT pg_sleep(5)"):
             pass
     # a caller (e.g. a maintenance task) can lift the limit
