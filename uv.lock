@@ -268,7 +268,7 @@ requires-dist = [
     { name = "aiocache", specifier = ">=0.12.3" },
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aioshutil", specifier = ">=1.6" },
-    { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "boto3", specifier = ">=1.35.22" },
     { name = "codenamize", specifier = ">=1.2.3" },
     { name = "croniter", specifier = ">=6.2.2" },

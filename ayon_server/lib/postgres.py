@@ -134,7 +134,7 @@ class Postgres:
         cls.pool = await asyncpg.create_pool(
             ayonconfig.postgres_url,
             min_size=0,
-            init_size=10,
+            init_size=min(10, ayonconfig.postgres_pool_size),
             max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
             init=postgres_setup,
