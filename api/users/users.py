@@ -9,7 +9,7 @@ from ayon_server.api.dependencies import (
     UserName,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.auth.session import Session
+from ayon_server.auth.session import DelegatedAccess, Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.entities.models.user import UserModel, UserPatchModel, UserPostModel
@@ -443,6 +443,11 @@ class UserSessionModel(OPModel):
     is_service: bool
     last_used: float
     client_info: ClientInfo | None = None
+    delegated: DelegatedAccess | None = Field(
+        None,
+        description="Set when the session belongs to an application "
+        "the user gave access to, instead of a login",
+    )
 
 
 class UserSessionsResponseModel(OPModel):
@@ -464,6 +469,7 @@ async def get_user_sessions(
                 client_info=session.client_info,
                 is_service=session.is_service,
                 last_used=session.last_used,
+                delegated=session.delegated,
             )
             async for session in Session.list(user_name)
         ]

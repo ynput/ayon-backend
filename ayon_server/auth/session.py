@@ -19,13 +19,55 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
 from ayon_server.types import OPModel
-from ayon_server.utils import create_background_task, json_dumps, json_loads
+from ayon_server.utils import create_background_task, json_loads
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 
 
 def is_local_ip(ip: str) -> bool:
     # Deprecated, but still used for backward compatibility.
     return is_internal_ip(ip)
+
+
+class DelegatedAccess(OPModel):
+    """Access an application was given to act as the user.
+
+    A session with delegated access differs from a login:
+
+    - it is not bound to the IP address of its client: applications run
+      anywhere and change addresses,
+    - it ends at `expires`, however much it is used,
+    - with `paths` set, it is accepted only for requests to these paths
+      and below them (and not by the websocket); a `*` stands for any
+      one segment, as in `/api/addons/mcp/*/mcp`,
+    - it does not count towards the limit of concurrent sessions and is
+      not reported as a login or a logout.
+
+    `scope` is what the user approved, for whoever issued the session:
+    the server itself does not interpret it.
+    """
+
+    client_id: str
+    client_name: str
+    expires: float
+    paths: list[str] | None = None
+    scope: str | None = None
+
+    def allows_path(self, path: str) -> bool:
+        if self.paths is None:
+            return True
+        segments = path.split("/")
+        for allowed in self.paths:
+            pattern = allowed.rstrip("/").split("/")
+            if len(segments) < len(pattern):
+                continue
+            if all(p in ("*", s) for p, s in zip(pattern, segments)):
+                return True
+        return False
+
+    @property
+    def remaining(self) -> int:
+        """Seconds until the end, for the lifetime of the stored session."""
+        return max(int(self.expires - time.time()) + 1, 1)
 
 
 class SessionModel(OPModel):
@@ -36,6 +78,7 @@ class SessionModel(OPModel):
     is_service: bool = False
     is_api_key: bool = False
     client_info: ClientInfo | None = None
+    delegated: DelegatedAccess | None = None
 
     @property
     def user_entity(self) -> UserEntity:
@@ -50,11 +93,19 @@ class SessionModel(OPModel):
 
     @property
     def is_expired(self) -> bool:
+        if self.delegated:
+            return time.time() > self.delegated.expires
         return time.time() - self.last_used > self.ttl
 
 
 class Session:
     ns = "session"
+
+    @classmethod
+    async def store(cls, session: SessionModel) -> None:
+        """Store the session. A delegated one is dropped at its end."""
+        ttl = session.delegated.remaining if session.delegated else 0
+        await Redis.set(cls.ns, session.token, session.model_dump_json(), ttl=ttl)
 
     @classmethod
     def is_expired(cls, session: SessionModel) -> bool:
@@ -88,11 +139,11 @@ class Session:
             await cls.delete(token, "Session expired")
             return None
 
-        if request:
+        if request and not session.delegated:
             if not session.client_info:
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()
-                await Redis.set(cls.ns, token, session.model_dump_json())
+                await cls.store(session)
             else:
                 if not ayonconfig.disable_check_session_ip:
                     real_ip = get_real_ip_from_request(request)
@@ -111,10 +162,11 @@ class Session:
                     client_info.location = session.client_info.location
                     session.client_info = client_info
                     session.last_used = time.time()
-                    await Redis.set(cls.ns, token, session.model_dump_json())
+                    await cls.store(session)
 
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
+        # (a delegated session records the use, but still ends at its time)
 
         if not session.is_service:
             remaining_ttl = ayonconfig.session_ttl - (time.time() - session.last_used)
@@ -125,11 +177,7 @@ class Session:
                 except UnauthorizedException as e:
                     await cls.delete(token, f"Session extension failed: {e}")
                     return None
-                await Redis.set(
-                    cls.ns,
-                    token,
-                    json_dumps(session.model_dump()),
-                )
+                await cls.store(session)
 
         return session
 
@@ -156,12 +204,20 @@ class Session:
         message: str = "User logged in",
         event_payload: dict[str, Any] | None = None,
         is_api_key: bool = False,
+        delegated: DelegatedAccess | None = None,
     ) -> SessionModel:
-        """Create a new session for a given user."""
+        """Create a new session for a given user.
+
+        With `delegated`, the session is for an application acting as
+        the user (see DelegatedAccess). Whoever creates it reports it:
+        no login event is dispatched.
+        """
+        if delegated and (token or is_api_key):
+            raise ValueError("Delegated session cannot use a given token")
         is_service = bool(token)
         if token is None:
             token = secrets.token_hex(32)
-        client_info = get_client_info(request) if request else None
+        client_info = get_client_info(request) if request and not delegated else None
 
         if user.exists and not user.data.get("isGuest", False):
             await AuthUtils.ensure_can_login(user, client_info)
@@ -174,9 +230,13 @@ class Session:
             is_service=is_service,
             is_api_key=is_api_key,
             client_info=client_info,
+            delegated=delegated,
         )
         event_summary = client_info.model_dump() if client_info else {}
-        await Redis.set(cls.ns, token, session.model_dump_json())
+        await cls.store(session)
+        if delegated:
+            return session
+
         if not user.is_service:
             await EventStream.dispatch(
                 "auth.login",
@@ -217,14 +277,14 @@ class Session:
         if client_info is not None:
             session.client_info = client_info
         session.last_used = time.time()
-        await Redis.set(cls.ns, token, session.model_dump_json())
+        await cls.store(session)
 
     @classmethod
     async def delete(cls, token: str, message: str = "User logged out") -> None:
         data = await Redis.get(cls.ns, token)
         if data:
             session = SessionModel(**json_loads(data))
-            if not session.is_api_key:
+            if not session.is_api_key and not session.delegated:
                 await EventStream.dispatch(
                     "auth.logout",
                     summary={"token": token},
@@ -274,7 +334,7 @@ class Session:
 
         sessions = []
         async for session in cls.list(user_name):
-            if session.is_api_key:
+            if session.is_api_key or session.delegated:
                 continue
             sessions.append(session)
 

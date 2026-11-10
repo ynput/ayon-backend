@@ -8,7 +8,8 @@ server gives it what an addon cannot have on its own:
 - `/api/oauth/...`: a path that does not change with the addon version
   (see api/oauth_server),
 - `/.well-known/...`: the documents clients discover it by,
-- the `WWW-Authenticate` header of 401 responses.
+- the `WWW-Authenticate` header of 401 responses,
+- sessions for applications (ayon_server.auth.session.DelegatedAccess).
 
 Without such an addon, nothing here answers and 401 responses are unchanged.
 """

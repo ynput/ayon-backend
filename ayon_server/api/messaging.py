@@ -98,6 +98,10 @@ class Client:
         except UnauthorizedException as e:
             logger.warning(f"[WS] Unauthorized access: {e}")
             session_data = None
+        if session_data and session_data.delegated:
+            if not session_data.delegated.allows_path("/ws"):
+                logger.warning("[WS] Session is not valid for the websocket")
+                session_data = None
         if session_data is not None:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
