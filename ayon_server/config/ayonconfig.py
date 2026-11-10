@@ -109,6 +109,13 @@ class AyonConfig(BaseModel):
         examples=[20],
     )
 
+    postgres_read_timeout: int = Field(
+        120,
+        description="Statement timeout in seconds for streamed read queries "
+        "(GraphQL resolvers). 0 disables the limit.",
+        examples=[120],
+    )
+
     session_ttl: int = Field(
         default=72 * 3600,
         description="Session lifetime in seconds",

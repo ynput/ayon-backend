@@ -1,3 +1,7 @@
+import asyncpg
+import pytest
+
+from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
 
 PID = "SELECT pg_backend_pid() AS pid FROM generate_series(1, 3)"
@@ -35,3 +39,16 @@ async def _iterate_outside_transaction() -> None:
 def test_iterate_uses_the_current_transaction(run) -> None:
     run(_iterate_in_transaction())
     run(_iterate_outside_transaction())
+
+
+async def _iterate_read_timeout(monkeypatch) -> None:
+    monkeypatch.setattr(ayonconfig, "postgres_read_timeout", 1)
+    with pytest.raises(asyncpg.exceptions.QueryCanceledError):
+        async for _ in Postgres.iterate("SELECT pg_sleep(5)"):
+            pass
+    # the limit is transaction-local: the pooled connections are not affected
+    assert await _value("SELECT current_setting('statement_timeout')::int") == 0
+
+
+def test_iterate_stops_slow_reads(run, monkeypatch) -> None:
+    run(_iterate_read_timeout(monkeypatch))

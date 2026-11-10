@@ -362,9 +362,21 @@ class Postgres:
                 yield dict(record)
             return
 
-        conn = await cls.pool.acquire()
+        # Shed load instead of queueing forever when the pool is exhausted
+        try:
+            conn = await cls.pool.acquire(timeout=ayonconfig.postgres_pool_timeout)
+        except TimeoutError:
+            raise ServiceUnavailableException("Database pool timeout")
+        except TooManyConnectionsError:
+            raise ServiceUnavailableException("Database pool is full")
         try:
             async with conn.transaction():
+                # Nobody waits for a read this long: stop it, so abandoned
+                # queries don't pile up on the database
+                await conn.execute(
+                    "SET LOCAL statement_timeout = "
+                    f"{int(ayonconfig.postgres_read_timeout) * 1000}"
+                )
                 statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
                     yield dict(record)
