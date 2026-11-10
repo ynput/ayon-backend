@@ -220,6 +220,124 @@ async def test_unlimited_delegated_session_works_everywhere() -> None:
         assert (await api_auth.user_from_request(request)).name == "artist"
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "refused"),
+    [
+        # sessions, API keys, passwords, invites: no other way in
+        ("POST", "/api/auth/sessions", True),
+        ("GET", "/api/auth/sessions", True),
+        ("POST", "/api/auth/login", True),
+        ("POST", "/api/auth/logout", False),  # ending itself is fine
+        ("POST", "/api/users/artist/apikeys", True),
+        ("PATCH", "/api/users/artist/password", True),
+        ("POST", "/api/users/artist/invite", True),
+        ("PATCH", "/api/users/artist", True),
+        ("PUT", "/api/users/somebody", True),
+        ("DELETE", "/api/users/somebody", True),
+        ("PATCH", "/api/users/artist/accessGroups", True),
+        ("GET", "/api/users/artist/sessions", True),  # carries their tokens
+        ("DELETE", "/api/users/artist/sessions/abc", True),
+        ("PATCH", "/api/profile", True),  # the email a password reset goes to
+        ("GET", "/api/secrets", True),
+        ("GET", "/api/secrets/name", True),
+        ("PUT", "/api/secrets/name", True),
+        # reading users and working with everything else stays possible
+        ("GET", "/api/users/artist", False),
+        ("GET", "/api/users/me", False),
+        ("GET", "/api/users/artist/apikeys", False),
+        ("GET", "/api/profile", False),
+        ("POST", "/graphql", False),
+        ("POST", "/api/projects/demo/operations", False),
+        ("GET", "/api/usersx", False),
+        ("POST", "/api/authx/sessions", False),
+    ],
+)
+def test_what_an_application_is_refused(method: str, path: str, refused: bool) -> None:
+    assert api_auth.delegated_access_refused(method, path) is refused
+
+
+@pytest.mark.anyio
+async def test_application_does_not_see_the_users_secrets() -> None:
+    user = UserEntity(
+        payload={
+            "name": "artist",
+            "data": {
+                "password": "hash:salt",
+                "apiKeys": [{"key": "hashed"}],
+                "inviteRequest": {"token": "t"},
+                "isManager": True,
+            },
+        },
+        exists=False,
+    )
+    app = await Session.create(user, delegated=access())
+    seen = await api_auth.user_from_request(make_request(IP_A, token=app.token))
+    assert seen.is_manager  # the user, with what they may do
+    for key in ("password", "apiKeys", "inviteRequest"):
+        assert key not in seen.data
+
+    # a login is unchanged (an accepted invite is saved on login, hence no invite)
+    del user.data["inviteRequest"]
+    login = await Session.create(user, make_request(IP_A))
+    seen = await api_auth.user_from_request(make_request(IP_A, token=login.token))
+    assert seen.data["password"] == "hash:salt"
+
+
+def test_application_is_refused_before_the_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whatever an endpoint checks itself, the request does not reach it."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from ayon_server.api.auth import AuthMiddleware
+    from ayon_server.api.server import app as server_app
+
+    sessions: dict[str, Any] = {}
+
+    async def user_from_request(request: Request) -> Any:
+        user = make_user()
+        user.add_session(sessions[request.headers["x-test-session"]])
+        return user
+
+    monkeypatch.setattr(api_auth, "user_from_request", user_from_request)
+
+    app = FastAPI()
+    app.user_middleware = [
+        m
+        for m in server_app.user_middleware
+        if m.cls is AuthMiddleware  # type: ignore[comparison-overlap]
+    ]
+    reached: list[str] = []
+
+    @app.post("/api/auth/sessions")
+    async def create_session() -> str:
+        reached.append("sessions")
+        return "created"
+
+    @app.get("/api/users/artist")
+    async def get_user() -> str:
+        return "artist"
+
+    class FakeSession:
+        def __init__(self, delegated: DelegatedAccess | None) -> None:
+            self.token = "t" * 64
+            self.is_api_key = False
+            self.client_info = None
+            self.delegated = delegated
+
+    sessions["app"] = FakeSession(access())
+    sessions["login"] = FakeSession(None)
+    client = TestClient(app)
+
+    res = client.post("/api/auth/sessions", headers={"x-test-session": "app"})
+    assert res.status_code == 403 and reached == []
+    res = client.get("/api/users/artist", headers={"x-test-session": "app"})
+    assert res.status_code == 200
+    res = client.post("/api/auth/sessions", headers={"x-test-session": "login"})
+    assert res.status_code == 200 and reached == ["sessions"]
+
+
 @pytest.mark.anyio
 async def test_delegated_session_is_dropped_from_the_store_at_its_end(
     monkeypatch: pytest.MonkeyPatch,
