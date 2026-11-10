@@ -8,6 +8,7 @@ import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
@@ -270,6 +271,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):
                 response = await call_next(request)
+
+        if response.status_code == 401 and "www-authenticate" not in response.headers:
+            # Tell the client where it can get a token, if anywhere
+            if challenge := await get_bearer_challenge(request):
+                response.headers["WWW-Authenticate"] = challenge
 
         apply_pre_auth_cookie(request, response)
         return response
