@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Literal
 
 import semver
@@ -54,14 +55,29 @@ class AddonList(OPModel):
     addons: list[AddonListItem] = Field(..., description="List of available addons")
 
 
+_build_lock = asyncio.Lock()
+
+
 async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
     ns = "addon-list"
-    key = hash_data((base_url, details))
+    # The generation is bumped on invalidation, so a build which started before
+    # it stores its (stale) result under a key nobody reads anymore
+    generation = int(await Redis.get("generation", ns) or 0)
+    key = hash_data((base_url, details, generation))
 
     addon_list = await Redis.get_json(ns, key)
-    if addon_list is not None:
-        return [AddonListItem(**item) for item in addon_list]
+    if addon_list is None:
+        # Only one request per worker rebuilds; the others wait and read the cache
+        async with _build_lock:
+            addon_list = await Redis.get_json(ns, key)
+            if addon_list is None:
+                return await _build_addon_list(base_url, details, key)
+    return [AddonListItem(**item) for item in addon_list]
 
+
+async def _build_addon_list(
+    base_url: str, details: bool, key: str
+) -> list[AddonListItem]:
     logger.trace("Fetching addon list")
 
     result = []
@@ -124,7 +140,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
         )
 
     result.sort(key=lambda x: x.name)
-    await Redis.delete_ns("addon-list")
+    # Entries are invalidated only by AddonLibrary.clear_addon_list_cache()
     await Redis.set_json("addon-list", key, [addon.model_dump() for addon in result])
     return result
 
