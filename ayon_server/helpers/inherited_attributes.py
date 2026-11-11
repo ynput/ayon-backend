@@ -58,6 +58,18 @@ UPSERT_QUERY = """
 """
 
 
+async def refresh_hierarchy_view(project_name: str) -> None:
+    """Refresh the hierarchy materialized view (folder paths) of the project."""
+    view = f"project_{project_name}.hierarchy"
+    async with Postgres.transaction():
+        # REFRESH takes its snapshot before it waits for the lock on the view,
+        # so it would miss the folders committed while it waited (and drop
+        # them from the view). Take the lock first, using a refresh that reads
+        # nothing: LOCK TABLE does not work on materialized views.
+        await Postgres.execute(f"REFRESH MATERIALIZED VIEW {view} WITH NO DATA")
+        await Postgres.execute(f"REFRESH MATERIALIZED VIEW {view}")
+
+
 async def _rebuild_from(
     project_attrib: dict[str, Any],
     folder_ids: list[str] | None = None,
@@ -184,7 +196,7 @@ async def rebuild_inherited_attributes(
 
         if refresh_hierarchy:
             logger.trace(f"Refreshing {project_name} hierarchy")
-            await Postgres.execute("REFRESH MATERIALIZED VIEW hierarchy")
+            await refresh_hierarchy_view(project_name)
 
         if folder_ids is not None and not folder_ids:
             return

@@ -19,7 +19,10 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
-from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+from ayon_server.helpers.inherited_attributes import (
+    rebuild_inherited_attributes,
+    refresh_hierarchy_view,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
@@ -188,12 +191,7 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
                 # This needs to run in save, not in refresh_views, because
                 # we may need the hierarchy record in the same transaction
                 logger.trace(f"Refreshing {self.project_name} hierarchy")
-                await Postgres.execute(
-                    f"""
-                    REFRESH MATERIALIZED VIEW
-                    project_{self.project_name}.hierarchy
-                    """
-                )
+                await refresh_hierarchy_view(self.project_name)
 
             if auto_commit:
                 await self.commit(
@@ -258,12 +256,7 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
             if auto_commit:
                 # Refreshed here, as in save. The exported attributes
                 # are deleted with the folders.
-                await Postgres.execute(
-                    f"""
-                    REFRESH MATERIALIZED VIEW
-                    project_{self.project_name}.hierarchy
-                    """
-                )
+                await refresh_hierarchy_view(self.project_name)
                 await self.commit(refresh_hierarchy=False, folder_ids=[])
             return res
 
