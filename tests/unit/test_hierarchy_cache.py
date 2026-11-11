@@ -93,8 +93,12 @@ def folders(monkeypatch) -> Callable[..., None]:
     async def transaction():
         yield
 
+    async def set_project_schema(project_name: str) -> None:
+        pass
+
     monkeypatch.setattr(Postgres, "prepare", prepare)
     monkeypatch.setattr(Postgres, "transaction", transaction)
+    monkeypatch.setattr(Postgres, "set_project_schema", set_project_schema)
 
     def setup(rows: list[dict[str, Any]], while_reading=None) -> None:
         state["rows"] = rows
