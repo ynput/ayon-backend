@@ -21,7 +21,7 @@ WITH RECURSIVE direct_versions AS (-- folders that directly own a version
     )
 ),
 
-folder_with_versions AS ( -- folders with subfolders that have verisons
+folder_with_versions AS ( -- folders with subfolders that have versions
     SELECT id FROM direct_versions
     UNION
     SELECT f.parent_id
