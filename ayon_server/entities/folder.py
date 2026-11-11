@@ -15,7 +15,10 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
-from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+from ayon_server.helpers.inherited_attributes import (
+    lock_inherited_attributes,
+    rebuild_inherited_attributes,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
@@ -134,6 +137,7 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
                     f"""
                     SELECT name, parent_id, attrib, active
                     FROM project_{self.project_name}.folders WHERE id = $1
+                    FOR UPDATE -- a rename must not slip in before our update
                     """,
                     self.id,
                 )
@@ -183,6 +187,7 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
                 # This needs to run in save, not in refresh_views, because
                 # we may need the hierarchy record in the same transaction
                 logger.trace(f"Refreshing {self.project_name} hierarchy")
+                await lock_inherited_attributes(self.project_name)
                 await Postgres.execute(
                     f"""
                     REFRESH MATERIALIZED VIEW
@@ -216,6 +221,8 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():
+            # the delete cascades to the exported attributes
+            await lock_inherited_attributes(self.project_name)
             if kwargs.get("force", False):
                 logger.info(f"Force deleting folder and all its children: {self.path}")
                 # Walk the children using parent_id. Matching the path with LIKE

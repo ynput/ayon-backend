@@ -8,7 +8,7 @@ from ayon_server.utils import json_dumps
 
 AYON_INTERNAL_FOLDER_NAME = "__ayon_internal__"
 
-REBUILD_QUERY = """
+REBUILD_QUERY = f"""
 
 WITH RECURSIVE direct_versions AS (-- folders that directly own a version
     SELECT f.id
@@ -66,7 +66,7 @@ SELECT
     ea.active AS visible,
     f.active  AS active,
     COALESCE(t.task_count, 0)    AS task_count,
-    COALESCE(t.task_names, '{}') AS task_names,
+    COALESCE(t.task_names, '{{}}') AS task_names,
     (fwv.id IS NOT NULL)         AS has_versions,
     (r.folder_id IS NOT NULL)    AS has_reviewables
 
@@ -80,7 +80,7 @@ LEFT JOIN folder_with_versions fwv
 LEFT JOIN reviewables r
   ON r.folder_id = f.id
 
-WHERE NOT starts_with(ea.path, '__ayon_internal__');
+WHERE NOT starts_with(ea.path, '{AYON_INTERNAL_FOLDER_NAME}');
 """
 
 
@@ -110,9 +110,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "label": row["label"],
                     "folder_type": row["folder_type"],
                     "has_tasks": row["task_count"] > 0,
-                    "task_names": row["task_names"]
-                    if row["task_names"] != [None]
-                    else [],
+                    "task_names": row["task_names"],
                     "status": row["status"],
                     "attrib": row["all_attrib"],
                     "tags": row["tags"],

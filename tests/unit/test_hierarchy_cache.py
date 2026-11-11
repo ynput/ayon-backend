@@ -34,7 +34,7 @@ def _row(folder_id: str, parent_id: str | None = None) -> dict[str, Any]:
         "label": None,
         "folder_type": "Shot",
         "task_count": 0,
-        "task_names": [None],
+        "task_names": [],
         "status": "Not ready",
         "all_attrib": {"fps": 25},
         "attrib": {},
