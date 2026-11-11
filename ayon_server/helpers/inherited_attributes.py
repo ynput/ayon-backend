@@ -5,40 +5,37 @@ from ayon_server.entities.core import attribute_library
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
-
-async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> None:
-    st_crawl = await Postgres.prepare(
-        f"""
-        SELECT
-            h.id,
-            h.path,
-            f.attrib as own,
-            f.active as own_active,
-            e.attrib as exported,
-            e.path as exported_path,
-            e.active as exported_active
-        FROM project_{project_name}.hierarchy h
-        INNER JOIN project_{project_name}.folders f
+CRAWL_QUERY = """
+    SELECT
+        h.id,
+        h.path,
+        f.attrib as own,
+        f.active as own_active,
+        e.attrib as exported,
+        e.path as exported_path,
+        e.active as exported_active
+    FROM hierarchy h
+    INNER JOIN folders f
         ON h.id = f.id
-        LEFT JOIN project_{project_name}.exported_attributes e
+    LEFT JOIN exported_attributes e
         ON h.id = e.folder_id
-        ORDER BY h.path ASC
-        """
-    )
+    ORDER BY h.path ASC
+"""
 
-    st_upsert = await Postgres.prepare(
-        f"""
-         INSERT INTO project_{project_name}.exported_attributes
-             (folder_id, path, attrib, active)
-         VALUES
-            ($1, $2, $3, $4)
-         ON CONFLICT (folder_id)
-         DO UPDATE SET
-            path = EXCLUDED.path,
-            attrib = EXCLUDED.attrib,
-            active = EXCLUDED.active
-         """
-    )
+UPSERT_QUERY = """
+    INSERT INTO exported_attributes (folder_id, path, attrib, active)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (folder_id)
+    DO UPDATE SET
+        path = EXCLUDED.path,
+        attrib = EXCLUDED.attrib,
+        active = EXCLUDED.active
+"""
+
+
+async def _rebuild_from(project_attrib: dict[str, Any]) -> None:
+    st_crawl = await Postgres.prepare(CRAWL_QUERY)
+    st_upsert = await Postgres.prepare(UPSERT_QUERY)
 
     inheritable = attribute_library.inheritable
 
@@ -50,7 +47,7 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
     current_active = True
     buff: list[tuple[str, str, dict[str, Any], bool]] = []
 
-    async for record in st_crawl.cursor():
+    async for record in st_crawl.cursor(prefetch=1000):
         path_elements = tuple(record["path"].split("/"))
         if len(path_elements) == 1:
             current_attrib_set = project_attrib.copy()
@@ -106,14 +103,14 @@ async def rebuild_inherited_attributes(
     **kwargs,  # TODO: catch kwargs and log deprecation warning
 ):
     """Rebuild inherited attributes for all objects in the project."""
-    start = time.monotonic()
+    start = time.perf_counter()
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+
         if refresh_hierarchy:
             logger.trace(f"Refreshing {project_name} hierarchy")
-            await Postgres.execute(
-                f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
-            )
+            await Postgres.execute("REFRESH MATERIALIZED VIEW hierarchy")
 
         if pattr is None:
             project_attrib = attribute_library.project_defaults
@@ -131,7 +128,7 @@ async def rebuild_inherited_attributes(
             if name in attribute_library.inheritable
         }
 
-        await _rebuild_from(project_name, project_attrib)
+        await _rebuild_from(project_attrib)
 
-    elapsed = time.monotonic() - start
+    elapsed = time.perf_counter() - start
     logger.trace(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")
