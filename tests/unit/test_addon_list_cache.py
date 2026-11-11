@@ -17,6 +17,9 @@ async def test_concurrent_misses_build_once_and_variants_coexist(
     async def get_json(ns: str, key: str) -> Any:
         return cache.get((ns, key))
 
+    async def get(ns: str, key: str) -> Any:
+        return cache.get((ns, key))
+
     async def build(base_url: str, details: bool, key: str) -> list[Any]:
         builds.append(details)
         await asyncio.sleep(0.01)
@@ -24,6 +27,7 @@ async def test_concurrent_misses_build_once_and_variants_coexist(
         return []
 
     monkeypatch.setattr(Redis, "get_json", get_json)
+    monkeypatch.setattr(Redis, "get", get)
     monkeypatch.setattr(list_addons, "_build_addon_list", build)
     monkeypatch.setattr(list_addons, "_build_lock", asyncio.Lock())
 
@@ -34,3 +38,12 @@ async def test_concurrent_misses_build_once_and_variants_coexist(
     await get("http://x", False)
     await get("http://x", True)
     assert builds == [True, False]
+
+    # invalidation during a build: the stale result must not be served afterwards
+    cache[("generation", "addon-list")] = 1
+    task = asyncio.create_task(get("http://x", True))
+    await asyncio.sleep(0)
+    cache[("generation", "addon-list")] = 2
+    await task
+    await get("http://x", True)
+    assert builds == [True, False, True, True]

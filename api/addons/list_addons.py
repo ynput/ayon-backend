@@ -60,7 +60,10 @@ _build_lock = asyncio.Lock()
 
 async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
     ns = "addon-list"
-    key = hash_data((base_url, details))
+    # The generation is bumped on invalidation, so a build which started before
+    # it stores its (stale) result under a key nobody reads anymore
+    generation = int(await Redis.get("generation", ns) or 0)
+    key = hash_data((base_url, details, generation))
 
     addon_list = await Redis.get_json(ns, key)
     if addon_list is None:
