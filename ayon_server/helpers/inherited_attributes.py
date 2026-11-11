@@ -58,17 +58,6 @@ UPSERT_QUERY = """
 """
 
 
-async def lock_inherited_attributes(project_name: str) -> None:
-    """Let one transaction at a time change the exported attributes of a project.
-
-    A partial rebuild starts from what the parents export, so it must not run
-    next to a rebuild that is about to change them. Take the lock before
-    anything else locks the hierarchy view or the exported attributes
-    (a different order may deadlock).
-    """
-    await Postgres.advisory_xact_lock(f"inherited-attributes:{project_name}")
-
-
 async def _rebuild_from(
     project_attrib: dict[str, Any],
     folder_ids: list[str] | None = None,
@@ -176,14 +165,21 @@ async def rebuild_inherited_attributes(
     rebuilt (an empty list only refreshes the hierarchy, if requested).
     Use it when nothing else changed: a changed project attribute or
     attribute definition needs a rebuild of the whole project.
+
+    Rebuilds of a project run one at a time: a partial rebuild starts from
+    what the parents export, which another rebuild may be about to change.
+    Don't call this in a transaction that already read the hierarchy view
+    or changed the exported attributes (the lock order may deadlock).
     """
     if not refresh_hierarchy and folder_ids is not None and not folder_ids:
-        return  # nothing to do, so don't wait for the lock
+        return
 
     start = time.perf_counter()
 
     async with Postgres.transaction():
-        await lock_inherited_attributes(project_name)
+        await Postgres.advisory_xact_lock(
+            f"inherited-attributes:{project_name.lower()}"
+        )
         await Postgres.set_project_schema(project_name)
 
         if refresh_hierarchy:

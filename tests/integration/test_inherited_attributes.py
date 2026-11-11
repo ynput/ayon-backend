@@ -191,8 +191,18 @@ async def _force_delete_keeps_other_folders() -> None:
         raise Rollback()
 
 
-async def _save_rebuilds_only_when_needed() -> None:
-    from ayon_server.entities import FolderEntity
+async def _save_rebuilds_only_when_needed(monkeypatch) -> None:
+    from ayon_server.entities import FolderEntity, folder
+
+    # The rebuild runs after the commit. Run it at once: the test rolls back
+    async def run_now(hook) -> None:
+        await hook()
+
+    async def no_redis(project_name: str) -> None:
+        pass
+
+    monkeypatch.setattr(Postgres, "on_commit", run_now)
+    monkeypatch.setattr(folder, "invalidate_hierarchy_cache", no_redis)
 
     marker = {"marker": 1}
 
@@ -255,8 +265,8 @@ def test_force_delete_keeps_other_folders(run) -> None:
     _rolled_back(run, _force_delete_keeps_other_folders())
 
 
-def test_save_rebuilds_only_when_needed(run) -> None:
-    _rolled_back(run, _save_rebuilds_only_when_needed())
+def test_save_rebuilds_only_when_needed(run, monkeypatch) -> None:
+    _rolled_back(run, _save_rebuilds_only_when_needed(monkeypatch))
 
 
 def test_operations_refresh_only_changed_folders(run) -> None:
