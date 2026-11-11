@@ -8,6 +8,81 @@ from ayon_server.utils import json_dumps
 
 AYON_INTERNAL_FOLDER_NAME = "__ayon_internal__"
 
+REBUILD_QUERY = """
+
+WITH RECURSIVE direct_versions AS (-- folders that directly own a version
+    SELECT f.id
+    FROM folders f
+    WHERE EXISTS (
+        SELECT 1
+        FROM products p
+        JOIN versions v ON v.product_id = p.id
+        WHERE p.folder_id = f.id
+    )
+),
+
+folder_with_versions AS ( -- folders with subfolders that have verisons
+    SELECT id FROM direct_versions
+    UNION
+    SELECT f.parent_id
+    FROM folder_with_versions fwv
+    JOIN folders f ON f.id = fwv.id
+    WHERE f.parent_id IS NOT NULL
+),
+
+reviewables AS (
+    SELECT DISTINCT p.folder_id
+    FROM activity_feed af
+    JOIN versions v ON v.id = af.entity_id
+    JOIN products p ON p.id = v.product_id
+    WHERE af.entity_type = 'version'
+      AND af.activity_type = 'reviewable'
+),
+
+task_agg AS (
+    SELECT folder_id,
+           count(*)                 AS task_count,
+           array_agg(DISTINCT name) AS task_names
+    FROM tasks
+    GROUP BY folder_id
+)
+
+SELECT
+    f.id,
+    f.parent_id,
+    f.name,
+    f.label,
+    f.folder_type,
+    f.status,
+    f.attrib,
+    f.tags,
+    f.created_at,
+    f.updated_at,
+    f.created_by,
+    f.updated_by,
+    f.data->>'thumbnailHash' AS thumbnail_hash,
+    ea.attrib AS all_attrib,
+    ea.path   AS path,
+    ea.active AS visible,
+    f.active  AS active,
+    COALESCE(t.task_count, 0)    AS task_count,
+    COALESCE(t.task_names, '{}') AS task_names,
+    (fwv.id IS NOT NULL)         AS has_versions,
+    (r.folder_id IS NOT NULL)    AS has_reviewables
+
+FROM folders f
+JOIN exported_attributes ea
+  ON ea.folder_id = f.id
+LEFT JOIN task_agg t
+  ON t.folder_id = f.id
+LEFT JOIN folder_with_versions fwv
+  ON fwv.id = f.id
+LEFT JOIN reviewables r
+  ON r.folder_id = f.id
+
+WHERE NOT starts_with(ea.path, '__ayon_internal__');
+"""
+
 
 async def invalidate_hierarchy_cache(project_name: str) -> None:
     """Drop the cached folder list, also one a running rebuild is about to write."""
@@ -18,89 +93,12 @@ async def invalidate_hierarchy_cache(project_name: str) -> None:
 async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     start_time = time.monotonic()
     generation = await Redis.get("project-folders-gen", project_name)
-    query = f"""
-        WITH RECURSIVE reviewables AS (
-            SELECT p.folder_id AS folder_id
-            FROM project_{project_name}.activity_feed af
-            INNER JOIN project_{project_name}.versions v
-            ON af.entity_id = v.id
-            AND af.entity_type = 'version'
-            AND  af.activity_type = 'reviewable'
-            INNER JOIN project_{project_name}.products p
-            ON p.id = v.product_id
-        ),
-
-        folder_closure AS (
-            SELECT id AS ancestor_id, id AS descendant_id
-            FROM project_{project_name}.folders
-            UNION ALL
-            SELECT fc.ancestor_id, f.id AS descendant_id
-            FROM folder_closure fc
-            JOIN project_{project_name}.folders f
-            ON f.parent_id = fc.descendant_id
-        ),
-
-        folder_with_versions AS (
-            SELECT DISTINCT fc.ancestor_id
-            FROM folder_closure fc
-            JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
-            JOIN project_{project_name}.versions v ON v.product_id = p.id
-        )
-
-        SELECT
-            f.id,
-            f.parent_id,
-            f.name,
-            f.label,
-            f.folder_type,
-            f.status,
-            f.attrib,
-            f.tags,
-            f.data->>'thumbnailHash' AS thumbnail_hash,
-            f.created_at,
-            f.updated_at,
-            f.created_by,
-            f.updated_by,
-            ea.attrib as all_attrib,
-            ea.path as path,
-            ea.active as visible,
-            f.active as active,
-            COUNT (tasks.id) AS task_count,
-            array_agg(DISTINCT tasks.name) AS task_names,
-            (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions,
-            (r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables
-
-        FROM project_{project_name}.folders f
-
-        INNER JOIN project_{project_name}.exported_attributes ea
-        ON f.id = ea.folder_id
-
-        LEFT JOIN project_{project_name}.tasks AS tasks
-        ON tasks.folder_id = f.id
-
-        LEFT JOIN folder_with_versions fwv
-        ON fwv.ancestor_id = f.id
-
-        LEFT JOIN reviewables r
-        ON r.folder_id = f.id
-
-        WHERE NOT starts_with(ea.path, '{AYON_INTERNAL_FOLDER_NAME}')
-
-        GROUP BY
-            f.id,
-            ea.attrib,
-            ea.path,
-            fwv.ancestor_id,
-            r.folder_id,
-            ea.active
-    """
 
     result = []
     ids_with_children = set()
     async with Postgres.transaction():
-        # Since this is ALWAYS called after rebuild_inherited_attributes,
-        # we don't need to refresh materialized views here.
-        stmt = await Postgres.prepare(query)
+        await Postgres.set_project_schema(project_name)
+        stmt = await Postgres.prepare(REBUILD_QUERY)
         async for row in stmt.cursor():
             result.append(
                 {
