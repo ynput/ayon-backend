@@ -324,6 +324,8 @@ app.include_router(
 async def graphql_schema_sdl(user: CurrentUserOptional) -> PlainTextResponse:
     """Return the GraphQL schema in SDL
 
+    The first line is a comment with the server title and version, which the
+    SDL itself does not carry (unlike `info.version` in /openapi.json).
     Follows the same settings as the OpenAPI schema at /openapi.json.
     """
 
@@ -337,7 +339,8 @@ async def graphql_schema_sdl(user: CurrentUserOptional) -> PlainTextResponse:
         if not user.is_manager:
             raise ForbiddenException("You are not allowed to access GraphQL schema")
 
-    return PlainTextResponse(graphql_schema.as_str())
+    header = f"# {app_meta['title']} {app_meta['version']}\n\n"
+    return PlainTextResponse(header + graphql_schema.as_str())
 
 
 @app.get("/graphiql", include_in_schema=False)
