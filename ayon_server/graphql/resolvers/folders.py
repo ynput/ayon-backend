@@ -207,7 +207,7 @@ async def get_folders(
         )
 
     # We need to use children-join
-    if (has_children is not None) or fields.has_any("childount", "hasChildren"):
+    if (has_children is not None) or fields.has_any("childCount", "hasChildren"):
         sql_columns.append("COUNT(children.id) AS child_count")
         sql_joins.append(
             f"""
