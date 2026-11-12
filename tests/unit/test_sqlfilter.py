@@ -123,6 +123,14 @@ def test_callable_attribute_mapping_validates_path_before_resolving():
         )
 
 
+def test_contains_matches_literal_substring():
+    condition = QueryCondition(key="attrib.note", operator="contains", value="15%_it's")
+    assert (
+        build_condition(condition)
+        == "strpos(lower(attrib->>'note'), lower('15%_it''s')) > 0"
+    )
+
+
 def test_boolean_eq_on_native_column():
     true_cond = QueryCondition(key="active", operator="eq", value=True)
     false_cond = QueryCondition(key="active", operator="eq", value=False)

@@ -32,6 +32,7 @@ OperatorType = Literal[
     "eq",
     "like",
     "notlike",
+    "contains",
     "re",
     "lt",
     "gt",
@@ -275,14 +276,15 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like", "notlike", "re"):
+        if operator in ("like", "notlike", "contains", "re"):
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{safe_value}'"
             else:
                 raise ValueError(
-                    "Value must be a string for 'like', 'notlike' or 're' operators"
+                    "Value must be a string for 'like', 'notlike', 'contains' "
+                    "or 're' operators"
                 )
 
         else:
@@ -418,7 +420,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if safe_value is None:
         raise ValueError(f"Invalid value: {value}")
 
-    if operator in ("like", "notlike", "re"):
+    if operator in ("like", "notlike", "contains", "re"):
         if mapped_attribute:
             # A resolved value may be a COALESCE of several JSON accesses.
             column = f"({column}) #>> '{{}}'"
@@ -438,6 +440,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     elif operator == "notlike":
         # a missing value does not match the pattern, so it passes the filter
         return f"NOT coalesce(({column}) ILIKE {safe_value}, FALSE)"
+    elif operator == "contains":
+        # literal substring match: unlike ILIKE, % _ and \ are not special
+        return f"strpos(lower({column}), lower({safe_value})) > 0"
     elif operator == "re":
         return f"({column}) SIMILAR TO {safe_value}"
     elif operator == "lt":
