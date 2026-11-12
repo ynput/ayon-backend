@@ -342,7 +342,8 @@ async def resolve[R](
 
     # Label the statement: database monitoring truncates the query text,
     # so the resolver has to be recognizable from its first characters
-    query = f"/* graphql {node_type.__name__ if node_type is not None else edge_type.__name__} */ {query}"
+    label = (node_type if node_type is not None else edge_type).__name__
+    query = f"/* graphql {label} */ {query}"
 
     edges: list[Any] = []
     # Now execute the original query for the actual data
@@ -434,6 +435,12 @@ def get_has_links_conds(
         return [
             f"{id_field} IN (SELECT output_id FROM project_{project_name}.links)",
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
+        ]
+    if filter == HasLinksFilter.NONE:
+        links = f"SELECT 1 FROM project_{project_name}.links AS l"
+        return [
+            f"NOT EXISTS ({links} WHERE l.input_id = {id_field})",
+            f"NOT EXISTS ({links} WHERE l.output_id = {id_field})",
         ]
     raise ValueError("Wrong has_links value")
 
