@@ -106,6 +106,8 @@ def create_pagination(
     after: str | None = None,
     last: int | None = None,
     before: str | None = None,
+    *,
+    skippable: bool = False,
 ) -> tuple[str, str, str]:
     """
     Generates a pagination SQL query for a GraphQL resolver.
@@ -115,6 +117,9 @@ def create_pagination(
     Columns are plain SQL expressions sorted in ascending order,
     or `SortColumn` items with their own direction.
     `last` reverses the whole ordering.
+
+    Set `skippable` when the resolver may drop rows after the query
+    (per-row access checks): twice the page is then fetched to make up for them.
 
     Returns a tuple of three strings: `ordering`, `conditions`, and `cursor`.
 
@@ -204,7 +209,9 @@ def create_pagination(
 
     conditions = _cursor_conditions(cursor_keys)
 
-    limit = (first or last or 500) * 2
+    limit = first or last or 500
+    if skippable:
+        limit *= 2
 
     ordering = "ORDER BY " + ", ".join(ordering_arr) + f" LIMIT {limit}"
     cursor = ", ".join(cursor_arr)

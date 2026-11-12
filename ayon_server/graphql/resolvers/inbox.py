@@ -75,6 +75,7 @@ async def get_inbox(
         after=None,
         last=last,
         before=before,
+        skippable=True,
     )
 
     sql_conditions.append(paging_conds)

@@ -7,9 +7,10 @@ import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.config import ayonconfig
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, ServiceUnavailableException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -345,9 +346,17 @@ async def resolve[R](
     label = (node_type if node_type is not None else edge_type).__name__
     query = f"/* graphql {label} */ {query}"
 
+    # fetch, not iterate: reading through a cursor keeps postgres from
+    # running the query in parallel, and the query is limited to a page anyway.
+    try:
+        records = await Postgres.fetch(
+            query, timeout=ayonconfig.postgres_read_timeout or None
+        )
+    except TimeoutError:
+        raise ServiceUnavailableException("Database query timed out")
+
     edges: list[Any] = []
-    # Now execute the original query for the actual data
-    async for record in Postgres.iterate(query):
+    for record in records:
         # Create a standard dictionary from the record
         record_dict = dict(record)
 
