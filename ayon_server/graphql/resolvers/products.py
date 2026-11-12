@@ -295,10 +295,11 @@ async def get_products(
             sql_conditions.append(f"NOT {reviewables_cond}")
 
     if name_ex is not None:
+        name_ex = name_ex.replace("'", "''")
         sql_conditions.append(f"products.name ~ '{name_ex}'")
 
     if path_ex is not None:
-        # TODO: sanitize
+        path_ex = path_ex.replace("'", "''")
         sql_conditions.append(f"'/' || folder_ex.path ~ '{path_ex}'")
 
     #

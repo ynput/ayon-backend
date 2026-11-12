@@ -48,6 +48,7 @@ async def get_links(
         sql_conditions.append(f"name in {SQLTool.array(names)}")
 
     if name_ex is not None:
+        name_ex = name_ex.replace("'", "''")
         sql_conditions.append(f"name ~ '{name_ex}'")
 
     query = f"""
