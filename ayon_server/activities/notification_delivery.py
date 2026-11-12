@@ -51,7 +51,9 @@ class ActivityNotification:
     author: str | None
     references: Mapping[str, frozenset[str]]
     """User name -> the reference types that bring the activity to that user
-    (`mention`, `watching`, `relation`, ...). The author is never included."""
+    (`mention`, `watching`, `relation`, ...). The `author` reference itself is
+    left out, but the author is in here when they also watch the entity, for
+    example: compare with `author`."""
 
 
 @dataclass(frozen=True)

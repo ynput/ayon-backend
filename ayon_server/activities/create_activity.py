@@ -8,6 +8,7 @@ all necessary references to other entities and users.
 __all__ = ["create_activity"]
 
 import datetime
+from functools import partial
 from typing import Any
 
 from ayon_server.activities.activity_categories import ActivityCategories
@@ -384,18 +385,24 @@ async def create_activity(
                 recipients.setdefault(ref.entity_name, set()).add(ref.reference_type)
 
             if recipients:
-                await dispatch_inbox_messages(
-                    ActivityNotification(
-                        project_name=project_name,
-                        activity_id=activity_id,
-                        activity_type=activity_type,
-                        body=body,
-                        author=user_name,
-                        references={
-                            name: frozenset(types) for name, types in recipients.items()
-                        },
-                    ),
-                    user_name=user_name,
+                # We may be inside the transaction of the caller (operations):
+                # tell the recipients when everything is committed.
+                await Postgres.on_commit(
+                    partial(
+                        dispatch_inbox_messages,
+                        ActivityNotification(
+                            project_name=project_name,
+                            activity_id=activity_id,
+                            activity_type=activity_type,
+                            body=body,
+                            author=user_name,
+                            references={
+                                name: frozenset(types)
+                                for name, types in recipients.items()
+                            },
+                        ),
+                        user_name=user_name,
+                    )
                 )
 
     return activity_id
