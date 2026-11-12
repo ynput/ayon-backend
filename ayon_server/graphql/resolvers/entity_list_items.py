@@ -656,8 +656,10 @@ async def get_entity_list_items(
     #
     # logger.debug(f"Entity list items query: {query}")
 
-    if stats_select_clause:
-        field_stats = await generate_field_stats(query)
+    if calculate_statistics or calculate_specific_statistics:
+        # List items have no default stats columns, so calculateStatistics
+        # alone leaves nothing to compute (and the query has no cursor).
+        field_stats = await generate_field_stats(query) if stats_select_clause else []
 
         return EntityListItemsConnection(edges=[], field_stats=field_stats)
 
