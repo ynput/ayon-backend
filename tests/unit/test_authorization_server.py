@@ -40,28 +40,37 @@ class FakeAddon:
         self.authorization_server = server
 
 
-class FakeLibrary:
-    """Stands for AddonLibrary: {addon name: {version: addon}}."""
-
-    def __init__(self, addons: dict[str, dict[str, Any]], production: str | None):
-        self.addons = addons
-        self.production = production
-        self.queries = 0
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.addons
-
-    def __getitem__(self, key: str) -> dict[str, Any]:
-        return self.addons[key]
-
-    async def get_active_versions(self) -> dict[str, dict[str, str | None]]:
-        self.queries += 1
-        return {name: {"production": self.production} for name in self.addons}
+class Queries:
+    count = 0
 
 
-def use_library(monkeypatch: pytest.MonkeyPatch, library: FakeLibrary) -> None:
-    monkeypatch.setattr(AddonLibrary, "getinstance", classmethod(lambda cls: library))
-    monkeypatch.setattr(authsrv, "_version", None)
+def use_library(
+    monkeypatch: pytest.MonkeyPatch,
+    addons: dict[str, dict[str, Any]],
+    production: str | None,
+) -> Queries:
+    """An AddonLibrary of these {addon name: {version: addon}}.
+
+    The production bundle selects the `production` version of each.
+    """
+    from ayon_server.addons import library as library_module
+
+    queries = Queries()
+
+    async def fetch(query: str, *args: Any) -> list[dict[str, Any]]:
+        queries.count += 1
+        if production is None:
+            return []
+        bundle = {"name": "prod", "is_production": True, "is_staging": False}
+        selected = dict.fromkeys(addons, production)
+        return [{**bundle, "is_dev": False, "addons": selected}]
+
+    library = AddonLibrary.__new__(AddonLibrary)
+    library.data = addons  # type: ignore[assignment]
+    library._active_versions = None
+    monkeypatch.setattr(library_module.Postgres, "fetch", fetch)
+    monkeypatch.setattr(AddonLibrary, "_instance", library)
+    return queries
 
 
 def make_request() -> Request:
@@ -70,11 +79,10 @@ def make_request() -> Request:
 
 @pytest.mark.anyio
 async def test_no_addon_no_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    library = FakeLibrary({}, None)
-    use_library(monkeypatch, library)
+    queries = use_library(monkeypatch, {}, None)
     assert await authsrv.get_authorization_server() is None
     assert await authsrv.get_bearer_challenge(make_request()) is None
-    assert library.queries == 0  # not installed: the database is not asked
+    assert queries.count == 0  # not installed: the database is not asked
 
 
 @pytest.mark.anyio
@@ -92,18 +100,23 @@ async def test_unusable_addon_is_no_server(
     addons: dict[str, dict[str, Any]],
     production: str | None,
 ) -> None:
-    use_library(monkeypatch, FakeLibrary(addons, production))
+    use_library(monkeypatch, addons, production)
     assert await authsrv.get_authorization_server() is None
 
 
 @pytest.mark.anyio
 async def test_production_addon_is_the_server(monkeypatch: pytest.MonkeyPatch) -> None:
     server = FakeServer()
-    library = FakeLibrary({"oauth": {"1.0.0": FakeAddon(server)}}, "1.0.0")
-    use_library(monkeypatch, library)
+    addons = {"oauth": {"1.0.0": FakeAddon(server)}}
+    queries = use_library(monkeypatch, addons, "1.0.0")
     assert await authsrv.get_authorization_server() is server
     assert await authsrv.get_bearer_challenge(make_request()) == CHALLENGE
-    assert library.queries == 1  # the production version is kept for a moment
+    assert queries.count == 1  # the versions of the bundles are kept for a moment
+
+    # until a bundle changes
+    AddonLibrary.clear_active_versions_cache()
+    assert await authsrv.get_authorization_server() is server
+    assert queries.count == 2
 
 
 @pytest.mark.anyio
@@ -111,7 +124,7 @@ async def test_failing_addon_gives_no_challenge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     addons = {"oauth": {"1.0.0": FakeAddon(FakeServer(fail=True))}}
-    use_library(monkeypatch, FakeLibrary(addons, "1.0.0"))
+    use_library(monkeypatch, addons, "1.0.0")
     monkeypatch.setattr(authsrv, "log_traceback", lambda *args, **kwargs: None)
     assert await authsrv.get_bearer_challenge(make_request()) is None
 
@@ -162,7 +175,7 @@ def no_session(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_without_addon_nothing_answers(
     monkeypatch: pytest.MonkeyPatch, no_session: None
 ) -> None:
-    use_library(monkeypatch, FakeLibrary({}, None))
+    use_library(monkeypatch, {}, None)
     client = make_app()
 
     res = client.get("/.well-known/oauth-authorization-server")
@@ -178,7 +191,7 @@ def test_without_addon_nothing_answers(
 
 def test_with_addon(monkeypatch: pytest.MonkeyPatch, no_session: None) -> None:
     addons = {"oauth": {"1.0.0": FakeAddon(FakeServer())}}
-    use_library(monkeypatch, FakeLibrary(addons, "1.0.0"))
+    use_library(monkeypatch, addons, "1.0.0")
     client = make_app()
 
     res = client.get("/.well-known/oauth-authorization-server")

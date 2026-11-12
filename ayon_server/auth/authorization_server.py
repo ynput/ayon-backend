@@ -14,7 +14,6 @@ server gives it what an addon cannot have on its own:
 Without such an addon, nothing here answers and 401 responses are unchanged.
 """
 
-import time
 from typing import Protocol, runtime_checkable
 
 from starlette.requests import Request
@@ -24,11 +23,6 @@ from ayon_server.addons.library import AddonLibrary
 from ayon_server.logging import log_traceback
 
 AUTH_SERVER_ADDON = "oauth"
-
-# The production bundle is read from the database. Unauthorized requests
-# are frequent, so the answer is kept for a moment.
-_VERSION_TTL = 10
-_version: tuple[float, str | None] | None = None
 
 
 @runtime_checkable
@@ -46,28 +40,9 @@ class AuthorizationServer(Protocol):
         ...
 
 
-async def _get_production_version() -> str | None:
-    global _version
-    now = time.monotonic()
-    if _version is None or now - _version[0] > _VERSION_TTL:
-        library = AddonLibrary.getinstance()
-        active_versions = await library.get_active_versions()
-        version = active_versions.get(AUTH_SERVER_ADDON, {}).get("production")
-        _version = (now, version)
-    return _version[1]
-
-
 async def get_authorization_server() -> AuthorizationServer | None:
     library = AddonLibrary.getinstance()
-    if AUTH_SERVER_ADDON not in library:
-        return None  # not installed: nothing to look up
-    version = await _get_production_version()
-    if version is None:
-        return None
-    try:
-        addon = library[AUTH_SERVER_ADDON][version]
-    except KeyError:
-        return None  # in the bundle, but failed to load
+    addon = await library.get_production_addon(AUTH_SERVER_ADDON)
     server = getattr(addon, "authorization_server", None)
     if isinstance(server, AuthorizationServer):
         return server
