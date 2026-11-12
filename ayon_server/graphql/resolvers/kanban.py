@@ -10,6 +10,7 @@ from ayon_server.graphql.connections import KanbanConnection
 from ayon_server.graphql.edges import KanbanEdge
 from ayon_server.graphql.nodes.kanban import KanbanNode
 from ayon_server.graphql.resolvers.common import (
+    DEFAULT_PAGE_SIZE,
     ARGBefore,
     ARGLast,
     resolve,
@@ -205,6 +206,12 @@ async def get_kanban(
 
     umap = await get_accessible_users(user, project_names=project_names)
 
+    # Every project is limited on its own as well: the top rows overall are
+    # among the top rows of each project, and has_reviewables is then
+    # only evaluated for those instead of for every task.
+    limit = last or DEFAULT_PAGE_SIZE
+    ordering = f"ORDER BY due_date DESC NULLS LAST, updated_at DESC LIMIT {limit}"
+
     union_queries = []
     for pdata in project_data:
         project_name = pdata["name"]
@@ -285,8 +292,9 @@ async def get_kanban(
             "AND h.active IS TRUE AND t.active IS TRUE" if not task_ids else ""
         }
                 {SQLTool.conditions(sq_conds)}
+                {ordering}
         """
-        union_queries.append(uq)
+        union_queries.append(f"({uq})")
 
     if not union_queries:
         # This should not normally happen, but if it does,
@@ -303,9 +311,7 @@ async def get_kanban(
         SELECT
             {cursor} as cursor,
         * FROM ({unions}) dummy
-        ORDER BY
-            due_date DESC NULLS LAST,
-            updated_at DESC
+        {ordering}
     """
 
     #
