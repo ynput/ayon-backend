@@ -287,6 +287,36 @@ async def _process_operations(
     return events, OperationsResponseModel(operations=result, success=success)
 
 
+def _folder_refresh_kwargs(
+    operations: list[OperationModel],
+    response: OperationsResponseModel,
+) -> dict[str, Any]:
+    """Return what FolderEntity.refresh_views needs to refresh.
+
+    Exported attributes depend on the name, parent, own attributes and
+    the active flag of a folder. Deleted folders lose them by the cascade.
+    """
+    data = {op.id: op.data or {} for op in operations}
+    folder_ids: list[str] = []
+    refresh_hierarchy = False
+    for res in response.operations:
+        if res.entity_type != "folder" or not res.success or not res.entity_id:
+            continue
+        if res.type == "delete":
+            refresh_hierarchy = True
+        elif res.type == "create":
+            # the hierarchy is refreshed when a folder is created
+            folder_ids.append(res.entity_id)
+        else:
+            changed = data.get(res.id, {}).keys()
+            if changed & {"name", "parent_id", "parentId"}:
+                refresh_hierarchy = True
+                folder_ids.append(res.entity_id)
+            elif changed & {"attrib", "active"}:
+                folder_ids.append(res.entity_id)
+    return {"refresh_hierarchy": refresh_hierarchy, "folder_ids": folder_ids}
+
+
 class ProjectLevelOperations:
     def __init__(
         self,
@@ -506,7 +536,10 @@ class ProjectLevelOperations:
                 entity_class = get_entity_class(entity_type)
                 try:
                     logger.trace(f"[OPS] Refreshing views for {entity_type}")
-                    await entity_class.refresh_views(self.project_name)
+                    kwargs: dict[str, Any] = {}
+                    if entity_type == "folder":
+                        kwargs = _folder_refresh_kwargs(self.operations, response)
+                    await entity_class.refresh_views(self.project_name, **kwargs)
                 except DeadlockDetectedError:
                     logger.debug("[OPS] View refresh deadlock. Skipping refresh.")
 

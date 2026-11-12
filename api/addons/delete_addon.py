@@ -46,6 +46,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
         library.data.pop(addon_name, None)
+    await library.clear_addon_list_cache()
     await require_server_restart(None, "Restart the server to apply the addon changes.")
 
 

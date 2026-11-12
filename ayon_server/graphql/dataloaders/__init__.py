@@ -226,13 +226,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     project_name = get_project_name(keys)
 
     query = f"""
-        WITH reviewables AS (
-            SELECT entity_id FROM project_{project_name}.activity_feed
-            WHERE entity_type = 'version'
-            AND activity_type = 'reviewable'
-        ),
-
-        hero_versions AS (
+        WITH hero_versions AS (
             SELECT version.id id, hero_version.id AS hero_version_id
             FROM project_{project_name}.versions AS version
             JOIN project_{project_name}.versions AS hero_version
@@ -247,7 +241,11 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
             hierarchy.path AS _folder_path,
             p.name AS _product_name,
             EXISTS (
-                SELECT 1 FROM reviewables WHERE entity_id = v.id
+                SELECT 1 FROM project_{project_name}.activity_feed af
+                WHERE af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND af.activity_type = 'reviewable'
+                OFFSET 0
             ) AS has_reviewables
         FROM
             project_{project_name}.versions AS v
