@@ -213,6 +213,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     cast_type = "text"
     safe_value: ValueType = None
     json_list_column: str | None = None
+    column_is_jsonb = False
 
     column = path[0]
     mapped_attribute = False
@@ -242,6 +243,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             safe_value = value
 
     elif (len(path) > 1 and path[0] in json_fields) or single_json_column:
+        column_is_jsonb = True
         if single_json_column:
             column = single_json_column
 
@@ -425,9 +427,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
     if operator == "eq":
         if type(value) is bool:
-            if value:
-                return f"coalesce({column}, 'false'::jsonb)::boolean"
-            return f"NOT coalesce({column}, 'false'::jsonb)::boolean"
+            if column_is_jsonb:
+                boolean_expr = f"coalesce({column}, 'false'::jsonb)::boolean"
+            else:
+                boolean_expr = f"coalesce({column}, FALSE)"
+            return boolean_expr if value else f"NOT {boolean_expr}"
         return f"{column} = {safe_value}"
     elif operator == "like":
         return f"({column}) ILIKE {safe_value}"

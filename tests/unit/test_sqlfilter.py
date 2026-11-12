@@ -121,3 +121,50 @@ def test_callable_attribute_mapping_validates_path_before_resolving():
             QueryCondition(key="attrib.invalid-key", operator="eq", value="world"),
             column_map={"attrib": resolve},
         )
+
+
+def test_boolean_eq_on_native_column():
+    true_cond = QueryCondition(key="active", operator="eq", value=True)
+    false_cond = QueryCondition(key="active", operator="eq", value=False)
+    assert (
+        build_condition(true_cond, table_prefix="folders")
+        == "coalesce(folders.active, FALSE)"
+    )
+    assert (
+        build_condition(false_cond, table_prefix="folders")
+        == "NOT coalesce(folders.active, FALSE)"
+    )
+
+
+def test_boolean_eq_on_attribute_uses_jsonb():
+    true_cond = QueryCondition(key="attrib.flag", operator="eq", value=True)
+    false_cond = QueryCondition(key="attrib.flag", operator="eq", value=False)
+    assert (
+        build_condition(true_cond)
+        == "coalesce(attrib->'flag', 'false'::jsonb)::boolean"
+    )
+    assert (
+        build_condition(false_cond)
+        == "NOT coalesce(attrib->'flag', 'false'::jsonb)::boolean"
+    )
+
+
+def test_boolean_eq_on_single_json_column_uses_jsonb():
+    condition = QueryCondition(key="flag", operator="eq", value=True)
+    assert (
+        build_condition(condition, single_json_column="data")
+        == "coalesce(data->'flag', 'false'::jsonb)::boolean"
+    )
+
+
+def test_boolean_eq_on_native_column_in_filter():
+    f = QueryFilter(
+        conditions=[
+            QueryCondition(key="active", operator="eq", value=True),
+            QueryCondition(key="attrib.flag", operator="eq", value=False),
+        ]
+    )
+    assert build_filter(f, table_prefix="tasks") == (
+        "(coalesce(tasks.active, FALSE)"
+        " AND NOT coalesce(tasks.attrib->'flag', 'false'::jsonb)::boolean)"
+    )
