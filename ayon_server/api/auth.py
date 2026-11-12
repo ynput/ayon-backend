@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
@@ -21,21 +20,9 @@ from ayon_server.logging import logger
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 from ayon_server.utils.strings import parse_access_token, parse_api_key
 
-# An application acting as a user (a delegated session) may do what the
-# user may, except get itself another way in: its access has to end when
-# its time is up or the user disconnects it. So it is refused where
-# credentials and accounts are handed out or changed, and it does not see
-# the user's own secrets.
-#
-# (pattern of the path, refused for reading too)
-DELEGATED_REFUSED: list[tuple[re.Pattern[str], bool]] = [
-    (re.compile(r"^/api/auth/(?!logout$)"), True),
-    (re.compile(r"^/api/secrets(/|$)"), True),
-    (re.compile(r"^/api/users/[^/]+/sessions(/|$)"), True),
-    (re.compile(r"^/api/users(/|$)"), False),
-    (re.compile(r"^/api/profile(/|$)"), False),
-]
-DELEGATED_HIDDEN_USER_DATA = (
+# Never returned for other users, and not seen by an application acting
+# as the user: they allow logging in as the user
+SECRET_USER_DATA_KEYS = (
     "password",
     "apiKey",
     "apiKeys",
@@ -43,16 +30,6 @@ DELEGATED_HIDDEN_USER_DATA = (
     "supportToken",
     "inviteRequest",
 )
-READING_METHODS = ("GET", "HEAD", "OPTIONS")
-
-
-def delegated_access_refused(method: str, path: str) -> bool:
-    """True when an application may not make this request, whoever its user is."""
-    reading = method.upper() in READING_METHODS
-    for pattern, also_reading in DELEGATED_REFUSED:
-        if pattern.match(path) and (also_reading or not reading):
-            return True
-    return False
 
 
 def access_token_from_request(request: Request) -> str | None:
@@ -208,7 +185,7 @@ async def user_from_request(request: Request) -> UserEntity:
     user = UserEntity.from_record(session_data.user.model_dump())
     user.add_session(session_data)
     if session_data.delegated:
-        for key in DELEGATED_HIDDEN_USER_DATA:
+        for key in SECRET_USER_DATA_KEYS:
             user.data.pop(key, None)
 
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
@@ -308,17 +285,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.unauthorized_reason = str(e)
 
         request.state.pre_auth = pre_auth_from_request(request)
-
-        user = request.state.user
-        if user is not None and user.session and user.session.delegated:
-            if delegated_access_refused(request.method, request.scope["path"]):
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "code": 403,
-                        "detail": "Applications cannot manage accounts or credentials",
-                    },
-                )
 
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):

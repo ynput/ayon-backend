@@ -3,6 +3,7 @@ from typing import Any
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
+    NoDelegatedAccess,
 )
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
@@ -54,7 +55,7 @@ async def update_guest_attrib(
     await Session.update(token, user)
 
 
-@router.patch("", dependencies=[AllowGuests])
+@router.patch("", dependencies=[NoDelegatedAccess, AllowGuests])
 async def update_current_user_profile(
     payload: UserPatchModel,
     user: CurrentUser,

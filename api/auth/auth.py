@@ -10,6 +10,7 @@ from ayon_server.api.dependencies import (
     AccessToken,
     AllowGuests,
     CurrentUserOptional,
+    NoDelegatedAccess,
     throttle,
 )
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
@@ -72,7 +73,11 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
 
 @router.get(
     "/tokenauth",
-    dependencies=[AllowGuests, Depends(throttle(limit=5, window=60))],
+    dependencies=[
+        NoDelegatedAccess,
+        AllowGuests,
+        Depends(throttle(limit=5, window=60)),
+    ],
 )
 async def token_auth_callback(
     request: Request, current_user: CurrentUserOptional

@@ -220,40 +220,85 @@ async def test_unlimited_delegated_session_works_everywhere() -> None:
         assert (await api_auth.user_from_request(request)).name == "artist"
 
 
+def refused_routes() -> dict[tuple[str, str], bool]:
+    """{(method, path): refuses applications} of the account endpoints."""
+    import importlib
+
+    from fastapi.routing import APIRoute
+
+    import ayon_server.api.server  # noqa: F401  (makes the API modules importable)
+    from ayon_server.api.dependencies import NoDelegatedAccess
+
+    result: dict[tuple[str, str], bool] = {}
+    for module_name in ("auth", "users", "profile", "system"):
+        router = importlib.import_module(module_name).router
+        for route in router.routes:
+            assert isinstance(route, APIRoute)
+            refused = NoDelegatedAccess in route.dependencies
+            for method in route.methods:
+                result[(method, f"/api{route.path}")] = refused
+    return result
+
+
 @pytest.mark.parametrize(
     ("method", "path", "refused"),
     [
         # sessions, API keys, passwords, invites: no other way in
         ("POST", "/api/auth/sessions", True),
         ("GET", "/api/auth/sessions", True),
-        ("POST", "/api/auth/login", True),
+        ("GET", "/api/auth/tokenauth", True),
         ("POST", "/api/auth/logout", False),  # ending itself is fine
-        ("POST", "/api/users/artist/apikeys", True),
-        ("PATCH", "/api/users/artist/password", True),
-        ("POST", "/api/users/artist/invite", True),
-        ("PATCH", "/api/users/artist", True),
-        ("PUT", "/api/users/somebody", True),
-        ("DELETE", "/api/users/somebody", True),
-        ("PATCH", "/api/users/artist/accessGroups", True),
-        ("GET", "/api/users/artist/sessions", True),  # carries their tokens
-        ("DELETE", "/api/users/artist/sessions/abc", True),
+        ("POST", "/api/users/{user_name}/apikeys", True),
+        ("PATCH", "/api/users/{user_name}/password", True),
+        ("POST", "/api/users/{user_name}/invite", True),
+        ("PATCH", "/api/users/{user_name}", True),
+        ("PUT", "/api/users/{user_name}", True),
+        ("DELETE", "/api/users/{user_name}", True),
+        ("PATCH", "/api/users/{user_name}/accessGroups", True),
+        ("GET", "/api/users/{user_name}/sessions", True),  # carries their tokens
+        ("DELETE", "/api/users/{user_name}/sessions/{session_id}", True),
         ("PATCH", "/api/profile", True),  # the email a password reset goes to
         ("GET", "/api/secrets", True),
-        ("GET", "/api/secrets/name", True),
-        ("PUT", "/api/secrets/name", True),
+        ("GET", "/api/secrets/{secret_name}", True),
+        ("PUT", "/api/secrets/{secret_name}", True),
         # reading users and working with everything else stays possible
-        ("GET", "/api/users/artist", False),
+        ("GET", "/api/users/{user_name}", False),
         ("GET", "/api/users/me", False),
-        ("GET", "/api/users/artist/apikeys", False),
+        ("GET", "/api/users/{user_name}/apikeys", False),
         ("GET", "/api/profile", False),
-        ("POST", "/graphql", False),
-        ("POST", "/api/projects/demo/operations", False),
-        ("GET", "/api/usersx", False),
-        ("POST", "/api/authx/sessions", False),
+        ("GET", "/api/info", False),
     ],
 )
 def test_what_an_application_is_refused(method: str, path: str, refused: bool) -> None:
-    assert api_auth.delegated_access_refused(method, path) is refused
+    assert refused_routes()[(method, path)] is refused
+
+
+# Open to anyone, so an application gains nothing there
+PUBLIC_ACCOUNT_ROUTES = {
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/users/passwordResetRequest"),
+    ("POST", "/api/users/passwordReset"),
+    ("POST", "/api/users/acceptInvite"),
+}
+
+
+def test_new_account_endpoints_have_to_decide() -> None:
+    """A change of accounts or secrets is refused, or listed as open above."""
+    undecided = [
+        f"{method} {path}"
+        for (method, path), refused in refused_routes().items()
+        if not refused
+        and (method, path) not in PUBLIC_ACCOUNT_ROUTES
+        and (
+            path.startswith("/api/secrets")
+            or (
+                method not in ("GET", "HEAD", "OPTIONS")
+                and path.startswith(("/api/users", "/api/profile", "/api/auth"))
+                and path != "/api/auth/logout"
+            )
+        )
+    ]
+    assert undecided == []
 
 
 @pytest.mark.anyio
@@ -283,7 +328,7 @@ async def test_application_does_not_see_the_users_secrets() -> None:
     assert seen.data["password"] == "hash:salt"
 
 
-def test_application_is_refused_before_the_endpoint(
+def test_application_is_refused_by_the_dependency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Whatever an endpoint checks itself, the request does not reach it."""
@@ -291,26 +336,34 @@ def test_application_is_refused_before_the_endpoint(
     from fastapi.testclient import TestClient
 
     from ayon_server.api.auth import AuthMiddleware
+    from ayon_server.api.context import RequestContextMiddleware
+    from ayon_server.api.dependencies import NoDelegatedAccess
+    from ayon_server.api.logging import LoggingMiddleware
     from ayon_server.api.server import app as server_app
 
     sessions: dict[str, Any] = {}
 
     async def user_from_request(request: Request) -> Any:
+        if "x-test-session" not in request.headers:
+            raise UnauthorizedException("Access token is missing")
         user = make_user()
         user.add_session(sessions[request.headers["x-test-session"]])
         return user
 
     monkeypatch.setattr(api_auth, "user_from_request", user_from_request)
 
+    # LoggingMiddleware turns the server's exceptions into responses
+    middlewares = (AuthMiddleware, LoggingMiddleware, RequestContextMiddleware)
     app = FastAPI()
     app.user_middleware = [
         m
         for m in server_app.user_middleware
-        if m.cls is AuthMiddleware  # type: ignore[comparison-overlap]
+        if m.cls in middlewares  # type: ignore[comparison-overlap]
     ]
     reached: list[str] = []
 
-    @app.post("/api/auth/sessions")
+    # no current user asked for: the dependency does not rely on it
+    @app.post("/api/auth/sessions", dependencies=[NoDelegatedAccess])
     async def create_session() -> str:
         reached.append("sessions")
         return "created"
@@ -336,6 +389,8 @@ def test_application_is_refused_before_the_endpoint(
     assert res.status_code == 200
     res = client.post("/api/auth/sessions", headers={"x-test-session": "login"})
     assert res.status_code == 200 and reached == ["sessions"]
+    # nobody logged in: left to the endpoint
+    assert client.post("/api/auth/sessions").status_code == 200
 
 
 @pytest.mark.anyio
