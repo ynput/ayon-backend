@@ -113,6 +113,7 @@ class CloudUtils:
     instance_id: str | None = None
     licenses_synced_at: float | None = None
     admin_exists: bool = False
+    registry_auth: dict[str, Any] | None = None
 
     @classmethod
     async def get_admin_exists(cls) -> bool:
@@ -348,6 +349,30 @@ class CloudUtils:
                 or parsed.hostname.endswith(".ynput.cloud")
             )
         )
+
+    @classmethod
+    async def get_registry_auth_data(cls, *, force: bool = False) -> dict[str, Any]:
+        if cls.registry_auth is not None and not force:
+            return cls.registry_auth
+
+        try:
+            headers = await cls.get_api_headers()
+        except Exception:
+            return {"authorized": False}
+
+        url = f"{ayonconfig.ynput_cloud_api_url}/api/ayon/repo-credentials"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, timeout=3)
+                response.raise_for_status()
+                data = response.json()
+                cls.registry_auth = data
+                return data
+        except Exception as e:
+            logger.debug(f"Failed to fetch registry auth data: {e}")
+            cls.registry_auth = {"authorized": False}
+
+        return cls.registry_auth
 
 
 #

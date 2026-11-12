@@ -1198,11 +1198,18 @@ class EntityListItemsImport:
         return self._lists[entity_list_id]
 
     async def create_list(
-        self, label: str, entity_type: ProjectLevelEntityType
+        self,
+        label: str,
+        entity_type: ProjectLevelEntityType,
+        folder_id: str | None = None,
     ) -> EntityList:
         """Start a new list, save() stores it if it got any items."""
         entity_list = await EntityList.construct(
-            self.project_name, entity_type, label, user=self.user
+            self.project_name,
+            entity_type,
+            label,
+            entity_list_folder_id=folder_id,
+            user=self.user,
         )
         self._lists[entity_list.id] = entity_list
         self._item_ids[entity_list.id] = {}

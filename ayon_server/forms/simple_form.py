@@ -119,6 +119,7 @@ class FormFieldPatch(TypedDict, total=False):
     enum_resolver: str
     enum_resolver_params: dict[str, Any]
     read_only: bool
+    required: bool
     hidden: bool
     disabled: bool
     highlight: SimpleFormHighlightType
@@ -239,6 +240,7 @@ class SimpleFormField(TypedDict):
     max: NotRequired[int | float]
     valid_extensions: NotRequired[list[str]]
     read_only: NotRequired[bool]
+    required: NotRequired[bool]
     disabled: NotRequired[bool]
     hidden: NotRequired[bool]
     enum_resolver: NotRequired[str]
@@ -363,6 +365,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add a text input field to the form.
 
@@ -386,6 +389,7 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )
 
     def boolean(
@@ -397,6 +401,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add a checkbox or switch field to the form."""
         return self._add_field(
@@ -407,6 +412,7 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )
 
     def select(
@@ -421,6 +427,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add a select field (dropdown) to the form.
 
@@ -453,6 +460,7 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )
 
     def multiselect(
@@ -467,6 +475,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add a multiselect field (dropdown) to the form.
 
@@ -501,6 +510,7 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )
 
     def hidden(
@@ -528,6 +538,7 @@ class SimpleForm(list[SimpleFormField]):
         *,
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add file input / file download field to the form.
 
@@ -557,6 +568,7 @@ class SimpleForm(list[SimpleFormField]):
             valid_extensions=valid_extensions if file_value is None else None,
             rules=rules,
             hidden=hidden,
+            required=required or None,
         )
 
     def integer(
@@ -571,6 +583,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add an integer input field to the form.
 
@@ -590,6 +603,7 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )
 
     def float(
@@ -604,6 +618,7 @@ class SimpleForm(list[SimpleFormField]):
         rules: list[FormFieldRule] | None = None,
         hidden: bool = False,
         read_only: bool = False,
+        required: bool = False,
     ) -> Self:
         """Add a float input field to the form.
 
@@ -623,4 +638,5 @@ class SimpleForm(list[SimpleFormField]):
             rules=rules,
             hidden=hidden,
             read_only=read_only,
+            required=required or None,
         )

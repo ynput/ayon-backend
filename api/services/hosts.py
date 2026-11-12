@@ -2,11 +2,12 @@ from datetime import datetime
 
 from ayon_server.api.dependencies import CurrentUser, NoTraces
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
-from .services import ServiceModel, list_services
+from .services import RegistryAuth, ServiceModel, list_services
 
 
 class HostHealthModel(OPModel):
@@ -66,6 +67,18 @@ async def list_hosts(user: CurrentUser) -> HostListResponseModel:
     )
 
 
+async def get_registry_auth() -> RegistryAuth | None:
+    try:
+        rdata = await CloudUtils.get_registry_auth_data()
+        if not rdata.get("authorized"):
+            return None
+
+        rcred = rdata.get("credentials", {})
+        return RegistryAuth(**rcred) if rcred else None
+    except Exception:
+        return None
+
+
 @router.post("/hosts/heartbeat", dependencies=[NoTraces])
 async def host_heartbeat(
     user: CurrentUser,
@@ -111,6 +124,25 @@ async def host_heartbeat(
         )
 
     all_services = (await list_services(user=user)).services
+    for service in all_services:
+        if service.hostname != payload.hostname:
+            continue
+
+        if not service.should_run:
+            continue
+
+        if not service.data.image:
+            continue
+
+        if (
+            service.data.image.startswith("forge.ynput.io")
+            and not service.data.registry_auth
+        ):
+            auth = await get_registry_auth()
+            if not auth:
+                continue
+            service.data.registry_auth = auth
+
     services = [
         service
         for service in all_services

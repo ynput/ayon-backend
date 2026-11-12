@@ -37,7 +37,7 @@ class BaseSettingsModel(AyonBaseModel):
     @classmethod
     def model_json_schema(
         cls,
-        by_alias: bool = True,
+        by_alias: bool | None = True,
         ref_template: str = REF_TEMPLATE,
         schema_generator: type[GenerateJsonSchema] = SettingsJsonSchemaGenerator,
         mode: JsonSchemaMode = "validation",

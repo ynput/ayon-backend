@@ -8,11 +8,10 @@ DO $$
 DECLARE rec RECORD;
 BEGIN
   FOR rec IN (
-    SELECT DISTINCT nspname FROM pg_namespace 
+    SELECT nspname FROM pg_namespace ns
     WHERE nspname LIKE 'project_%'
-    AND nspname NOT IN (
-      SELECT DISTINCT table_schema FROM information_schema.tables 
-      WHERE table_name = 'entity_lists'
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_class WHERE relnamespace = ns.oid AND relname = 'entity_lists'
     )
   )
   LOOP
