@@ -291,109 +291,70 @@ async def get_folders(
             )
 
     if fields.any_endswith("hasReviewables"):
-        sql_cte.append(
+        sql_columns.append(
             f"""
-            reviewables AS (
-                SELECT p.folder_id AS folder_id
-                FROM project_{project_name}.activity_feed af
+            EXISTS (
+                SELECT 1 FROM project_{project_name}.products p
                 INNER JOIN project_{project_name}.versions v
+                ON v.product_id = p.id
+                INNER JOIN project_{project_name}.activity_feed af
                 ON af.entity_id = v.id
                 AND af.entity_type = 'version'
-                AND  af.activity_type = 'reviewable'
-                INNER JOIN project_{project_name}.products p
-                ON p.id = v.product_id
-            )
+                AND af.activity_type = 'reviewable'
+                WHERE p.folder_id = folders.id
+                OFFSET 0
+            ) AS has_reviewables
             """
         )
-
-        sql_columns.append("(r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables")
-
-        sql_joins.append(
-            """
-            LEFT JOIN reviewables r
-            ON r.folder_id = folders.id
-            """
-        )
-
-        sql_group_by.append("r.folder_id")
 
     if fields.any_endswith("hasVersions"):
-        sql_columns.append("(fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions")
-
-        sql_cte.extend(
-            [
-                f"""
-            folder_closure AS (
-                SELECT id AS ancestor_id, id AS descendant_id
-                FROM project_{project_name}.folders
-                UNION ALL
-                SELECT fc.ancestor_id, f.id AS descendant_id
-                FROM folder_closure fc
-                JOIN project_{project_name}.folders f
-                ON f.parent_id = fc.descendant_id
-            )
-            """,
-                f"""
-            folder_with_versions AS (
-                SELECT DISTINCT fc.ancestor_id
-                FROM folder_closure fc
-                JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+        # Recursive: true when the folder or any of its descendants has a version
+        sql_columns.append(
+            f"""
+            EXISTS (
+                WITH RECURSIVE subtree AS (
+                    SELECT folders.id
+                    UNION ALL
+                    SELECT f.id
+                    FROM project_{project_name}.folders f
+                    JOIN subtree s ON f.parent_id = s.id
+                )
+                SELECT 1 FROM subtree s
+                JOIN project_{project_name}.products p ON p.folder_id = s.id
                 JOIN project_{project_name}.versions v ON v.product_id = p.id
-            )
-            """,
-            ]
-        )
-
-        sql_joins.append(
-            """
-            LEFT JOIN folder_with_versions fwv
-            ON fwv.ancestor_id = folders.id
+                OFFSET 0
+            ) AS has_versions
             """
         )
-
-        sql_group_by.append("fwv.ancestor_id")
 
     if fields.any_endswith("latestComments"):
-        sql_cte.append(
+        sql_columns.append(
             f"""
-            comments AS (
-                SELECT
-                    entity_id,
-                    json_agg(
-                        json_build_object(
-                            'activity_id', activity_id,
-                            'body', body,
-                            'author', author,
-                            'created_at', created_at
-                        )
-                        ORDER BY created_at DESC
-                    ) AS comments
+            (
+                SELECT json_agg(
+                    json_build_object(
+                        'activity_id', activity_id,
+                        'body', body,
+                        'author', author,
+                        'created_at', created_at
+                    )
+                    ORDER BY created_at DESC
+                )
                 FROM (
                     SELECT
                         activity_id,
-                        entity_id,
                         body,
                         activity_data->>'author' AS author,
-                        created_at,
-                        row_number() OVER (
-                            PARTITION BY entity_id
-                            ORDER BY created_at DESC
-                        ) AS rn
+                        created_at
                     FROM project_{project_name}.activity_feed
                     WHERE activity_type = 'comment'
                     AND entity_type = 'folder'
                     AND reference_type = 'origin'
+                    AND entity_id = folders.id
+                    ORDER BY created_at DESC
+                    LIMIT 5
                 ) x
-                WHERE rn <= 5
-                GROUP BY entity_id
-            )
-            """
-        )
-        sql_columns.append("MIN(c.comments::text) AS latest_comments")
-        sql_joins.append(
-            """
-            LEFT JOIN comments c
-            ON c.entity_id = folders.id
+            )::text AS latest_comments
             """
         )
 
@@ -790,8 +751,7 @@ async def get_folders(
             nested_sub_type="string",
         ),
     ]
-    if cte:
-        # has_reviewable only calculated in cte
+    if fields.any_endswith("hasReviewables"):
         columns_metadata.append(ColumnMetadata("has_reviewables", "bool"))
 
     stats_select_clause = None

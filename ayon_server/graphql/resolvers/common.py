@@ -340,6 +340,10 @@ async def resolve[R](
     else:
         count = first = DEFAULT_PAGE_SIZE
 
+    # Label the statement: database monitoring truncates the query text,
+    # so the resolver has to be recognizable from its first characters
+    query = f"/* graphql {node_type.__name__} */ {query}"
+
     edges: list[Any] = []
     # Now execute the original query for the actual data
     async for record in Postgres.iterate(query):
