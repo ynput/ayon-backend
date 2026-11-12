@@ -424,11 +424,15 @@ def get_has_links_conds(
     if filter == HasLinksFilter.OUT:
         return [f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)"]
     if filter == HasLinksFilter.ANY:
+        # EXISTS, not IN: under OR postgres cannot turn IN into a semi-join
+        # and rescans the whole links table for every candidate row
+        # (unless the list happens to fit in work_mem).
+        links = f"SELECT 1 FROM project_{project_name}.links AS l"
         return [
             f"""
             (
-            {id_field} IN (SELECT input_id FROM project_{project_name}.links) OR
-            {id_field} IN (SELECT output_id FROM project_{project_name}.links)
+            EXISTS ({links} WHERE l.input_id = {id_field}) OR
+            EXISTS ({links} WHERE l.output_id = {id_field})
             )"""
         ]
     if filter == HasLinksFilter.BOTH:
