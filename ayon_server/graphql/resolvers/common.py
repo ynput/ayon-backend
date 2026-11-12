@@ -342,7 +342,7 @@ async def resolve[R](
 
     # Label the statement: database monitoring truncates the query text,
     # so the resolver has to be recognizable from its first characters
-    query = f"/* graphql {node_type.__name__} */ {query}"
+    query = f"/* graphql {node_type.__name__ if node_type is not None else edge_type.__name__} */ {query}"
 
     edges: list[Any] = []
     # Now execute the original query for the actual data
