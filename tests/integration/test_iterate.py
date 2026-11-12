@@ -1,3 +1,7 @@
+import pytest
+
+from ayon_server.config import ayonconfig
+from ayon_server.exceptions import ServiceUnavailableException
 from ayon_server.lib.postgres import Postgres
 
 PID = "SELECT pg_backend_pid() AS pid FROM generate_series(1, 3)"
@@ -35,3 +39,18 @@ async def _iterate_outside_transaction() -> None:
 def test_iterate_uses_the_current_transaction(run) -> None:
     run(_iterate_in_transaction())
     run(_iterate_outside_transaction())
+
+
+async def _iterate_read_timeout(monkeypatch) -> None:
+    monkeypatch.setattr(ayonconfig, "postgres_read_timeout", 1)
+    with pytest.raises(ServiceUnavailableException):
+        async for _ in Postgres.iterate("SELECT pg_sleep(5)"):
+            pass
+    # a caller (e.g. a maintenance task) can lift the limit
+    assert [r async for r in Postgres.iterate("SELECT pg_sleep(1.2)", timeout=0)]
+    # the limit is transaction-local: the pooled connections are not affected
+    assert await _value("SELECT current_setting('statement_timeout')::int") == 0
+
+
+def test_iterate_stops_slow_reads(run, monkeypatch) -> None:
+    run(_iterate_read_timeout(monkeypatch))

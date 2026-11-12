@@ -316,110 +316,77 @@ async def get_products(
             "latest",
         ]
 
-        sql_cte.append(
-            f"""
-            reviewables AS (
-                SELECT entity_id FROM project_{project_name}.activity_feed
-                WHERE entity_type = 'version'
-                AND activity_type = 'reviewable'
-            )
-            """
-        )
+        # Featured versions are correlated subqueries in the select list on
+        # purpose: they run only for the products that survive LIMIT, instead
+        # of ranking every version in the project.
+        # OFFSET 0 stops the planner from turning EXISTS into a hashed subplan
+        # that reads every reviewable in the project.
+        has_reviewables_col = f"""
+            EXISTS (
+                SELECT 1 FROM project_{project_name}.activity_feed af
+                WHERE af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND af.activity_type = 'reviewable'
+                OFFSET 0
+            ) AS has_reviewables
+        """
 
         if "hero" in req_order:
-            sql_cte.append(
+            sql_columns.append(
                 f"""
-                hero_versions AS (
-                    SELECT
-                        distinct on (versions.product_id)
-                        versions.*,
-                        hero_versions.id AS hero_version_id,
-                        rv.entity_id IS NOT NULL AS has_reviewables
-                    FROM project_{project_name}.versions AS versions
-
-                    JOIN project_{project_name}.versions AS hero_versions
-                    ON hero_versions.product_id = versions.product_id
-                    AND hero_versions.version < 0
-                    AND ABS(hero_versions.version) = versions.version
-
-                    LEFT JOIN reviewables AS rv
-                    ON versions.id = rv.entity_id
-
-                    ORDER BY versions.product_id, versions.creation_order DESC
-                )
+                (
+                    SELECT to_jsonb(x.*) FROM (
+                        SELECT
+                            v.*,
+                            hv.id AS hero_version_id,
+                            {has_reviewables_col}
+                        FROM project_{project_name}.versions AS hv
+                        JOIN project_{project_name}.versions AS v
+                        ON v.product_id = hv.product_id
+                        AND v.version = ABS(hv.version)
+                        WHERE hv.product_id = products.id
+                        AND hv.version < 0
+                        ORDER BY v.creation_order DESC
+                        LIMIT 1
+                    ) x
+                ) AS _hero_version_data
                 """
             )
-            sql_joins.append(
-                """
-                LEFT JOIN hero_versions AS ff_hero
-                ON ff_hero.product_id = products.id
-                """
-            )
-            sql_columns.append("to_jsonb(ff_hero.*) as _hero_version_data")
 
         if "latestDone" in req_order:
-            sql_cte.append(
-                f"""
-                done_statuses AS (
-                    SELECT name from project_{project_name}.statuses
-                    WHERE data->>'state' = 'done'
-                )
-                """
-            )
-
-            sql_cte.append(
-                f"""
-                latest_done_versions AS (
-                    SELECT
-                        DISTINCT ON (versions.product_id)
-                        versions.*,
-                        rv.entity_id IS NOT NULL AS has_reviewables
-                    FROM project_{project_name}.versions
-
-                    JOIN done_statuses AS s
-                    ON versions.status = s.name
-
-                    LEFT JOIN reviewables AS rv
-                    ON versions.id = rv.entity_id
-
-                    ORDER BY versions.product_id, versions.creation_order DESC
-                )
-                """
-            )
-            sql_joins.append(
-                """
-                LEFT JOIN latest_done_versions AS ff_latest_done
-                ON products.id = ff_latest_done.product_id
-                """
-            )
             sql_columns.append(
-                "to_jsonb(ff_latest_done.*) as _latest_done_version_data"
+                f"""
+                (
+                    SELECT to_jsonb(x.*) FROM (
+                        SELECT v.*, {has_reviewables_col}
+                        FROM project_{project_name}.versions AS v
+                        WHERE v.product_id = products.id
+                        AND v.status IN (
+                            SELECT name FROM project_{project_name}.statuses
+                            WHERE data->>'state' = 'done'
+                        )
+                        ORDER BY v.creation_order DESC
+                        LIMIT 1
+                    ) x
+                ) AS _latest_done_version_data
+                """
             )
 
         if "latest" in req_order:
-            sql_cte.append(
+            sql_columns.append(
                 f"""
-                latest_versions AS (
-                    SELECT
-                        DISTINCT ON (versions.product_id) versions.*,
-                        rv.entity_id IS NOT NULL AS has_reviewables
-                    FROM project_{project_name}.versions
-
-                    LEFT JOIN reviewables AS rv
-                    ON versions.id = rv.entity_id
-
-                    WHERE versions.version >= 0
-                    ORDER BY versions.product_id, versions.creation_order DESC
-                )
+                (
+                    SELECT to_jsonb(x.*) FROM (
+                        SELECT v.*, {has_reviewables_col}
+                        FROM project_{project_name}.versions AS v
+                        WHERE v.product_id = products.id
+                        AND v.version >= 0
+                        ORDER BY v.creation_order DESC
+                        LIMIT 1
+                    ) x
+                ) AS _latest_version_data
                 """
             )
-            sql_joins.append(
-                """
-                LEFT JOIN latest_versions AS ff_latest
-                ON products.id = ff_latest.product_id
-                """
-            )
-            sql_columns.append("to_jsonb(ff_latest.*) as _latest_version_data")
 
     #
     # Version_list

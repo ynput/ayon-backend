@@ -1,5 +1,9 @@
+import asyncio
+import random
 from datetime import datetime
 from typing import Any
+
+from asyncpg.exceptions import DeadlockDetectedError
 
 from ayon_server.access.utils import ensure_entity_access, folder_access_list
 from ayon_server.entities.core import ProjectLevelEntity
@@ -15,11 +19,14 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import invalidate_hierarchy_cache
-from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+from ayon_server.helpers.inherited_attributes import (
+    rebuild_inherited_attributes,
+    refresh_hierarchy_view,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude, json_dumps, json_loads
 
 BASE_GET_QUERY = """
     WITH RECURSIVE folder_closure AS (
@@ -121,8 +128,34 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
 
             attrib = self.own_attrib_to_save()
 
+            # The hierarchy view depends on the name and the parent, the exported
+            # attributes also on the own attributes and the active flag.
+            # Other changes (status, thumbnail...) need neither of them rebuilt.
+            path_changed = True
+            exported_changed = True
+
             if self.exists:
                 # Update existing entity
+
+                original = await Postgres.fetchrow(
+                    f"""
+                    SELECT name, parent_id, attrib, active
+                    FROM project_{self.project_name}.folders WHERE id = $1
+                    FOR NO KEY UPDATE -- a rename must not slip in before our update
+                    """,
+                    self.id,
+                )
+                if original is not None:
+                    path_changed = (
+                        original["name"] != self.name
+                        or original["parent_id"] != self.parent_id
+                    )
+                    exported_changed = (
+                        path_changed
+                        or original["active"] != self.active
+                        # Compare in JSON form, as loaded from the DB
+                        or original["attrib"] != json_loads(json_dumps(attrib))
+                    )
 
                 await Postgres.execute(
                     *SQLTool.update(
@@ -154,52 +187,78 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
                     )
                 )
 
-            # This needs to run in save, not in refresh_views, because
-            # we may need the hierarchy record in the same transaction
-            logger.trace(f"Refreshing {self.project_name} hierarchy")
-            await Postgres.execute(
-                f"""
-                REFRESH MATERIALIZED VIEW
-                project_{self.project_name}.hierarchy
-                """
-            )
+            if path_changed:
+                # This needs to run in save, not in refresh_views, because
+                # we may need the hierarchy record in the same transaction
+                logger.trace(f"Refreshing {self.project_name} hierarchy")
+                await refresh_hierarchy_view(self.project_name)
 
             if auto_commit:
-                await self.commit(refresh_hierarchy=False)  # already refreshed
+                await self.commit(
+                    refresh_hierarchy=False,  # already refreshed
+                    folder_ids=[self.id] if exported_changed else [],
+                )
 
     @classmethod
     async def refresh_views(cls, project_name: str, **kwargs) -> None:
         """Refresh hierarchy materialized view on folder save."""
-        logger.trace(f"Refreshing folder views for project {project_name}")
 
-        # Refreshes the hierarchy materialized view
-        # and rebuilds the exported_attributes table
-        refresh_hierarchy = kwargs.get("refresh_hierarchy", True)
-        await rebuild_inherited_attributes(
-            project_name,
-            refresh_hierarchy=refresh_hierarchy,
-        )
-        # The Redis folder list (built from exported_attributes) is rebuilt
-        # on the next read. Dropped after the commit, so it is not rebuilt
-        # from uncommitted data.
-        await Postgres.on_commit(lambda: invalidate_hierarchy_cache(project_name))
+        async def refresh() -> None:
+            logger.trace(f"Refreshing folder views for project {project_name}")
+            # Refreshes the hierarchy materialized view and rebuilds the
+            # exported_attributes table: of the whole project, or only of
+            # the given folders and their descendants (folder_ids, may be empty)
+            for _ in range(3):
+                try:
+                    await rebuild_inherited_attributes(
+                        project_name,
+                        refresh_hierarchy=kwargs.get("refresh_hierarchy", True),
+                        folder_ids=kwargs.get("folder_ids"),
+                    )
+                    break
+                except DeadlockDetectedError:
+                    if await Postgres.is_in_transaction():
+                        raise  # not our transaction, a retry cannot work
+                    await asyncio.sleep(random.uniform(0.1, 0.3))
+            else:
+                # A skipped partial rebuild is not repaired by the next one
+                logger.warning(f"Folder views of {project_name} were not refreshed")
+            # The Redis folder list (built from exported_attributes) is rebuilt
+            # on the next read.
+            await invalidate_hierarchy_cache(project_name)
+
+        # After the commit, in a transaction of its own: the rebuild waits for
+        # a project lock, which must not happen while holding other locks.
+        # The exported attributes are not up to date until then.
+        await Postgres.on_commit(refresh)
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():
             if kwargs.get("force", False):
                 logger.info(f"Force deleting folder and all its children: {self.path}")
+                # Walk the children using parent_id. Matching the path with LIKE
+                # also hits other folders (underscore is a wildcard there).
                 await Postgres.execute(
                     f"""
+                    WITH RECURSIVE subtree AS (
+                        SELECT id FROM project_{self.project_name}.folders
+                        WHERE id = $1
+                        UNION ALL
+                        SELECT f.id FROM project_{self.project_name}.folders f
+                        INNER JOIN subtree s ON f.parent_id = s.id
+                    )
                     DELETE FROM project_{self.project_name}.products
-                    WHERE folder_id IN (
-                        SELECT id FROM project_{self.project_name}.hierarchy
-                        WHERE path = $1
-                        OR path LIKE $1 || '/%'
-                    ) RETURNING name
+                    WHERE folder_id IN (SELECT id FROM subtree)
                     """,
-                    (self.path or "").lstrip("/"),
+                    self.id,
                 )
-            return await super().delete(*args, auto_commit=auto_commit, **kwargs)
+            res = await super().delete(*args, auto_commit=False, **kwargs)
+            if auto_commit:
+                # Refreshed here, as in save. The exported attributes
+                # are deleted with the folders.
+                await refresh_hierarchy_view(self.project_name)
+                await self.commit(refresh_hierarchy=False, folder_ids=[])
+            return res
 
     async def get_versions(self) -> list[str]:
         """Return of version ids associated with this folder."""

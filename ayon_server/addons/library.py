@@ -27,6 +27,8 @@ class AddonLibrary:
     @staticmethod
     async def clear_addon_list_cache():
         AddonLibrary.clear_active_versions_cache()
+        # bump first: see _get_addon_list (the key is outside the deleted namespace)
+        await Redis.incr("generation", "addon-list")
         await Redis.delete_ns("addon-list")
         await Redis.delete_ns("all-settings")
 
