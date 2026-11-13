@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.openapi.docs import get_redoc_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -24,10 +24,11 @@ from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
 from ayon_server.api.readiness import ReadinessMiddleware
 from ayon_server.api.static import serve_static_file
+from ayon_server.auth.authorization_server import get_authorization_server
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
 from ayon_server.deprecations import AyonDeprecationWarning
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
@@ -103,6 +104,31 @@ async def readyz() -> JSONResponse:
     if getattr(app.state, "ready", False):
         return JSONResponse(status_code=200, content={"status": "ready"})
     return JSONResponse(status_code=503, content={"status": "starting"})
+
+
+#
+# Well-known documents
+#
+
+# Registered here, before the frontend is mounted to /: an unknown path
+# would otherwise be answered with the web interface and a 200, and
+# clients looking for a document there need a clear 404.
+
+
+@app.api_route(
+    "/.well-known/{path:path}",
+    methods=["GET", "OPTIONS"],
+    include_in_schema=False,
+    dependencies=[NoTraces],
+)
+async def well_known(request: Request, path: str) -> Response:
+    """Serve the documents of the authorization server addon, if there is one."""
+    server = await get_authorization_server()
+    if server is not None:
+        response = await server.handle_well_known(request, path)
+        if response is not None:
+            return response
+    raise NotFoundException(f"File {request.url.path} not found")
 
 
 #

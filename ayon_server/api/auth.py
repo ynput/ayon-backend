@@ -8,6 +8,7 @@ import shortuuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
@@ -18,6 +19,17 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 from ayon_server.utils.strings import parse_access_token, parse_api_key
+
+# Never returned for other users, and not seen by an application acting
+# as the user: they allow logging in as the user
+SECRET_USER_DATA_KEYS = (
+    "password",
+    "apiKey",
+    "apiKeys",
+    "passwordResetRequest",
+    "supportToken",
+    "inviteRequest",
+)
 
 
 def access_token_from_request(request: Request) -> str | None:
@@ -153,6 +165,10 @@ async def user_from_request(request: Request) -> UserEntity:
         session_data = await Session.check(access_token, request)
         if session_data and session_data.is_api_key:
             session_data = None  # an API key sent as a Bearer token
+        if session_data and session_data.delegated:
+            # The path the router matches, not one rebuilt from headers
+            if not session_data.delegated.allows_path(request.scope["path"]):
+                raise UnauthorizedException("Token is not valid for this resource")
 
     else:
         raise UnauthorizedException("Access token is missing")
@@ -168,6 +184,9 @@ async def user_from_request(request: Request) -> UserEntity:
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.model_dump())
     user.add_session(session_data)
+    if session_data.delegated:
+        for key in SECRET_USER_DATA_KEYS:
+            user.data.pop(key, None)
 
     if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
         # sudo :)
@@ -270,6 +289,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):
                 response = await call_next(request)
+
+        if response.status_code == 401 and "www-authenticate" not in response.headers:
+            # Tell the client where it can get a token, if anywhere
+            if challenge := await get_bearer_challenge(request):
+                response.headers["WWW-Authenticate"] = challenge
 
         apply_pre_auth_cookie(request, response)
         return response

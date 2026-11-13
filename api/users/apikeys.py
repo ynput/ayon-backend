@@ -1,7 +1,12 @@
 import time
 from typing import Any
 
-from ayon_server.api.dependencies import CurrentUser, PathEntityID, UserName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NoDelegatedAccess,
+    PathEntityID,
+    UserName,
+)
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.exceptions import BadRequestException, ForbiddenException
@@ -65,7 +70,7 @@ async def get_user_api_keys(
     return [ApiKeyModel(**record) for record in records]
 
 
-@router.post("/{user_name}/apikeys")
+@router.post("/{user_name}/apikeys", dependencies=[NoDelegatedAccess])
 async def create_user_api_key(
     current_user: CurrentUser,
     payload: ApiKeyPostModel,
@@ -99,7 +104,7 @@ async def create_user_api_key(
     return None
 
 
-@router.patch("/{user_name}/apikeys/{entity_id}")
+@router.patch("/{user_name}/apikeys/{entity_id}", dependencies=[NoDelegatedAccess])
 async def update_user_api_key(
     current_user: CurrentUser,
     payload: ApiKeyPatchModel,
@@ -125,7 +130,7 @@ async def update_user_api_key(
     await end_api_key_sessions(user_name, changed_expiry)
 
 
-@router.delete("/{user_name}/apikeys/{entity_id}")
+@router.delete("/{user_name}/apikeys/{entity_id}", dependencies=[NoDelegatedAccess])
 async def delete_user_api_key(
     current_user: CurrentUser,
     user_name: UserName,
