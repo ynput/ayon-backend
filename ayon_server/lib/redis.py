@@ -110,7 +110,15 @@ class Redis:
     @classmethod
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
-        cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
+        # A blocking pool makes requests wait for a free connection.
+        # The default pool raises "Too many connections" instead, which
+        # fails requests (HTTP 500) during bursts of concurrent requests.
+        pool = aioredis.BlockingConnectionPool.from_url(
+            ayonconfig.redis_url,
+            max_connections=ayonconfig.redis_pool_size,
+            timeout=ayonconfig.redis_pool_timeout,
+        )
+        cls.redis_pool = aioredis.Redis.from_pool(pool)
 
         try:
             t = cls.redis_pool.ping()
