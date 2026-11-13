@@ -8,6 +8,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.models.field_info import get_field_extra
@@ -28,6 +29,30 @@ async def get_semaphore(limit: int = 30) -> asyncio.Semaphore:
     if loop not in _semaphores:
         _semaphores[loop] = asyncio.Semaphore(limit)
     return _semaphores[loop]
+
+
+async def _site_has_settings(
+    user_name: str,
+    site_id: str,
+    project_name: str | None,
+) -> bool:
+    """Return whether the user saved any settings for the site"""
+    conditions = [
+        "EXISTS(SELECT 1 FROM public.site_settings"
+        " WHERE site_id = $1 AND user_name = $2)"
+    ]
+    if project_name:
+        conditions.append(
+            f"EXISTS(SELECT 1 FROM project_{project_name}.project_site_settings"
+            " WHERE site_id = $1 AND user_name = $2)"
+        )
+    query = f"SELECT {' OR '.join(conditions)} AS has_settings"
+    try:
+        row = await Postgres.fetchrow(query, site_id, user_name)
+    except Postgres.UndefinedTableError:
+        # Unknown project: keep the site, the regular code path handles it
+        return True
+    return bool(row and row["has_settings"])
 
 
 async def _get_all_settings(
@@ -332,6 +357,12 @@ async def get_all_settings(
     bundle explicitly (for renderfarms)
 
     """
+
+    if site_id and not await _site_has_settings(user.name, site_id, project_name):
+        # Without saved site settings, the result is the same as without
+        # a site. Share that cache entry instead of building one per site
+        # (e.g. render farm machines with a new site id on every boot).
+        site_id = None
 
     coalesce = RequestCoalescer()
     return await coalesce(
