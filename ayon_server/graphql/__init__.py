@@ -244,15 +244,17 @@ class QueryNameExtension(SchemaExtension):
         yield
 
 
+schema = AyonSchema(
+    query=Query,
+    extensions=[
+        LegacyAttribSelection,
+        LegacySortByVariables,
+        QueryNameExtension,
+    ],
+)
+
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
-    schema=AyonSchema(
-        query=Query,
-        extensions=[
-            LegacyAttribSelection,
-            LegacySortByVariables,
-            QueryNameExtension,
-        ],
-    ),
+    schema=schema,
     graphql_ide=None,
     context_getter=graphql_get_context,
 )
