@@ -11,6 +11,14 @@ class ProductBaseType(BaseSettingsModel):
 
     name: Annotated[str, SettingsField(title="Name")] = ""
     color: Annotated[str, SettingsField(title="Color", widget="color")] = "#cccccc"
+    colorLight: Annotated[
+        str | None,
+        SettingsField(
+            title="Light theme",
+            widget="color",
+            description="Leave empty to use the color on the light theme too.",
+        ),
+    ] = None
     icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
 
 
@@ -45,6 +53,15 @@ class DefaultProductBaseType(BaseSettingsModel):
             widget="color",
         ),
     ] = "#cccccc"
+
+    colorLight: Annotated[
+        str | None,
+        SettingsField(
+            title="Default light theme color",
+            widget="color",
+            description="Leave empty to use the color on the light theme too.",
+        ),
+    ] = None
 
     icon: Annotated[
         str,

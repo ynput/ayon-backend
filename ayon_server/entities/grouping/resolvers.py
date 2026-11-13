@@ -45,6 +45,7 @@ async def get_status_or_type_groups(
             f.name AS value,
             f.data->>'icon' AS icon,
             f.data->>'color' AS color,
+            f.data->>'colorLight' AS color_light,
             COALESCE(counts.count, 0) AS count
         FROM project_{project_name}.{join_table} f
         LEFT JOIN counts
@@ -58,6 +59,7 @@ async def get_status_or_type_groups(
             label=row["value"],
             icon=row["icon"],
             color=row["color"],
+            color_light=row["color_light"],
             count=row["count"],
         )
         groups.append(group)
@@ -123,6 +125,7 @@ async def get_attrib_groups(
                 "label": item.get("label"),
                 "icon": item.get("icon"),
                 "color": item.get("color"),
+                "color_light": item.get("colorLight"),
             }
 
     logger.debug(f"Attr config: {attr_config}")
@@ -208,6 +211,7 @@ async def get_tags_groups(
             t.name AS value,
             t.data->>'icon' AS icon,
             t.data->>'color' AS color,
+            t.data->>'colorLight' AS color_light,
             COALESCE(tag_counts.count, 0) AS count
         FROM project_{project_name}.tags t
         LEFT JOIN tag_counts
@@ -220,6 +224,7 @@ async def get_tags_groups(
             label=row["value"],
             icon=row["icon"],
             color=row["color"],
+            color_light=row["color_light"],
             count=row["count"],
         )
         groups.append(group)
@@ -249,6 +254,7 @@ async def get_product_type_groups(
         mapping[pt.name] = {
             "icon": pt.icon,
             "color": pt.color,
+            "color_light": pt.colorLight,
         }
 
     query = f"""
@@ -267,6 +273,10 @@ async def get_product_type_groups(
             or anatomy.product_base_types.default.icon,
             color=mapping.get(row["value"], {}).get("color")
             or anatomy.product_base_types.default.color,
+            # the default light color only goes with the default color
+            color_light=mapping[row["value"]]["color_light"]
+            if mapping.get(row["value"], {}).get("color")
+            else anatomy.product_base_types.default.colorLight,
             count=row["count"],
         )
         groups.append(group)
@@ -310,6 +320,9 @@ async def get_product_base_type_groups(
                 label=pt.name,
                 icon=pt.icon or anatomy.product_base_types.default.icon,
                 color=pt.color or anatomy.product_base_types.default.color,
+                color_light=pt.colorLight
+                if pt.color
+                else anatomy.product_base_types.default.colorLight,
                 count=counts.get(pt.name, 0),
             )
         )
@@ -324,6 +337,7 @@ async def get_product_base_type_groups(
                 label=value,
                 icon=anatomy.product_base_types.default.icon,
                 color=anatomy.product_base_types.default.color,
+                color_light=anatomy.product_base_types.default.colorLight,
                 count=count,
             )
         )

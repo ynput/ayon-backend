@@ -11,6 +11,12 @@ class LinkType(BaseSettingsModel):
     input_type: ProjectLevelEntityType = SettingsField(..., title="Input type")
     output_type: ProjectLevelEntityType = SettingsField(..., title="Output type")
     color: str | None = SettingsField(None, title="Color", widget="color")
+    colorLight: str | None = SettingsField(
+        None,
+        title="Light theme",
+        widget="color",
+        description="Leave empty to use the color on the light theme too.",
+    )
     style: Literal["solid", "dashed"] = SettingsField("solid", title="Style")
 
     def __hash__(self):

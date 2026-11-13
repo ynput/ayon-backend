@@ -52,6 +52,12 @@ class Status(BaseAuxModel):
         widget="color",
         example="#3498db",
     )
+    colorLight: str | None = SettingsField(
+        None,
+        title="Light theme",
+        widget="color",
+        description="Leave empty to use the color on the light theme too.",
+    )
     scope: list[str] | None = SettingsField(
         # not default_factory: pydantic v1 leaves that out of the schema the UI uses
         list(get_default_scopes()),

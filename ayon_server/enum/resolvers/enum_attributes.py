@@ -38,6 +38,7 @@ class AttributeEnumResolver(BaseEnumResolver):
                     label=enum_item.get("label", enum_item["value"]),
                     icon=enum_item.get("icon"),
                     color=enum_item.get("color"),
+                    colorLight=enum_item.get("colorLight"),
                 )
             )
 

@@ -18,6 +18,7 @@ def link_type_to_enum_item(link_type: LinkType) -> EnumItem:
         value=link_type.name,
         label=label,
         color=link_type.color,
+        colorLight=link_type.colorLight,
     )
 
 

@@ -70,6 +70,7 @@ class FormOptionItem(TypedDict):
     group: NotRequired[str]
     icon: NotRequired[str | IconModel]
     color: NotRequired[str]
+    colorLight: NotRequired[str]
     shortName: NotRequired[str]
     disabled: NotRequired[bool]
     disabledMessage: NotRequired[str]
@@ -188,6 +189,8 @@ def _option_from_enum_item(item: EnumItem) -> FormOptionItem:
         option["icon"] = item.icon
     if item.color:
         option["color"] = item.color
+    if item.colorLight:
+        option["colorLight"] = item.colorLight
     if item.short_name:
         option["shortName"] = item.short_name
     if item.disabled:

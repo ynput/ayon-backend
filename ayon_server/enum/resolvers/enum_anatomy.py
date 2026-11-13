@@ -34,6 +34,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     label=folder_type.name,
                     icon=folder_type.icon,
                     color=folder_type.color,
+                    colorLight=folder_type.colorLight,
                     short_name=folder_type.shortName,
                 )
                 for folder_type in anatomy.folder_types
@@ -53,6 +54,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        colorLight=row["data"].get("colorLight"),
                         short_name=row["data"].get("shortName"),
                     )
                 )
@@ -115,6 +117,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     label=task_type.name,
                     icon=task_type.icon,
                     color=task_type.color,
+                    colorLight=task_type.colorLight,
                     short_name=task_type.shortName,
                 )
                 for task_type in anatomy.task_types
@@ -134,6 +137,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        colorLight=row["data"].get("colorLight"),
                         short_name=row["data"].get("shortName"),
                     )
                 )
@@ -216,6 +220,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     label=status.name,
                     icon=status.icon,
                     color=status.color,
+                    colorLight=status.colorLight,
                     short_name=status.shortName,
                 )
                 for status in anatomy.statuses
@@ -241,6 +246,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        colorLight=row["data"].get("colorLight"),
                         short_name=row["data"].get("shortName"),
                     )
                 )
@@ -296,6 +302,7 @@ class TagsEnumResolver(BaseEnumResolver):
                     value=tag.name,
                     label=tag.name,
                     color=tag.color,
+                    colorLight=tag.colorLight,
                 )
                 for tag in anatomy.tags
             ]
@@ -313,6 +320,7 @@ class TagsEnumResolver(BaseEnumResolver):
                         value=row["name"],
                         label=row["name"],
                         color=row["data"].get("color"),
+                        colorLight=row["data"].get("colorLight"),
                     )
                 )
         return result

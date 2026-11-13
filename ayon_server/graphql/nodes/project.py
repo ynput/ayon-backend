@@ -86,6 +86,7 @@ class TaskType:
     icon: str | None = None
     short_name: str | None = None
     color: str | None = None
+    color_light: str | None = None
 
 
 @strawberry.type
@@ -94,6 +95,7 @@ class FolderType:
     icon: str | None = None
     short_name: str | None = None
     color: str | None = None
+    color_light: str | None = None
 
 
 @strawberry.type
@@ -103,6 +105,7 @@ class LinkType:
     input_type: str
     output_type: str
     color: str | None = None
+    color_light: str | None = None
     style: str = "solid"
 
 
@@ -112,6 +115,7 @@ class Status:
     short_name: str | None = None
     icon: str | None = None
     color: str | None = None
+    color_light: str | None = None
     state: str | None = None
     scope: list[str] | None = None
 
@@ -120,6 +124,7 @@ class Status:
 class Tag:
     name: str
     color: str | None = None
+    color_light: str | None = None
 
 
 @strawberry.type
@@ -250,6 +255,7 @@ class ProjectNode(AttribFields):
                 short_name=row["data"].get("shortName"),
                 icon=row["data"].get("icon"),
                 color=row["data"].get("color"),
+                color_light=row["data"].get("colorLight"),
             )
             for row in res
         ]
@@ -277,6 +283,7 @@ class ProjectNode(AttribFields):
                 name=row["name"],
                 short_name=row["data"].get("shortName"),
                 color=row["data"].get("color"),
+                color_light=row["data"].get("colorLight"),
                 icon=row["data"].get("icon"),
             )
             for row in res
@@ -311,6 +318,7 @@ class ProjectNode(AttribFields):
                 color=color
                 if (color := row["data"].get("color")) and isinstance(color, str)
                 else None,
+                color_light=row["data"].get("colorLight"),
                 style=row["data"].get("style", "solid"),
             )
             for row in res
@@ -338,6 +346,7 @@ class ProjectNode(AttribFields):
     async def product_base_types(self) -> list[ProductBaseType]:
         (
             default_color,
+            default_color_light,
             default_icon,
             definitions,
         ) = await self._get_product_base_type_defs()
@@ -347,9 +356,13 @@ class ProjectNode(AttribFields):
             ProductBaseType(
                 name=row["name"],
                 icon=definitions.get(row["name"], {}).get("icon") or default_icon,
-                color=definitions.get(row["name"], {}).get("color")  # type: ignore
+                color=definitions.get(row["name"], {}).get("color")
                 or default_color
                 or "#cccccc",
+                # the default light color only goes with the default color
+                color_light=definitions[row["name"]].get("colorLight")
+                if definitions.get(row["name"], {}).get("color")
+                else default_color_light,
             )
             async for row in Postgres.iterate(
                 f"""
@@ -361,14 +374,15 @@ class ProjectNode(AttribFields):
             )
         ]
 
-    async def _get_product_base_type_defs(self) -> tuple[dict[Any, Any], Any, Any]:
+    async def _get_product_base_type_defs(self) -> tuple[Any, Any, Any, dict[Any, Any]]:
         config = json.loads(self.config or "{}")
         pdt = config.get("productBaseTypes") or {}
         pbdefs = pdt.get("definitions") or []
         definitions = {type_def["name"]: type_def for type_def in pbdefs}
         default_icon = config["productBaseTypes"]["default"]["icon"]
         default_color = config["productBaseTypes"]["default"]["color"]
-        return default_color, default_icon, definitions
+        default_color_light = config["productBaseTypes"]["default"].get("colorLight")
+        return default_color, default_color_light, default_icon, definitions
 
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:
@@ -386,6 +400,7 @@ class ProjectNode(AttribFields):
                 short_name=row["data"].get("shortName"),
                 icon=row["data"].get("icon"),
                 color=row["data"].get("color"),
+                color_light=row["data"].get("colorLight"),
                 state=row["data"].get("state"),
                 scope=row["data"].get("scope", []),
             )
@@ -406,6 +421,7 @@ class ProjectNode(AttribFields):
             Tag(
                 name=row["name"],
                 color=row["data"].get("color"),
+                color_light=row["data"].get("colorLight"),
             )
             for row in res
         ]
