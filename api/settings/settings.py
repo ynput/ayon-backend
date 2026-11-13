@@ -2,7 +2,7 @@ import asyncio
 import time
 import traceback
 
-from fastapi import Depends, Query
+from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
@@ -38,7 +38,6 @@ async def _get_all_settings(
     project_bundle_name: str | None,
     variant: str,
     summary: bool,
-    semaphore: asyncio.Semaphore,
 ) -> AllSettingsResponseModel:
     start_time = time.perf_counter()
     cache_key = hash_data(
@@ -83,6 +82,9 @@ async def _get_all_settings(
     # Iterate over all addons and load the settings
     #
 
+    # Not an argument: the coalescer keys requests by their arguments,
+    # and the semaphore's repr changes with its counter
+    semaphore = await get_semaphore()
     async with semaphore:
         start_time = time.perf_counter()
         addon_result = []
@@ -314,7 +316,6 @@ async def get_all_settings(
             "in the specified bundles"
         ),
     ),
-    semaphore: asyncio.Semaphore = Depends(get_semaphore),
 ) -> AllSettingsResponseModel:
     """Return all addon settings
 
@@ -343,5 +344,4 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
         summary=summary,
-        semaphore=semaphore,
     )
