@@ -98,19 +98,17 @@ def test_settings_built_before_an_invalidation_are_not_served(
         await asyncio.wait_for(in_build.wait(), timeout=5)
         second = request()
         await asyncio.sleep(0.05)
-        # settings are saved during the build
+        # settings are saved during the build: a later request does not join it
         await Redis.delete_ns("all-settings")
+        third = request()
+        await asyncio.sleep(0.05)
         release.set()
-        results = await asyncio.gather(first, second)
-        assert len(loads) == 1
+        results = await asyncio.gather(first, second, third)
+        assert len(loads) == 2
         assert results[0].bundle_name == "b"
 
-        # the build stored its result, but under a key nobody reads
-        assert len(await Redis.keys("all-settings")) == 1
-        await request()
-        assert len(loads) == 2
-
-        # the fresh result is served from Redis
+        # the fresh result is served from Redis, the stale one is under
+        # a key nobody reads
         cached = await request()
         assert len(loads) == 2
         assert cached.bundle_name == "b"

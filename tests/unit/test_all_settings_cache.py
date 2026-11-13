@@ -57,16 +57,14 @@ async def test_identical_requests_share_a_build_and_stale_builds_are_not_served(
     await asyncio.wait_for(in_build.wait(), timeout=1)
     second = request()
     await asyncio.sleep(0.01)
-    # invalidation during the build
+    # invalidation during the build: a later request does not join it
     cache[("generation", "all-settings")] = 1
+    third = request()
+    await asyncio.sleep(0.01)
     release.set()
-    await asyncio.gather(first, second)
-    assert len(loads) == 1
-
-    # the result of the build which started before the invalidation is not served
-    await request()
+    await asyncio.gather(first, second, third)
     assert len(loads) == 2
 
-    # and the fresh one is cached
+    # the fresh result is cached, the stale one is not served
     await request()
     assert len(loads) == 2

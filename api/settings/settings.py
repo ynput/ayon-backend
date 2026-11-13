@@ -33,11 +33,9 @@ async def _get_all_settings(
     project_bundle_name: str | None,
     variant: str,
     summary: bool,
+    generation: int,
 ) -> AllSettingsResponseModel:
     start_time = time.perf_counter()
-    # Bumped by Redis.delete_ns: a build which started before an invalidation
-    # stores its (stale) result under a key nobody reads anymore
-    generation = int(await Redis.get("generation", "all-settings") or 0)
     cache_key = hash_data(
         (
             generation,
@@ -330,6 +328,11 @@ async def get_all_settings(
 
     """
 
+    # Bumped by Redis.delete_ns. Read before coalescing, so a request made after
+    # an invalidation neither joins a build which started before it,
+    # nor reads its (stale) result from the cache
+    generation = int(await Redis.get("generation", "all-settings") or 0)
+
     coalesce = RequestCoalescer()
     return await coalesce(
         _get_all_settings,
@@ -340,4 +343,5 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
         summary=summary,
+        generation=generation,
     )
