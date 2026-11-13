@@ -193,6 +193,10 @@ async def get_products(
         """,
     ]
 
+    # joins that only add columns / only filter: see the page CTE below
+    sql_output_joins = []
+    sql_filter_joins = []
+
     sql_cte = []
     sql_conditions = []
 
@@ -291,10 +295,11 @@ async def get_products(
             sql_conditions.append(f"NOT {reviewables_cond}")
 
     if name_ex is not None:
+        name_ex = name_ex.replace("'", "''")
         sql_conditions.append(f"products.name ~ '{name_ex}'")
 
     if path_ex is not None:
-        # TODO: sanitize
+        path_ex = path_ex.replace("'", "''")
         sql_conditions.append(f"'/' || folder_ex.path ~ '{path_ex}'")
 
     #
@@ -397,7 +402,7 @@ async def get_products(
         sql_columns.extend(
             ["version_list.ids as version_ids", "version_list.versions as version_list"]
         )
-        sql_joins.append(
+        sql_output_joins.append(
             f"""
             LEFT JOIN LATERAL (
                 SELECT
@@ -613,7 +618,7 @@ async def get_products(
                 """
             )
 
-            sql_joins.append(
+            sql_filter_joins.append(
                 """
                 INNER JOIN filtered_versions
                 ON products.id = filtered_versions.product_id
@@ -686,6 +691,9 @@ async def get_products(
 
     order_by = with_tiebreakers(order_by, "products.creation_order")
 
+    sql_from = f"project_{project_name}.products AS products"
+    main_joins = sql_joins + sql_filter_joins + sql_output_joins
+
     ordering = ""
     cursor = "''"
     if not calculate_statistics and not calculate_specific_statistics:
@@ -697,6 +705,29 @@ async def get_products(
             before,
         )
         sql_conditions.append(paging_conds)
+
+        # Pick the page first and hydrate only its rows (as the versions
+        # resolver does). Sorting the full rows - whole folders and their
+        # attributes included - of every matching product does not fit
+        # in work_mem and spills to disk.
+        sql_cte.append(
+            f"""
+            page AS MATERIALIZED (
+                SELECT products.id
+                FROM project_{project_name}.products AS products
+                {" ".join(sql_joins + sql_filter_joins)}
+                {SQLTool.conditions(sql_conditions)}
+                {ordering}
+            )
+            """
+        )
+        sql_from = f"""
+            page
+            INNER JOIN project_{project_name}.products AS products
+            ON products.id = page.id
+            """
+        main_joins = sql_joins + sql_output_joins
+        sql_conditions = []
 
     #
     # Query
@@ -746,8 +777,8 @@ async def get_products(
         {cte}
         {raw_data_start}
         SELECT {sql_columns_str}
-        FROM project_{project_name}.products
-        {" ".join(sql_joins)}
+        FROM {sql_from}
+        {" ".join(main_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
         {raw_data_end}

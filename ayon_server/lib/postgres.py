@@ -297,7 +297,7 @@ class Postgres:
             return await connection.executemany(query, *args, timeout=timeout)
 
     @classmethod
-    async def fetch(cls, query: str, *args: Any, timeout: float = 60):
+    async def fetch(cls, query: str, *args: Any, timeout: float | None = 60):
         """Run a query and return the results as a list of Record."""
         async with cls.acquire() as connection:
             return await connection.fetch(query, *args, timeout=timeout)
