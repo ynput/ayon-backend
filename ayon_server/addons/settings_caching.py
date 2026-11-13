@@ -15,6 +15,8 @@ class AddonSettingsCache:
     project: dict[str, Any] | None = None
     site: dict[str, Any] | None = None
     project_site: dict[str, Any] | None = None
+    # Site settings were preloaded: no row (site is None) means none saved
+    site_loaded: bool = False
 
 
 AddonKey = tuple[str, str]
@@ -100,6 +102,19 @@ async def load_all_settings(
                 if key not in result:
                     result[key] = AddonSettingsCache()
                 result[key].project_site = row["data"]
+
+    # The queries above covered all requested addons. Mark the scopes without
+    # a row as loaded, so the addons don't query them again one by one.
+    for key in addons.items():
+        cache = result.setdefault(key, AddonSettingsCache())
+        if cache.studio is None:
+            cache.studio = {}
+        if project_name and cache.project is None:
+            cache.project = {}
+        if site_id and user_name:
+            cache.site_loaded = True
+            if project_name and cache.project_site is None:
+                cache.project_site = {}
 
     logger.trace(f"Settings cache loaded in {time.time() - start_time:.2f} seconds")
 
