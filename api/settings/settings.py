@@ -20,14 +20,9 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-_semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
-
-
-async def get_semaphore(limit: int = 30) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    if loop not in _semaphores:
-        _semaphores[loop] = asyncio.Semaphore(limit)
-    return _semaphores[loop]
+# Not an argument of _get_all_settings: the coalescer keys requests by their
+# arguments, and the semaphore's repr changes with its counter
+_semaphore = asyncio.Semaphore(30)
 
 
 async def _get_all_settings(
@@ -40,8 +35,12 @@ async def _get_all_settings(
     summary: bool,
 ) -> AllSettingsResponseModel:
     start_time = time.perf_counter()
+    # Bumped by Redis.delete_ns: a build which started before an invalidation
+    # stores its (stale) result under a key nobody reads anymore
+    generation = int(await Redis.get("generation", "all-settings") or 0)
     cache_key = hash_data(
         (
+            generation,
             bundle_name,
             project_name,
             project_bundle_name,
@@ -82,10 +81,7 @@ async def _get_all_settings(
     # Iterate over all addons and load the settings
     #
 
-    # Not an argument: the coalescer keys requests by their arguments,
-    # and the semaphore's repr changes with its counter
-    semaphore = await get_semaphore()
-    async with semaphore:
+    async with _semaphore:
         start_time = time.perf_counter()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
