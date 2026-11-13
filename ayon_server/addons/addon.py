@@ -589,6 +589,10 @@ class BaseServerAddon:
         if settings_cache and settings_cache.site is not None:
             data = settings_cache.site or {}
 
+        elif settings_cache and settings_cache.site_loaded:
+            # Preloaded, and no site settings found
+            return None
+
         else:
             query = """
                 SELECT data FROM public.site_settings
