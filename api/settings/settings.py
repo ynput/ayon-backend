@@ -2,7 +2,7 @@ import asyncio
 import time
 import traceback
 
-from fastapi import Depends, Query
+from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
@@ -20,14 +20,9 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-_semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
-
-
-async def get_semaphore(limit: int = 30) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    if loop not in _semaphores:
-        _semaphores[loop] = asyncio.Semaphore(limit)
-    return _semaphores[loop]
+# Not an argument of _get_all_settings: the coalescer keys requests by their
+# arguments, and the semaphore's repr changes with its counter
+_semaphore = asyncio.Semaphore(30)
 
 
 async def _get_all_settings(
@@ -38,11 +33,12 @@ async def _get_all_settings(
     project_bundle_name: str | None,
     variant: str,
     summary: bool,
-    semaphore: asyncio.Semaphore,
+    generation: int,
 ) -> AllSettingsResponseModel:
     start_time = time.perf_counter()
     cache_key = hash_data(
         (
+            generation,
             bundle_name,
             project_name,
             project_bundle_name,
@@ -83,7 +79,7 @@ async def _get_all_settings(
     # Iterate over all addons and load the settings
     #
 
-    async with semaphore:
+    async with _semaphore:
         start_time = time.perf_counter()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
@@ -314,7 +310,6 @@ async def get_all_settings(
             "in the specified bundles"
         ),
     ),
-    semaphore: asyncio.Semaphore = Depends(get_semaphore),
 ) -> AllSettingsResponseModel:
     """Return all addon settings
 
@@ -333,6 +328,11 @@ async def get_all_settings(
 
     """
 
+    # Bumped by Redis.delete_ns. Read before coalescing, so a request made after
+    # an invalidation neither joins a build which started before it,
+    # nor reads its (stale) result from the cache
+    generation = int(await Redis.get("generation", "all-settings") or 0)
+
     coalesce = RequestCoalescer()
     return await coalesce(
         _get_all_settings,
@@ -343,5 +343,5 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
         summary=summary,
-        semaphore=semaphore,
+        generation=generation,
     )
