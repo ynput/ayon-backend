@@ -283,8 +283,13 @@ class Redis:
 
     @classmethod
     async def delete_ns(cls, namespace: str):
-        if not cls.connected:
-            await cls.connect()
+        """Delete all keys of the namespace and bump its generation.
+
+        Readers put `generation-<namespace>` in their cache keys, so a build
+        which started before the deletion stores its (stale) result under
+        a key nobody reads anymore. Bumped first, the key is outside the namespace.
+        """
+        await cls.incr("generation", namespace)
         keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
         for key in keys:
             await cls.redis_pool.delete(key)
