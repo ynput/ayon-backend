@@ -193,24 +193,27 @@ class Messaging(BackgroundWorker):
         Waits for messages from Redis and sends them to connected WebSocket clients.
         """
 
+        # Send heartbeat periodically, also while other messages are flowing.
+        # Messages are sent only to subscribers of their topic, so other
+        # clients would receive nothing and consider the connection dead.
+        # Don't emit heartbeats while the server is still starting up
+        # (e.g. addons are still being initialized).
+        if time.time() - self.last_msg > 5 and is_ready():
+            self.last_msg = time.time()
+            await self.broadcast({"topic": "heartbeat"})
+
         raw_message = await self.pubsub.get_message(
             ignore_subscribe_messages=True,
             timeout=2,
         )
         if raw_message is None:
             await asyncio.sleep(0.01)
-            if time.time() - self.last_msg > 5:
-                if not is_ready():
-                    # Don't emit heartbeats while the server is still
-                    # starting up (e.g. addons are still being initialized).
-                    return
-                message = {"topic": "heartbeat"}
-                self.last_msg = time.time()
-            else:
-                return
-        else:
-            message = json_loads(raw_message["data"])
+            return
 
+        await self.broadcast(json_loads(raw_message["data"]))
+
+    async def broadcast(self, message: dict[str, Any]) -> None:
+        """Send the message to connected clients subscribed to its topic."""
         await handle_subscribers(message)
 
         topic = message.get("topic", None)
