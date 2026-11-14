@@ -247,7 +247,13 @@ async def update_bundle(
         title="Request build",
         description="Build dependency packages for selected platforms",
     ),
-    force: bool = Query(False, description="Force creation of bundle"),
+    force: bool = Query(
+        False,
+        description=(
+            "Skip compatibility validation and allow client addon changes "
+            "also on non-development bundles"
+        ),
+    ),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
@@ -411,6 +417,7 @@ async def update_bundle(
                 # so only reject actual version changes of non-server addons.
                 if (
                     not bundle.is_dev
+                    and not force
                     and not is_server
                     and addons.get(addon_name) != addon_version
                 ):
