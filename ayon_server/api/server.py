@@ -9,7 +9,12 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.openapi.docs import get_redoc_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -27,8 +32,10 @@ from ayon_server.api.static import serve_static_file
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
 from ayon_server.deprecations import AyonDeprecationWarning
+from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql import router as graphql_router
+from ayon_server.graphql import schema as graphql_schema
 from ayon_server.logging import log_traceback, logger
 
 # okay. now the rest
@@ -110,19 +117,27 @@ async def readyz() -> JSONResponse:
 #
 
 
+def check_docs_access(user: UserEntity | None) -> None:
+    """Raise unless the user may read the API documentation and schemas"""
+
+    if ayonconfig.disable_rest_docs:
+        raise ForbiddenException("API documentation is disabled")
+
+    if ayonconfig.openapi_require_authentication:
+        if user is None:
+            raise ForbiddenException(
+                "You must be logged in to access API documentation"
+            )
+
+        if not user.is_manager:
+            raise ForbiddenException("You are not allowed to access API documentation")
+
+
 @app.get("/openapi.json", include_in_schema=False)
 async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
     """Return OpenAPI schema"""
 
-    if ayonconfig.disable_rest_docs:
-        raise ForbiddenException("OpenAPI documentation is disabled")
-
-    if ayonconfig.openapi_require_authentication:
-        if user is None:
-            raise ForbiddenException("You must be logged in to access OpenAPI schema")
-
-        if not user.is_manager:
-            raise ForbiddenException("You are not allowed to access OpenAPI schema")
+    check_docs_access(user)
 
     return get_openapi(
         title=app_meta["title"],
@@ -136,16 +151,7 @@ async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
 async def redocs_static_js(user: CurrentUserOptional) -> FileResponse:
     """Serve Redoc static JS file"""
 
-    if ayonconfig.disable_rest_docs:
-        raise ForbiddenException("OpenAPI documentation is disabled")
-
-    if ayonconfig.openapi_require_authentication:
-        if user is None:
-            raise ForbiddenException(
-                "You must be logged in to access API documentation"
-            )
-        if not user.is_manager:
-            raise ForbiddenException("You are not allowed to access API documentation")
+    check_docs_access(user)
 
     return FileResponse(
         pathlib.Path("static/redoc.standalone.js"),
@@ -156,17 +162,7 @@ async def redocs_static_js(user: CurrentUserOptional) -> FileResponse:
 async def docs(user: CurrentUserOptional) -> HTMLResponse:
     """Return the OpenAPI documentation page"""
 
-    if ayonconfig.disable_rest_docs:
-        raise ForbiddenException("OpenAPI documentation is disabled")
-
-    if ayonconfig.openapi_require_authentication:
-        if user is None:
-            raise ForbiddenException(
-                "You must be logged in to access API documentation"
-            )
-
-        if not user.is_manager:
-            raise ForbiddenException("You are not allowed to access API documentation")
+    check_docs_access(user)
 
     return get_redoc_html(
         openapi_url="/openapi.json",
@@ -312,6 +308,21 @@ app.include_router(
     tags=["GraphQL"],
     include_in_schema=False,
 )
+
+
+@app.get("/schema.graphql", include_in_schema=False)
+async def graphql_schema_sdl(user: CurrentUserOptional) -> PlainTextResponse:
+    """Return the GraphQL schema in SDL
+
+    The first line is a comment with the server title and version, which the
+    SDL itself does not carry (unlike `info.version` in /openapi.json).
+    Follows the same settings as the OpenAPI schema at /openapi.json.
+    """
+
+    check_docs_access(user)
+
+    header = f"# {app_meta['title']} {app_meta['version']}\n\n"
+    return PlainTextResponse(header + graphql_schema.as_str())
 
 
 @app.get("/graphiql", include_in_schema=False)

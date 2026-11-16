@@ -33,8 +33,10 @@ async def _site_has_settings(
 ) -> bool:
     """Return whether the user saved any settings for the site"""
     conditions = [
-        "EXISTS(SELECT 1 FROM public.site_settings"
-        " WHERE site_id = $1 AND user_name = $2)"
+        (
+            "EXISTS(SELECT 1 FROM public.site_settings"
+            " WHERE site_id = $1 AND user_name = $2)"
+        )
     ]
     if project_name:
         conditions.append(
