@@ -91,6 +91,23 @@ class AyonConfig(BaseModel):
         description="Redis keys prefix",
     )
 
+    redis_pool_size: int = Field(
+        100,
+        gt=0,
+        description=(
+            "Maximum number of Redis connections per server process. "
+            "When all of them are in use, requests wait for a free one."
+        ),
+        examples=[100],
+    )
+
+    redis_pool_timeout: int = Field(
+        20,
+        gt=0,
+        description="Seconds to wait for a free Redis connection before failing",
+        examples=[20],
+    )
+
     postgres_url: str = Field(
         default="postgres://ayon:ayon@postgres/ayon",
         description="Connection string for Postgres.",

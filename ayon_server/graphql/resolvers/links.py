@@ -37,6 +37,7 @@ async def get_links(
     type_conditions = []
     if link_types is not None:
         for lt in link_types:
+            lt = lt.replace("'", "''")
             type_conditions.append(f"link_type LIKE '{lt}|%'")
         if type_conditions:
             sql_conditions.append(f"({' or '.join(type_conditions)})")
@@ -45,9 +46,11 @@ async def get_links(
         sql_conditions.append(f"creation_order > {after}")
 
     if names is not None:
+        names = [name.replace("'", "''") for name in names]
         sql_conditions.append(f"name in {SQLTool.array(names)}")
 
     if name_ex is not None:
+        name_ex = name_ex.replace("'", "''")
         sql_conditions.append(f"name ~ '{name_ex}'")
 
     query = f"""
