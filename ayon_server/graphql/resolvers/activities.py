@@ -360,6 +360,7 @@ async def get_activities(
         after,
         last,
         before,
+        skippable=True,
     )
     sql_conditions.append(paging_conds)
 

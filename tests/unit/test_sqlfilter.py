@@ -176,3 +176,37 @@ def test_boolean_eq_on_native_column_in_filter():
         "(coalesce(tasks.active, FALSE)"
         " AND NOT coalesce(tasks.attrib->'flag', 'false'::jsonb)::boolean)"
     )
+
+
+@pytest.mark.parametrize(
+    "operator, pattern",
+    [("startswith", "'a\\%b\\_c\\\\d''e%'"), ("endswith", "'%a\\%b\\_c\\\\d''e'")],
+)
+def test_startswith_endswith_escape_wildcards(operator: str, pattern: str):
+    value = "a%b_c\\d'e"
+    column = QueryCondition(key="name", operator=operator, value=value)
+    assert build_condition(column) == f"(name) ILIKE {pattern}"
+    attrib = QueryCondition(key="attrib.note", operator=operator, value=value)
+    assert build_condition(attrib) == f"(attrib->>'note') ILIKE {pattern}"
+
+
+@pytest.mark.parametrize(
+    "operator", ["starts_with", "startsWith", "STARTS-WITH", "startswith"]
+)
+def test_startswith_operator_spelling(operator: str):
+    condition = QueryCondition(key="name", operator=operator, value="a")
+    assert condition.operator == "startswith"
+
+
+@pytest.mark.parametrize("operator", ["ends_with", "endsWith", "ENDS-WITH"])
+def test_endswith_operator_spelling(operator: str):
+    condition = QueryCondition(key="name", operator=operator, value="a")
+    assert condition.operator == "endswith"
+
+
+@pytest.mark.parametrize("key", ["attrib.note", "name"])
+@pytest.mark.parametrize("operator", ["startswith", "like"])
+def test_text_operators_require_string_value(key: str, operator: str):
+    condition = QueryCondition(key=key, operator=operator, value=1)
+    with pytest.raises(ValueError):
+        build_condition(condition)

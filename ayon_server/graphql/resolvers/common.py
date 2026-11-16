@@ -7,9 +7,10 @@ import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.config import ayonconfig
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, ServiceUnavailableException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -342,11 +343,20 @@ async def resolve[R](
 
     # Label the statement: database monitoring truncates the query text,
     # so the resolver has to be recognizable from its first characters
-    query = f"/* graphql {node_type.__name__ if node_type is not None else edge_type.__name__} */ {query}"
+    label = (node_type if node_type is not None else edge_type).__name__
+    query = f"/* graphql {label} */ {query}"
+
+    # fetch, not iterate: reading through a cursor keeps postgres from
+    # running the query in parallel, and the query is limited to a page anyway.
+    try:
+        records = await Postgres.fetch(
+            query, timeout=ayonconfig.postgres_read_timeout or None
+        )
+    except TimeoutError:
+        raise ServiceUnavailableException("Database query timed out")
 
     edges: list[Any] = []
-    # Now execute the original query for the actual data
-    async for record in Postgres.iterate(query):
+    for record in records:
         # Create a standard dictionary from the record
         record_dict = dict(record)
 
@@ -423,17 +433,27 @@ def get_has_links_conds(
     if filter == HasLinksFilter.OUT:
         return [f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)"]
     if filter == HasLinksFilter.ANY:
+        # EXISTS, not IN: under OR postgres cannot turn IN into a semi-join
+        # and rescans the whole links table for every candidate row
+        # (unless the list happens to fit in work_mem).
+        links = f"SELECT 1 FROM project_{project_name}.links AS l"
         return [
             f"""
             (
-            {id_field} IN (SELECT input_id FROM project_{project_name}.links) OR
-            {id_field} IN (SELECT output_id FROM project_{project_name}.links)
+            EXISTS ({links} WHERE l.input_id = {id_field}) OR
+            EXISTS ({links} WHERE l.output_id = {id_field})
             )"""
         ]
     if filter == HasLinksFilter.BOTH:
         return [
             f"{id_field} IN (SELECT output_id FROM project_{project_name}.links)",
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
+        ]
+    if filter == HasLinksFilter.NONE:
+        links = f"SELECT 1 FROM project_{project_name}.links AS l"
+        return [
+            f"NOT EXISTS ({links} WHERE l.input_id = {id_field})",
+            f"NOT EXISTS ({links} WHERE l.output_id = {id_field})",
         ]
     raise ValueError("Wrong has_links value")
 

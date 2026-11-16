@@ -33,6 +33,8 @@ OperatorType = Literal[
     "like",
     "notlike",
     "contains",
+    "startswith",
+    "endswith",
     "re",
     "lt",
     "gt",
@@ -51,11 +53,24 @@ OperatorType = Literal[
     "excludesany",
 ]
 
+TEXT_OPERATORS = ("like", "notlike", "contains", "startswith", "endswith", "re")
+
 
 def camel_to_snake(name):
     """Convert camelCase or PascalCase to snake_case."""
     name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
     return name
+
+
+def anchored_pattern(operator: str, value: str) -> str:
+    """Turn the value of startswith/endswith into an ILIKE pattern.
+
+    % _ and \\ in the value are literals. Other operators pass through.
+    """
+    if operator not in ("startswith", "endswith"):
+        return value
+    value = re.sub(r"([\\%_])", r"\\\1", value)
+    return f"{value}%" if operator == "startswith" else f"%{value}"
 
 
 class QueryCondition(OPModel):
@@ -79,7 +94,10 @@ class QueryCondition(OPModel):
         OperatorType,
         Field(
             title="Operator",
-            description="Comparison operator",
+            description=(
+                "Comparison operator. Text operators: like, notlike, contains, "
+                "startswith, endswith, re"
+            ),
             example="eq",
         ),
     ] = "eq"
@@ -216,6 +234,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     json_list_column: str | None = None
     column_is_jsonb = False
 
+    if operator in TEXT_OPERATORS and not isinstance(value, str):
+        raise ValueError(f"Value must be a string for the '{operator}' operator")
+
     column = path[0]
     mapped_attribute = False
     if column in column_map:
@@ -236,7 +257,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             if path[0] == "id" or path[0].endswith("_id"):
                 safe_value = EntityID.parse(value)
             else:
-                safe_value = value.replace("'", "''")
+                safe_value = anchored_pattern(operator, value).replace("'", "''")
             safe_value = f"'{safe_value}'"
 
         elif isinstance(value, int | float):
@@ -276,16 +297,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like", "notlike", "contains", "re"):
+        if operator in TEXT_OPERATORS:
             # JSON Field is a string, so we need to cast it to text
-            if isinstance(value, str):
-                safe_value = value.replace("'", "''")
-                safe_value = f"'{safe_value}'"
-            else:
-                raise ValueError(
-                    "Value must be a string for 'like', 'notlike', 'contains' "
-                    "or 're' operators"
-                )
+            pattern = anchored_pattern(operator, cast(str, value))
+            safe_value = "'" + pattern.replace("'", "''") + "'"
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -420,7 +435,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if safe_value is None:
         raise ValueError(f"Invalid value: {value}")
 
-    if operator in ("like", "notlike", "contains", "re"):
+    if operator in TEXT_OPERATORS:
         if mapped_attribute:
             # A resolved value may be a COALESCE of several JSON accesses.
             column = f"({column}) #>> '{{}}'"
@@ -435,7 +450,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 boolean_expr = f"coalesce({column}, FALSE)"
             return boolean_expr if value else f"NOT {boolean_expr}"
         return f"{column} = {safe_value}"
-    elif operator == "like":
+    elif operator in ("like", "startswith", "endswith"):
         return f"({column}) ILIKE {safe_value}"
     elif operator == "notlike":
         # a missing value does not match the pattern, so it passes the filter

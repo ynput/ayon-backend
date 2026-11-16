@@ -29,6 +29,15 @@ class ViewListItemModel(OPModel):
     working: FViewWorking
     position: int
     access_level: int
+    shared_with_me: Annotated[
+        bool,
+        Field(
+            description=(
+                "False when the view is not shared with the user, who sees it "
+                "only because they are a manager or admin"
+            ),
+        ),
+    ] = True
 
 
 class ViewListModel(OPModel):
@@ -114,7 +123,11 @@ def get_patch_model_class() -> type[ViewPatchModel]:
     return GenericViewPatchModel
 
 
-def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
+def row_to_list_item(
+    row: dict[str, Any],
+    access_level: int,
+    shared_with_me: bool = True,
+) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
     return ViewListItemModel(
         id=row["id"],
@@ -125,6 +138,7 @@ def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemMode
         visibility=row.get("visibility", "private"),
         working=row.get("working", False),
         access_level=access_level,
+        shared_with_me=shared_with_me,
     )
 
 
