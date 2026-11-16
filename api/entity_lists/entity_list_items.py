@@ -172,7 +172,7 @@ async def _multi_merge(
 async def update_entity_list_items(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    list_id: EntityListID,
     sender: Sender,
     sender_type: SenderType,
     payload: EntityListMultiPatchModel,
