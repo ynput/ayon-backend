@@ -7,13 +7,16 @@ from ayon_server.lib.postgres import Postgres
 MAX_TERMS = 8
 
 # Entity links of every hit are resolved for the top hits only.
+# A hit in the literals (names, labels) scores 1 to 2 per term, so it outranks
+# any hit in the texts. The closer the term is to a whole word of the literals,
+# the higher the score; among equal scores, the shortest literals win.
 QUERY = """
 WITH hits AS (
-    SELECT s.*, ts_rank(s.search_vector, {tsquery}) AS rank
+    SELECT s.*, {literal_hits} + ts_rank(s.search_vector, {tsquery}) AS rank
     FROM entity_search s
-    WHERE s.search_vector @@ ({tsquery})
+    WHERE {conditions}
     AND ($1::text[] IS NULL OR s.entity_type = ANY($1))
-    ORDER BY rank DESC, s.updated_at DESC NULLS LAST
+    ORDER BY rank DESC, length(s.literals) NULLS LAST, s.updated_at DESC NULLS LAST
     LIMIT $2
 )
 SELECT
@@ -31,13 +34,23 @@ LEFT JOIN tasks t ON t.id = h.task_id
 LEFT JOIN products p ON p.id = h.product_id
 LEFT JOIN versions v ON v.id = h.version_id
 LEFT JOIN activities a ON a.id = h.activity_id
-ORDER BY h.rank DESC, h.updated_at DESC NULLS LAST
+ORDER BY h.rank DESC, length(h.literals) NULLS LAST, h.updated_at DESC NULLS LAST
 """
 
 
-def _lexeme(term: str) -> str:
-    """Return the term as a quoted tsquery prefix lexeme."""
-    escaped = term.lower().replace("\\", "\\\\").replace("'", "''")
+def like_pattern(term: str) -> str:
+    """Return a LIKE pattern matching the term at any position.
+
+    Names are full of underscores, which LIKE would take as wildcards.
+    """
+    for char in "\\%_":
+        term = term.replace(char, f"\\{char}")
+    return f"%{term}%"
+
+
+def prefix_lexeme(term: str) -> str:
+    """Return the term as a quoted tsquery lexeme matching word prefixes."""
+    escaped = term.replace("\\", "\\\\").replace("'", "''")
     return f"'{escaped}':*"
 
 
@@ -50,21 +63,39 @@ async def search(
 ) -> list[dict[str, Any]]:
     """Return the best matches for all whitespace-separated terms of the text.
 
-    Every term is a prefix. It matches either literally (names are stored
-    as one lexeme) or as the parser splits it (labels, descriptions, comments).
+    A term matches anywhere in the literals (names, labels),
+    or the beginning of a word in the other texts. Accents are ignored.
     """
-    lexemes = [_lexeme(term) for term in text.split()[:MAX_TERMS]]
-    if not lexemes:
+    terms = text.split()[:MAX_TERMS]
+    if not terms:
         return []
 
-    # $1 = entity types, $2 = limit, $3.. = terms
-    tsquery = " && ".join(
-        f"(${i}::text::tsquery || to_tsquery('simple', ${i}::text))"
-        for i in range(3, len(lexemes) + 3)
+    # $1 = entity types, $2 = limit, then the term, its pattern and lexeme
+    args: list[Any] = [entity_types or None, limit]
+    likes, similarities, tsqueries = [], [], []
+    for term in terms:
+        args += [term, like_pattern(term), prefix_lexeme(term)]
+        term_arg, like_arg, lexeme_arg = (
+            f"${i}::text" for i in range(len(args) - 2, len(args) + 1)
+        )
+        likes.append(f"s.literals LIKE lower(public.unaccent({like_arg}))")
+        similarities.append(
+            f"public.word_similarity(lower(public.unaccent({term_arg})), s.literals)"
+        )
+        tsqueries.append(f"to_tsquery('simple', public.unaccent({lexeme_arg}))")
+
+    query = QUERY.format(
+        literal_hits=" + ".join(
+            f"CASE WHEN {like} THEN 1 + {similarity} ELSE 0 END"
+            for like, similarity in zip(likes, similarities)
+        ),
+        tsquery=" && ".join(tsqueries),
+        conditions=" AND ".join(
+            f"({like} OR s.search_vector @@ {tsquery})"
+            for like, tsquery in zip(likes, tsqueries)
+        ),
     )
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
-        rows = await Postgres.fetch(
-            QUERY.format(tsquery=tsquery), entity_types or None, limit, *lexemes
-        )
+        rows = await Postgres.fetch(query, *args)
     return [dict(row) for row in rows]

@@ -20,11 +20,14 @@ CREATE TABLE entity_search (
     activity_id UUID GENERATED ALWAYS AS
         (CASE WHEN entity_type = 'comment' THEN entity_id END) STORED
         REFERENCES activities(id) ON DELETE CASCADE,
-    search_vector tsvector NOT NULL,
+    literals TEXT, -- names and labels, matched from any position
+    search_vector tsvector NOT NULL, -- other texts, matched by words
     updated_at TIMESTAMPTZ -- copied from the source row
 );
 
 CREATE INDEX entity_search_vector_idx ON entity_search USING gin(search_vector);
+CREATE INDEX entity_search_literals_idx ON entity_search
+    USING gin(literals public.gin_trgm_ops);
 CREATE INDEX entity_search_folder_idx ON entity_search(folder_id);
 CREATE INDEX entity_search_task_idx ON entity_search(task_id)
     WHERE task_id IS NOT NULL;
@@ -57,6 +60,7 @@ async def rebuild_entity_search(project_name: str, batch_size: int = 10000) -> N
     await ayon_init(extensions=False)
 
     async with Postgres.transaction():
+        await Postgres.execute("CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public")
         await Postgres.set_project_schema(project_name)
         await Postgres.execute(SCHEMA)
 
