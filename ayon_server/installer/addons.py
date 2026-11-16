@@ -102,10 +102,11 @@ class AddonArchive:
     def __init__(self, path: str):
         self._zip: zipfile.ZipFile | None = None
         self._tar: tarfile.TarFile | None = None
-        if zipfile.is_zipfile(path):
-            self._zip = zipfile.ZipFile(path, "r")
-        elif tarfile.is_tarfile(path):
+        # tar first: is_zipfile() is also true for a plain tar that ends with a zip
+        if tarfile.is_tarfile(path):
             self._tar = tarfile.open(path, "r:*")
+        elif zipfile.is_zipfile(path):
+            self._zip = zipfile.ZipFile(path, "r")
         else:
             raise UnsupportedAddonException(
                 "Unsupported archive format. Use zip or tar (gz, bz2, xz)"
@@ -259,11 +260,12 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
             sender="background-installer",
             sender_type="system",
         )
-
-    try:
-        os.remove(zip_path)
-    except Exception as e:
-        logger.error(f"Error while removing zip file: {e}")
+        return
+    finally:
+        try:
+            os.remove(zip_path)
+        except Exception as e:
+            logger.error(f"Error while removing zip file: {e}")
 
     await EventStream.update(
         event_id,
@@ -324,7 +326,8 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
 
         # Get the addon name and version from the zip file
 
-        zip_info = get_addon_zip_info(zip_path)
+        # in a thread: listing a compressed tar reads the whole archive
+        zip_info = await asyncio.to_thread(get_addon_zip_info, zip_path)
         zip_info.url = url
         await EventStream.update(
             event_id,
