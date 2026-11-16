@@ -53,6 +53,8 @@ OperatorType = Literal[
     "excludesany",
 ]
 
+TEXT_OPERATORS = ("like", "notlike", "contains", "startswith", "endswith", "re")
+
 
 def camel_to_snake(name):
     """Convert camelCase or PascalCase to snake_case."""
@@ -232,6 +234,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     json_list_column: str | None = None
     column_is_jsonb = False
 
+    if operator in TEXT_OPERATORS and not isinstance(value, str):
+        raise ValueError(f"Value must be a string for the '{operator}' operator")
+
     column = path[0]
     mapped_attribute = False
     if column in column_map:
@@ -292,17 +297,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like", "notlike", "contains", "startswith", "endswith", "re"):
+        if operator in TEXT_OPERATORS:
             # JSON Field is a string, so we need to cast it to text
-            if isinstance(value, str):
-                value = anchored_pattern(operator, value)
-                safe_value = value.replace("'", "''")
-                safe_value = f"'{safe_value}'"
-            else:
-                raise ValueError(
-                    "Value must be a string for 'like', 'notlike', 'contains', "
-                    "'startswith', 'endswith' or 're' operators"
-                )
+            pattern = anchored_pattern(operator, cast(str, value))
+            safe_value = "'" + pattern.replace("'", "''") + "'"
 
         else:
             safe_value = json.dumps(value).replace("'", "''")
@@ -437,7 +435,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if safe_value is None:
         raise ValueError(f"Invalid value: {value}")
 
-    if operator in ("like", "notlike", "contains", "startswith", "endswith", "re"):
+    if operator in TEXT_OPERATORS:
         if mapped_attribute:
             # A resolved value may be a COALESCE of several JSON accesses.
             column = f"({column}) #>> '{{}}'"

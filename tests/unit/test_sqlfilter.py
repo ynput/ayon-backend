@@ -204,7 +204,9 @@ def test_endswith_operator_spelling(operator: str):
     assert condition.operator == "endswith"
 
 
-def test_startswith_requires_string_value():
-    condition = QueryCondition(key="attrib.note", operator="startswith", value=1)
+@pytest.mark.parametrize("key", ["attrib.note", "name"])
+@pytest.mark.parametrize("operator", ["startswith", "like"])
+def test_text_operators_require_string_value(key: str, operator: str):
+    condition = QueryCondition(key=key, operator=operator, value=1)
     with pytest.raises(ValueError):
         build_condition(condition)
