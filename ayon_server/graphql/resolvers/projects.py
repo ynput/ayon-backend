@@ -123,7 +123,7 @@ async def get_projects(
 
     order_by = ["name"]
     ordering, paging_conds, cursor = create_pagination(
-        order_by, first, after, last, before
+        order_by, first, after, last, before, skippable=True
     )
     sql_conditions.append(paging_conds)
     cols.append(cursor)

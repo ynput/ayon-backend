@@ -2,12 +2,13 @@ import asyncio
 import time
 import traceback
 
-from fastapi import Depends, Query
+from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.models.field_info import get_field_extra
@@ -20,14 +21,35 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-_semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+# Not an argument of _get_all_settings: the coalescer keys requests by their
+# arguments, and the semaphore's repr changes with its counter
+_semaphore = asyncio.Semaphore(30)
 
 
-async def get_semaphore(limit: int = 30) -> asyncio.Semaphore:
-    loop = asyncio.get_running_loop()
-    if loop not in _semaphores:
-        _semaphores[loop] = asyncio.Semaphore(limit)
-    return _semaphores[loop]
+async def _site_has_settings(
+    user_name: str,
+    site_id: str,
+    project_name: str | None,
+) -> bool:
+    """Return whether the user saved any settings for the site"""
+    conditions = [
+        (
+            "EXISTS(SELECT 1 FROM public.site_settings"
+            " WHERE site_id = $1 AND user_name = $2)"
+        )
+    ]
+    if project_name:
+        conditions.append(
+            f"EXISTS(SELECT 1 FROM project_{project_name}.project_site_settings"
+            " WHERE site_id = $1 AND user_name = $2)"
+        )
+    query = f"SELECT {' OR '.join(conditions)} AS has_settings"
+    try:
+        row = await Postgres.fetchrow(query, site_id, user_name)
+    except Postgres.UndefinedTableError:
+        # Unknown project: keep the site, the regular code path handles it
+        return True
+    return bool(row and row["has_settings"])
 
 
 async def _get_all_settings(
@@ -38,11 +60,12 @@ async def _get_all_settings(
     project_bundle_name: str | None,
     variant: str,
     summary: bool,
-    semaphore: asyncio.Semaphore,
+    generation: int,
 ) -> AllSettingsResponseModel:
     start_time = time.perf_counter()
     cache_key = hash_data(
         (
+            generation,
             bundle_name,
             project_name,
             project_bundle_name,
@@ -83,7 +106,7 @@ async def _get_all_settings(
     # Iterate over all addons and load the settings
     #
 
-    async with semaphore:
+    async with _semaphore:
         start_time = time.perf_counter()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
@@ -314,7 +337,6 @@ async def get_all_settings(
             "in the specified bundles"
         ),
     ),
-    semaphore: asyncio.Semaphore = Depends(get_semaphore),
 ) -> AllSettingsResponseModel:
     """Return all addon settings
 
@@ -333,6 +355,17 @@ async def get_all_settings(
 
     """
 
+    if site_id and not await _site_has_settings(user.name, site_id, project_name):
+        # Without saved site settings, the result is the same as without
+        # a site. Share that cache entry instead of building one per site
+        # (e.g. render farm machines with a new site id on every boot).
+        site_id = None
+
+    # Bumped by Redis.delete_ns. Read before coalescing, so a request made after
+    # an invalidation neither joins a build which started before it,
+    # nor reads its (stale) result from the cache
+    generation = int(await Redis.get("generation", "all-settings") or 0)
+
     coalesce = RequestCoalescer()
     return await coalesce(
         _get_all_settings,
@@ -343,5 +376,5 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
         summary=summary,
-        semaphore=semaphore,
+        generation=generation,
     )
