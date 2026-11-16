@@ -1,3 +1,7 @@
+from typing import Annotated
+
+from fastapi import Path
+
 from ayon_server.api.dependencies import (
     CurrentUser,
     EntityListID,
@@ -15,6 +19,7 @@ from ayon_server.entity_lists.models import (
 )
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.utils import EntityID
 
 from .router import router
 
@@ -172,7 +177,8 @@ async def _multi_merge(
 async def update_entity_list_items(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: EntityListID,
+    # the path parameter is list_id here, EntityListID expects entity_list_id
+    list_id: Annotated[str, Path(title="Entity list ID", **EntityID.META)],
     sender: Sender,
     sender_type: SenderType,
     payload: EntityListMultiPatchModel,
