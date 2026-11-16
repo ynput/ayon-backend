@@ -7,6 +7,7 @@ from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
+    NoApplicationAccess,
     NoDelegatedAccess,
     UserName,
 )
@@ -539,7 +540,7 @@ async def assign_access_groups(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}/frontendPreferences", dependencies=[NoDelegatedAccess])
+@router.patch("/{user_name}/frontendPreferences", dependencies=[NoApplicationAccess])
 async def set_frontend_preferences(
     patch_data: dict[str, Any],
     user: CurrentUser,

@@ -227,14 +227,17 @@ def refused_routes() -> dict[tuple[str, str], bool]:
     from fastapi.routing import APIRoute
 
     import ayon_server.api.server  # noqa: F401  (makes the API modules importable)
-    from ayon_server.api.dependencies import NoDelegatedAccess
+    from ayon_server.api.dependencies import NoApplicationAccess, NoDelegatedAccess
 
     result: dict[tuple[str, str], bool] = {}
     for module_name in ("auth", "users", "profile", "system"):
         router = importlib.import_module(module_name).router
         for route in router.routes:
             assert isinstance(route, APIRoute)
-            refused = NoDelegatedAccess in route.dependencies
+            refused = any(
+                dep in route.dependencies
+                for dep in (NoDelegatedAccess, NoApplicationAccess)
+            )
             for method in route.methods:
                 result[(method, f"/api{route.path}")] = refused
     return result
@@ -261,6 +264,7 @@ def refused_routes() -> dict[tuple[str, str], bool]:
         ("GET", "/api/secrets", True),
         ("GET", "/api/secrets/{secret_name}", True),
         ("PUT", "/api/secrets/{secret_name}", True),
+        ("PATCH", "/api/users/{user_name}/frontendPreferences", True),
         # reading users and working with everything else stays possible
         ("GET", "/api/users/{user_name}", False),
         ("GET", "/api/users/me", False),

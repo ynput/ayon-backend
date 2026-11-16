@@ -44,6 +44,10 @@ class DelegatedAccess(OPModel):
 
     `scope` is what the user approved, for whoever issued the session:
     the server itself does not interpret it.
+
+    `impersonator` names the administrator acting as the user, when the
+    session is for that: what the session does is recorded with that
+    name next to the user's, and its end is recorded as theirs.
     """
 
     client_id: str
@@ -51,6 +55,7 @@ class DelegatedAccess(OPModel):
     expires: float
     paths: list[str] | None = None
     scope: str | None = None
+    impersonator: str | None = None
 
     def allows_path(self, path: str) -> bool:
         if self.paths is None:
@@ -290,6 +295,14 @@ class Session:
                     summary={"token": token},
                     description=message,
                     user=session.user.name,
+                )
+            elif session.delegated and session.delegated.impersonator:
+                impersonator = session.delegated.impersonator
+                await EventStream.dispatch(
+                    "auth.impersonate.end",
+                    description=f"{impersonator} stopped acting as {session.user.name}",
+                    user=impersonator,
+                    summary={"target": session.user.name},
                 )
         await Redis.delete(cls.ns, token)
 
