@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Literal
 
@@ -61,7 +62,8 @@ async def upload_addon_zip_file(
 
     # Get addon name and version from the zip file
 
-    zip_info = get_addon_zip_info(temp_path)
+    # in a thread: listing a compressed tar reads the whole archive
+    zip_info = await asyncio.to_thread(get_addon_zip_info, temp_path)
     zip_info.zip_path = temp_path
 
     # We don't create the event before we know that the zip file is valid
