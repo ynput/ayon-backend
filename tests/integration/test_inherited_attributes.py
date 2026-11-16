@@ -4,6 +4,7 @@ Everything runs in a project schema created in a transaction,
 which is rolled back at the end.
 """
 
+import uuid
 from typing import Any
 
 from ayon_server.lib.postgres import Postgres
@@ -277,9 +278,12 @@ def test_operations_refresh_only_changed_folders(run) -> None:
         _folder_refresh_kwargs,
     )
 
+    def fid(name: str) -> str:
+        return uuid.uuid5(uuid.NAMESPACE_OID, name).hex
+
     def refresh_kwargs(*ops: tuple[str, str, dict[str, Any] | None, bool]):
         operations = [
-            OperationModel(type=op, entity_type="folder", entity_id=eid, data=data)
+            OperationModel(type=op, entity_type="folder", entity_id=fid(eid), data=data)
             for op, eid, data, _ in ops
         ]
         responses = [
@@ -305,9 +309,12 @@ def test_operations_refresh_only_changed_folders(run) -> None:
         ("create", "new", {"name": "new"}, True),
         ("update", "attr", {"attrib": {"fps": 25}}, True),
         ("update", "off", {"active": False}, True),
-    ) == {"refresh_hierarchy": False, "folder_ids": ["new", "attr", "off"]}
+    ) == {
+        "refresh_hierarchy": False,
+        "folder_ids": [fid("new"), fid("attr"), fid("off")],
+    }
 
     assert refresh_kwargs(
         ("update", "moved", {"parentId": None}, True),
         ("delete", "gone", None, True),
-    ) == {"refresh_hierarchy": True, "folder_ids": ["moved"]}
+    ) == {"refresh_hierarchy": True, "folder_ids": [fid("moved")]}
