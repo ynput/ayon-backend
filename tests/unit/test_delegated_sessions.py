@@ -89,17 +89,19 @@ def make_request(ip: str, path: str = "/api/users/me", token: str = "") -> Reque
     return Request(scope)
 
 
-def access(expires_in: float = 3600, paths: list[str] | None = None) -> DelegatedAccess:
+def access(
+    expires_in: float = 3600, resources: list[str] | None = None
+) -> DelegatedAccess:
     return DelegatedAccess(
         client_id="client",
         client_name="Some app",
         expires=time.time() + expires_in,
-        paths=paths,
+        resources=resources,
     )
 
 
 @pytest.mark.parametrize(
-    ("paths", "path", "allowed"),
+    ("resources", "path", "allowed"),
     [
         (None, "/api/users/me", True),
         (["/api/mcp"], "/api/mcp", True),
@@ -120,8 +122,8 @@ def access(expires_in: float = 3600, paths: list[str] | None = None) -> Delegate
         ([], "/api/mcp", False),
     ],
 )
-def test_allows_path(paths: list[str] | None, path: str, allowed: bool) -> None:
-    assert access(paths=paths).allows_path(path) is allowed
+def test_is_issued_for(resources: list[str] | None, path: str, allowed: bool) -> None:
+    assert access(resources=resources).is_issued_for(path) is allowed
 
 
 @pytest.mark.anyio
@@ -194,7 +196,7 @@ async def test_delegated_sessions_do_not_count_as_concurrent_sessions(
 @pytest.mark.anyio
 async def test_path_limited_session_is_refused_elsewhere() -> None:
     session = await Session.create(
-        make_user(), delegated=access(paths=["/api/mcp", "/api/addons/mcp/*/mcp"])
+        make_user(), delegated=access(resources=["/api/mcp", "/api/addons/mcp/*/mcp"])
     )
     token = session.token
 

@@ -36,9 +36,12 @@ class DelegatedAccess(OPModel):
     - it is not bound to the IP address of its client: applications run
       anywhere and change addresses,
     - it ends at `expires`, however much it is used,
-    - with `paths` set, it is accepted only for requests to these paths
-      and below them (and not by the websocket); a `*` stands for any
-      one segment, as in `/api/addons/mcp/*/mcp`,
+    - with `resources` set, it was issued for these parts of the server
+      (its audience) and is not accepted anywhere else, nor by the
+      websocket. This says where the session is valid, not what it may
+      do there: that stays with the permissions of the user. A resource
+      is a path, covering everything below it; a `*` stands for any one
+      segment, as in `/api/addons/mcp/*/mcp`,
     - it does not count towards the limit of concurrent sessions and is
       not reported as a login or a logout.
 
@@ -49,15 +52,16 @@ class DelegatedAccess(OPModel):
     client_id: str
     client_name: str
     expires: float
-    paths: list[str] | None = None
+    resources: list[str] | None = None
     scope: str | None = None
 
-    def allows_path(self, path: str) -> bool:
-        if self.paths is None:
+    def is_issued_for(self, path: str) -> bool:
+        """True when the request path belongs to what the session is for."""
+        if self.resources is None:
             return True
         segments = path.split("/")
-        for allowed in self.paths:
-            pattern = allowed.rstrip("/").split("/")
+        for resource in self.resources:
+            pattern = resource.rstrip("/").split("/")
             if len(segments) < len(pattern):
                 continue
             if all(p in ("*", s) for p, s in zip(pattern, segments)):

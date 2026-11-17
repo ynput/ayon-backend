@@ -167,7 +167,7 @@ async def user_from_request(request: Request) -> UserEntity:
             session_data = None  # an API key sent as a Bearer token
         if session_data and session_data.delegated:
             # The path the router matches, not one rebuilt from headers
-            if not session_data.delegated.allows_path(request.scope["path"]):
+            if not session_data.delegated.is_issued_for(request.scope["path"]):
                 raise UnauthorizedException("Token is not valid for this resource")
 
     else:
