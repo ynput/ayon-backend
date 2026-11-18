@@ -136,6 +136,7 @@ async def get_entity_lists(
         after,
         last,
         before,
+        skippable=True,
     )
     sql_conditions.append(paging_conds)
 
