@@ -356,6 +356,7 @@ async def resolve[R](
         raise ServiceUnavailableException("Database query timed out")
 
     edges: list[Any] = []
+    last_cursor: str | None = None
     for record in records:
         # Create a standard dictionary from the record
         record_dict = dict(record)
@@ -368,6 +369,7 @@ async def resolve[R](
         for i, _ in enumerate(order_by or []):
             cdata.append(record_dict.pop(f"cursor_{i}"))
         cursor = encode_cursor(cdata)
+        last_cursor = cursor
 
         if node_type is not None:
             try:
@@ -399,16 +401,19 @@ async def resolve[R](
     start_cursor = None
     end_cursor = None
 
+    # Rows skipped above (ForbiddenException) leave the page short of edges:
+    # another page may follow whenever the query returned a full page,
+    # and it starts after the last row read, returned or not.
     if first:
-        has_next_page = len(edges) >= first
+        has_next_page = len(records) >= first
         has_previous_page = False  # TODO
         start_cursor = edges[0].cursor if edges else None
-        end_cursor = edges[-1].cursor if edges else None
+        end_cursor = last_cursor
     elif last:
         has_next_page = False  # TODO
-        has_previous_page = len(edges) >= last
+        has_previous_page = len(records) >= last
         start_cursor = edges[0].cursor if edges else None
-        end_cursor = edges[-1].cursor if edges else None
+        end_cursor = last_cursor
         # edges.reverse()
 
     page_info = PageInfo(
