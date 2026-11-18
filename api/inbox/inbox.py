@@ -1,5 +1,6 @@
 from typing import Annotated, Literal
 
+from ayon_server.activities.notification_delivery import get_inbox_importance
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
@@ -91,27 +92,15 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest) 
             )
 
         if request.item_filter.important is not None:
-            if request.item_filter.important:
-                operator = "IN"
-                extra_status_cond = (
-                    "AND activity_id IN ("
-                    f"SELECT id FROM project_{project_name}.activities "
-                    "WHERE activity_type != 'status.change'"
-                    ")"
-                )
-            else:
-                operator = "NOT IN"
-                extra_status_cond = (
-                    "OR activity_id IN ("
-                    f"SELECT id FROM project_{project_name}.activities "
-                    "WHERE activity_type = 'status.change'"
-                    ")"
-                )
-
+            # the same split as the inbox query shows
+            importance = await get_inbox_importance(
+                user.name, important=request.item_filter.important
+            )
             filter_conditions.append(
-                "("
-                f"reference_type {operator} ('mention', 'watching') "
-                f"{extra_status_cond}"
+                "id IN ("
+                f"SELECT t.reference_id FROM project_{project_name}.activity_feed t "
+                "WHERE t.entity_type = 'user' AND t.entity_name = $1 "
+                f"AND {importance}"
                 ")"
             )
 

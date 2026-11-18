@@ -347,7 +347,7 @@ async def create_activity(
 
             # Send inbox notifications
 
-            recipients: dict[str, set[str]] = {}
+            recipients: dict[str, str] = {}
             _prj: ProjectEntity | None = None
             for ref in references:
                 if ref.entity_type != "user":
@@ -382,7 +382,7 @@ async def create_activity(
                         # )
                         continue
 
-                recipients.setdefault(ref.entity_name, set()).add(ref.reference_type)
+                recipients[ref.entity_name] = ref.reference_type
 
             if recipients:
                 # We may be inside the transaction of the caller (operations):
@@ -396,10 +396,7 @@ async def create_activity(
                             activity_type=activity_type,
                             body=body,
                             author=user_name,
-                            references={
-                                name: frozenset(types)
-                                for name, types in recipients.items()
-                            },
+                            references=recipients,
                         ),
                         user_name=user_name,
                     )

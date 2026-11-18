@@ -1,20 +1,22 @@
 """How activity notifications reach the users an activity involves.
 
 Every user an activity refers to (mentioned, watching, related to the entity)
-gets an `inbox.message` event, and the same activities fill their inbox.
-`NotificationDelivery` is where an addon changes that, in the same way
-`ActivityCategories` lets an addon provide activity categories: the defaults here
-keep AYON's own behaviour, an addon replaces the class methods when it is
-installed and puts the originals back when it goes away.
+gets an `inbox.message` event, and the same activities fill their inbox, split
+into an important part and the rest. `NotificationDelivery` is where an addon
+changes that, in the same way `ActivityCategories` lets an addon provide activity
+categories: the defaults here keep AYON's own behaviour, an addon replaces the
+class methods when it is installed and puts the originals back when it goes away.
 """
 
 __all__ = [
+    "DEFAULT_INBOX_IMPORTANCE",
     "ActivityNotification",
     "InboxMessage",
     "NotificationChannels",
     "NotificationDelivery",
     "dispatch_inbox_messages",
-    "get_inbox_filter",
+    "get_inbox_importance",
+    "is_important",
     "plan_inbox_messages",
 ]
 
@@ -26,13 +28,20 @@ from ayon_server.logging import log_traceback
 
 IMPORTANT_REFERENCE_TYPES = frozenset({"mention", "watching"})
 
+# The same rule as is_important(), for a row of activity_feed read as `t`
+DEFAULT_INBOX_IMPORTANCE = (
+    "t.reference_type IN ('mention', 'watching') AND t.activity_type != 'status.change'"
+)
+
 
 @dataclass(frozen=True)
 class NotificationChannels:
     """What one recipient gets for one activity."""
 
-    inbox: bool = True
-    """The activity is announced to the recipient's inbox (live update)."""
+    important: bool | None = None
+    """Whether the activity is announced as an important message.
+    `None` keeps AYON's own rule. It has to agree with `get_inbox_importance`,
+    which splits the stored inbox of the same user."""
 
     desktop: bool | None = None
     """Whether the client may show a system notification or a toast.
@@ -49,11 +58,11 @@ class ActivityNotification:
     activity_type: str
     body: str
     author: str | None
-    references: Mapping[str, frozenset[str]]
-    """User name -> the reference types that bring the activity to that user
-    (`mention`, `watching`, `relation`, ...). The `author` reference itself is
-    left out, but the author is in here when they also watch the entity, for
-    example: compare with `author`."""
+    references: Mapping[str, str]
+    """User name -> the reference type that brings the activity to that user.
+    A user has one reference per activity: `mention` before `watching` before
+    `relation`. Authors are left out, except a guest author, who has no
+    reference of their own: compare with `author`."""
 
 
 @dataclass(frozen=True)
@@ -80,21 +89,21 @@ class NotificationDelivery:
         return {name: NotificationChannels() for name in notification.references}
 
     @classmethod
-    async def get_inbox_filter(cls, user_name: str) -> str | None:
-        """An SQL condition that leaves activities out of the user's inbox.
+    async def get_inbox_importance(cls, user_name: str) -> str | None:
+        """An SQL condition that is true for the important rows of a user's inbox.
 
-        It is added to the inbox query with AND, so it describes the rows to keep.
-        The query reads `activity_feed`, one row per activity reference, as `t`
-        (`t.activity_type`, `t.reference_type`, `t.active`, ...).
+        The rows it is not true for are the other part of the inbox, so every
+        row stays in one of the two. The condition is evaluated on a row of
+        `activity_feed`, one row per activity reference, read as `t`
+        (`t.activity_type`, `t.reference_type`, ...). `None` keeps AYON's rule.
         """
         _ = user_name
         return None
 
 
-def is_important(activity_type: str, reference_types: frozenset[str]) -> bool:
+def is_important(activity_type: str, reference_type: str) -> bool:
     return (
-        bool(reference_types & IMPORTANT_REFERENCE_TYPES)
-        and activity_type != "status.change"
+        reference_type in IMPORTANT_REFERENCE_TYPES and activity_type != "status.change"
     )
 
 
@@ -105,15 +114,12 @@ def plan_inbox_messages(
     """Group the recipients that get the same `inbox.message` event."""
 
     groups: dict[tuple[bool, bool | None], list[str]] = {}
-    for name, reference_types in notification.references.items():
+    for name, reference_type in notification.references.items():
         recipient_channels = channels.get(name, NotificationChannels())
-        if not recipient_channels.inbox and not recipient_channels.desktop:
-            continue
-        key = (
-            is_important(notification.activity_type, reference_types),
-            recipient_channels.desktop,
-        )
-        groups.setdefault(key, []).append(name)
+        important = recipient_channels.important
+        if important is None:
+            important = is_important(notification.activity_type, reference_type)
+        groups.setdefault((important, recipient_channels.desktop), []).append(name)
 
     # important messages first, as they were before addons could take part
     return [
@@ -154,15 +160,16 @@ async def dispatch_inbox_messages(
         )
 
 
-async def get_inbox_filter(user_name: str) -> str | None:
-    """The addon's inbox condition, as it can be put in the inbox query."""
+async def get_inbox_importance(user_name: str, *, important: bool) -> str:
+    """The condition for the important (or the other) part of a user's inbox.
+
+    For a query that reads `activity_feed` as `t`.
+    """
     try:
-        condition = await NotificationDelivery.get_inbox_filter(user_name)
+        condition = await NotificationDelivery.get_inbox_importance(user_name)
     except Exception:
-        log_traceback("Inbox filter failed, showing the whole inbox")
-        return None
-    if not condition:
-        return None
-    # The query is an argument of get_user_inbox(), a string that function
-    # formats into a query: its quotes are doubled once more.
-    return f"({condition})".replace("'", "''")
+        log_traceback("Inbox importance failed, using the default split")
+        condition = None
+    # IS NOT TRUE, so a row the condition is unknown for is not lost
+    operator = "IS TRUE" if important else "IS NOT TRUE"
+    return f"(({condition or DEFAULT_INBOX_IMPORTANCE}) {operator})"

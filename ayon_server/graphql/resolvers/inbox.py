@@ -1,6 +1,6 @@
 from base64 import b64decode
 
-from ayon_server.activities.notification_delivery import get_inbox_filter
+from ayon_server.activities.notification_delivery import get_inbox_importance
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -45,20 +45,13 @@ async def get_inbox(
     subquery_conds = []
 
     if show_important_messages is not None:
+        importance = await get_inbox_importance(
+            user.name, important=show_important_messages
+        )
         # double escape the quotes, because we are in a string
         # that is passed as an argument to funcition, which uses
         # it to format a string... i am so sorry
-        operator = "IN" if show_important_messages else "NOT IN"
-        if show_important_messages:
-            not_important = "AND t.activity_type != ''status.change''"
-        else:
-            not_important = "OR t.activity_type = ''status.change''"
-        subquery_conds.append(
-            f"(t.reference_type {operator} (''mention'', ''watching'') {not_important})"
-        )
-
-    if addon_filter := await get_inbox_filter(user.name):
-        subquery_conds.append(addon_filter)
+        subquery_conds.append(importance.replace("'", "''"))
 
     subquery_add_arg = ""
     if subquery_conds:

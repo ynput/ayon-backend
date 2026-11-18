@@ -3,33 +3,30 @@ from collections.abc import Mapping
 from unittest.mock import AsyncMock, patch
 
 from ayon_server.activities.notification_delivery import (
+    DEFAULT_INBOX_IMPORTANCE,
     ActivityNotification,
     InboxMessage,
     NotificationChannels,
     NotificationDelivery,
     dispatch_inbox_messages,
-    get_inbox_filter,
+    get_inbox_importance,
     plan_inbox_messages,
 )
 
 
 def make_notification(
     activity_type: str = "comment",
-    references: Mapping[str, set[str]] | None = None,
+    references: Mapping[str, str] | None = None,
 ) -> ActivityNotification:
     if references is None:
-        references = {
-            "alice": {"mention"},
-            "bob": {"relation"},
-            "carol": {"watching", "relation"},
-        }
+        references = {"alice": "mention", "bob": "relation", "carol": "watching"}
     return ActivityNotification(
         project_name="demo",
         activity_id="a" * 32,
         activity_type=activity_type,
         body="First line\nSecond line",
         author="dave",
-        references={name: frozenset(types) for name, types in references.items()},
+        references=references,
     )
 
 
@@ -45,30 +42,38 @@ def test_defaults_notify_everybody_and_leave_desktop_to_the_client():
     ]
 
 
-def test_status_changes_are_never_important():
-    notification = make_notification("status.change", {"alice": {"mention"}})
+def test_status_changes_are_not_important_by_default():
+    notification = make_notification("status.change", {"alice": "mention"})
     assert plan_inbox_messages(notification, {}) == [
         InboxMessage(recipients=["alice"], important=False, desktop=None)
     ]
 
 
-def test_channels_decide_who_is_announced_and_who_may_show_a_system_notification():
+def test_channels_decide_what_is_important_and_who_may_show_a_system_notification():
     channels = {
-        "alice": NotificationChannels(inbox=False, desktop=True),
-        "bob": NotificationChannels(inbox=False, desktop=False),
-        "carol": NotificationChannels(inbox=True, desktop=False),
+        "alice": NotificationChannels(important=False, desktop=True),
+        "bob": NotificationChannels(important=True, desktop=False),
+        "carol": NotificationChannels(desktop=False),
     }
     assert plan_inbox_messages(make_notification(), channels) == [
-        InboxMessage(recipients=["alice"], important=True, desktop=True),
-        InboxMessage(recipients=["carol"], important=True, desktop=False),
+        InboxMessage(recipients=["bob", "carol"], important=True, desktop=False),
+        InboxMessage(recipients=["alice"], important=False, desktop=True),
+    ]
+
+
+def test_an_addon_can_make_a_status_change_important():
+    notification = make_notification("status.change", {"alice": "watching"})
+    channels = {"alice": NotificationChannels(important=True)}
+    assert plan_inbox_messages(notification, channels) == [
+        InboxMessage(recipients=["alice"], important=True, desktop=None)
     ]
 
 
 def test_recipients_missing_from_the_channels_get_the_defaults():
-    channels = {"alice": NotificationChannels(inbox=False)}
+    channels = {"alice": NotificationChannels(important=False)}
     assert plan_inbox_messages(make_notification(), channels) == [
         InboxMessage(recipients=["carol"], important=True, desktop=None),
-        InboxMessage(recipients=["bob"], important=False, desktop=None),
+        InboxMessage(recipients=["alice", "bob"], important=False, desktop=None),
     ]
 
 
@@ -114,19 +119,23 @@ def test_failing_delivery_falls_back_to_the_defaults():
     ]
 
 
-def test_inbox_filter_is_left_out_by_default_and_after_a_failure():
-    assert asyncio.run(get_inbox_filter("alice")) is None
+def test_inbox_importance_is_ayons_rule_by_default_and_after_a_failure():
+    important = f"(({DEFAULT_INBOX_IMPORTANCE}) IS TRUE)"
+    assert asyncio.run(get_inbox_importance("alice", important=True)) == important
     with patch.object(
-        NotificationDelivery, "get_inbox_filter", AsyncMock(side_effect=ValueError)
+        NotificationDelivery, "get_inbox_importance", AsyncMock(side_effect=ValueError)
     ):
-        assert asyncio.run(get_inbox_filter("alice")) is None
+        assert asyncio.run(get_inbox_importance("alice", important=True)) == important
 
 
-def test_inbox_filter_is_wrapped_and_escaped_for_the_inbox_query():
+def test_the_two_parts_of_the_inbox_leave_no_row_out():
     condition = "t.activity_type IN ('comment', 'version.publish')"
     with patch.object(
-        NotificationDelivery, "get_inbox_filter", AsyncMock(return_value=condition)
+        NotificationDelivery, "get_inbox_importance", AsyncMock(return_value=condition)
     ):
-        assert asyncio.run(get_inbox_filter("alice")) == (
-            "(t.activity_type IN (''comment'', ''version.publish''))"
+        assert asyncio.run(get_inbox_importance("alice", important=True)) == (
+            f"(({condition}) IS TRUE)"
+        )
+        assert asyncio.run(get_inbox_importance("alice", important=False)) == (
+            f"(({condition}) IS NOT TRUE)"
         )
