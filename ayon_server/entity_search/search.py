@@ -12,24 +12,27 @@ MAX_TERMS = 8
 # the higher the score; among equal scores, the shortest literals win.
 QUERY = """
 WITH hits AS (
-    SELECT s.*, {literal_hits} + ts_rank(s.search_vector, {tsquery}) AS rank
+    SELECT s.*, hi.path AS folder_path,
+        {literal_hits} + ts_rank(s.search_vector, {tsquery}) AS rank
     FROM entity_search s
+    JOIN hierarchy hi ON hi.id = s.folder_id
+    LEFT JOIN tasks t ON t.id = s.task_id
     WHERE {conditions}
     AND ($1::text[] IS NULL OR s.entity_type = ANY($1))
+    {access}
     ORDER BY rank DESC, length(s.literals) NULLS LAST, s.updated_at DESC NULLS LAST
     LIMIT $2
 )
 SELECT
     h.entity_type, h.entity_id, h.rank,
     h.folder_id, f.name AS folder_name, f.label AS folder_label,
-    f.folder_type, hi.path AS folder_path,
+    f.folder_type, h.folder_path,
     h.task_id, t.name AS task_name, t.label AS task_label, t.task_type,
     h.product_id, p.name AS product_name, p.product_type,
     h.version_id, v.version,
     a.body, a.data->>'author' AS author, a.created_at
 FROM hits h
 JOIN folders f ON f.id = h.folder_id
-JOIN hierarchy hi ON hi.id = h.folder_id
 LEFT JOIN tasks t ON t.id = h.task_id
 LEFT JOIN products p ON p.id = h.product_id
 LEFT JOIN versions v ON v.id = h.version_id
@@ -60,11 +63,17 @@ async def search(
     *,
     entity_types: list[str] | None = None,
     limit: int = 50,
+    folder_access: list[str] | None = None,
+    task_access: tuple[list[str], str | None] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the best matches for all whitespace-separated terms of the text.
 
     A term matches anywhere in the literals (names, labels),
     or the beginning of a word in the other texts. Accents are ignored.
+
+    `folder_access` limits the rows to folder paths (LIKE patterns),
+    `task_access` limits the rows of tasks and their comments to folder
+    paths, or to tasks assigned to the given user. None means no limit.
     """
     terms = text.split()[:MAX_TERMS]
     if not terms:
@@ -88,7 +97,20 @@ async def search(
             f" || to_tsquery('simple', public.unaccent({lexeme_arg})))"
         )
 
+    access = []
+    if folder_access is not None:
+        args.append(folder_access)
+        access.append(f"AND hi.path LIKE ANY(${len(args)}::text[])")
+    if task_access is not None:
+        paths, assignee = task_access
+        args += [paths, assignee]
+        access.append(
+            f"AND (s.task_id IS NULL OR hi.path LIKE ANY(${len(args) - 1}::text[])"
+            f" OR ${len(args)}::text = ANY(t.assignees))"
+        )
+
     query = QUERY.format(
+        access="\n    ".join(access),
         literal_hits=" + ".join(
             f"CASE WHEN {like} THEN 1 + {similarity} ELSE 0 END"
             for like, similarity in zip(likes, similarities)
