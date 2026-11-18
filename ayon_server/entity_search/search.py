@@ -1,4 +1,4 @@
-__all__ = ["search"]
+__all__ = ["build_search_cte", "search"]
 
 from typing import Any
 
@@ -6,15 +6,13 @@ from ayon_server.lib.postgres import Postgres
 
 MAX_TERMS = 8
 
-# Entity links of every hit are resolved for the top hits only.
-# A hit in the literals (names, labels) scores 1 to 2 per term, so it outranks
-# any hit in the texts. The closer the term is to a whole word of the literals,
-# the higher the score; among equal scores, the shortest literals win.
-# For similar matches, folders come first, then tasks, products and versions.
-QUERY = """
-WITH hits AS (
+# A hit in the literals (path, names, labels) scores 1 to 2 per term, so it
+# outranks any hit in the texts (normalized to 0-1). The closer the term is
+# to a whole word of the literals, the higher the score; among equal scores,
+# the shortest literals win. For similar matches, folders come first,
+# then tasks, products and versions.
+SEARCH_CTE = """
     SELECT s.*, hi.path AS folder_path,
-        -- 32: rank / (rank + 1), so long texts (file lists) score below 1
         ({literal_hits} + ts_rank(s.search_vector, {tsquery}, 32))
         * CASE s.entity_type
             WHEN 'task' THEN 0.9
@@ -22,31 +20,46 @@ WITH hits AS (
             WHEN 'version' THEN 0.7
             ELSE 1
         END AS rank
-    FROM entity_search s
-    JOIN hierarchy hi ON hi.id = s.folder_id
-    LEFT JOIN tasks t ON t.id = s.task_id
+    FROM {schema}.entity_search s
+    JOIN {schema}.hierarchy hi ON hi.id = s.folder_id
+    LEFT JOIN {schema}.tasks t ON t.id = s.task_id
     WHERE {conditions}
-    AND ($1::text[] IS NULL OR s.entity_type = ANY($1))
-    {access}
-    ORDER BY rank DESC, length(s.literals) NULLS LAST, s.updated_at DESC NULLS LAST
-    LIMIT $2
-)
-SELECT
-    h.entity_type, h.entity_id, h.rank,
-    h.folder_id, f.name AS folder_name, f.label AS folder_label,
-    f.folder_type, h.folder_path,
-    h.task_id, t.name AS task_name, t.label AS task_label, t.task_type,
-    h.product_id, p.name AS product_name, p.product_type,
-    h.version_id, v.version,
-    a.body, a.data->>'author' AS author, a.created_at
-FROM hits h
-JOIN folders f ON f.id = h.folder_id
-LEFT JOIN tasks t ON t.id = h.task_id
-LEFT JOIN products p ON p.id = h.product_id
-LEFT JOIN versions v ON v.id = h.version_id
-LEFT JOIN activities a ON a.id = h.activity_id
-ORDER BY h.rank DESC, length(h.literals) NULLS LAST, h.updated_at DESC NULLS LAST
+    {filters}
+    {top}
 """
+
+# Entity links are resolved for the top hits only
+SEARCH_QUERY = """
+    WITH hits AS ({search_cte})
+    SELECT
+        h.entity_type, h.entity_id, h.rank,
+        h.folder_id, f.name AS folder_name, f.label AS folder_label,
+        f.folder_type, h.folder_path,
+        h.task_id, t.name AS task_name, t.label AS task_label, t.task_type,
+        h.product_id, p.name AS product_name, p.product_type,
+        h.version_id, v.version,
+        a.body, a.data->>'author' AS author, a.created_at
+    FROM hits h
+    JOIN {schema}.folders f ON f.id = h.folder_id
+    LEFT JOIN {schema}.tasks t ON t.id = h.task_id
+    LEFT JOIN {schema}.products p ON p.id = h.product_id
+    LEFT JOIN {schema}.versions v ON v.id = h.version_id
+    LEFT JOIN {schema}.activities a ON a.id = h.activity_id
+    ORDER BY h.rank DESC, length(h.literals) NULLS LAST, h.updated_at DESC NULLS LAST
+"""
+
+
+def sql_string(value: str) -> str:
+    """Return the value as an SQL string literal.
+
+    Relies on standard_conforming_strings (the default): backslashes are
+    literal, only quotes are doubled. Postgres text cannot hold NUL.
+    """
+    return "'" + value.replace("\x00", "").replace("'", "''") + "'"
+
+
+def sql_string_array(values: list[str]) -> str:
+    return f"ARRAY[{', '.join(map(sql_string, values))}]::text[]"
 
 
 def like_pattern(term: str) -> str:
@@ -65,6 +78,75 @@ def prefix_lexeme(term: str) -> str:
     return f"'{escaped}':*"
 
 
+def build_search_cte(
+    project_name: str,
+    text: str,
+    *,
+    entity_types: list[str] | None = None,
+    limit: int | None = 50,
+    folder_access: list[str] | None = None,
+    task_access: tuple[list[str], str | None] | None = None,
+) -> str | None:
+    """Return a query selecting the best search hits, without arguments.
+
+    The rows are the `entity_search` rows with `folder_path` and `rank`.
+    A term matches anywhere in the literals (path, names, labels), or the
+    beginning of a word in the other texts. All terms must match.
+    Accents are ignored. Returns None when the text has no terms.
+
+    `folder_access` limits the rows to folder paths (LIKE patterns),
+    `task_access` limits the rows of tasks and their comments to folder
+    paths, or to tasks assigned to the given user. None means no limit.
+    With `limit=None`, all hits are returned unordered (to filter by them).
+    """
+    terms = text.split()[:MAX_TERMS]
+    if not terms:
+        return None
+
+    literal_hits, tsqueries, conditions = [], [], []
+    for term in terms:
+        term_value = f"lower(public.unaccent({sql_string(term)}))"
+        pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
+        # Underscores become hyphens, as in the index (see indexer.text_vector)
+        lexeme = (
+            f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
+        )
+
+        like = f"s.literals LIKE {pattern}"
+        tsquery = f"to_tsquery('simple', {lexeme})"
+        similarity = f"public.word_similarity({term_value}, s.literals)"
+        literal_hits.append(f"CASE WHEN {like} THEN 1 + {similarity} ELSE 0 END")
+        tsqueries.append(tsquery)
+        conditions.append(f"({like} OR s.search_vector @@ {tsquery})")
+
+    filters = []
+    if entity_types:
+        filters.append(f"AND s.entity_type = ANY({sql_string_array(entity_types)})")
+    if folder_access is not None:
+        filters.append(f"AND hi.path LIKE ANY({sql_string_array(folder_access)})")
+    if task_access is not None:
+        paths, assignee = task_access
+        assigned = f"OR {sql_string(assignee)} = ANY(t.assignees)" if assignee else ""
+        filters.append(
+            f"AND (s.task_id IS NULL OR hi.path LIKE ANY({sql_string_array(paths)})"
+            f" {assigned})"
+        )
+
+    return SEARCH_CTE.format(
+        schema=f"project_{project_name}",
+        literal_hits=" + ".join(literal_hits),
+        tsquery=" && ".join(tsqueries),
+        conditions=" AND ".join(conditions),
+        filters="\n    ".join(filters),
+        top=""
+        if limit is None
+        else (
+            "ORDER BY rank DESC, length(s.literals) NULLS LAST,"
+            f" s.updated_at DESC NULLS LAST LIMIT {int(limit)}"
+        ),
+    )
+
+
 async def search(
     project_name: str,
     text: str,
@@ -76,59 +158,19 @@ async def search(
 ) -> list[dict[str, Any]]:
     """Return the best matches for all whitespace-separated terms of the text.
 
-    A term matches anywhere in the literals (names, labels),
-    or the beginning of a word in the other texts. Accents are ignored.
-
-    `folder_access` limits the rows to folder paths (LIKE patterns),
-    `task_access` limits the rows of tasks and their comments to folder
-    paths, or to tasks assigned to the given user. None means no limit.
+    See `build_search_cte` for the arguments.
     """
-    terms = text.split()[:MAX_TERMS]
-    if not terms:
+    cte = build_search_cte(
+        project_name,
+        text,
+        entity_types=entity_types,
+        limit=limit,
+        folder_access=folder_access,
+        task_access=task_access,
+    )
+    if not cte:
         return []
 
-    # $1 = entity types, $2 = limit, then the term, its pattern and lexeme
-    args: list[Any] = [entity_types or None, limit]
-    likes, similarities, tsqueries = [], [], []
-    for term in terms:
-        args += [term, like_pattern(term), prefix_lexeme(term)]
-        term_arg, like_arg, lexeme_arg = (
-            f"${i}::text" for i in range(len(args) - 2, len(args) + 1)
-        )
-        likes.append(f"s.literals LIKE lower(public.unaccent({like_arg}))")
-        similarities.append(
-            f"public.word_similarity(lower(public.unaccent({term_arg})), s.literals)"
-        )
-        # Underscores become hyphens, as in the index (see indexer.text_vector)
-        tsqueries.append(
-            f"to_tsquery('simple', translate(public.unaccent({lexeme_arg}), '_', '-'))"
-        )
-
-    access = []
-    if folder_access is not None:
-        args.append(folder_access)
-        access.append(f"AND hi.path LIKE ANY(${len(args)}::text[])")
-    if task_access is not None:
-        paths, assignee = task_access
-        args += [paths, assignee]
-        access.append(
-            f"AND (s.task_id IS NULL OR hi.path LIKE ANY(${len(args) - 1}::text[])"
-            f" OR ${len(args)}::text = ANY(t.assignees))"
-        )
-
-    query = QUERY.format(
-        access="\n    ".join(access),
-        literal_hits=" + ".join(
-            f"CASE WHEN {like} THEN 1 + {similarity} ELSE 0 END"
-            for like, similarity in zip(likes, similarities)
-        ),
-        tsquery=" && ".join(tsqueries),
-        conditions=" AND ".join(
-            f"({like} OR s.search_vector @@ {tsquery})"
-            for like, tsquery in zip(likes, tsqueries)
-        ),
-    )
-    async with Postgres.transaction():
-        await Postgres.set_project_schema(project_name)
-        rows = await Postgres.fetch(query, *args)
+    query = SEARCH_QUERY.format(search_cte=cte, schema=f"project_{project_name}")
+    rows = await Postgres.fetch(query)
     return [dict(row) for row in rows]

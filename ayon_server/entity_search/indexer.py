@@ -100,7 +100,7 @@ def get_folder_source() -> str:
 def get_task_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, e.id, NULL::uuid, NULL::uuid,
-            {literal_text("pa.path", "e.name", "e.label")},
+            {literal_text("pa.path", "e.name", "e.label", "e.task_type")},
             {attribute_vector("task")},
             e.updated_at
         FROM tasks e
