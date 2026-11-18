@@ -10,10 +10,18 @@ MAX_TERMS = 8
 # A hit in the literals (names, labels) scores 1 to 2 per term, so it outranks
 # any hit in the texts. The closer the term is to a whole word of the literals,
 # the higher the score; among equal scores, the shortest literals win.
+# For similar matches, folders come first, then tasks, products and versions.
 QUERY = """
 WITH hits AS (
     SELECT s.*, hi.path AS folder_path,
-        {literal_hits} + ts_rank(s.search_vector, {tsquery}) AS rank
+        -- 32: rank / (rank + 1), so long texts (file lists) score below 1
+        ({literal_hits} + ts_rank(s.search_vector, {tsquery}, 32))
+        * CASE s.entity_type
+            WHEN 'task' THEN 0.9
+            WHEN 'product' THEN 0.8
+            WHEN 'version' THEN 0.7
+            ELSE 1
+        END AS rank
     FROM entity_search s
     JOIN hierarchy hi ON hi.id = s.folder_id
     LEFT JOIN tasks t ON t.id = s.task_id
@@ -91,10 +99,9 @@ async def search(
         similarities.append(
             f"public.word_similarity(lower(public.unaccent({term_arg})), s.literals)"
         )
-        # The cast keeps the term whole ("camel_case"), the parser splits it
+        # Underscores become hyphens, as in the index (see indexer.text_vector)
         tsqueries.append(
-            f"(lower(public.unaccent({lexeme_arg}))::tsquery"
-            f" || to_tsquery('simple', public.unaccent({lexeme_arg})))"
+            f"to_tsquery('simple', translate(public.unaccent({lexeme_arg}), '_', '-'))"
         )
 
     access = []
