@@ -161,6 +161,7 @@ async def get_projects(
         last=last,
         order_by=order_by,
         context=info.context,
+        skippable=True,
     )
 
 

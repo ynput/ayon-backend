@@ -164,6 +164,7 @@ async def _walk_resolved(
             last=kwargs.get("last"),
             context={"forbidden": forbidden},
             order_by=order_by,
+            skippable=skippable,
         )
         result.extend(edge.node.id for edge in connection.edges)
         page_info = connection.page_info

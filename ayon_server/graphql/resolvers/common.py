@@ -331,8 +331,12 @@ async def resolve[R](
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: OrderBySequence | None = None,
+    skippable: bool = False,
 ) -> R:
-    """Return a connection object from a query."""
+    """Return a connection object from a query.
+
+    `skippable`: the query was paginated with `create_pagination(skippable=True)`.
+    """
 
     if first is not None:
         count = first
@@ -357,7 +361,9 @@ async def resolve[R](
 
     edges: list[Any] = []
     last_cursor: str | None = None
+    read = 0
     for record in records:
+        read += 1
         # Create a standard dictionary from the record
         record_dict = dict(record)
 
@@ -402,16 +408,18 @@ async def resolve[R](
     end_cursor = None
 
     # Rows skipped above (ForbiddenException) leave the page short of edges:
-    # another page may follow whenever the query returned a full page,
-    # and it starts after the last row read, returned or not.
+    # another page may follow when rows were left unread or the query
+    # returned all the rows it asked for, and it starts after the last row read.
+    limit = count * 2 if skippable else count
+    has_more = read < len(records) or len(records) >= limit
     if first:
-        has_next_page = len(records) >= first
+        has_next_page = has_more
         has_previous_page = False  # TODO
         start_cursor = edges[0].cursor if edges else None
         end_cursor = last_cursor
     elif last:
         has_next_page = False  # TODO
-        has_previous_page = len(records) >= last
+        has_previous_page = has_more
         start_cursor = edges[0].cursor if edges else None
         end_cursor = last_cursor
         # edges.reverse()
