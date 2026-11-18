@@ -110,7 +110,15 @@ class Redis:
     @classmethod
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
-        cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
+        # A blocking pool makes requests wait for a free connection.
+        # The default pool raises "Too many connections" instead, which
+        # fails requests (HTTP 500) during bursts of concurrent requests.
+        pool = aioredis.BlockingConnectionPool.from_url(
+            ayonconfig.redis_url,
+            max_connections=ayonconfig.redis_pool_size,
+            timeout=ayonconfig.redis_pool_timeout,
+        )
+        cls.redis_pool = aioredis.Redis.from_pool(pool)
 
         try:
             t = cls.redis_pool.ping()
@@ -275,8 +283,13 @@ class Redis:
 
     @classmethod
     async def delete_ns(cls, namespace: str):
-        if not cls.connected:
-            await cls.connect()
+        """Delete all keys of the namespace and bump its generation.
+
+        Readers put `generation-<namespace>` in their cache keys, so a build
+        which started before the deletion stores its (stale) result under
+        a key nobody reads anymore. Bumped first, the key is outside the namespace.
+        """
+        await cls.incr("generation", namespace)
         keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
         for key in keys:
             await cls.redis_pool.delete(key)

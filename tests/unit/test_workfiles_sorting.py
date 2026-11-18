@@ -112,6 +112,6 @@ def test_ordering_and_cursor_columns(sort_by: str):
     ordering, conditions, cursor = create_pagination(columns, first=2)
     assert conditions == ""
     assert ordering == (
-        f"ORDER BY {expression} ASC NULLS LAST, {TIEBREAKER} ASC NULLS LAST LIMIT 4"
+        f"ORDER BY {expression} ASC NULLS LAST, {TIEBREAKER} ASC NULLS LAST LIMIT 2"
     )
     assert cursor == f"{expression} AS cursor_0, {TIEBREAKER} AS cursor_1"

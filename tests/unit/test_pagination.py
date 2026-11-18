@@ -36,16 +36,21 @@ def test_first_page():
     )
     assert conditions == ""
     assert ordering == (
-        "ORDER BY folders.name ASC NULLS LAST, folders.id ASC NULLS LAST LIMIT 20"
+        "ORDER BY folders.name ASC NULLS LAST, folders.id ASC NULLS LAST LIMIT 10"
     )
     assert cursor == "folders.name AS cursor_0, folders.id AS cursor_1"
+
+
+def test_skippable_page_fetches_twice_the_rows():
+    ordering, _, _ = create_pagination(["folders.id"], first=10, skippable=True)
+    assert ordering.endswith("LIMIT 20")
 
 
 def test_last_page_is_descending():
     ordering, conditions, _ = create_pagination([ATTRIB, "hierarchy.path"], last=5)
     assert conditions == ""
     assert ordering == (
-        f"ORDER BY {ATTRIB} DESC NULLS FIRST, hierarchy.path DESC NULLS FIRST LIMIT 10"
+        f"ORDER BY {ATTRIB} DESC NULLS FIRST, hierarchy.path DESC NULLS FIRST LIMIT 5"
     )
 
 
@@ -138,13 +143,13 @@ NAME_DESC = SortColumn("folders.name", descending=True)
 def test_descending_column_ordering():
     ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], first=10)
     assert ordering == (
-        "ORDER BY folders.name DESC NULLS FIRST, folders.id ASC NULLS LAST LIMIT 20"
+        "ORDER BY folders.name DESC NULLS FIRST, folders.id ASC NULLS LAST LIMIT 10"
     )
 
     # `last` reverses every column
     ordering, _, _ = create_pagination([NAME_DESC, "folders.id"], last=10)
     assert ordering == (
-        "ORDER BY folders.name ASC NULLS LAST, folders.id DESC NULLS FIRST LIMIT 20"
+        "ORDER BY folders.name ASC NULLS LAST, folders.id DESC NULLS FIRST LIMIT 10"
     )
 
 

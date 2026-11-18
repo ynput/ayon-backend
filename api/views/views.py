@@ -93,6 +93,7 @@ async def list_views(
         res = project_views + studio_views
         for row in res:
             access_level = EntityAccessHelper.MANAGE
+            shared_with_me = True
 
             if row["visibility"] == "public":
                 try:
@@ -109,7 +110,30 @@ async def list_views(
                     if access_level < EntityAccessHelper.READ:
                         continue
 
-            views.append(row_to_list_item(row, access_level=access_level))
+                if user.is_manager and row["owner"] != user.name:
+                    # Managers see every public view. Flag the ones
+                    # that are not shared with them, so the client can
+                    # keep them out of the way.
+                    try:
+                        await EntityAccessHelper.check(
+                            user,
+                            access=row.get("access") or {},
+                            level=EntityAccessHelper.READ,
+                            owner=row["owner"],
+                            default_open=False,
+                            project=project,
+                            ignore_manager=True,
+                        )
+                    except ForbiddenException:
+                        shared_with_me = False
+
+            views.append(
+                row_to_list_item(
+                    row,
+                    access_level=access_level,
+                    shared_with_me=shared_with_me,
+                )
+            )
     return ViewListModel(views=views)
 
 

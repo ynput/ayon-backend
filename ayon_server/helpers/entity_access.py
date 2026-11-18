@@ -32,8 +32,14 @@ class EntityAccessHelper:
         owner: str | None = None,
         project: ProjectEntity | None = None,
         default_open: bool = True,
+        ignore_manager: bool = False,
     ) -> None:
-        _ = access, user, level, owner
+        """Raise ForbiddenException when the user lacks the access level.
+
+        `ignore_manager` checks the entity's sharing settings only, without the
+        access managers and admins get from their role.
+        """
+        _ = access, user, level, owner, ignore_manager
 
         if owner and user.name == owner:
             return
