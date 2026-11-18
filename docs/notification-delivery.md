@@ -21,9 +21,10 @@ back when it is removed:
 - `get_inbox_importance(user_name)` returns the SQL condition that is true for the
   important rows of the user's inbox. Rows are never left out: what is not
   important is in the other part. The condition is evaluated on `activity_feed`
-  (one row per activity reference) read as `t`, by the inbox query and by the
-  endpoint that marks a part of the inbox as read or cleared, and has to agree
-  with `important` above. Exceptions are logged and lead to AYON's rule: mentions
+  (one row per activity reference) read as `t`, by the inbox query, by the
+  `important` argument of the project `activities` query (the inbox of one
+  project) and by the endpoint that marks a part of the inbox as read or cleared,
+  and has to agree with `important` above. Exceptions are logged and lead to AYON's rule: mentions
   and watched entities are important, status changes are not.
 
 A user has one reference per activity: a mention wins over watching, watching over
