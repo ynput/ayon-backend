@@ -207,7 +207,7 @@ wheels = [
 
 [[package]]
 name = "ayon-server"
-version = "1.17.6"
+version = "1.17.7"
 source = { editable = "." }
 dependencies = [
     { name = "aiocache" },
