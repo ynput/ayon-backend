@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ayon_server.events.eventstream import EventStream
 from ayon_server.logging import log_traceback
@@ -63,6 +63,10 @@ class ActivityNotification:
     A user has one reference per activity: `mention` before `watching` before
     `relation`. Authors are left out, except a guest author, who has no
     reference of their own: compare with `author`."""
+    roles: Mapping[str, str] = field(default_factory=dict)
+    """User name -> how the user is related to the entity: `assignee`, or
+    `author` of the version. Users who are not related to it are left out.
+    The reference of the user stores it as `data.role`, whatever its type."""
 
 
 @dataclass(frozen=True)

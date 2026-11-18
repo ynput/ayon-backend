@@ -171,6 +171,7 @@ async def create_activity(
             data["authorFullName"] = user.attrib.fullName
 
     references.update(await extract_mentions(body, project_name))
+    roles: dict[str, str] = {}
     if activity_type not in ["watch", "attrib.change"]:
         # We don't need to collect additional references for watch activities
         # As they only apply to the entity itself
@@ -189,11 +190,23 @@ async def create_activity(
 
         # Add related entities references
         try:
-            references.update(await get_references_from_entity(entity))
+            related = await get_references_from_entity(entity)
         except Postgres.UndefinedTableError as e:
             raise NotFoundException(
                 f"Unable to get references. Project {project_name} no longer exists"
             ) from e
+        references.update(related)
+
+        # A user has one reference per activity. When a mention or watching
+        # wins over the relation, the reference keeps the role of the relation.
+        for ref in related:
+            if ref.entity_type == "user" and ref.entity_name and ref.data.get("role"):
+                roles[ref.entity_name] = ref.data["role"]
+        for ref in references:
+            if ref.entity_type != "user" or ref.reference_type == "author":
+                continue
+            if ref.entity_name in roles:
+                ref.data.setdefault("role", roles[ref.entity_name])
 
     #
     # Create the activity
@@ -397,6 +410,11 @@ async def create_activity(
                             body=body,
                             author=user_name,
                             references=recipients,
+                            roles={
+                                name: role
+                                for name, role in roles.items()
+                                if name in recipients
+                            },
                         ),
                         user_name=user_name,
                     )
