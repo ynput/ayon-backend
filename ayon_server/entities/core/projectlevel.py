@@ -7,6 +7,7 @@ from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.entities.models.common import ProjectLevelEntityModel
+from ayon_server.entity_search import entity_indexer
 from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
@@ -265,6 +266,8 @@ class ProjectLevelEntity(BaseEntity[ProjectLevelModelT]):
                         **fields,
                     )
                 )
+
+            await entity_indexer.enqueue(self.project_name, self.entity_type, self.id)
 
             if auto_commit:
                 await self.commit()

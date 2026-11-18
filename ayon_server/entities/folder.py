@@ -13,6 +13,7 @@ from ayon_server.entities.models.folder import (
     FolderPatchModel,
     FolderPostModel,
 )
+from ayon_server.entity_search import entity_indexer
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
@@ -186,6 +187,8 @@ class FolderEntity(ProjectLevelEntity[FolderModel]):
                         **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )
+
+            await entity_indexer.enqueue(self.project_name, "folder", self.id)
 
             if path_changed:
                 # This needs to run in save, not in refresh_views, because

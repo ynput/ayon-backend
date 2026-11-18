@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Path, Query
 
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entity_search.search import search
 from ayon_server.exceptions import BadRequestException
 from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
@@ -72,12 +73,17 @@ class SearchResponse(OPModel):
 @router.get("/search", response_model_exclude_none=True)
 async def search_project(
     # The name ends up in the search_path, so it must be validated here
+    user: CurrentUser,
     project_name: Annotated[str, Path(pattern=PROJECT_NAME_REGEX)],
     q: Annotated[str, Query(title="Search text", max_length=200)],
     entity_types: Annotated[list[SearchEntityType] | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> SearchResponse:
     """Search folders, tasks, products, versions and comments of a project."""
+
+    if not user.is_manager:
+        raise BadRequestException("User is not a manager")
+
     if not q.strip():
         raise BadRequestException("Search text is empty")
 

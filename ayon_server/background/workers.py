@@ -1,3 +1,4 @@
+from ayon_server.entity_search import entity_indexer
 from ayon_server.installer import background_installer
 
 from .background_worker import BackgroundWorker
@@ -22,6 +23,7 @@ class BackgroundWorkers:
     def __init__(self):
         self.tasks: list[BackgroundWorker] = [
             background_installer,
+            entity_indexer,
             invalidate_actions,
             log_collector,
         ]

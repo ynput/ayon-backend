@@ -82,7 +82,11 @@ async def search(
         similarities.append(
             f"public.word_similarity(lower(public.unaccent({term_arg})), s.literals)"
         )
-        tsqueries.append(f"to_tsquery('simple', public.unaccent({lexeme_arg}))")
+        # The cast keeps the term whole ("camel_case"), the parser splits it
+        tsqueries.append(
+            f"(lower(public.unaccent({lexeme_arg}))::tsquery"
+            f" || to_tsquery('simple', public.unaccent({lexeme_arg})))"
+        )
 
     query = QUERY.format(
         literal_hits=" + ".join(

@@ -9,19 +9,38 @@ __all__ = ["ENTITY_TYPES", "backfill", "get_source", "index_entities"]
 
 from typing import Any
 
-from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 # Texts are unaccented on both sides (index and query), so "prilis" finds "příliš".
 
 
-def _text(expr: str, weight: str) -> str:
-    """Words of a text. They match from the beginning of a word only."""
-    return (
+def _text(expr: str, whole: str, parts: str) -> str:
+    """Words of a text. They match from the beginning of a word only.
+
+    Every whitespace-separated token is indexed whole ("camel_case",
+    "render.exr") with the `whole` weight, and split on punctuation
+    ("camel", "case", "render", "exr") with the lower `parts` weight.
+    The parser alone would split "a_b" only and keep "a.b" only.
+    """
+    text = f"lower(public.unaccent(coalesce({expr}, '')))"
+    # Built as a literal: the parser would split the tokens, and lexemes
+    # need positions to carry a weight. Longer tokens than 2046 bytes
+    # are rejected by tsvector, the parser skips them too.
+    tokens = f"""(
+        SELECT setweight(coalesce(string_agg(
+            '''' || replace(replace(tok, '\\', '\\\\'), '''', '''''')
+            || ''':' || least(i, 16383), ' '
+        ), '')::tsvector, '{whole}')
+        FROM regexp_split_to_table({text}, '\\s+') WITH ORDINALITY AS w(raw, i),
+        LATERAL regexp_replace(raw, '^[^[:alnum:]]+|[^[:alnum:]]+$', '', 'g') AS tok
+        WHERE tok <> '' AND octet_length(tok) < 2047
+    )"""
+    split = (
         "setweight(to_tsvector('simple', "
-        f"public.unaccent(coalesce({expr}, ''))), '{weight}')"
+        f"regexp_replace({text}, '[^[:alnum:]]+', ' ', 'g')), '{parts}')"
     )
+    return f"({tokens} || {split})"
 
 
 def _literals(*exprs: str) -> str:
@@ -32,6 +51,9 @@ def _literals(*exprs: str) -> str:
 
 def _searchable_attributes(entity_type: str) -> list[str]:
     """Free-text attributes: strings without an enum."""
+    # Imported here: the entities import the indexer to enqueue their saves
+    from ayon_server.entities.core.attrib import attribute_library
+
     return [
         attr["name"]
         for attr in attribute_library[entity_type]
@@ -80,7 +102,7 @@ _ENTITIES: dict[str, tuple[str, str, str]] = {
 _COMMENT_COLUMNS = f"""
     e.id, COALESCE(t.folder_id, p.folder_id, f.id), t.id, p.id, v.id,
     NULL,
-    {_text(r"regexp_replace(e.body, '\]\([^)]*\)', ' ', 'g')", "C")},
+    {_text(r"regexp_replace(e.body, '\]\([^)]*\)', ' ', 'g')", "B", "C")},
     e.updated_at
 """
 _COMMENT_SOURCE = """
@@ -99,6 +121,29 @@ _COMMENT_SOURCE = """
 """
 
 ENTITY_TYPES = [*_ENTITIES, "comment"]
+
+# A moved task, product or version takes the rows linked to it along
+# (its versions and comments). $1 = ids, or NULL for all.
+_RELINK = {
+    "task": """
+        UPDATE entity_search s SET folder_id = e.folder_id FROM tasks e
+        WHERE s.task_id = e.id AND s.folder_id <> e.folder_id
+        AND ($1::uuid[] IS NULL OR e.id = ANY($1))
+    """,
+    "product": """
+        UPDATE entity_search s SET folder_id = e.folder_id FROM products e
+        WHERE s.product_id = e.id AND s.folder_id <> e.folder_id
+        AND ($1::uuid[] IS NULL OR e.id = ANY($1))
+    """,
+    "version": """
+        UPDATE entity_search s
+        SET product_id = e.product_id, folder_id = p.folder_id
+        FROM versions e JOIN products p ON p.id = e.product_id
+        WHERE s.version_id = e.id
+        AND (s.product_id <> e.product_id OR s.folder_id <> p.folder_id)
+        AND ($1::uuid[] IS NULL OR e.id = ANY($1))
+    """,
+}
 
 
 def get_source(entity_type: str) -> tuple[str, str, list[Any]]:
@@ -119,7 +164,8 @@ def get_source(entity_type: str) -> tuple[str, str, list[Any]]:
     columns = f"""
         e.id, {links},
         {literals},
-        {_text("e.attrib->>'description'", "C")} || {_text(attributes, "D")},
+        {_text("e.attrib->>'description'", "B", "C")}
+        || {_text(attributes, "C", "D")},
         e.updated_at
     """
     return columns, source, [_searchable_attributes(entity_type)]
@@ -177,8 +223,14 @@ async def index_entities(
         count = int(status.split()[-1])  # "INSERT 0 <count>"
         total += count
         if count < batch_size:
-            return total
+            break
         logger.debug(f"[{project_name}] Indexed {total} {entity_type}s for search")
+
+    if entity_type in _RELINK:
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(_RELINK[entity_type], entity_ids, timeout=600)
+    return total
 
 
 async def backfill(project_name: str, *, batch_size: int = 10000) -> dict[str, int]:

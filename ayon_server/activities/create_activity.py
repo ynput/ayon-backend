@@ -28,6 +28,7 @@ from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.project import ProjectEntity
+from ayon_server.entity_search import entity_indexer
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
@@ -227,6 +228,9 @@ async def create_activity(
             raise NotFoundException(
                 f"Unable to create activity. Project {project_name} no longer exists"
             ) from e
+
+        if activity_type == "comment":
+            await entity_indexer.enqueue(project_name, "comment", activity_id)
 
         if files is not None:
             try:
