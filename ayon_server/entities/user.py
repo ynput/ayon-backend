@@ -37,7 +37,7 @@ from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
-    from ayon_server.auth.session import SessionModel
+    from ayon_server.auth.session import DelegatedAccess, SessionModel
     from ayon_server.entities.project import ProjectEntity
 
 
@@ -45,11 +45,14 @@ class SessionInfo:
     is_api_key: bool = False
     token: str
     client_info: Optional["ClientInfo"] = None
+    delegated: Optional["DelegatedAccess"] = None
 
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key
         self.client_info = session.client_info
         self.token = session.token
+        # Set when an application acts as the user, instead of the user
+        self.delegated = session.delegated
 
     def __repr__(self) -> str:
         return f"SessionInfo(is_api_key={self.is_api_key})"

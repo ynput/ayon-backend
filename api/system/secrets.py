@@ -1,4 +1,8 @@
-from ayon_server.api.dependencies import CurrentUser, SecretName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NoDelegatedAccess,
+    SecretName,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -16,7 +20,9 @@ class Secret(OPModel):
     value: str | None = Field(None, title="Secret value")
 
 
-@router.get("/secrets", response_model_exclude_none=True)
+@router.get(
+    "/secrets", response_model_exclude_none=True, dependencies=[NoDelegatedAccess]
+)
 async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
     """Return a list of stored secrets
 
@@ -37,7 +43,7 @@ async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
     return result
 
 
-@router.get("/secrets/{secret_name}")
+@router.get("/secrets/{secret_name}", dependencies=[NoDelegatedAccess])
 async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     """Return a secret value"""
 
@@ -51,7 +57,7 @@ async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     return Secret(name=secret_name, value=value)
 
 
-@router.put("/secrets/{secret_name}", status_code=204)
+@router.put("/secrets/{secret_name}", status_code=204, dependencies=[NoDelegatedAccess])
 async def save_secret(
     payload: Secret, user: CurrentUser, secret_name: SecretName
 ) -> EmptyResponse:
@@ -67,7 +73,9 @@ async def save_secret(
     return EmptyResponse()
 
 
-@router.delete("/secrets/{secret_name}", status_code=204)
+@router.delete(
+    "/secrets/{secret_name}", status_code=204, dependencies=[NoDelegatedAccess]
+)
 async def delete_secret(user: CurrentUser, secret_name: SecretName) -> EmptyResponse:
     """Delete a secret"""
 

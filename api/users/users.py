@@ -2,14 +2,16 @@ from typing import Annotated, Any
 
 from fastapi import Path
 
+from ayon_server.api.auth import SECRET_USER_DATA_KEYS
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
+    NoDelegatedAccess,
     UserName,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.auth.session import Session
+from ayon_server.auth.session import DelegatedAccess, Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.entities.models.user import UserModel, UserPatchModel, UserPostModel
@@ -27,16 +29,6 @@ from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 
 from .avatar import REDIS_NS, obtain_avatar
 from .router import router
-
-# Never returned for other users: they allow logging in as the user
-SECRET_USER_DATA_KEYS = (
-    "password",
-    "apiKey",
-    "apiKeys",
-    "passwordResetRequest",
-    "supportToken",
-    "inviteRequest",
-)
 
 # Only admins may set these: each of them grants admin powers
 ADMIN_USER_DATA_KEYS = (
@@ -142,7 +134,7 @@ def validate_user_data(data: dict[str, Any]) -> None:
         raise BadRequestException(str(e)) from e
 
 
-@router.put("/{user_name}")
+@router.put("/{user_name}", dependencies=[NoDelegatedAccess])
 async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
@@ -191,7 +183,7 @@ async def create_user(
     return EmptyResponse()
 
 
-@router.delete("/{user_name}")
+@router.delete("/{user_name}", dependencies=[NoDelegatedAccess])
 async def delete_user(
     user: CurrentUser,
     user_name: UserName,
@@ -218,7 +210,7 @@ async def delete_user(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}")
+@router.patch("/{user_name}", dependencies=[NoDelegatedAccess])
 async def patch_user(
     payload: UserPatchModel,
     user: CurrentUser,
@@ -303,7 +295,7 @@ class ChangePasswordRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/password")
+@router.patch("/{user_name}/password", dependencies=[NoDelegatedAccess])
 async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: CurrentUser,
@@ -347,7 +339,7 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/checkPassword")
+@router.post("/{user_name}/checkPassword", dependencies=[NoDelegatedAccess])
 async def check_password(
     post_data: CheckPasswordRequestModel,
     user: CurrentUser,
@@ -373,7 +365,7 @@ class ChangeUserNameRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/rename", deprecated=True)
+@router.patch("/{user_name}/rename", deprecated=True, dependencies=[NoDelegatedAccess])
 async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
@@ -410,7 +402,7 @@ class RenameUserRequestModel(OPModel):
     ]
 
 
-@router.post("/{user_name}/rename")
+@router.post("/{user_name}/rename", dependencies=[NoDelegatedAccess])
 async def rename_user(
     patch_data: RenameUserRequestModel,
     user: CurrentUser,
@@ -443,13 +435,18 @@ class UserSessionModel(OPModel):
     is_service: bool
     last_used: float
     client_info: ClientInfo | None = None
+    delegated: DelegatedAccess | None = Field(
+        None,
+        description="Set when the session belongs to an application "
+        "the user gave access to, instead of a login",
+    )
 
 
 class UserSessionsResponseModel(OPModel):
     sessions: list[UserSessionModel]
 
 
-@router.get("/{user_name}/sessions")
+@router.get("/{user_name}/sessions", dependencies=[NoDelegatedAccess])
 async def get_user_sessions(
     current_user: CurrentUser, user_name: UserName
 ) -> UserSessionsResponseModel:
@@ -464,13 +461,14 @@ async def get_user_sessions(
                 client_info=session.client_info,
                 is_service=session.is_service,
                 last_used=session.last_used,
+                delegated=session.delegated,
             )
             async for session in Session.list(user_name)
         ]
     )
 
 
-@router.delete("/{user_name}/sessions/{session_id}")
+@router.delete("/{user_name}/sessions/{session_id}", dependencies=[NoDelegatedAccess])
 async def delete_user_session(
     current_user: CurrentUser,
     user_name: UserName,
@@ -515,7 +513,7 @@ class AssignAccessGroupsRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/accessGroups")
+@router.patch("/{user_name}/accessGroups", dependencies=[NoDelegatedAccess])
 async def assign_access_groups(
     patch_data: AssignAccessGroupsRequestModel,
     user: CurrentUser,
@@ -541,7 +539,7 @@ async def assign_access_groups(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}/frontendPreferences")
+@router.patch("/{user_name}/frontendPreferences", dependencies=[NoDelegatedAccess])
 async def set_frontend_preferences(
     patch_data: dict[str, Any],
     user: CurrentUser,

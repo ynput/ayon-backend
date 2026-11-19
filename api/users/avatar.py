@@ -6,7 +6,13 @@ import aiofiles
 import httpx
 from fastapi import Request, Response
 
-from ayon_server.api.dependencies import AllowGuests, CurrentUser, NoTraces, UserName
+from ayon_server.api.dependencies import (
+    AllowGuests,
+    CurrentUser,
+    NoDelegatedAccess,
+    NoTraces,
+    UserName,
+)
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
@@ -223,7 +229,7 @@ async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response
     return image_response_from_bytes(avatar_bytes)
 
 
-@router.put("/{user_name}/avatar")
+@router.put("/{user_name}/avatar", dependencies=[NoDelegatedAccess])
 async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName):
     """Uploads a new avatar for the specified user."""
 
@@ -254,7 +260,7 @@ async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName
     await user.save()  # to bump the updated_at field
 
 
-@router.delete("/{user_name}/avatar")
+@router.delete("/{user_name}/avatar", dependencies=[NoDelegatedAccess])
 async def delete_avatar(user: CurrentUser, user_name: UserName):
     if user.name != user_name and not user.is_admin:
         raise NotFoundException("Invalid avatar format")

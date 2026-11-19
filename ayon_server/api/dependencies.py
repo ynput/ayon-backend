@@ -42,6 +42,22 @@ AllowGuests = Depends(lambda: None)
 AllowProjectSkeleton = Depends(lambda: None)
 
 
+async def dep_no_delegated_access(request: Request) -> None:
+    """Refuse an application acting as a user (a delegated session).
+
+    An application may do what its user may, except get itself another way
+    in: its access has to end when its time is up or the user disconnects
+    it. This goes on the endpoints that hand out or change credentials and
+    accounts, whether or not they ask for the current user.
+    """
+    user = getattr(request.state, "user", None)
+    if user is not None and user.session and user.session.delegated:
+        raise ForbiddenException("Applications cannot manage accounts or credentials")
+
+
+NoDelegatedAccess = Depends(dep_no_delegated_access)
+
+
 def dep_current_addon(request: Request) -> BaseServerAddon:
     path = request.url.path
     parts = path.split("/")

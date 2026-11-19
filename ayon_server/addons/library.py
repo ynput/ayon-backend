@@ -1,4 +1,5 @@
 import os
+import time
 from collections.abc import ItemsView
 from typing import Any
 
@@ -11,15 +12,29 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 
+# {addon name: {variant: version}}
+ActiveVersions = dict[str, dict[str, str | None]]
+
 
 class AddonLibrary:
     ADDONS_DIR = ayonconfig.addons_dir
     _instance = None
 
+    # How long the versions selected by the bundles are kept for variant
+    # lookups, should a change of the bundles not be announced
+    ACTIVE_VERSIONS_TTL = 10
+
     @staticmethod
     async def clear_addon_list_cache():
+        AddonLibrary.clear_active_versions_cache()
         await Redis.delete_ns("addon-list")
         await Redis.delete_ns("all-settings")
+
+    @classmethod
+    def clear_active_versions_cache(cls) -> None:
+        """Forget the versions kept for variant lookups (on this instance)."""
+        if cls._instance is not None:
+            cls._instance._active_versions = None
 
     @classmethod
     def getinstance(cls) -> "AddonLibrary":
@@ -30,6 +45,7 @@ class AddonLibrary:
     def __init__(self) -> None:
         self.data: dict[str, ServerAddonDefinition] = {}
         self.broken_addons: dict[tuple[str, str], dict[str, str]] = {}
+        self._active_versions: tuple[float, ActiveVersions] | None = None
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
         if addons_dir is None:
@@ -143,6 +159,20 @@ class AddonLibrary:
                 addon_info[variant] = addon_version
         return res
 
+    async def get_cached_active_versions(self) -> ActiveVersions:
+        """Return active versions without asking the database every time.
+
+        For lookups made on every request. The versions are forgotten when
+        a bundle changes (see events/default_hooks) and after
+        ACTIVE_VERSIONS_TTL at the latest.
+        """
+        now = time.monotonic()
+        cached = self._active_versions
+        if cached is None or now - cached[0] > self.ACTIVE_VERSIONS_TTL:
+            cached = (now, await self.get_active_versions())
+            self._active_versions = cached
+        return cached[1]
+
     async def get_addon_versions_by_variant(
         self, variant: str
     ) -> dict[str, str | None]:
@@ -172,14 +202,19 @@ class AddonLibrary:
     async def get_addon_by_variant(
         self, addon_name: str, variant: str
     ) -> BaseServerAddon | None:
-        """Return instance of the addon by variant."""
-        active_versions = await self.get_active_versions()
-        if addon_name not in active_versions:
+        """Return instance of the addon by variant.
+
+        None when the addon is not installed, not in the bundle of the
+        variant, or its version in the bundle failed to load.
+        """
+        definition = self.data.get(addon_name)
+        if definition is None:
             return None
-        addon_version = active_versions[addon_name].get(variant)
+        active_versions = await self.get_cached_active_versions()
+        addon_version = active_versions.get(addon_name, {}).get(variant)
         if addon_version is None:
             return None
-        return self[addon_name][addon_version]
+        return definition.get(addon_version)
 
     async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""
