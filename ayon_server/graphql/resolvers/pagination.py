@@ -100,6 +100,14 @@ def with_tiebreakers(order_by: OrderBySequence, *columns: str) -> OrderBy:
     return [*order_by, *(c for c in columns if c not in sorted_by)]
 
 
+def page_limit(
+    first: int | None, last: int | None, skippable: bool = False
+) -> int:
+    """Rows a page query asks for (the LIMIT set by `create_pagination`)"""
+    limit = first or last or 500
+    return limit * 2 if skippable else limit
+
+
 def create_pagination(
     order_by: OrderBySequence,
     first: int | None = None,
@@ -209,10 +217,7 @@ def create_pagination(
 
     conditions = _cursor_conditions(cursor_keys)
 
-    limit = first or last or 500
-    if skippable:
-        limit *= 2
-
+    limit = page_limit(first, last, skippable)
     ordering = "ORDER BY " + ", ".join(ordering_arr) + f" LIMIT {limit}"
     cursor = ", ".join(cursor_arr)
     return ordering, conditions, cursor

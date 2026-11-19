@@ -16,7 +16,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, json_dumps
 
-from .pagination import OrderBySequence, encode_cursor
+from .pagination import OrderBySequence, encode_cursor, page_limit
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -331,9 +331,14 @@ async def resolve[R](
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: OrderBySequence | None = None,
+    skippable: bool = False,
 ) -> R:
-    """Return a connection object from a query."""
+    """Return a connection object from a query.
 
+    Set `skippable` when the query was paginated with `skippable=True`.
+    """
+
+    limit = page_limit(first, last, skippable)
     if first is not None:
         count = first
     elif last is not None:
@@ -356,6 +361,7 @@ async def resolve[R](
         raise ServiceUnavailableException("Database query timed out")
 
     edges: list[Any] = []
+    last_cursor: str | None = None
     for record in records:
         # Create a standard dictionary from the record
         record_dict = dict(record)
@@ -368,6 +374,7 @@ async def resolve[R](
         for i, _ in enumerate(order_by or []):
             cdata.append(record_dict.pop(f"cursor_{i}"))
         cursor = encode_cursor(cdata)
+        last_cursor = cursor
 
         if node_type is not None:
             try:
@@ -399,16 +406,21 @@ async def resolve[R](
     start_cursor = None
     end_cursor = None
 
+    # Skipped rows can leave a page short while the database has more:
+    # a full batch of rows means there may be more, and the next page
+    # continues after the last row examined, not the last one returned.
+    more_rows = skippable and len(records) >= limit
+
     if first:
-        has_next_page = len(edges) >= first
+        has_next_page = len(edges) >= first or more_rows
         has_previous_page = False  # TODO
         start_cursor = edges[0].cursor if edges else None
-        end_cursor = edges[-1].cursor if edges else None
+        end_cursor = last_cursor
     elif last:
         has_next_page = False  # TODO
-        has_previous_page = len(edges) >= last
+        has_previous_page = len(edges) >= last or more_rows
         start_cursor = edges[0].cursor if edges else None
-        end_cursor = edges[-1].cursor if edges else None
+        end_cursor = last_cursor
         # edges.reverse()
 
     page_info = PageInfo(
