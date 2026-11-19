@@ -1,10 +1,13 @@
 __all__ = ["build_search_cte", "search"]
 
+import re
 from typing import Any
 
 from ayon_server.lib.postgres import Postgres
 
 MAX_TERMS = 8
+MIN_TERM_LENGTH = 2  # shorter terms match nearly everything
+MIN_INFIX_LENGTH = 3  # shorter patterns cannot use the trigram index
 
 # Every term scores by where it matches the beginning of a word: 3 in the
 # names (weight A), 2 in descriptions and comments (B), 1 in other attributes
@@ -14,7 +17,7 @@ MAX_TERMS = 8
 # literals win.
 SEARCH_CTE = """
     SELECT s.*, hi.path AS folder_path,
-        ({term_scores}) / {term_count}
+        {score}
         + CASE s.entity_type
             WHEN 'task' THEN 0.2
             WHEN 'product' THEN 0.1
@@ -79,6 +82,48 @@ def prefix_lexeme(term: str) -> str:
     return f"'{escaped}':*"
 
 
+def parse_query(text: str) -> list[list[str]]:
+    """Return the term groups of a search text: comma = OR, space = AND.
+
+    Terms are split on characters other than letters, digits and `_-./`
+    (so "bob's" finds "bob" and "sh:*" is "sh"), short terms are dropped.
+    """
+    groups, count = [], 0
+    for part in text.split(","):
+        terms = [
+            term
+            for term in re.split(r"[^\w./-]+", part)
+            if len(term) >= MIN_TERM_LENGTH
+        ][: MAX_TERMS - count]
+        if terms:
+            groups.append(terms)
+            count += len(terms)
+    return groups
+
+
+def build_term(term: str) -> tuple[str, str]:
+    """Return the score and the condition of one term."""
+    # Underscores become hyphens, as in the index (see indexer.text_vector)
+    lexeme = f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
+    tsquery = f"to_tsquery('simple', {lexeme})"
+    vector_score = (
+        f"WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'A') THEN 3"
+        f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'B') THEN 2"
+        f" WHEN s.search_vector @@ {tsquery} THEN 1"
+    )
+    if len(term) < MIN_INFIX_LENGTH:
+        return f"CASE {vector_score} ELSE 0 END", f"s.search_vector @@ {tsquery}"
+
+    term_value = f"lower(public.unaccent({sql_string(term)}))"
+    pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
+    like = f"s.literals LIKE {pattern}"
+    similarity = f"public.word_similarity({term_value}, s.literals)"
+    return (
+        f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity} ELSE 0 END",
+        f"({like} OR s.search_vector @@ {tsquery})",
+    )
+
+
 def build_search_cte(
     project_name: str,
     text: str,
@@ -91,39 +136,25 @@ def build_search_cte(
     """Return a query selecting the best search hits, without arguments.
 
     The rows are the `entity_search` rows with `folder_path` and `rank`.
-    A term matches anywhere in the literals (path, names, labels), or the
-    beginning of a word in the other texts. All terms must match.
-    Accents are ignored. Returns None when the text has no terms.
+    A term matches the beginning of a word, or (3+ characters) anywhere in
+    the literals (path, names, labels). All terms of a group must match,
+    any group may (see `parse_query`). Accents are ignored.
+    Returns None when the text has no terms.
 
     `folder_access` limits the rows to folder paths (LIKE patterns),
     `task_access` limits the rows of tasks and their comments to folder
     paths, or to tasks assigned to the given user. None means no limit.
     With `limit=None`, all hits are returned unordered (to filter by them).
     """
-    terms = text.split()[:MAX_TERMS]
-    if not terms:
+    groups = parse_query(text)
+    if not groups:
         return None
 
-    term_scores, conditions = [], []
-    for term in terms:
-        term_value = f"lower(public.unaccent({sql_string(term)}))"
-        pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
-        # Underscores become hyphens, as in the index (see indexer.text_vector)
-        lexeme = (
-            f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
-        )
-
-        like = f"s.literals LIKE {pattern}"
-        tsquery = f"to_tsquery('simple', {lexeme})"
-        similarity = f"public.word_similarity({term_value}, s.literals)"
-        term_scores.append(
-            "CASE"
-            f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'A') THEN 3"
-            f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'B') THEN 2"
-            f" WHEN s.search_vector @@ {tsquery} THEN 1"
-            f" WHEN {like} THEN 0.5 * {similarity} ELSE 0 END"
-        )
-        conditions.append(f"({like} OR s.search_vector @@ {tsquery})")
+    group_scores, group_conditions = [], []
+    for terms in groups:
+        scores, conditions = zip(*map(build_term, terms))
+        group_scores.append(f"({' + '.join(scores)}) / {len(terms)}")
+        group_conditions.append(f"({' AND '.join(conditions)})")
 
     filters = []
     if entity_types:
@@ -140,9 +171,9 @@ def build_search_cte(
 
     return SEARCH_CTE.format(
         schema=f"project_{project_name}",
-        term_scores=" + ".join(term_scores),
-        term_count=len(terms),
-        conditions=" AND ".join(conditions),
+        score=f"GREATEST({', '.join(group_scores)})",
+        # Parenthesized: the access filters below must apply to every group
+        conditions=f"({' OR '.join(group_conditions)})",
         filters="\n    ".join(filters),
         top=""
         if limit is None
