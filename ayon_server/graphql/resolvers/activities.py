@@ -398,4 +398,5 @@ async def get_activities(
         last=last,
         context=info.context,
         order_by=order_by,
+        skippable=True,
     )

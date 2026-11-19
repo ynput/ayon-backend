@@ -99,7 +99,7 @@ class Client:
             logger.warning(f"[WS] Unauthorized access: {e}")
             session_data = None
         if session_data and session_data.delegated:
-            if not session_data.delegated.allows_path("/ws"):
+            if not session_data.delegated.is_issued_for("/ws"):
                 logger.warning("[WS] Session is not valid for the websocket")
                 session_data = None
         if session_data is not None:

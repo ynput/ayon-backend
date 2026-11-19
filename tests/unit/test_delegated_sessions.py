@@ -75,10 +75,14 @@ def make_user() -> UserEntity:
     return UserEntity(payload={"name": "artist"}, exists=False)
 
 
-def make_request(ip: str, path: str = "/api/users/me", token: str = "") -> Request:
+def make_request(
+    ip: str, path: str = "/api/users/me", token: str = "", as_user: str = ""
+) -> Request:
     headers = [(b"x-forwarded-for", ip.encode())]
     if token:
         headers.append((b"authorization", f"Bearer {token}".encode()))
+    if as_user:
+        headers.append((b"x-as-user", as_user.encode()))
     scope = {
         "type": "http",
         "path": path,
@@ -89,17 +93,19 @@ def make_request(ip: str, path: str = "/api/users/me", token: str = "") -> Reque
     return Request(scope)
 
 
-def access(expires_in: float = 3600, paths: list[str] | None = None) -> DelegatedAccess:
+def access(
+    expires_in: float = 3600, resources: list[str] | None = None
+) -> DelegatedAccess:
     return DelegatedAccess(
         client_id="client",
         client_name="Some app",
         expires=time.time() + expires_in,
-        paths=paths,
+        resources=resources,
     )
 
 
 @pytest.mark.parametrize(
-    ("paths", "path", "allowed"),
+    ("resources", "path", "allowed"),
     [
         (None, "/api/users/me", True),
         (["/api/mcp"], "/api/mcp", True),
@@ -120,8 +126,8 @@ def access(expires_in: float = 3600, paths: list[str] | None = None) -> Delegate
         ([], "/api/mcp", False),
     ],
 )
-def test_allows_path(paths: list[str] | None, path: str, allowed: bool) -> None:
-    assert access(paths=paths).allows_path(path) is allowed
+def test_is_issued_for(resources: list[str] | None, path: str, allowed: bool) -> None:
+    assert access(resources=resources).is_issued_for(path) is allowed
 
 
 @pytest.mark.anyio
@@ -194,7 +200,7 @@ async def test_delegated_sessions_do_not_count_as_concurrent_sessions(
 @pytest.mark.anyio
 async def test_path_limited_session_is_refused_elsewhere() -> None:
     session = await Session.create(
-        make_user(), delegated=access(paths=["/api/mcp", "/api/addons/mcp/*/mcp"])
+        make_user(), delegated=access(resources=["/api/mcp", "/api/addons/mcp/*/mcp"])
     )
     token = session.token
 
@@ -230,7 +236,15 @@ def refused_routes() -> dict[tuple[str, str], bool]:
     from ayon_server.api.dependencies import NoApplicationAccess, NoDelegatedAccess
 
     result: dict[tuple[str, str], bool] = {}
-    for module_name in ("auth", "users", "profile", "system"):
+    for module_name in (
+        "auth",
+        "users",
+        "profile",
+        "system",
+        "addons",
+        "desktop",
+        "services",
+    ):
         router = importlib.import_module(module_name).router
         for route in router.routes:
             assert isinstance(route, APIRoute)
@@ -265,6 +279,16 @@ def refused_routes() -> dict[tuple[str, str], bool]:
         ("GET", "/api/secrets/{secret_name}", True),
         ("PUT", "/api/secrets/{secret_name}", True),
         ("PATCH", "/api/users/{user_name}/frontendPreferences", True),
+        # code on the server or the clients outlives the application's access
+        ("POST", "/api/addons/install", True),
+        ("POST", "/api/desktop/installers", True),
+        ("PUT", "/api/desktop/installers/{filename}", True),
+        ("PATCH", "/api/desktop/installers/{filename}", True),  # download sources
+        ("POST", "/api/desktop/dependencyPackages", True),
+        ("PUT", "/api/desktop/dependencyPackages/{filename}", True),
+        ("PATCH", "/api/desktop/dependencyPackages/{filename}", True),
+        ("PUT", "/api/services/{name}", True),
+        ("PATCH", "/api/services/{service_name}", True),
         # reading users and working with everything else stays possible
         ("GET", "/api/users/{user_name}", False),
         ("GET", "/api/users/me", False),
@@ -300,6 +324,12 @@ def test_new_account_endpoints_have_to_decide() -> None:
                 and path.startswith(("/api/users", "/api/profile", "/api/auth"))
                 and path != "/api/auth/logout"
             )
+            or (
+                method in ("POST", "PUT", "PATCH")
+                and path.startswith(
+                    ("/api/desktop", "/api/services", "/api/addons/install")
+                )
+            )
         )
     ]
     assert undecided == []
@@ -330,6 +360,28 @@ async def test_application_does_not_see_the_users_secrets() -> None:
     login = await Session.create(user, make_request(IP_A))
     seen = await api_auth.user_from_request(make_request(IP_A, token=login.token))
     assert seen.data["password"] == "hash:salt"
+
+
+@pytest.mark.anyio
+async def test_application_of_a_service_user_cannot_act_as_another_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def load(name: str, *args: Any, **kwargs: Any) -> UserEntity:
+        return UserEntity(payload={"name": name, "data": {"isAdmin": True}})
+
+    monkeypatch.setattr(UserEntity, "load", load)
+    service = UserEntity(
+        payload={"name": "bot", "data": {"isService": True}}, exists=False
+    )
+
+    app = await Session.create(service, delegated=access())
+    request = make_request(IP_A, token=app.token, as_user="admin")
+    assert (await api_auth.user_from_request(request)).name == "bot"
+
+    # the service user itself still can (its token is given, as for a service)
+    login = await Session.create(service, token="b" * 64)
+    request = make_request(IP_A, token=login.token, as_user="admin")
+    assert (await api_auth.user_from_request(request)).name == "admin"
 
 
 def test_application_is_refused_by_the_dependency(

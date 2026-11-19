@@ -320,12 +320,17 @@ async def get_activity_categories(
     project: ProjectEntity,
     user: UserEntity,
     record: dict[str, Any],
+    context: dict[str, Any],
 ) -> list[str]:
-    writable_categories = await ActivityCategories.get_accessible_categories(
-        user,
-        project=project,
-        level=EntityAccessHelper.UPDATE,
-    )
+    # The same for every list of the project: once per request
+    writable = context.setdefault("writable_activity_categories", {})
+    if project.name not in writable:
+        writable[project.name] = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+            level=EntityAccessHelper.UPDATE,
+        )
+    writable_categories = writable[project.name]
 
     if user.is_guest:
         # Guests comment in the category set for them on the list
@@ -377,7 +382,9 @@ async def entity_list_from_record(
                 default_open=True,
             )
 
-            activity_categories = await get_activity_categories(project, user, record)
+            activity_categories = await get_activity_categories(
+                project, user, record, context
+            )
 
     else:
         activity_categories = []
