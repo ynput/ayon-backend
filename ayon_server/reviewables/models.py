@@ -4,11 +4,6 @@ from typing import Any
 from ayon_server.helpers.ffprobe import ReviewableAvailability
 from ayon_server.types import Field, OPModel
 
-# Keys of file data managed by the server, not part of reviewable custom data
-RESERVED_FILE_DATA_KEYS = frozenset(
-    {"filename", "mime", "mediaInfo", "filmstrip", "createdFrom"}
-)
-
 
 class ReviewableAuthor(OPModel):
     name: str = Field(..., title="Author Name")
@@ -35,8 +30,9 @@ class ReviewableModel(OPModel):
     data: dict[str, Any] = Field(
         default_factory=dict,
         title="Reviewable data",
-        description="Custom data of the reviewable (e.g. 'overlay' "
-        "with burnins drawn by the player)",
+        description="Custom data of the reviewable (e.g. 'overlay' with "
+        "burnins drawn by the player). Stored in 'reviewableData' "
+        "of the reviewable activity data.",
     )
     processing: ReviewableProcessingStatus | None = Field(
         None,

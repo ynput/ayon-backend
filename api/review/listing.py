@@ -25,7 +25,6 @@ from ayon_server.graphql.resolvers.common import argdesc
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.reviewables.models import (
-    RESERVED_FILE_DATA_KEYS,
     ReviewableAuthor,
     ReviewableModel,
     ReviewableProcessingStatus,
@@ -183,6 +182,7 @@ async def get_reviewables(
             files.data as file_data,
             af.activity_data->>'reviewableLabel' AS label,
             af.activity_data->>'author' AS author_name,
+            af.activity_data->'reviewableData' AS reviewable_data,
             users.attrib->>'fullName' AS author_full_name,
 
 
@@ -279,6 +279,7 @@ async def get_reviewables(
         file_data = row["file_data"] or {}
         media_info = file_data.get("mediaInfo", {})
         created_from = file_data.get("createdFrom")
+        reviewable_data = row["reviewable_data"]
         availability = availability_from_media_info(media_info)
 
         if created_from:
@@ -310,11 +311,7 @@ async def get_reviewables(
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 created_from=created_from,
-                data={
-                    key: value
-                    for key, value in file_data.items()
-                    if key not in RESERVED_FILE_DATA_KEYS
-                },
+                data=reviewable_data if isinstance(reviewable_data, dict) else {},
                 file_id=row["file_id"],
                 filename=file_data["filename"],
                 label=row["label"],
@@ -330,15 +327,7 @@ async def get_reviewables(
 
     result = list(versions.values())
     for version in result:
-        # Files transcoded after the data was set use data of the source
-        data_by_file_id = {
-            reviewable.file_id: reviewable.data for reviewable in version.reviewables
-        }
         for reviewable in version.reviewables:
-            source_data = data_by_file_id.get(reviewable.created_from or "")
-            if source_data:
-                reviewable.data = {**source_data, **reviewable.data}
-
             if reviewable.file_id in processed and not reviewable.processing:
                 reviewable.processing = ReviewableProcessingStatus(
                     event_id=None,

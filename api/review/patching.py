@@ -1,13 +1,9 @@
-from typing import Any
-
 from ayon_server.api.dependencies import ActivityID, CurrentUser, ProjectName, VersionID
 from ayon_server.entities import VersionEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.reviewables.models import RESERVED_FILE_DATA_KEYS
 from ayon_server.types import Field, OPModel
-from ayon_server.utils.json import json_dumps
 
 from .router import router
 
@@ -26,25 +22,11 @@ class SortReviewablesRequest(OPModel):
     )
 
 
-REVIEWABLE_DATA_MAX_SIZE = 8 * 1024 * 1024
-
-
 class UpdateReviewablesRequest(OPModel):
     label: str | None = Field(
         None,
         title="Reviewable Label",
         example="Shoulder detail",
-    )
-    data: dict[str, Any] | None = Field(
-        None,
-        title="Reviewable Data",
-        description=(
-            "Custom data of the reviewable (e.g. 'overlay' with burnins "
-            "drawn by the player). Top-level keys are merged into the "
-            "current data, a key with `null` value is removed. "
-            "Keys managed by the server cannot be changed."
-        ),
-        example={"overlay": {"schema": "premium_burnins/1"}},
     )
 
 
@@ -110,11 +92,9 @@ async def update_reviewable(
     reviewable_id: ActivityID,
     request: UpdateReviewablesRequest,
 ) -> None:
-    """Update an existing reviewable.
+    """Update an existing reviewable,
 
-    It is possible to update the label and the custom data of a reviewable.
-    The data is stored to all files of the reviewable, including files
-    transcoded from it.
+    Currently it is only possible to update the label of a reviewable.
     """
 
     version = await VersionEntity.load(project_name, version_id)
@@ -130,12 +110,6 @@ async def update_reviewable(
                 detail="Label must be between 1 and 255 characters"
             )
 
-    if request.data:
-        await _update_reviewable_data(
-            project_name, version_id, reviewable_id, request.data
-        )
-
-    if request.label is not None:
         await Postgres.execute(
             f"""
             UPDATE project_{project_name}.activities
@@ -147,48 +121,3 @@ async def update_reviewable(
             request.label,
             reviewable_id,
         )
-
-
-async def _update_reviewable_data(
-    project_name: str,
-    version_id: str,
-    reviewable_id: str,
-    data: dict[str, Any],
-) -> None:
-    reserved_keys = sorted(RESERVED_FILE_DATA_KEYS & data.keys())
-    if reserved_keys:
-        raise BadRequestException(
-            detail=f"Data keys managed by the server cannot be changed: "
-            f"{', '.join(reserved_keys)}"
-        )
-
-    if len(json_dumps(data)) > REVIEWABLE_DATA_MAX_SIZE:
-        raise BadRequestException(
-            detail="Data must be smaller than "
-            f"{REVIEWABLE_DATA_MAX_SIZE // (1024 * 1024)} MB"
-        )
-
-    new_data = {key: value for key, value in data.items() if value is not None}
-    removed_keys = [key for key, value in data.items() if value is None]
-
-    # Update only files of the reviewable that belongs to the version
-    res = await Postgres.fetch(
-        f"""
-        UPDATE project_{project_name}.files AS files
-        SET data = (files.data || $3::jsonb) - $4::text[]
-        FROM project_{project_name}.activity_feed AS af
-        WHERE files.activity_id = af.activity_id
-        AND af.activity_id = $2
-        AND af.reference_type = 'origin'
-        AND af.activity_type = 'reviewable'
-        AND af.entity_type = 'version'
-        AND af.entity_id = $1
-        RETURNING files.id
-        """,
-        version_id,
-        reviewable_id,
-        new_data,
-        removed_keys,
-    )
-    if not res:
-        raise NotFoundException(detail="Reviewable not found")
