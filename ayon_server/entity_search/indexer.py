@@ -26,25 +26,29 @@ ENTITY_TYPES = ["folder", "task", "product", "version", "comment"]  # parents fi
 #
 
 
-def text_vector(expr: str, whole_weight: str, part_weight: str) -> str:
+def text_vector(expr: str, weight: str) -> str:
     """Return a tsvector of the words of a text, matching from word starts.
 
-    Tokens are indexed whole with `whole_weight` ("camel_case", "render.exr")
-    and split on punctuation with `part_weight` ("camel", "case", "render",
-    "exr"). Underscores become hyphens: the parser keeps hyphenated words
-    whole and also splits them. Accents are removed (on the query side too).
+    Tokens are indexed whole ("camel_case", "render.exr") and split on
+    punctuation ("camel", "case", "render", "exr"). Underscores become hyphens:
+    the parser keeps hyphenated words whole and also splits them. Accents are
+    removed (on the query side too). The weight is the search tier:
+    A = names, B = descriptions and comments, C = other attributes.
     """
     text = f"public.unaccent(coalesce({expr}, ''))"
     whole = f"to_tsvector('simple', translate({text}, '_', '-'))"
     parts = f"to_tsvector('simple', regexp_replace({text}, '[^[:alnum:]]+', ' ', 'g'))"
-    return (
-        f"setweight({whole}, '{whole_weight}') || setweight({parts}, '{part_weight}')"
-    )
+    return f"setweight({whole} || {parts}, '{weight}')"
 
 
 def literal_text(*exprs: str) -> str:
     """Return the path, names and labels: not split, matched anywhere."""
     return f"lower(public.unaccent(concat_ws(' ', {', '.join(exprs)})))"
+
+
+def name_vector(*exprs: str) -> str:
+    """Return a tsvector of the own names, labels and types (not the path)."""
+    return text_vector(f"concat_ws(' ', {', '.join(exprs)})", "A")
 
 
 def attribute_vector(entity_type: str) -> str:
@@ -65,9 +69,9 @@ def attribute_vector(entity_type: str) -> str:
         and not attr.get("enum")
         and not attr.get("enumResolver")
     ]
-    description = text_vector("e.attrib->>'description'", "B", "C")
+    description = text_vector("e.attrib->>'description'", "B")
     attributes_text = f"concat_ws(' ', {', '.join(attributes) or 'NULL'})"
-    return f"{description} || {text_vector(attributes_text, 'C', 'D')}"
+    return f"{description} || {text_vector(attributes_text, 'C')}"
 
 
 #
@@ -90,7 +94,8 @@ def get_folder_source() -> str:
     return f"""
         SELECT e.id, e.id, NULL::uuid, NULL::uuid, NULL::uuid,
             {literal_text("pa.path", "e.label")},
-            {attribute_vector("folder")},
+            {name_vector("e.name", "e.label")}
+            || {attribute_vector("folder")},
             e.updated_at
         FROM folders e
         JOIN paths pa ON pa.id = e.id
@@ -101,7 +106,8 @@ def get_task_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, e.id, NULL::uuid, NULL::uuid,
             {literal_text("pa.path", "e.name", "e.label", "e.task_type")},
-            {attribute_vector("task")},
+            {name_vector("e.name", "e.label", "e.task_type")}
+            || {attribute_vector("task")},
             e.updated_at
         FROM tasks e
         JOIN paths pa ON pa.id = e.folder_id
@@ -112,7 +118,8 @@ def get_product_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, NULL::uuid, e.id, NULL::uuid,
             {literal_text("pa.path", "e.name")},
-            {attribute_vector("product")},
+            {name_vector("e.name")}
+            || {attribute_vector("product")},
             e.updated_at
         FROM products e
         JOIN paths pa ON pa.id = e.folder_id
@@ -129,7 +136,8 @@ def get_version_source() -> str:
     return f"""
         SELECT e.id, p.folder_id, NULL::uuid, e.product_id, e.id,
             {literal_text("pa.path", "p.name", version_name)},
-            {attribute_vector("version")},
+            {name_vector(version_name)}
+            || {attribute_vector("version")},
             e.updated_at
         FROM versions e
         JOIN products p ON p.id = e.product_id
@@ -148,7 +156,7 @@ def get_comment_source() -> str:
     return f"""
         SELECT e.id, COALESCE(t.folder_id, p.folder_id, f.id), t.id, p.id, v.id,
             NULL,
-            {text_vector(body, "B", "C")},
+            {text_vector(body, "B")},
             e.updated_at
         FROM activities e
         JOIN activity_references r

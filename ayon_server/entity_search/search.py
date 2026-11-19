@@ -6,19 +6,20 @@ from ayon_server.lib.postgres import Postgres
 
 MAX_TERMS = 8
 
-# A hit in the literals (path, names, labels) scores 1 to 2 per term, so it
-# outranks any hit in the texts (normalized to 0-1). The closer the term is
-# to a whole word of the literals, the higher the score; among equal scores,
-# the shortest literals win. For similar matches, folders come first,
-# then tasks, products and versions.
+# Every term scores by where it matches the beginning of a word: 3 in the
+# names (weight A), 2 in descriptions and comments (B), 1 in other attributes
+# (C), and at most 0.5 when it matches only inside the literals (path, names).
+# The scores are averaged over the terms. Within a tier, folders come first,
+# then tasks, products and versions; among equal scores, the shortest
+# literals win.
 SEARCH_CTE = """
     SELECT s.*, hi.path AS folder_path,
-        ({literal_hits} + ts_rank(s.search_vector, {tsquery}, 32))
-        * CASE s.entity_type
-            WHEN 'task' THEN 0.9
-            WHEN 'product' THEN 0.8
-            WHEN 'version' THEN 0.7
-            ELSE 1
+        ({term_scores}) / {term_count}
+        + CASE s.entity_type
+            WHEN 'task' THEN 0.2
+            WHEN 'product' THEN 0.1
+            WHEN 'version' THEN 0
+            ELSE 0.3
         END AS rank
     FROM {schema}.entity_search s
     JOIN {schema}.hierarchy hi ON hi.id = s.folder_id
@@ -103,7 +104,7 @@ def build_search_cte(
     if not terms:
         return None
 
-    literal_hits, tsqueries, conditions = [], [], []
+    term_scores, conditions = [], []
     for term in terms:
         term_value = f"lower(public.unaccent({sql_string(term)}))"
         pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
@@ -115,8 +116,13 @@ def build_search_cte(
         like = f"s.literals LIKE {pattern}"
         tsquery = f"to_tsquery('simple', {lexeme})"
         similarity = f"public.word_similarity({term_value}, s.literals)"
-        literal_hits.append(f"CASE WHEN {like} THEN 1 + {similarity} ELSE 0 END")
-        tsqueries.append(tsquery)
+        term_scores.append(
+            "CASE"
+            f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'A') THEN 3"
+            f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'B') THEN 2"
+            f" WHEN s.search_vector @@ {tsquery} THEN 1"
+            f" WHEN {like} THEN 0.5 * {similarity} ELSE 0 END"
+        )
         conditions.append(f"({like} OR s.search_vector @@ {tsquery})")
 
     filters = []
@@ -134,8 +140,8 @@ def build_search_cte(
 
     return SEARCH_CTE.format(
         schema=f"project_{project_name}",
-        literal_hits=" + ".join(literal_hits),
-        tsquery=" && ".join(tsqueries),
+        term_scores=" + ".join(term_scores),
+        term_count=len(terms),
         conditions=" AND ".join(conditions),
         filters="\n    ".join(filters),
         top=""
