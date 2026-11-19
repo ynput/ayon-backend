@@ -16,6 +16,7 @@ __all__ = ["ENTITY_TYPES", "backfill", "index_entities"]
 
 from typing import Any
 
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
@@ -80,9 +81,11 @@ def attribute_vector(entity_type: str) -> str:
 
 # Folder paths (the `paths` CTE used by the sources), from the folders table:
 # the hierarchy view may not be refreshed yet when the indexer runs.
-FOLDER_PATHS_CTE = """
+# The internal folder is hidden in the app, so nothing below it is indexed.
+FOLDER_PATHS_CTE = f"""
     WITH RECURSIVE paths AS (
-        SELECT id, name::text AS path FROM folders WHERE parent_id IS NULL
+        SELECT id, name::text AS path FROM folders
+        WHERE parent_id IS NULL AND name <> '{AYON_INTERNAL_FOLDER_NAME}'
         UNION ALL
         SELECT f.id, pa.path || '/' || f.name
         FROM folders f JOIN paths pa ON f.parent_id = pa.id
@@ -149,8 +152,9 @@ def get_comment_source() -> str:
     """One row per comment, linked to the entity it is on.
 
     Comments on deleted or unsupported entities resolve to no folder and are
-    skipped. No literals: they would rank every comment of a folder above its
-    tasks. Markdown link targets are stripped, link texts are kept.
+    skipped, as are those in the internal folder. No literals: they would
+    rank every comment of a folder above its tasks. Markdown link targets
+    are stripped, link texts are kept.
     """
     body = r"regexp_replace(e.body, '\]\([^)]*\)', ' ', 'g')"
     return f"""
@@ -168,8 +172,8 @@ def get_comment_source() -> str:
             v.product_id,
             CASE WHEN r.entity_type = 'product' THEN r.entity_id END
         )
+        JOIN paths pa ON pa.id = COALESCE(t.folder_id, p.folder_id, f.id)
         WHERE e.activity_type = 'comment'
-        AND COALESCE(t.folder_id, p.folder_id, f.id) IS NOT NULL
     """
 
 
@@ -193,10 +197,8 @@ def build_upsert_query(entity_type: str) -> str:
 
     $1 = batch size, $2 = entity ids or NULL for all.
     """
-    paths_cte = "" if entity_type == "comment" else FOLDER_PATHS_CTE
-
     query = f"""
-        {paths_cte}
+        {FOLDER_PATHS_CTE}
         INSERT INTO entity_search (
             entity_id, folder_id, task_id, product_id, version_id,
             literals, search_vector, updated_at, entity_type
