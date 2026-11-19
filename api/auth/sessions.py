@@ -14,15 +14,11 @@ from .router import router
 
 @router.get("/sessions", dependencies=[NoDelegatedAccess])
 async def list_active_sessions(user: CurrentUser) -> list[SessionModel]:
-    # Admin only: the response contains tokens that allow acting as the users
     if not user.is_admin:
         raise ForbiddenException()
 
-    result: list[SessionModel] = []
-    async for row in Session.list():
-        result.append(row)
-
-    return result
+    # token replaced by its hash: the real one would let the admin act as the user
+    return [row.model_copy(update={"token": row.id}) async for row in Session.list()]
 
 
 class CreateSessionRequest(OPModel):
