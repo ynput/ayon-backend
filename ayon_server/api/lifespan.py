@@ -4,9 +4,10 @@ import inspect
 import os
 import traceback
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.addons import AddonLibrary
+from ayon_server.addons.activation import init_addon_activation
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.readiness import set_ready
@@ -16,7 +17,10 @@ from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.helpers.cloud import CloudUtils
-from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
+from ayon_server.helpers.migrate_addon_settings import (
+    dispatch_settings_events,
+    migrate_addon_settings,
+)
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_exception, log_traceback, logger
@@ -136,6 +140,8 @@ async def addon_update(library: AddonLibrary) -> None:
             """
         )
         bundle_update_needed = False
+        row = None
+        settings_events: list[dict[str, Any]] = []
         if res:
             production_addons = dict(res["addons"] or {})
             has_previous_bundle = True
@@ -174,7 +180,7 @@ async def addon_update(library: AddonLibrary) -> None:
                     production_addon = library.addon(
                         addon_name, production_addons[addon_name]
                     )
-                    await migrate_addon_settings(
+                    settings_events += await migrate_addon_settings(
                         source_addon=production_addon,
                         target_addon=addon,
                         source_variant="production",
@@ -192,18 +198,19 @@ async def addon_update(library: AddonLibrary) -> None:
         if bundle_update_needed:
             if has_previous_bundle:
                 logger.debug("Updating production bundle with required addons")
-                await Postgres.execute(
+                row = await Postgres.fetchrow(
                     """
                     UPDATE public.bundles
                     SET data = jsonb_set(data, '{addons}', $1::jsonb),
                         updated_at = NOW()
                     WHERE is_production = TRUE
+                    RETURNING name
                     """,
                     production_addons,
                 )
             else:
                 logger.debug("Creating production bundle with required addons")
-                await Postgres.execute(
+                row = await Postgres.fetchrow(
                     """
                     INSERT INTO public.bundles (name, is_production, data)
                     VALUES (
@@ -211,6 +218,7 @@ async def addon_update(library: AddonLibrary) -> None:
                         TRUE,
                         $1
                     )
+                    RETURNING name
                     """,
                     {
                         "addons": production_addons,
@@ -219,6 +227,21 @@ async def addon_update(library: AddonLibrary) -> None:
                     },
                 )
             logger.debug("Production bundle updated with required addons")
+
+    if bundle_update_needed:
+        # Notify already running replicas (after the commit).
+        # The bundle is already updated, so do not fail the startup on error.
+        try:
+            await AddonLibrary.clear_addon_list_cache()
+            bundle_name = row["name"] if row else None
+            await EventStream.dispatch(
+                "bundle.updated" if has_previous_bundle else "bundle.created",
+                description=f"Required addons added to bundle '{bundle_name}'",
+                summary={"name": bundle_name, "isProduction": True},
+            )
+            await dispatch_settings_events(settings_events, None)
+        except Exception:
+            log_traceback("Unable to notify replicas about required addons update")
 
 
 async def _startup(app: "FastAPI") -> None:
@@ -333,6 +356,7 @@ async def _startup(app: "FastAPI") -> None:
 
         await AddonLibrary.clear_addon_list_cache()
         await clear_server_restart_required()
+        await init_addon_activation()
 
         logger.trace(f"{len(app.routes)} routes registered")
         logger.info("Server is now ready to connect")

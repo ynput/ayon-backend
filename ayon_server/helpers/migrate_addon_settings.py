@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from ayon_server.events import EventStream
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -284,3 +285,13 @@ async def migrate_addon_settings(
             target_variant,
             with_projects,
         )
+
+
+async def dispatch_settings_events(
+    events: list[dict[str, Any]],
+    user_name: str | None,
+) -> None:
+    """Dispatch settings.changed events returned by migrate_addon_settings."""
+    for event in events:
+        event["user"] = user_name
+        await EventStream.dispatch("settings.changed", **event)
