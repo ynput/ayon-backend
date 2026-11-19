@@ -3,7 +3,6 @@ from typing import Annotated, Any
 from fastapi import Path
 
 from ayon_server.api.auth import SECRET_USER_DATA_KEYS
-from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
@@ -11,7 +10,7 @@ from ayon_server.api.dependencies import (
     UserName,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.auth.session import DelegatedAccess, Session
+from ayon_server.auth.session import Session, UserSessionModel
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.entities.models.user import UserModel, UserPatchModel, UserPostModel
@@ -430,18 +429,6 @@ async def rename_user(
 #
 
 
-class UserSessionModel(OPModel):
-    token: str
-    is_service: bool
-    last_used: float
-    client_info: ClientInfo | None = None
-    delegated: DelegatedAccess | None = Field(
-        None,
-        description="Set when the session belongs to an application "
-        "the user gave access to, instead of a login",
-    )
-
-
 class UserSessionsResponseModel(OPModel):
     sessions: list[UserSessionModel]
 
@@ -450,19 +437,12 @@ class UserSessionsResponseModel(OPModel):
 async def get_user_sessions(
     current_user: CurrentUser, user_name: UserName
 ) -> UserSessionsResponseModel:
-    # Admin only: the response contains tokens that allow acting as the user
     if (not current_user.is_admin) and (current_user.name != user_name):
         raise ForbiddenException("You are not allowed to list other users' sessions")
 
     return UserSessionsResponseModel(
         sessions=[
-            UserSessionModel(
-                token=session.token,
-                client_info=session.client_info,
-                is_service=session.is_service,
-                last_used=session.last_used,
-                delegated=session.delegated,
-            )
+            UserSessionModel.from_session(session, current_user)
             async for session in Session.list(user_name)
         ]
     )
@@ -472,9 +452,13 @@ async def get_user_sessions(
 async def delete_user_session(
     current_user: CurrentUser,
     user_name: UserName,
-    session_id: str = Path(...),
+    session_id: str = Path(..., description="Session id or its token"),
 ) -> EmptyResponse:
-    session = await Session.check(session_id, None)
+    session = None
+    async for s in Session.list(user_name):
+        if session_id in (s.id, s.token):
+            session = s
+            break
     if not session:
         raise NotFoundException("Requested session id does not exist")
     if session.user.name != current_user.name and (not current_user.is_manager):
@@ -482,7 +466,7 @@ async def delete_user_session(
             "You are not allowed to delete sessions which don't belong to you"
         )
     msg = f"Logged out by {current_user.name}"
-    await Session.delete(session_id, message=msg)
+    await Session.delete(session.token, message=msg)
     return EmptyResponse()
 
 

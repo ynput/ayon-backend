@@ -459,3 +459,26 @@ async def test_delegated_session_is_dropped_from_the_store_at_its_end(
     await Session.create(make_user(), make_request(IP_A))
     assert 599 <= lifetimes[0] <= 602  # kept only as long as it is valid
     assert lifetimes[1] == 0  # a login is kept until it is unused for too long
+
+
+@pytest.mark.anyio
+async def test_session_listing_hides_tokens_and_delete_takes_id_or_token() -> None:
+    from api.users.users import delete_user_session, get_user_sessions
+    from ayon_server.auth.session import hash_token
+
+    user = make_user()
+    current = await Session.create(user, make_request(IP_A))
+    other = await Session.create(user, make_request(IP_A))
+    user.add_session(current)
+
+    listed = (await get_user_sessions(user, user.name)).sessions
+    assert current.token not in str([s.model_dump() for s in listed])
+    assert {s.token: s.is_current for s in listed} == {
+        hash_token(current.token): True,
+        hash_token(other.token): False,
+    }
+
+    await delete_user_session(user, user.name, hash_token(other.token))
+    assert await Session.check(other.token, make_request(IP_A)) is None
+    await delete_user_session(user, user.name, current.token)
+    assert await Session.check(current.token, make_request(IP_A)) is None
