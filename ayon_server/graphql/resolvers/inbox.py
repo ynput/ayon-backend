@@ -120,6 +120,7 @@ async def get_inbox(
         last=last,
         order_by=order_by,
         context=info.context,
+        skippable=True,
     )
     # end_time = time.monotonic()
     return res
