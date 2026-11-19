@@ -15,6 +15,7 @@ from ayon_server.helpers.server_url import get_server_url
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import hash_data
 from ayon_server.utils.server import server_url_from_request
 
 from .router import router
@@ -51,7 +52,7 @@ async def invite_user(
     token = secrets.token_urlsafe(32)
     invite_request = {
         "time": time.time(),
-        "token": token,
+        "token": hash_data(token),  # only the emailed link holds the token
     }
     user.data["inviteRequest"] = invite_request
     user.data.pop("inviteAcceptedAt", None)
@@ -96,11 +97,20 @@ class AcceptInviteRequest(OPModel):
 async def accept_invite(
     payload: AcceptInviteRequest, request: Request
 ) -> LoginResponseModel:
-    query = "SELECT name, data FROM users WHERE data->'inviteRequest'->>'token' = $1"
+    # shortcut: also matches legacy plaintext tokens (43 chars, sha256 hex is 64),
+    # drop the second condition once pre-hashing invites expire (TOKEN_TTL).
+    query = """
+        SELECT name, data FROM users
+        WHERE data->'inviteRequest'->>'token' = $1
+        OR (
+            length(data->'inviteRequest'->>'token') = 43
+            AND data->'inviteRequest'->>'token' = $2
+        )
+    """
 
     ERROR_MESSAGE = "Invalid invite token or token has expired"
 
-    res = await Postgres.fetchrow(query, payload.token)
+    res = await Postgres.fetchrow(query, hash_data(payload.token), payload.token)
     if res is None:
         logger.error("Attempted accept invite using invalid token")
         raise ForbiddenException(ERROR_MESSAGE)

@@ -1,6 +1,12 @@
+import hashlib
+import hmac
+import secrets
+
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import LowPasswordComplexityException
-from ayon_server.utils import create_hash, hash_data
+from ayon_server.utils import hash_data
+
+SCRYPT_PREFIX = "scrypt:"
 
 
 def validate_password(password: str) -> None:
@@ -38,14 +44,36 @@ def validate_password(password: str) -> None:
 
 
 def hash_password(password: str, salt: str = "") -> str:
-    """Create a hash string from a given password and salt,
-    and pepper from the config.
+    """Create a fast SHA-256 hash of a secret, salt and the pepper.
+
+    Used for API keys (random, so a slow hash is not needed, and looked up
+    by the hash) and to verify passwords stored in the legacy format.
     """
     return hash_data(f"{password}:{salt}:{ayonconfig.auth_pass_pepper}")
 
 
+def _scrypt(password: str, salt: str) -> str:
+    secret = f"{password}:{ayonconfig.auth_pass_pepper}".encode()
+    return hashlib.scrypt(secret, salt=salt.encode(), n=2**14, r=8, p=1).hex()
+
+
 def create_password(password: str) -> str:
-    """Create a hash:salt string from a given password."""
-    salt = create_hash()
-    pass_hash = hash_password(password, salt)
-    return f"{pass_hash}:{salt}"
+    """Create a stored password string ("scrypt:hash:salt")."""
+    salt = secrets.token_hex(16)
+    return f"{SCRYPT_PREFIX}{_scrypt(password, salt)}:{salt}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """Check a password against a create_password result or a legacy hash:salt."""
+    if stored.startswith(SCRYPT_PREFIX):
+        pass_hash, salt = stored.removeprefix(SCRYPT_PREFIX).split(":")
+        expected = _scrypt(password, salt)
+    else:
+        pass_hash, salt = stored.split(":")
+        expected = hash_password(password, salt)
+    return hmac.compare_digest(pass_hash, expected)
+
+
+def needs_rehash(stored: str) -> bool:
+    """Return True for passwords stored in the legacy (fast hash) format."""
+    return not stored.startswith(SCRYPT_PREFIX)
