@@ -188,8 +188,9 @@ async def user_from_request(request: Request) -> UserEntity:
         for key in SECRET_USER_DATA_KEYS:
             user.data.pop(key, None)
 
-    if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
-        # sudo :)
+    x_as_user = request.headers.get("x-as-user")
+    if x_as_user and user.is_service and not session_data.delegated:
+        # sudo :) (not for an application: it may act only as its own user)
         user = await UserEntity.load(x_as_user)
         user.add_session(session_data)
 
