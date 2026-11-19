@@ -233,7 +233,7 @@ def refused_routes() -> dict[tuple[str, str], bool]:
     from fastapi.routing import APIRoute
 
     import ayon_server.api.server  # noqa: F401  (makes the API modules importable)
-    from ayon_server.api.dependencies import NoApplicationAccess, NoDelegatedAccess
+    from ayon_server.api.dependencies import NoDelegatedAccess
 
     result: dict[tuple[str, str], bool] = {}
     for module_name in (
@@ -248,10 +248,7 @@ def refused_routes() -> dict[tuple[str, str], bool]:
         router = importlib.import_module(module_name).router
         for route in router.routes:
             assert isinstance(route, APIRoute)
-            refused = any(
-                dep in route.dependencies
-                for dep in (NoDelegatedAccess, NoApplicationAccess)
-            )
+            refused = NoDelegatedAccess in route.dependencies
             for method in route.methods:
                 result[(method, f"/api{route.path}")] = refused
     return result
@@ -278,7 +275,6 @@ def refused_routes() -> dict[tuple[str, str], bool]:
         ("GET", "/api/secrets", True),
         ("GET", "/api/secrets/{secret_name}", True),
         ("PUT", "/api/secrets/{secret_name}", True),
-        ("PATCH", "/api/users/{user_name}/frontendPreferences", True),
         # code on the server or the clients outlives the application's access
         ("POST", "/api/addons/install", True),
         ("POST", "/api/desktop/installers", True),
@@ -309,6 +305,11 @@ PUBLIC_ACCOUNT_ROUTES = {
     ("POST", "/api/users/acceptInvite"),
 }
 
+# Refuse applications in the handler itself (see test_impersonation)
+CHECKED_IN_HANDLER = {
+    ("PATCH", "/api/users/{user_name}/frontendPreferences"),
+}
+
 
 def test_new_account_endpoints_have_to_decide() -> None:
     """A change of accounts or secrets is refused, or listed as open above."""
@@ -316,7 +317,7 @@ def test_new_account_endpoints_have_to_decide() -> None:
         f"{method} {path}"
         for (method, path), refused in refused_routes().items()
         if not refused
-        and (method, path) not in PUBLIC_ACCOUNT_ROUTES
+        and (method, path) not in PUBLIC_ACCOUNT_ROUTES | CHECKED_IN_HANDLER
         and (
             path.startswith("/api/secrets")
             or (

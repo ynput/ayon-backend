@@ -8,10 +8,7 @@ from starlette.requests import Request
 
 from ayon_server.api import auth as api_auth
 from ayon_server.api.context import RequestContext, request_context_manager
-from ayon_server.api.dependencies import (
-    dep_no_application_access,
-    dep_no_delegated_access,
-)
+from ayon_server.api.dependencies import dep_no_delegated_access
 from ayon_server.auth.session import DelegatedAccess, Session
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -194,8 +191,26 @@ async def test_accounts_and_credentials_are_refused() -> None:
 
 
 @pytest.mark.anyio
-async def test_the_web_ui_may_save_its_preferences() -> None:
-    # set_frontend_preferences takes NoApplicationAccess
-    await dep_no_application_access(request_of(delegated_session("admin")))
+async def test_the_web_ui_may_save_its_preferences(
+    users: dict[str, UserEntity], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import importlib
+
+    import ayon_server.api.server  # noqa: F401  (makes the API modules importable)
+
+    set_frontend_preferences = importlib.import_module(
+        "users.users"
+    ).set_frontend_preferences
+
+    async def save(self: UserEntity, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr(UserEntity, "save", save)
+
+    admin = request_of(delegated_session("admin")).state.user
+    await set_frontend_preferences({"a": 1}, admin, "artist")
+    assert users["artist"].data["frontendPreferences"] == {"a": 1}
+
+    app = request_of(delegated_session(None)).state.user
     with pytest.raises(ForbiddenException, match="Applications"):
-        await dep_no_application_access(request_of(delegated_session(None)))
+        await set_frontend_preferences({"a": 1}, app, "artist")

@@ -63,22 +63,6 @@ async def dep_no_delegated_access(request: Request) -> None:
 NoDelegatedAccess = Depends(dep_no_delegated_access)
 
 
-async def dep_no_application_access(request: Request) -> None:
-    """Refuse an application acting as a user, but not an administrator.
-
-    For what the web UI does for the user as it goes, such as saving its
-    layout, which an administrator acting as the user also needs.
-    """
-    user = getattr(request.state, "user", None)
-    if user is None or not user.session or not user.session.delegated:
-        return
-    if not user.session.delegated.impersonator:
-        raise ForbiddenException("Applications cannot manage accounts or credentials")
-
-
-NoApplicationAccess = Depends(dep_no_application_access)
-
-
 def dep_current_addon(request: Request) -> BaseServerAddon:
     path = request.url.path
     parts = path.split("/")
