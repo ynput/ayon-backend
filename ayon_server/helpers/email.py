@@ -102,7 +102,9 @@ def send_smtp_email(
     message["From"] = ayonconfig.email_from
     message["To"] = ", ".join(recipients)
 
-    with smtplib.SMTP(ayonconfig.email_smtp_host, ayonconfig.email_smtp_port) as smtp:
+    with smtplib.SMTP(
+        ayonconfig.email_smtp_host, ayonconfig.email_smtp_port, timeout=20
+    ) as smtp:
         if ayonconfig.email_smtp_tls:
             context = ssl.create_default_context()
             smtp.starttls(context=context)
@@ -144,6 +146,8 @@ async def send_mail(
     subject: str,
     text: str | None = None,
     html: str | None = None,
+    *,
+    raise_on_error: bool = False,
 ) -> None:
     mailing_enabled = await is_mailing_enabled()
     if not mailing_enabled:
@@ -175,9 +179,12 @@ async def send_mail(
                 )
                 await asyncio.gather(task)
         except AssertionError:
-            pass
+            if raise_on_error:
+                raise
         except Exception:
             log_traceback("Error while sending email")
+            if raise_on_error:
+                raise
             return
         else:
             return
