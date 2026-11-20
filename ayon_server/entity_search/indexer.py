@@ -34,7 +34,8 @@ def text_vector(expr: str, weight: str) -> str:
     punctuation ("camel", "case", "render", "exr"). Underscores become hyphens:
     the parser keeps hyphenated words whole and also splits them. Accents are
     removed (on the query side too). The weight is the search tier:
-    A = names, B = descriptions and comments, C = other attributes.
+    A = names, B = descriptions and comments, C = other attributes,
+    task assignees and comment authors (user names).
     """
     text = f"public.unaccent(coalesce({expr}, ''))"
     whole = f"to_tsvector('simple', translate({text}, '_', '-'))"
@@ -110,7 +111,8 @@ def get_task_source() -> str:
         SELECT e.id, e.folder_id, e.id, NULL::uuid, NULL::uuid,
             {literal_text("pa.path", "e.name", "e.label", "e.task_type")},
             {name_vector("e.name", "e.label", "e.task_type")}
-            || {attribute_vector("task")},
+            || {attribute_vector("task")}
+            || {text_vector("array_to_string(e.assignees, ' ')", "C")},
             e.updated_at
         FROM tasks e
         JOIN paths pa ON pa.id = e.folder_id
@@ -160,7 +162,7 @@ def get_comment_source() -> str:
     return f"""
         SELECT e.id, COALESCE(t.folder_id, p.folder_id, f.id), t.id, p.id, v.id,
             NULL,
-            {text_vector(body, "B")},
+            {text_vector(body, "B")} || {text_vector("e.data->>'author'", "C")},
             e.updated_at
         FROM activities e
         JOIN activity_references r
