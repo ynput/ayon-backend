@@ -1,6 +1,9 @@
+from typing import Annotated
+
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.utils import EntityID
 
 from .queries import (
     folder_uris,
@@ -15,7 +18,7 @@ from .router import router
 
 class GetUrisRequest(OPModel):
     entity_type: ProjectLevelEntityType = Field(..., title="Entity type")
-    ids: list[str] = Field(
+    ids: list[Annotated[str, Field(**EntityID.META)]] = Field(
         default_factory=list,
         title="Entity IDs",
     )

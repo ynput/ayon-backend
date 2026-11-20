@@ -3,7 +3,7 @@ from enum import IntEnum
 from typing import Annotated, Any, Literal
 
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid, now
+from ayon_server.utils import EntityID, create_uuid, now
 
 
 class ListAccessLevel(IntEnum):
@@ -18,7 +18,7 @@ class ListAccessLevel(IntEnum):
 FListID = Field(
     default_factory=create_uuid,
     title="ID",
-    example=create_uuid(),
+    **EntityID.META,
 )
 FListLabel = Field(
     title="List label",
@@ -47,6 +47,7 @@ FListEntityType = Field(
 FFolderID = Field(
     title="List folder ID",
     description="ID of the folder containing the list",
+    **EntityID.META,
 )
 FListAccess = Field(
     title="Access",
@@ -84,12 +85,12 @@ FListActive = Field(
 FListItemId = Field(
     default_factory=create_uuid,
     title="Item ID",
-    example=create_uuid(),
+    **EntityID.META,
 )
 FListItemEntityId = Field(
     title="Entity ID",
     description="ID of the entity in the list",
-    example=create_uuid(),
+    **EntityID.META,
 )
 FListItemLabel = Field(
     title="Item label",
@@ -218,7 +219,7 @@ class EntityListDuplicatePostModel(OPModel):
         Field(
             title="ID of the copy",
             description="When omitted, a new ID is generated",
-            example=create_uuid(),
+            **EntityID.META,
         ),
     ] = None
     label: Annotated[
@@ -240,6 +241,7 @@ class EntityListDuplicatePostModel(OPModel):
                 "When omitted, the copy is placed in the folder of the source list. "
                 "Explicit `null` places it outside of any folder."
             ),
+            **EntityID.META,
         ),
     ] = None
 
