@@ -371,8 +371,11 @@ class Session:
         """Logout all user sessions."""
         logged_out = False
         async for session in cls.list(user_name):
-            token = session.token
-            await Redis.delete(cls.ns, token)
+            if session.delegated:
+                # per-session delete records auth.impersonate.end
+                await cls.delete(session.token, message or "User logged out")
+            else:
+                await Redis.delete(cls.ns, session.token)
             logged_out = True
 
         if logged_out:

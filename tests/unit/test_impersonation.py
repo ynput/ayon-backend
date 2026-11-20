@@ -135,6 +135,24 @@ async def test_ending_it_is_recorded(
 
 
 @pytest.mark.anyio
+async def test_forced_logout_records_the_end(
+    monkeypatch: pytest.MonkeyPatch,
+    users: dict[str, UserEntity],
+    events: list[tuple[str, dict[str, Any]]],
+) -> None:
+    token = await impersonate("admin", users["artist"])
+    session = await Session.check(token, None)
+
+    async def sessions(user_name: str | None = None) -> Any:
+        yield session
+
+    monkeypatch.setattr(Session, "list", sessions)
+    await Session.logout_user("artist")
+    assert [topic for topic, _ in events] == ["auth.impersonate.end", "auth.logout"]
+    assert await Session.check(token, None) is None
+
+
+@pytest.mark.anyio
 async def test_events_name_the_impersonator(
     monkeypatch: pytest.MonkeyPatch, users: dict[str, UserEntity]
 ) -> None:
@@ -150,11 +168,13 @@ async def test_events_name_the_impersonator(
     monkeypatch.setattr(Postgres, "execute", execute)
     monkeypatch.setattr(Redis, "publish", publish)
 
+    # a caller-supplied impersonatedBy is never trusted
+    forged = {"a": 1, "impersonatedBy": "someone"}
     context = RequestContext(user=users["artist"], impersonator="admin")
     async with request_context_manager(context):
-        await EventStream.dispatch("entity.task.status_changed", payload={"a": 1})
+        await EventStream.dispatch("entity.task.status_changed", payload=forged)
     async with request_context_manager(RequestContext(user=users["artist"])):
-        await EventStream.dispatch("entity.task.status_changed", payload={"a": 1})
+        await EventStream.dispatch("entity.task.status_changed", payload=forged)
 
     # user_name, then payload
     assert stored[0][6] == "artist"
