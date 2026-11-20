@@ -102,3 +102,32 @@ def test_patch_updates_timestamp(api: httpx.Client, bundle_name: str):
     updated_at = datetime.fromisoformat(bundle["updatedAt"])
     assert updated_at > datetime.fromisoformat(created["updatedAt"])
     assert bundle["createdAt"] == created["createdAt"]
+
+
+def test_force_allows_client_addon_changes(api: httpx.Client, bundle_name: str):
+    response = api.get("/api/bundles")
+    assert response.status_code == 200, response.text
+    core_version = next(
+        (
+            bundle["addons"]["core"]
+            for bundle in response.json()["bundles"]
+            if bundle.get("addons", {}).get("core")
+        ),
+        None,
+    )
+    if core_version is None:
+        pytest.skip("An installed core addon is required")
+    created = create_bundle(api, bundle_name, addons={"core": core_version})
+    assert not created["isDev"]
+
+    removal = {"addons": {"core": None}}
+    response = api.patch(f"/api/bundles/{bundle_name}", json=removal)
+    assert response.status_code == 400, response.text
+    assert "cannot be patched on a non-dev bundle" in response.text
+    assert get_bundle(api, bundle_name)["addons"]["core"] == core_version
+
+    patch_bundle(api, bundle_name, removal)
+    assert "core" not in get_bundle(api, bundle_name)["addons"]
+
+    patch_bundle(api, bundle_name, {"addons": {"core": core_version}})
+    assert get_bundle(api, bundle_name)["addons"]["core"] == core_version
