@@ -539,12 +539,18 @@ async def assign_access_groups(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}/frontendPreferences", dependencies=[NoDelegatedAccess])
+@router.patch("/{user_name}/frontendPreferences")
 async def set_frontend_preferences(
     patch_data: dict[str, Any],
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
+    # Applications may not, but an administrator acting as the user may:
+    # the web UI saves its layout as it goes.
+    delegated = user.session and user.session.delegated
+    if delegated and not delegated.impersonator:
+        raise ForbiddenException("Applications cannot change frontend preferences")
+
     if (user_name != user.name) and not (user.is_manager):
         # users can only change their own preferences
         # managers can change any preferences

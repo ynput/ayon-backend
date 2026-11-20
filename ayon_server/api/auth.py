@@ -287,6 +287,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         request.state.pre_auth = pre_auth_from_request(request)
 
+        user = request.state.user
+        if user is not None and user.session and user.session.delegated:
+            if impersonator := user.session.delegated.impersonator:
+                context["impersonator"] = impersonator
+
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):
                 response = await call_next(request)
