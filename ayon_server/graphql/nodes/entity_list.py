@@ -266,6 +266,14 @@ class EntityListNode:
         accessible_only: bool = False,
         filter: str | None = None,
         search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+        featured_only: Annotated[
+            list[str] | None,
+            argdesc(
+                "Version lists only. Keep the items that are the featured version "
+                "of their product, based on the order of flags, that can be "
+                "'hero', 'latestDone' and 'latest'. Same as featuredOnly of versions."
+            ),
+        ] = None,
         calculate_statistics: Annotated[
             bool, argdesc("Whether to calculate column statistics")
         ] = False,
@@ -290,6 +298,7 @@ class EntityListNode:
             sort_by=sort_by,
             filter=filter,
             search=search,
+            featured_only=featured_only,
             accessible_only=accessible_only,
             calculate_statistics=calculate_statistics,
             calculate_specific_statistics=calculate_specific_statistics,
