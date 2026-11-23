@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
 
+from ayon_server.addons.traits import TRAIT_VERSION_REGEX
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
 from ayon_server.utils import get_base_name, json_dumps
@@ -29,10 +30,17 @@ class RepresentationNode(BaseNode):
     status: str
     tags: list[str]
     data: str | None
-    traits: str | None
     path: str | None = None
 
+    trait_ids: list[str] = strawberry.field(
+        default_factory=list,
+        description=(
+            "Versioned and versionless IDs of the traits of the representation"
+        ),
+    )
+
     _folder_path: strawberry.Private[str | None] = None
+    _traits: strawberry.Private[dict[str, Any] | None] = None
 
     # GraphQL specifics
 
@@ -44,6 +52,25 @@ class RepresentationNode(BaseNode):
         return await info.context["version_from_record"](
             self.project_name, record, info.context
         )
+
+    @strawberry.field(
+        description=(
+            "JSON serialized traits of the representation. Use `ids` "
+            "(versioned or versionless trait IDs) to get only some traits."
+        )
+    )
+    def traits(self, ids: list[str] | None = None) -> str | None:
+        if not self._traits:
+            return None
+        if ids is None:
+            return json_dumps(self._traits)
+        wanted = set(ids)
+        selected = {
+            trait_id: value
+            for trait_id, value in self._traits.items()
+            if trait_id in wanted or TRAIT_VERSION_REGEX.sub("", trait_id) in wanted
+        }
+        return json_dumps(selected)
 
     @strawberry.field(description="Number of files of the representation")
     def file_count(self) -> int:
@@ -112,7 +139,8 @@ async def representation_from_record(
         updated_by=record.get("updated_by"),
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
-        traits=json_dumps(record["traits"]) if record["traits"] else None,
+        trait_ids=record.get("trait_ids") or [],
+        _traits=record.get("traits"),
         path=path,
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},

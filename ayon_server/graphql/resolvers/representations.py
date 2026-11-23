@@ -23,6 +23,7 @@ from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.traits.fields import get_trait_field_types
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
@@ -206,6 +207,8 @@ async def get_representations(
             "attrib",
             "data",
             "traits",
+            "trait_ids",
+            "trait_fields",
             "status",
             "tags",
             "active",
@@ -218,6 +221,7 @@ async def get_representations(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="representations",
+            trait_field_types=await get_trait_field_types(),
         ):
             sql_conditions.append(fcond)
 

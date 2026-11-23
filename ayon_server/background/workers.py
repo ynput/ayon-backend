@@ -1,4 +1,5 @@
 from ayon_server.installer import background_installer
+from ayon_server.traits.backfill import trait_columns_backfill
 
 from .background_worker import BackgroundWorker
 from .invalidate_actions import invalidate_actions
@@ -24,6 +25,7 @@ class BackgroundWorkers:
             background_installer,
             invalidate_actions,
             log_collector,
+            trait_columns_backfill,
         ]
 
     def start(self):

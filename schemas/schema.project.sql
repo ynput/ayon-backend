@@ -369,6 +369,8 @@ CREATE TABLE representations(
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     traits JSONB,
+    trait_ids VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    trait_fields JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
@@ -384,6 +386,13 @@ CREATE INDEX representation_status_idx ON representations(status);
 CREATE INDEX representation_attrib_idx ON representations USING gin(attrib);
 CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, LOWER(name)) WHERE (active IS TRUE);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
+CREATE INDEX representation_trait_ids_idx ON representations USING gin(trait_ids);
+CREATE INDEX representation_trait_fields_idx ON representations USING gin(trait_fields jsonb_path_ops);
+
+-- trait_ids and trait_fields are derived from traits (public.set_representation_trait_columns)
+CREATE TRIGGER representation_trait_columns
+  BEFORE INSERT OR UPDATE OF traits ON representations
+  FOR EACH ROW EXECUTE FUNCTION public.set_representation_trait_columns();
 
 ---------------
 -- WORKFILES --

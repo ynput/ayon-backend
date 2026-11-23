@@ -448,6 +448,74 @@ END IF; END $$;
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
 
 
+------------------------------
+-- REPRESENTATION TRAITS --
+------------------------------
+
+-- Derive the trait_ids and trait_fields columns of representations
+-- (trigger in schema.project.sql). Same as in migrations/00000017.sql,
+-- keep both copies the same.
+
+CREATE OR REPLACE FUNCTION public.trait_field_indexable(value JSONB)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT CASE jsonb_typeof(value)
+    WHEN 'number' THEN TRUE
+    WHEN 'boolean' THEN TRUE
+    WHEN 'string' THEN length(value #>> '{}') <= 64
+    WHEN 'array' THEN
+      jsonb_array_length(value) BETWEEN 1 AND 32
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(value) item
+        WHERE NOT (
+          jsonb_typeof(item) IN ('number', 'boolean')
+          OR (jsonb_typeof(item) = 'string' AND length(item #>> '{}') <= 64)
+        )
+      )
+    ELSE FALSE
+  END
+$$;
+
+CREATE OR REPLACE FUNCTION public.trait_fields_of(traits JSONB)
+RETURNS JSONB LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT COALESCE(jsonb_object_agg(t.key, f.fields), '{}'::JSONB)
+  FROM jsonb_each(
+    CASE WHEN jsonb_typeof(traits) = 'object' THEN traits ELSE '{}'::JSONB END
+  ) t
+  CROSS JOIN LATERAL (
+    SELECT jsonb_object_agg(v.key, v.value) AS fields
+    FROM jsonb_each(
+      CASE WHEN jsonb_typeof(t.value) = 'object' THEN t.value ELSE '{}'::JSONB END
+    ) v
+    WHERE public.trait_field_indexable(v.value)
+  ) f
+  WHERE f.fields IS NOT NULL
+$$;
+
+CREATE OR REPLACE FUNCTION public.trait_ids_of(traits JSONB)
+RETURNS VARCHAR[] LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  WITH ids AS (
+    SELECT jsonb_object_keys(
+      CASE WHEN jsonb_typeof(traits) = 'object' THEN traits ELSE '{}'::JSONB END
+    ) AS id
+  )
+  SELECT COALESCE(array_agg(id ORDER BY id), ARRAY[]::VARCHAR[])
+  FROM (
+    SELECT id FROM ids
+    UNION
+    SELECT regexp_replace(id, '\.v[0-9]+$', '') FROM ids
+  ) all_ids
+$$;
+
+CREATE OR REPLACE FUNCTION public.set_representation_trait_columns()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.trait_ids := public.trait_ids_of(NEW.traits);
+  NEW.trait_fields := public.trait_fields_of(NEW.traits);
+  RETURN NEW;
+END
+$$;
+
+
 -----------
 -- INBOX --
 -----------
