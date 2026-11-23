@@ -1,5 +1,10 @@
+{#
+  Building blocks of AYON emails. A template extends base.jinja and uses them
+  through `ui`, e.g. `{{ ui.heading("Title") }}` in the content block.
+  Values are escaped; the plain text version is made from the HTML when sent.
+#}
+
 {% macro footer() -%}
-{% if not __plain__ %}
 <tr>
   <td
     align="center"
@@ -15,12 +20,11 @@
     </p>
   </td>
 </tr>
-{% else %}{{ caller() }}{% endif %}
 {%- endmacro %}
 
 
+{# a button, as a row of the main table (the call_to_action block) #}
 {% macro call_to_action(text, url) -%}
-{% if not __plain__ %}
   <tr>
     <td align="center" style="padding:20px;">
       <a
@@ -39,17 +43,55 @@
         >{{ text }}</a>
     </td>
   </tr>
-{% else %}
-  {{ text }}: {{ url }}
-{% endif %}
 {%- endmacro %}
 
 
-
-{% macro paragraph() -%}{% if not __plain__ %}
+{% macro paragraph() -%}
 <p style="margin:5px 0 0 0; font-size:14px;">
   {{ caller() }}
 </p>
-{% else %}
-{{ caller() }}
-{% endif %}{% endmacro %}
+{%- endmacro %}
+
+
+{# the line mail clients show next to the subject in a list; hidden in the email #}
+{% macro preheader(text) -%}
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">{{ text }}</div>
+{%- endmacro %}
+
+
+{# the title of the email, e.g. the name of a review session #}
+{% macro heading(text) -%}
+<p style="margin:0; font-size:20px; line-height:1.35; font-weight:normal;">
+  {{ text }}
+</p>
+{%- endmacro %}
+
+
+{# quoted text, e.g. a comment #}
+{% macro quote() -%}
+<table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top:20px;">
+  <tr>
+    <td
+      align="left"
+      style="background-color:#f5f5f5; border-left:3px solid #16d4a7; padding:14px 18px; font-size:14px; line-height:1.5; color:#373737; text-align:left;"
+    >{{ caller() }}</td>
+  </tr>
+</table>
+{%- endmacro %}
+
+
+{# label and value pairs, e.g. [("Project", "demo")], as a row of the main table #}
+{% macro details(rows) -%}
+<tr>
+  <td align="center" style="padding:0 40px 20px 40px;">
+    <table cellpadding="4" cellspacing="0" border="0" style="font-size:14px; color:#373737;">
+      {% for label, value in rows %}
+      <tr>
+        <td style="text-align:right; font-weight:bold;">{{ label }}</td>
+        <td style="text-align:left;">{{ value }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </td>
+</tr>
+{%- endmacro %}

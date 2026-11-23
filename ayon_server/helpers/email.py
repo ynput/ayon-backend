@@ -15,6 +15,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.cloud import CloudUtils
+from ayon_server.helpers.email_text import html_to_text
 from ayon_server.logging import log_traceback, logger
 
 if TYPE_CHECKING:
@@ -149,6 +150,9 @@ async def send_mail(
     if not mailing_enabled:
         raise AyonException("Email is not configured")
 
+    if html and not text:
+        text = html_to_text(html)
+
     recipient_list: list[str] = []
     for recipient in recipients:
         if isinstance(recipient, str):
@@ -200,7 +204,11 @@ async def get_studio_logo_url(base_url: str | None) -> str:
 class EmailTemplate:
     def __init__(self) -> None:
         # TODO: async rendering
-        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader("static/email"))
+        # Values are escaped: names, comments and other user input end up in emails.
+        # Pass markupsafe.Markup for a value that is HTML already.
+        self.env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader("static/email"), autoescape=True
+        )
 
     async def render(
         self,
