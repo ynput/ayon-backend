@@ -76,13 +76,19 @@ def make_user() -> UserEntity:
 
 
 def make_request(
-    ip: str, path: str = "/api/users/me", token: str = "", as_user: str = ""
+    ip: str,
+    path: str = "/api/users/me",
+    token: str = "",
+    as_user: str = "",
+    as_application: str = "",
 ) -> Request:
     headers = [(b"x-forwarded-for", ip.encode())]
     if token:
         headers.append((b"authorization", f"Bearer {token}".encode()))
     if as_user:
         headers.append((b"x-as-user", as_user.encode()))
+    if as_application:
+        headers.append((b"x-as-application", as_application.encode()))
     scope = {
         "type": "http",
         "path": path,
@@ -378,6 +384,64 @@ async def test_application_of_a_service_user_cannot_act_as_another_user(
     login = await Session.create(service, token="b" * 64)
     request = make_request(IP_A, token=login.token, as_user="admin")
     assert (await api_auth.user_from_request(request)).name == "admin"
+
+
+@pytest.mark.anyio
+async def test_service_acting_for_an_application_gets_its_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The MCP service acts as the user for the user's MCP client."""
+    from ayon_server.api.dependencies import dep_no_delegated_access
+    from ayon_server.exceptions import ForbiddenException
+
+    async def load(name: str, *args: Any, **kwargs: Any) -> UserEntity:
+        return UserEntity(
+            payload={
+                "name": name,
+                "data": {"isManager": True, "password": "hash:salt"},
+            }
+        )
+
+    monkeypatch.setattr(UserEntity, "load", load)
+    service = UserEntity(
+        payload={"name": "bot", "data": {"isService": True}}, exists=False
+    )
+    login = await Session.create(service, token="b" * 64)
+
+    request = make_request(
+        IP_A, token=login.token, as_user="artist", as_application="claude"
+    )
+    seen = await api_auth.user_from_request(request)
+    assert seen.name == "artist" and seen.is_manager
+    assert "password" not in seen.data
+    assert seen.session is not None and seen.session.delegated is not None
+    assert seen.session.delegated.client_id == "claude"
+    request.state.user = seen
+    with pytest.raises(ForbiddenException):
+        await dep_no_delegated_access(request)
+
+    # the service's own session is not changed by it
+    stored = await Session.check(login.token, make_request(IP_A))
+    assert stored is not None and stored.delegated is None
+
+    # without the header the service acts as the user in person
+    request = make_request(IP_A, token=login.token, as_user="artist")
+    seen = await api_auth.user_from_request(request)
+    assert seen.session is not None and seen.session.delegated is None
+    assert seen.data["password"] == "hash:salt"
+
+
+@pytest.mark.anyio
+async def test_only_a_service_acting_as_a_user_can_name_an_application() -> None:
+    user = UserEntity(
+        payload={"name": "artist", "data": {"password": "hash:salt"}},
+        exists=False,
+    )
+    login = await Session.create(user, make_request(IP_A))
+    request = make_request(IP_A, token=login.token, as_application="claude")
+    seen = await api_auth.user_from_request(request)
+    assert seen.session is not None and seen.session.delegated is None
+    assert seen.data["password"] == "hash:salt"
 
 
 def test_application_is_refused_by_the_dependency(
