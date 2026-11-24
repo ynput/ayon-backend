@@ -1,6 +1,9 @@
 from fastapi import Request
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NoDelegatedAccess,
+)
 from ayon_server.auth.session import Session, SessionModel
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
@@ -9,17 +12,13 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 
-@router.get("/sessions")
+@router.get("/sessions", dependencies=[NoDelegatedAccess])
 async def list_active_sessions(user: CurrentUser) -> list[SessionModel]:
-    # Admin only: the response contains tokens that allow acting as the users
     if not user.is_admin:
         raise ForbiddenException()
 
-    result: list[SessionModel] = []
-    async for row in Session.list():
-        result.append(row)
-
-    return result
+    # token replaced by its hash: the real one would let the admin act as the user
+    return [row.model_copy(update={"token": row.id}) async for row in Session.list()]
 
 
 class CreateSessionRequest(OPModel):
@@ -27,7 +26,7 @@ class CreateSessionRequest(OPModel):
     message: str | None = Field(None, description="Message to log in event stream")
 
 
-@router.post("/sessions")
+@router.post("/sessions", dependencies=[NoDelegatedAccess])
 async def create_session(
     user: CurrentUser,
     request: Request,

@@ -5,7 +5,7 @@ from typing import Literal
 import aiofiles
 from fastapi import BackgroundTasks, Query, Request
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, NoDelegatedAccess
 from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import EventStream
@@ -99,7 +99,7 @@ async def list_installers(
     return await get_installers(version=version, platform=platform, variant=variant)
 
 
-@router.post("/installers", status_code=201)
+@router.post("/installers", status_code=201, dependencies=[NoDelegatedAccess])
 async def create_installer(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
@@ -188,7 +188,7 @@ async def download_installer_file(user: CurrentUser, filename: str):
     return await handle_download(filename, root_dir=installers_dir)
 
 
-@router.put("/installers/{filename}", status_code=204)
+@router.put("/installers/{filename}", status_code=204, dependencies=[NoDelegatedAccess])
 async def upload_installer_file(user: CurrentUser, request: Request, filename: str):
     if not user.is_admin:
         raise ForbiddenException("Only admins can upload installers")
@@ -221,7 +221,9 @@ async def delete_installer_file(user: CurrentUser, filename: str):
     return EmptyResponse(status_code=204)
 
 
-@router.patch("/installers/{filename}", status_code=204)
+@router.patch(
+    "/installers/{filename}", status_code=204, dependencies=[NoDelegatedAccess]
+)
 async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatchModel):
     """Update sources for an installer"""
     if not user.is_admin:

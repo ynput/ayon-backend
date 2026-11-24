@@ -4,7 +4,11 @@ from typing import Annotated
 
 from fastapi import Request
 
-from ayon_server.api.dependencies import CurrentUser, UserName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NoDelegatedAccess,
+    UserName,
+)
 from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.config.serverconfig import get_server_config
@@ -29,7 +33,7 @@ class InviteUserRequest(OPModel):
     ] = None
 
 
-@router.post("/{user_name}/invite")
+@router.post("/{user_name}/invite", dependencies=[NoDelegatedAccess])
 async def invite_user(
     current_user: CurrentUser,
     user_name: UserName,

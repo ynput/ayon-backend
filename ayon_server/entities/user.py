@@ -37,7 +37,7 @@ from ayon_server.utils.strings import camelize
 
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
-    from ayon_server.auth.session import SessionModel
+    from ayon_server.auth.session import DelegatedAccess, SessionModel
     from ayon_server.entities.project import ProjectEntity
 
 
@@ -45,11 +45,14 @@ class SessionInfo:
     is_api_key: bool = False
     token: str
     client_info: Optional["ClientInfo"] = None
+    delegated: Optional["DelegatedAccess"] = None
 
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key
         self.client_info = session.client_info
         self.token = session.token
+        # Set when an application acts as the user, instead of the user
+        self.delegated = session.delegated
 
     def __repr__(self) -> str:
         return f"SessionInfo(is_api_key={self.is_api_key})"
@@ -128,7 +131,7 @@ class UserEntity(TopLevelEntity[UserModel]):
     # project_name[access_type]: [path1, path2, ...]
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
-    _teams: set[str] | None = None
+    _teams: dict[str, set[str]] | None = None
 
     _original_email: str | None = None
     _original_avatar_url: str | None = None
@@ -526,6 +529,8 @@ class UserEntity(TopLevelEntity[UserModel]):
     def get_teams(self, project: "ProjectEntity") -> set[str]:
         """Get teams the user is part of in a given project."""
         if self._teams is None:
+            self._teams = {}
+        if project.name not in self._teams:
             result = set()
             teams = project.data.get("teams", [])
             for team in teams:
@@ -534,8 +539,8 @@ class UserEntity(TopLevelEntity[UserModel]):
                     if member.get("name") == self.name:
                         result.add(team["name"])
                         break
-            self._teams = result
-        return self._teams
+            self._teams[project.name] = result
+        return self._teams[project.name]
 
     def get_guest_access(self, **kwargs: Any) -> dict[str, Any] | None:
         """Get guest access for the user."""

@@ -674,4 +674,5 @@ async def get_entity_list_items(
         last=last,
         context=info.context,
         order_by=order_by,
+        skippable=True,
     )

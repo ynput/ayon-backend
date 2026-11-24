@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Path
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser, NoTraces
+from ayon_server.api.dependencies import CurrentUser, NoDelegatedAccess, NoTraces
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -182,7 +182,7 @@ class SpawnServiceRequestModel(OPModel):
     config: ServiceConfigModel = Field(default_factory=ServiceConfigModel)
 
 
-@router.put("/services/{name}", status_code=204)
+@router.put("/services/{name}", status_code=204, dependencies=[NoDelegatedAccess])
 async def spawn_service(
     payload: SpawnServiceRequestModel,
     user: CurrentUser,
@@ -264,7 +264,9 @@ class PatchServiceRequestModel(ServiceConfigModel):
     )
 
 
-@router.patch("/services/{service_name}", status_code=204)
+@router.patch(
+    "/services/{service_name}", status_code=204, dependencies=[NoDelegatedAccess]
+)
 async def patch_service(
     payload: PatchServiceRequestModel,
     user: CurrentUser,

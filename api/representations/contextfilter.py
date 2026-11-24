@@ -1,7 +1,9 @@
+from typing import Annotated
+
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ENTITY_ID_EXAMPLE, Field, OPModel
-from ayon_server.utils import SQLTool
+from ayon_server.utils import EntityID, SQLTool
 
 from .router import router
 
@@ -26,7 +28,7 @@ class LookupRequestModel(OPModel):
         title="Representation names",
         example=["ma", "obj"],
     )
-    version_ids: list[str] = Field(
+    version_ids: list[Annotated[str, Field(**EntityID.META)]] = Field(
         default_factory=list,
         title="Version IDs",
         example=[

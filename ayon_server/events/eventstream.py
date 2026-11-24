@@ -87,6 +87,12 @@ class EventStream:
         if user is None and request_context.user:
             user = request_context.user.name
 
+        # impersonatedBy is server-owned: never trust a caller-supplied value
+        payload = {k: v for k, v in payload.items() if k != "impersonatedBy"}
+        if request_context.impersonator:
+            # the event is the user's, but an administrator caused it
+            payload["impersonatedBy"] = request_context.impersonator
+
         event = EventModel(
             id=event_id,
             hash=hash,

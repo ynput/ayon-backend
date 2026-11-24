@@ -42,7 +42,7 @@ from ayon_server.operations.project_level import (
     ProjectLevelOperations,
 )
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.utils import EntityID, create_uuid
 
 from .common import (
     SENDER_TYPE,
@@ -170,10 +170,11 @@ async def import_data(
     ] = None,
     new_list_label: str | None = None,
     new_list_entity_type: ProjectLevelEntityType | None = None,
-    new_list_folder_id: str | None = None,
+    new_list_folder_id: Annotated[str | None, Query(**EntityID.META)] = None,
     update_listed_entities: bool = False,
     project_name: ProjectNameQuery = None,
-    folder_id: str | None = None,  # limit import to specific folder
+    # limit import to specific folder
+    folder_id: Annotated[str | None, Query(**EntityID.META)] = None,
     preview: bool = False,  # do not commit to db if True
 ) -> ImportStatus:
     """Process CSV file and import entities to the database.

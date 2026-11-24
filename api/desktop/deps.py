@@ -5,7 +5,7 @@ import aiofiles
 import anyio
 from fastapi import BackgroundTasks, Path, Query, Request, Response
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, NoDelegatedAccess
 from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import EventStream
@@ -136,7 +136,7 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     return await coalesce(_list_dependency_packages)
 
 
-@router.post("/dependencyPackages", status_code=201)
+@router.post("/dependencyPackages", status_code=201, dependencies=[NoDelegatedAccess])
 async def create_dependency_package(
     background_tasks: BackgroundTasks,
     payload: DependencyPackage,
@@ -238,7 +238,9 @@ async def download_dependency_package(
     return await handle_download(filename, root_dir=packages_dir)
 
 
-@router.put("/dependencyPackages/{filename}", status_code=204)
+@router.put(
+    "/dependencyPackages/{filename}", status_code=204, dependencies=[NoDelegatedAccess]
+)
 async def upload_dependency_package(
     request: Request,
     user: CurrentUser,
@@ -289,7 +291,9 @@ async def delete_dependency_package(
     return EmptyResponse()
 
 
-@router.patch("/dependencyPackages/{filename}", status_code=204)
+@router.patch(
+    "/dependencyPackages/{filename}", status_code=204, dependencies=[NoDelegatedAccess]
+)
 async def update_dependency_package(
     payload: SourcesPatchModel,
     user: CurrentUser,

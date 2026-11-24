@@ -2,14 +2,15 @@ from typing import Annotated, Any
 
 from fastapi import Path
 
-from ayon_server.api.clientinfo import ClientInfo
+from ayon_server.api.auth import SECRET_USER_DATA_KEYS
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
+    NoDelegatedAccess,
     UserName,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.auth.session import Session
+from ayon_server.auth.session import Session, UserSessionModel
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.entities.models.user import UserModel, UserPatchModel, UserPostModel
@@ -27,16 +28,6 @@ from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 
 from .avatar import REDIS_NS, obtain_avatar
 from .router import router
-
-# Never returned for other users: they allow logging in as the user
-SECRET_USER_DATA_KEYS = (
-    "password",
-    "apiKey",
-    "apiKeys",
-    "passwordResetRequest",
-    "supportToken",
-    "inviteRequest",
-)
 
 # Only admins may set these: each of them grants admin powers
 ADMIN_USER_DATA_KEYS = (
@@ -142,7 +133,7 @@ def validate_user_data(data: dict[str, Any]) -> None:
         raise BadRequestException(str(e)) from e
 
 
-@router.put("/{user_name}")
+@router.put("/{user_name}", dependencies=[NoDelegatedAccess])
 async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
@@ -191,7 +182,7 @@ async def create_user(
     return EmptyResponse()
 
 
-@router.delete("/{user_name}")
+@router.delete("/{user_name}", dependencies=[NoDelegatedAccess])
 async def delete_user(
     user: CurrentUser,
     user_name: UserName,
@@ -218,7 +209,7 @@ async def delete_user(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}")
+@router.patch("/{user_name}", dependencies=[NoDelegatedAccess])
 async def patch_user(
     payload: UserPatchModel,
     user: CurrentUser,
@@ -303,7 +294,7 @@ class ChangePasswordRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/password")
+@router.patch("/{user_name}/password", dependencies=[NoDelegatedAccess])
 async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: CurrentUser,
@@ -347,7 +338,7 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/checkPassword")
+@router.post("/{user_name}/checkPassword", dependencies=[NoDelegatedAccess])
 async def check_password(
     post_data: CheckPasswordRequestModel,
     user: CurrentUser,
@@ -373,7 +364,7 @@ class ChangeUserNameRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/rename", deprecated=True)
+@router.patch("/{user_name}/rename", deprecated=True, dependencies=[NoDelegatedAccess])
 async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
@@ -410,7 +401,7 @@ class RenameUserRequestModel(OPModel):
     ]
 
 
-@router.post("/{user_name}/rename")
+@router.post("/{user_name}/rename", dependencies=[NoDelegatedAccess])
 async def rename_user(
     patch_data: RenameUserRequestModel,
     user: CurrentUser,
@@ -438,45 +429,36 @@ async def rename_user(
 #
 
 
-class UserSessionModel(OPModel):
-    token: str
-    is_service: bool
-    last_used: float
-    client_info: ClientInfo | None = None
-
-
 class UserSessionsResponseModel(OPModel):
     sessions: list[UserSessionModel]
 
 
-@router.get("/{user_name}/sessions")
+@router.get("/{user_name}/sessions", dependencies=[NoDelegatedAccess])
 async def get_user_sessions(
     current_user: CurrentUser, user_name: UserName
 ) -> UserSessionsResponseModel:
-    # Admin only: the response contains tokens that allow acting as the user
     if (not current_user.is_admin) and (current_user.name != user_name):
         raise ForbiddenException("You are not allowed to list other users' sessions")
 
     return UserSessionsResponseModel(
         sessions=[
-            UserSessionModel(
-                token=session.token,
-                client_info=session.client_info,
-                is_service=session.is_service,
-                last_used=session.last_used,
-            )
+            UserSessionModel.from_session(session, current_user)
             async for session in Session.list(user_name)
         ]
     )
 
 
-@router.delete("/{user_name}/sessions/{session_id}")
+@router.delete("/{user_name}/sessions/{session_id}", dependencies=[NoDelegatedAccess])
 async def delete_user_session(
     current_user: CurrentUser,
     user_name: UserName,
-    session_id: str = Path(...),
+    session_id: str = Path(..., description="Session id or its token"),
 ) -> EmptyResponse:
-    session = await Session.check(session_id, None)
+    session = None
+    async for s in Session.list(user_name):
+        if session_id in (s.id, s.token):
+            session = s
+            break
     if not session:
         raise NotFoundException("Requested session id does not exist")
     if session.user.name != current_user.name and (not current_user.is_manager):
@@ -484,7 +466,7 @@ async def delete_user_session(
             "You are not allowed to delete sessions which don't belong to you"
         )
     msg = f"Logged out by {current_user.name}"
-    await Session.delete(session_id, message=msg)
+    await Session.delete(session.token, message=msg)
     return EmptyResponse()
 
 
@@ -515,7 +497,7 @@ class AssignAccessGroupsRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/accessGroups")
+@router.patch("/{user_name}/accessGroups", dependencies=[NoDelegatedAccess])
 async def assign_access_groups(
     patch_data: AssignAccessGroupsRequestModel,
     user: CurrentUser,
@@ -547,6 +529,12 @@ async def set_frontend_preferences(
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
+    # Applications may not, but an administrator acting as the user may:
+    # the web UI saves its layout as it goes.
+    delegated = user.session and user.session.delegated
+    if delegated and not delegated.impersonator:
+        raise ForbiddenException("Applications cannot change frontend preferences")
+
     if (user_name != user.name) and not (user.is_manager):
         # users can only change their own preferences
         # managers can change any preferences

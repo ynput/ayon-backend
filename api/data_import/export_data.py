@@ -1,9 +1,12 @@
-from fastapi import HTTPException
+from typing import Annotated
+
+from fastapi import HTTPException, Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entity_lists import EntityList
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.types import ProjectLevelEntityType
+from ayon_server.utils import EntityID
 
 from .common import ImportEntityType, ProjectNameQuery
 from .models import EXPORTABLE_ENTITIES, ImportableColumn
@@ -15,7 +18,7 @@ async def export_fields(
     entity_type: ImportEntityType,
     user: CurrentUser,
     project_name: ProjectNameQuery = None,
-    folder_id: str | None = None,
+    folder_id: Annotated[str | None, Query(**EntityID.META)] = None,
     list_entity_type: ProjectLevelEntityType | None = None,
 ) -> list[ImportableColumn] | None:
     """Get exportable fields for an entity type.
