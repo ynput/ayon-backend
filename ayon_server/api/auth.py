@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
-from ayon_server.auth.session import Session, hash_token
+from ayon_server.auth.session import DelegatedAccess, Session, hash_token
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
@@ -30,6 +30,19 @@ SECRET_USER_DATA_KEYS = (
     "supportToken",
     "inviteRequest",
 )
+
+
+# A service acting as a user (``x-as-user``) for an application of that user,
+# such as the MCP service for an MCP client signed in with OAuth, names the
+# application's client id here. The request then gets what the user may do,
+# with the limits of an application. Without it the service would give the
+# application the user's full access, including what applications are
+# refused (``NoDelegatedAccess``) and the user's secret data.
+AS_APPLICATION_HEADER = "x-as-application"
+
+# How long the stand-in application access of one such request lasts. It is
+# never stored: it only marks the request.
+AS_APPLICATION_TTL = 60
 
 
 def access_token_from_request(request: Request) -> str | None:
@@ -185,16 +198,34 @@ async def user_from_request(request: Request) -> UserEntity:
     user = UserEntity.from_record(session_data.user.model_dump())
     user.add_session(session_data)
     if session_data.delegated:
-        for key in SECRET_USER_DATA_KEYS:
-            user.data.pop(key, None)
+        _drop_secrets(user)
 
     x_as_user = request.headers.get("x-as-user")
     if x_as_user and user.is_service and not session_data.delegated:
         # sudo :) (not for an application: it may act only as its own user)
         user = await UserEntity.load(x_as_user)
+        client_id = (request.headers.get(AS_APPLICATION_HEADER) or "").strip()
+        if client_id:
+            # Copied, so the service's stored session stays as it is
+            session_data = session_data.model_copy(
+                update={
+                    "delegated": DelegatedAccess(
+                        client_id=client_id,
+                        client_name=client_id,
+                        expires=time.time() + AS_APPLICATION_TTL,
+                    )
+                }
+            )
+            _drop_secrets(user)
         user.add_session(session_data)
 
     return user
+
+
+def _drop_secrets(user: UserEntity) -> None:
+    """Hide what allows logging in as the user from an application."""
+    for key in SECRET_USER_DATA_KEYS:
+        user.data.pop(key, None)
 
 
 THROTTLERS = [
