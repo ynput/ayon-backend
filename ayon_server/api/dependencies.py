@@ -52,6 +52,11 @@ async def dep_no_delegated_access(request: Request) -> None:
     """
     user = getattr(request.state, "user", None)
     if user is not None and user.session and user.session.delegated:
+        if user.session.delegated.impersonator:
+            raise ForbiddenException(
+                "Accounts and credentials cannot be changed "
+                "while acting as another user"
+            )
         raise ForbiddenException("Applications cannot manage accounts or credentials")
 
 
