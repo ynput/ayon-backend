@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
-from ayon_server.auth.session import Session
+from ayon_server.auth.session import Session, hash_token
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
@@ -50,11 +50,11 @@ async def get_logout_reason(token: str) -> str:
             """
             SELECT description FROM public.events
             WHERE topic = 'auth.logout'
-            AND summary->>'token' = $1
+            AND summary->>'tokenHash' = $1
             AND created_at > NOW() - interval '5 minutes'
             ORDER BY created_at DESC LIMIT 1
             """,
-            token,
+            hash_token(token),
         )
         if res:
             reason = res[0]["description"]
