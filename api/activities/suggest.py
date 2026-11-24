@@ -15,13 +15,14 @@ from ayon_server.suggestions.models import (
 from ayon_server.suggestions.task import get_task_suggestions
 from ayon_server.suggestions.version import get_version_suggestions
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID
 
 from .router import router
 
 
 class SuggestRequest(OPModel):
     entity_type: Annotated[Literal["folder", "task", "version"], Field(example="task")]
-    entity_id: Annotated[str, Field(example="af3e4b3e-1b1b-4b3b-8b3b-3b3b3b3b3b3b")]
+    entity_id: Annotated[str, Field(**EntityID.META)]
 
 
 class SuggestResponse(OPModel):

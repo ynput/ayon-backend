@@ -1,7 +1,7 @@
 from typing import Annotated, Any, Literal
 
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.utils import EntityID, create_uuid
 
 from ..common import OperationType
 
@@ -24,7 +24,7 @@ class OperationModel(OPModel):
     id: Annotated[str, Field(default_factory=create_uuid, title="Operation ID")]
     type: Annotated[OperationType, Field(title="Operation type")]
     entity_type: Annotated[ProjectLevelEntityType, Field(title="Entity type")]
-    entity_id: Annotated[str | None, Field(title="Entity ID")] = None
+    entity_id: Annotated[str | None, Field(title="Entity ID", **EntityID.META)] = None
     data: Annotated[dict[str, Any] | None, Field(title="Data")] = None
     force: Annotated[bool, Field(title="Force recursive deletion")] = False
     as_user: str | None = None

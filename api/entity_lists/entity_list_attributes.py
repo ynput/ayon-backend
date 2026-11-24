@@ -1,4 +1,4 @@
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import CurrentUser, EntityListID, ProjectName
 from ayon_server.attributes.models import AttributeData, AttributeNameModel
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -16,7 +16,7 @@ class EntityListAttributeDefinition(AttributeNameModel):
 async def get_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
-    entity_list_id: str,
+    entity_list_id: EntityListID,
 ) -> list[EntityListAttributeDefinition]:
     """Return a list of custom attributes for the entity list."""
 
@@ -48,7 +48,7 @@ async def get_entity_list_attributes_definition(
 async def set_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
-    entity_list_id: str,
+    entity_list_id: EntityListID,
     payload: list[EntityListAttributeDefinition],
 ) -> None:
     """Set the custom attributes for the entity list."""

@@ -35,6 +35,8 @@ class RequestContext:
     user: UserEntity | None = None
     sender: str | None = None
     sender_type: str | None = None
+    # the administrator acting as `user`, if any
+    impersonator: str | None = None
     pre_auth: PreAuth | None = None
 
 
@@ -79,8 +81,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         except AttributeError:
             user = None
 
+        impersonator = None
+        if user and user.session and user.session.delegated:
+            impersonator = user.session.delegated.impersonator
+
         context = RequestContext(
             user=user,
+            impersonator=impersonator,
             pre_auth=getattr(request.state, "pre_auth", None),
             sender=self._validated_header(request.headers.get("X-Sender")),
             sender_type=self._validated_header(

@@ -16,7 +16,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.utils import EntityID, create_uuid
 
 from .common import OperationType
 from .router import router
@@ -38,6 +38,7 @@ class ActivityOperationModel(OPModel):
         None,
         title="Activity ID",
         description="ID of the activity. None for create",
+        **EntityID.META,
     )
     data: dict[str, Any] | None = Field(
         None,

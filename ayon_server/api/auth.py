@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from ayon_server.auth.authorization_server import get_bearer_challenge
 from ayon_server.auth.preauth import apply_pre_auth_cookie, pre_auth_from_request
-from ayon_server.auth.session import DelegatedAccess, Session
+from ayon_server.auth.session import DelegatedAccess, Session, hash_token
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
@@ -63,11 +63,11 @@ async def get_logout_reason(token: str) -> str:
             """
             SELECT description FROM public.events
             WHERE topic = 'auth.logout'
-            AND summary->>'token' = $1
+            AND summary->>'tokenHash' = $1
             AND created_at > NOW() - interval '5 minutes'
             ORDER BY created_at DESC LIMIT 1
             """,
-            token,
+            hash_token(token),
         )
         if res:
             reason = res[0]["description"]
@@ -317,6 +317,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.unauthorized_reason = str(e)
 
         request.state.pre_auth = pre_auth_from_request(request)
+
+        user = request.state.user
+        if user is not None and user.session and user.session.delegated:
+            if impersonator := user.session.delegated.impersonator:
+                context["impersonator"] = impersonator
 
         async with user_request_throttler(request.state.user, request):
             with logger.contextualize(**context):

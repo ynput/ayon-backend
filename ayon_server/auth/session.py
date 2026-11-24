@@ -1,6 +1,7 @@
 __all__ = ["Session"]
 
 import asyncio
+import hashlib
 import secrets
 import time
 from collections.abc import AsyncGenerator
@@ -18,9 +19,19 @@ from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.models.attrib_values import STORED_VALUES_CONTEXT
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_background_task, json_loads
 from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
+
+
+def hash_token(token: str) -> str:
+    """Session id: identifies a session without being usable as its token."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def mask_token(token: str) -> str:
+    """Token for logs."""
+    return f"{token[:4]}****"
 
 
 def is_local_ip(ip: str) -> bool:
@@ -47,6 +58,10 @@ class DelegatedAccess(OPModel):
 
     `scope` is what the user approved, for whoever issued the session:
     the server itself does not interpret it.
+
+    `impersonator` names the administrator acting as the user, when the
+    session is for that: what the session does is recorded with that
+    name next to the user's, and its end is recorded as theirs.
     """
 
     client_id: str
@@ -54,6 +69,7 @@ class DelegatedAccess(OPModel):
     expires: float
     resources: list[str] | None = None
     scope: str | None = None
+    impersonator: str | None = None
 
     def is_issued_for(self, path: str) -> bool:
         """True when the request path belongs to what the session is for."""
@@ -85,6 +101,10 @@ class SessionModel(OPModel):
     delegated: DelegatedAccess | None = None
 
     @property
+    def id(self) -> str:
+        return hash_token(self.token)
+
+    @property
     def user_entity(self) -> UserEntity:
         return UserEntity(
             payload=self.user.model_dump(),
@@ -100,6 +120,34 @@ class SessionModel(OPModel):
         if self.delegated:
             return time.time() > self.delegated.expires
         return time.time() - self.last_used > self.ttl
+
+
+class UserSessionModel(OPModel):
+    token: str = Field(..., description="Session id: SHA-256 of the session token")
+    is_service: bool
+    last_used: float
+    client_info: ClientInfo | None = None
+    delegated: DelegatedAccess | None = Field(
+        None,
+        description="Set when the session belongs to an application "
+        "the user gave access to, instead of a login",
+    )
+    is_current: bool = Field(False, description="The session making this request")
+
+    @classmethod
+    def from_session(
+        cls, session: "SessionModel", current_user: UserEntity
+    ) -> "UserSessionModel":
+        """Public view of a session: the real token would let anyone act as the user."""
+        return cls(
+            token=session.id,
+            is_service=session.is_service,
+            last_used=session.last_used,
+            client_info=session.client_info,
+            delegated=session.delegated,
+            is_current=current_user.session is not None
+            and current_user.session.token == session.token,
+        )
 
 
 class Session:
@@ -126,7 +174,7 @@ class Session:
         """
         data = await Redis.get_json(cls.ns, token)
         if not data:
-            logger.trace(f"Session {token} not found")
+            logger.trace(f"Session {mask_token(token)} not found")
             return None
 
         if data.get("isInvalid", False):
@@ -273,7 +321,7 @@ class Session:
         """Update a session with new user data."""
         data = await Redis.get(cls.ns, token)
         if not data:
-            logger.trace(f"Trying to update non-existing session {token}")
+            logger.trace(f"Trying to update non-existing session {mask_token(token)}")
             return None
 
         session = SessionModel(**json_loads(data))
@@ -291,9 +339,17 @@ class Session:
             if not session.is_api_key and not session.delegated:
                 await EventStream.dispatch(
                     "auth.logout",
-                    summary={"token": token},
+                    summary={"tokenHash": hash_token(token)},
                     description=message,
                     user=session.user.name,
+                )
+            elif session.delegated and session.delegated.impersonator:
+                impersonator = session.delegated.impersonator
+                await EventStream.dispatch(
+                    "auth.impersonate.end",
+                    description=f"{impersonator} stopped acting as {session.user.name}",
+                    user=impersonator,
+                    summary={"target": session.user.name},
                 )
         await Redis.delete(cls.ns, token)
 
@@ -350,7 +406,7 @@ class Session:
             msg = "Too many concurrent sessions"
             await cls.delete(session.token, message=msg)
 
-            msg += f" ({user_name} {session.token})"
+            msg += f" ({user_name} {mask_token(session.token)})"
             logger.debug(msg)
 
     @classmethod
@@ -358,8 +414,11 @@ class Session:
         """Logout all user sessions."""
         logged_out = False
         async for session in cls.list(user_name):
-            token = session.token
-            await Redis.delete(cls.ns, token)
+            if session.delegated:
+                # per-session delete records auth.impersonate.end
+                await cls.delete(session.token, message or "User logged out")
+            else:
+                await Redis.delete(cls.ns, session.token)
             logged_out = True
 
         if logged_out:

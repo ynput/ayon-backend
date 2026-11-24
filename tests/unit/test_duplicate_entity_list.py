@@ -21,6 +21,9 @@ from ayon_server.exceptions import (
 )
 
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
+FOLDER1 = "f1" + "0" * 30
+FOLDER2 = "f2" + "0" * 30
+MISSING = "ff" + "0" * 30
 USER: Any = SimpleNamespace(name="alice")
 
 
@@ -45,8 +48,8 @@ class FakePostgres:
 def make_source(label: str = "Dailies", **kwargs: Any) -> EntityList:
     items = [
         EntityListItemModel(
-            id=f"item{i}",
-            entity_id=f"entity{i}",
+            id=f"{i:032x}",
+            entity_id=f"e{i:031x}",
             position=i,
             label=f"label{i}",
             attrib={"note": str(i)},
@@ -61,9 +64,9 @@ def make_source(label: str = "Dailies", **kwargs: Any) -> EntityList:
         for i in (0, 1, 2)
     ]
     values: dict[str, Any] = {
-        "id": "source",
+        "id": "5" * 32,
         "entity_list_type": "review-session",
-        "entity_list_folder_id": "folder1",
+        "entity_list_folder_id": FOLDER1,
         "entity_type": "version",
         "label": label,
         "access": {
@@ -97,7 +100,7 @@ def make_source(label: str = "Dailies", **kwargs: Any) -> EntityList:
 @pytest.fixture
 def saved(monkeypatch: pytest.MonkeyPatch) -> list[EntityListModel]:
     FakePostgres.labels = set()
-    FakePostgres.folders = {"folder1", "folder2"}
+    FakePostgres.folders = {FOLDER1, FOLDER2}
     monkeypatch.setattr(module, "Postgres", FakePostgres)
 
     payloads: list[EntityListModel] = []
@@ -200,12 +203,12 @@ def test_explicit_label(saved: list[EntityListModel]) -> None:
 def test_folder(saved: list[EntityListModel]) -> None:
     source = make_source()
     duplicate(source)
-    duplicate(source, entity_list_folder_id="folder2", use_source_folder=False)
+    duplicate(source, entity_list_folder_id=FOLDER2, use_source_folder=False)
     duplicate(source, entity_list_folder_id=None, use_source_folder=False)
-    assert [c.entity_list_folder_id for c in saved] == ["folder1", "folder2", None]
+    assert [c.entity_list_folder_id for c in saved] == [FOLDER1, FOLDER2, None]
 
     with pytest.raises(NotFoundException):
-        duplicate(source, entity_list_folder_id="missing", use_source_folder=False)
+        duplicate(source, entity_list_folder_id=MISSING, use_source_folder=False)
 
 
 def test_empty_list(saved: list[EntityListModel]) -> None:
