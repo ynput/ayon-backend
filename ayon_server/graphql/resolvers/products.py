@@ -366,11 +366,12 @@ async def get_products(
                         SELECT v.*, {has_reviewables_col}
                         FROM project_{project_name}.versions AS v
                         WHERE v.product_id = products.id
+                        AND v.version >= 0
                         AND v.status IN (
                             SELECT name FROM project_{project_name}.statuses
                             WHERE data->>'state' = 'done'
                         )
-                        ORDER BY v.creation_order DESC
+                        ORDER BY v.version DESC
                         LIMIT 1
                     ) x
                 ) AS _latest_done_version_data
@@ -386,7 +387,7 @@ async def get_products(
                         FROM project_{project_name}.versions AS v
                         WHERE v.product_id = products.id
                         AND v.version >= 0
-                        ORDER BY v.creation_order DESC
+                        ORDER BY v.version DESC
                         LIMIT 1
                     ) x
                 ) AS _latest_version_data
