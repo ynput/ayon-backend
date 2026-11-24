@@ -30,12 +30,13 @@ from ayon_server.reviewables.models import (
     ReviewableProcessingStatus,
 )
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID
 
 from .router import router
 
 
 class ReviewablesRequestModel(OPModel):
-    entity_ids: list[str] = Field(
+    entity_ids: list[Annotated[str, Field(**EntityID.META)]] = Field(
         ...,
         description="List of target Entity IDs (folders, products, versions, etc.)"
         " to fetch reviewables for.",
