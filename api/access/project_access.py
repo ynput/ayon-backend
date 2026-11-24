@@ -52,7 +52,8 @@ async def set_projects_access(
 
     """
 
-    project_list = await get_project_list()
+    # Skeleton (planning) projects take access groups too
+    project_list = await get_project_list(with_skeleton=True)
     all_project_names = [project.name for project in project_list]
 
     # ensure the user has the necessary permissions
