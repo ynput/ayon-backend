@@ -2,6 +2,7 @@ __all__ = ["task_sequence"]
 
 from .add_missing_project_indexes import AddMissingProjectIndexes
 from .auto_update import AutoUpdate
+from .index_entity_search import IndexEntitySearch
 from .push_metrics import PushMetrics
 from .remove_inactive_workers import RemoveInactiveWorkers
 from .remove_old_action_configs import RemoveOldActionConfigs
@@ -25,6 +26,7 @@ task_sequence = [
     RemoveUnusedSettings,
     RemoveUnusedThumbnails,
     AddMissingProjectIndexes,
+    IndexEntitySearch,  # after the clean-ups: fewer rows to index
     # VacuumDB, -- too expensive. maybe run it manually?
     PushMetrics,
 ]
