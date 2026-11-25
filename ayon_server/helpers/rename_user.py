@@ -3,11 +3,18 @@ from ayon_server.events import EventStream
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
+# Assignees and comment authors are searchable: their rows in entity_search
+# are marked outdated, the next sweep indexes them again.
 PROJECT_QUERIES = [
     """
-    UPDATE tasks SET
-    assignees = array_replace(assignees, $2, $1)
-    WHERE $2 = ANY(assignees)
+    WITH renamed AS (
+        UPDATE tasks SET
+        assignees = array_replace(assignees, $2, $1)
+        WHERE $2 = ANY(assignees)
+        RETURNING id
+    )
+    UPDATE entity_search SET updated_at = NULL
+    WHERE entity_id IN (SELECT id FROM renamed)
     """,
     """
     UPDATE versions SET
@@ -15,9 +22,14 @@ PROJECT_QUERIES = [
     """,
     # Activities and files
     """
-    UPDATE activities SET
-    data = jsonb_set(data, '{author}', $1::jsonb)
-    WHERE data->>'author' = $2
+    WITH renamed AS (
+        UPDATE activities SET
+        data = jsonb_set(data, '{author}', $1::jsonb)
+        WHERE data->>'author' = $2
+        RETURNING id
+    )
+    UPDATE entity_search SET updated_at = NULL
+    WHERE entity_id IN (SELECT id FROM renamed)
     """,
     """
     UPDATE activities SET
