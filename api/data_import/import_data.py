@@ -1440,6 +1440,8 @@ async def _validate_enum_value(
                 new_item,
                 project_name=project_name,
             )
+            # Later rows with the same value must find it, not create it again
+            enum_items.append(new_item)
             return
         if enum_name in FREE_VALUE_ENUMS:
             # Suggestions only: entities may carry values not in the anatomy
