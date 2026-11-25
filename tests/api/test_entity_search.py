@@ -126,6 +126,27 @@ def test_text_search_of_tasks_products_versions(
     assert "Unknown textSearchScope" in response.text
 
 
+def test_rest_folder_search(
+    api: httpx.Client, temp_project: TempProject, tree: dict[str, str]
+) -> None:
+    """The REST folder search takes the same textSearch as GraphQL."""
+    url = f"/api/projects/{temp_project.name}/folders/search"
+
+    def found(payload: dict) -> set[str]:
+        response = api.post(url, json=payload)
+        assert response.status_code == 200, response.text
+        return set(response.json()["folderIds"])
+
+    assert found({"textSearch": "sh01"}) == {tree["sh010"]}
+    assert found({"textSearch": "light"}) == set()
+    assert found({"textSearch": "light", "textSearchScope": ["task"]}) == {
+        tree["sh010"]
+    }
+    assert found({"textSearch": "sh010, robot"}) == {tree["sh010"], tree["robot"]}
+    response = api.post(url, json={"textSearch": "x", "textSearchScope": ["bogus"]})
+    assert response.status_code == 400, response.text
+
+
 def test_text_search_follows_folder_access(
     api: httpx.Client,
     other_user: httpx.Client,
