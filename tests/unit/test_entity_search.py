@@ -1,3 +1,5 @@
+import asyncio
+
 from ayon_server.entity_search.search import (
     MAX_TERMS,
     build_search_cte,
@@ -39,7 +41,8 @@ def test_parse_query():
 
 
 def test_groups_stay_inside_access_filters():
-    cte = build_search_cte("p", "aa, bb", folder_access=["x%"])
+    # Short terms: no folder path lookup, so no database is needed
+    cte = asyncio.run(build_search_cte("p", "aa, bb", folder_access=["x%"]))
     assert cte
     where = cte.split("WHERE", 1)[1]
     assert where.strip().startswith("((") and ") OR (" in where

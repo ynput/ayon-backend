@@ -528,7 +528,7 @@ async def get_folders(
         if unknown := set(scope) - set(SEARCH_ENTITY_TYPES):
             raise BadRequestException(f"Unknown textSearchScope: {sorted(unknown)}")
         # The folder ACL is applied by the conditions above, not by the search
-        if search_cte := build_search_cte(
+        if search_cte := await build_search_cte(
             project_name, text_search, entity_types=scope, limit=None
         ):
             sql_cte.append(f"text_search_hits AS ({search_cte})")

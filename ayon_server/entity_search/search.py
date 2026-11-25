@@ -8,14 +8,16 @@ from ayon_server.lib.postgres import Postgres
 MAX_TERMS = 8
 MIN_TERM_LENGTH = 2  # shorter terms match nearly everything
 MIN_INFIX_LENGTH = 3  # shorter patterns cannot use the trigram index
+MAX_INLINED_FOLDERS = 10000  # longer folder lists are not inlined into the query
 
 # Every term scores by where it matches the beginning of a word: 3 in the
 # names (weight A), 2 in descriptions and comments (B), 1 in user names (C),
 # otherwise by where it matches anywhere: at most 0.5 in the literals (names,
-# labels), at most 0.25 in the folder path (not for comments) or the
-# free-text attributes. The scores are
-# averaged over the terms. Within a tier, folders come first, then tasks,
-# products and versions; among equal scores, the shortest literals win.
+# labels), 0.25 in the folder path (not for comments) or the free-text
+# attributes (constant: word_similarity of long texts is slow on common
+# terms). The scores are averaged over the terms. Within a tier, folders
+# come first, then tasks, products and versions; among equal scores,
+# the shortest literals win.
 SEARCH_CTE = """
     SELECT s.*, hi.path AS folder_path,
         {score}
@@ -102,8 +104,33 @@ def parse_query(text: str) -> list[list[str]]:
     return groups
 
 
-def build_term(schema: str, term: str) -> tuple[str, str]:
-    """Return the score and the condition of one term."""
+async def get_path_folders(schema: str, term: str) -> str | None:
+    """Return the folders whose path contains the term, as an SQL array.
+
+    The ids are inlined: Postgres hashes a constant array, while it would
+    scan an array from a subquery for every row. Folder names are ASCII,
+    so the path needs no unaccent and ILIKE can use the trigram index.
+    Returns None when no folder matches.
+    """
+    query = f"""
+        SELECT folder_id FROM {schema}.exported_attributes
+        WHERE path ILIKE lower(public.unaccent($1))
+    """
+    rows = await Postgres.fetch(query, like_pattern(term))
+    if not rows:
+        return None
+    if len(rows) > MAX_INLINED_FOLDERS:
+        # shortcut: slow for broad terms, but keeps the query size bounded
+        return f"ARRAY({query.replace('$1', sql_string(like_pattern(term)))})"
+    return f"'{{{','.join(str(row['folder_id']) for row in rows)}}}'::uuid[]"
+
+
+def build_term(term: str, path_folders: str | None) -> tuple[str, str]:
+    """Return the score and the condition of one term.
+
+    `path_folders` are the folders whose path contains the term
+    (see `get_path_folders`).
+    """
     # Underscores become hyphens, as in the index (see indexer.text_vector)
     lexeme = f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
     tsquery = f"to_tsquery('simple', {lexeme})"
@@ -120,27 +147,21 @@ def build_term(schema: str, term: str) -> tuple[str, str]:
     like = f"s.literals LIKE {pattern}"
     similarity = f"public.word_similarity({term_value}, s.literals)"
     attr_like = f"s.attributes LIKE {pattern}"
-    attr_similarity = f"public.word_similarity({term_value}, s.attributes)"
-    # Folder names are ASCII: the path needs no unaccent and ILIKE can use
-    # the trigram index. ANY(ARRAY(...)) keeps it an index condition on s.
-    path_match = (
-        f"(s.entity_type <> 'comment' AND s.folder_id = ANY(ARRAY("
-        f"SELECT folder_id FROM {schema}.exported_attributes"
-        f" WHERE path ILIKE {pattern})))"
-    )
-    path_similarity = f"public.word_similarity({term_value}, lower(hi.path))"
+    infix = attr_like
+    if path_folders:
+        # ANY keeps it an index condition on entity_search (folder_id)
+        path_match = (
+            f"(s.entity_type <> 'comment' AND s.folder_id = ANY({path_folders}))"
+        )
+        infix = f"{path_match} OR {attr_like}"
     score = (
         f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity}"
-        f" WHEN {path_match} THEN 0.25 * {path_similarity}"
-        f" WHEN {attr_like} THEN 0.25 * {attr_similarity} ELSE 0 END"
+        f" WHEN {infix} THEN 0.25 ELSE 0 END"
     )
-    return (
-        score,
-        f"({like} OR {path_match} OR {attr_like} OR s.search_vector @@ {tsquery})",
-    )
+    return score, f"({like} OR {infix} OR s.search_vector @@ {tsquery})"
 
 
-def build_search_cte(
+async def build_search_cte(
     project_name: str,
     text: str,
     *,
@@ -168,9 +189,16 @@ def build_search_cte(
         return None
 
     schema = f"project_{project_name}"
+    path_folders = {
+        term: await get_path_folders(schema, term)
+        for term in {term for terms in groups for term in terms}
+        if len(term) >= MIN_INFIX_LENGTH
+    }
     group_scores, group_conditions = [], []
     for terms in groups:
-        scores, conditions = zip(*(build_term(schema, term) for term in terms))
+        scores, conditions = zip(
+            *(build_term(term, path_folders.get(term)) for term in terms)
+        )
         group_scores.append(f"({' + '.join(scores)}) / {len(terms)}")
         group_conditions.append(f"({' AND '.join(conditions)})")
 
@@ -215,7 +243,7 @@ async def search(
 
     See `build_search_cte` for the arguments.
     """
-    cte = build_search_cte(
+    cte = await build_search_cte(
         project_name,
         text,
         entity_types=entity_types,
