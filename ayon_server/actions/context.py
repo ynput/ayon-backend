@@ -8,7 +8,7 @@ from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.redis import Redis
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, Platform
 from ayon_server.utils.hashing import create_uuid
 
 ActionEntityType = Literal[
@@ -135,6 +135,20 @@ class ActionContext(OPModel):
         ),
     ] = None
 
+    platform: Annotated[
+        Platform | None,
+        Field(
+            title="Platform",
+            description=(
+                "The platform of the client that requests the actions, "
+                "as detected by the client. It is a hint only: a launcher "
+                "action may be handled on a different machine than the one "
+                "that lists it. None when the client does not know it."
+            ),
+            example="windows",
+        ),
+    ] = None
+
     form_data: Annotated[
         dict[str, Any] | None,
         Field(
@@ -239,6 +253,7 @@ class ActionContext(OPModel):
             self.entity_type,
             self.entity_subtypes,
             elength,
+            self.platform,
         )
         return hash(hash_base)
 
