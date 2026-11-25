@@ -15,6 +15,7 @@ from typing import (
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
+from api.users.users import apply_user_patch_rules
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.attributes.models import AttributeData
 from ayon_server.entities import (
@@ -25,6 +26,7 @@ from ayon_server.entities import (
     VersionEntity,
 )
 from ayon_server.entities.models.generator import FIELD_TYPES
+from ayon_server.entities.models.user import UserPatchModel
 from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
@@ -662,10 +664,15 @@ class UserExportImportModel(EntityExportImport):
         user = await UserEntity.load(name, for_update=True)
         if not user:
             raise NotFoundException(f"User '{name}' not found for update")
-        user.data.update(kwargs.get("data", {}))
-        # Pydantic models don't have an update method
-        for key, value in kwargs.get("attrib", {}).items():
-            setattr(user.attrib, key, value)
+        patch = UserPatchModel(
+            data=kwargs.get("data", {}),
+            attrib=kwargs.get("attrib", {}),
+        )
+        if "active" in kwargs:
+            patch.active = kwargs["active"]
+        # Same rules as PATCH /api/users/{user_name}
+        apply_user_patch_rules(patch, kwargs["user"], user)
+        user.patch(patch)
         if not preview:
             await user.save()
 
