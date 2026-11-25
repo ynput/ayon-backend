@@ -18,7 +18,7 @@ from fastapi import Body, Query, Request
 from ayon_server.activities import create_activity
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.utils import MAX_BODY_LENGTH
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, dep_no_delegated_access
 from ayon_server.entities import FolderEntity, ProjectEntity, TaskEntity, UserEntity
 from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
@@ -157,6 +157,7 @@ async def upload_file(
 
 @router.post("/import/{import_type}")
 async def import_data(
+    request: Request,
     import_type: ImportEntityType,
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
@@ -212,8 +213,11 @@ async def import_data(
         ImportStatus: Summary of import results
     """
 
-    if import_type == "user" and not user.is_admin:
-        raise ForbiddenException("You must be an admin to import users")
+    if import_type == "user":
+        if not user.is_admin:
+            raise ForbiddenException("You must be an admin to import users")
+        # Same as the users API: applications cannot manage accounts
+        await dep_no_delegated_access(request)
 
     if project_name is not None:
         project_name = await normalize_project_name(project_name)

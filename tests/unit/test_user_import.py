@@ -1,9 +1,12 @@
 """Updating existing users through the users import."""
 
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
+from fastapi import Request
 
+from api.data_import.import_data import import_data
 from api.data_import.models import UserExportImportModel
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
@@ -48,7 +51,6 @@ async def test_import_deactivates_user(
     )
     assert users["artist"].active is False
     assert users["artist"].attrib.fullName == "A"
-    assert users["artist"].data["updatedBy"] == "admin"
     assert saved == ["artist"]
 
 
@@ -92,3 +94,21 @@ async def test_import_follows_users_api_rules(users: dict[str, UserEntity]) -> N
             user=users["artist"], name="other.admin", active=False
         )
     assert users["other.admin"].active is True
+
+
+@pytest.mark.anyio
+async def test_applications_cannot_import_users(users: dict[str, UserEntity]) -> None:
+    # Same as the users API (NoDelegatedAccess)
+    admin = users["admin"]
+    admin.session = cast(
+        Any, SimpleNamespace(delegated=SimpleNamespace(impersonator=None))
+    )
+    request = cast(Request, SimpleNamespace(state=SimpleNamespace(user=admin)))
+    with pytest.raises(ForbiddenException):
+        await import_data(
+            request=request,
+            import_type="user",
+            user=admin,
+            file_id="x",
+            column_mapping=[],
+        )

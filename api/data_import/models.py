@@ -668,7 +668,7 @@ class UserExportImportModel(EntityExportImport):
             data=kwargs.get("data", {}),
             attrib=kwargs.get("attrib", {}),
         )
-        if "active" in kwargs:
+        if kwargs.get("active") is not None:
             patch.active = kwargs["active"]
         # Same rules as PATCH /api/users/{user_name}
         apply_user_patch_rules(patch, kwargs["user"], user)
