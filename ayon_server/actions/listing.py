@@ -160,9 +160,16 @@ async def evaluate_simple_action(
 ) -> bool:
     """Evaluate if a simple action is available for a given context.
 
-    This compares action entity_type, entity_subtypes and allow_muliselection
-    attributes with the context and returns True if the action is available.
+    This compares action entity_type, entity_subtypes, allow_muliselection
+    and platforms attributes with the context and returns True
+    if the action is available.
     """
+
+    # Platform filter applies only when the client sent its platform,
+    # so clients that don't send it see all actions as before.
+    if action.platforms and context.platform:
+        if context.platform not in action.platforms:
+            return False
 
     if action.entity_type != context.entity_type:
         return False

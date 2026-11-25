@@ -10,7 +10,7 @@ from pydantic import field_validator
 
 from ayon_server.forms.simple_form import SimpleFormField
 from ayon_server.models import IconModel
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, Platform
 
 
 class BaseActionManifest(OPModel):
@@ -180,6 +180,20 @@ class SimpleActionManifest(BaseActionManifest):
             description="Allow multiple entities to be selected",
         ),
     ] = False
+
+    platforms: Annotated[
+        list[Platform] | None,
+        Field(
+            title="Platforms",
+            description=(
+                "Client platforms the action is available on. "
+                "None or an empty list means all platforms. "
+                "The action is also shown when the client "
+                "does not send its platform."
+            ),
+            example=["windows", "linux"],
+        ),
+    ] = None
 
 
 class DynamicActionManifest(BaseActionManifest):
