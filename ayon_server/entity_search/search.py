@@ -10,11 +10,11 @@ MIN_TERM_LENGTH = 2  # shorter terms match nearly everything
 MIN_INFIX_LENGTH = 3  # shorter patterns cannot use the trigram index
 
 # Every term scores by where it matches the beginning of a word: 3 in the
-# names (weight A), 2 in descriptions and comments (B), 1 in other attributes
-# (C), and at most 0.5 when it matches only inside the literals (path, names).
-# The scores are averaged over the terms. Within a tier, folders come first,
-# then tasks, products and versions; among equal scores, the shortest
-# literals win.
+# names (weight A), 2 in descriptions and comments (B), 1 in user names (C),
+# otherwise by where it matches anywhere: at most 0.5 in the literals (path,
+# names), at most 0.25 in the other free-text attributes. The scores are
+# averaged over the terms. Within a tier, folders come first, then tasks,
+# products and versions; among equal scores, the shortest literals win.
 SEARCH_CTE = """
     SELECT s.*, hi.path AS folder_path,
         {score}
@@ -118,9 +118,15 @@ def build_term(term: str) -> tuple[str, str]:
     pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
     like = f"s.literals LIKE {pattern}"
     similarity = f"public.word_similarity({term_value}, s.literals)"
+    attr_like = f"s.attributes LIKE {pattern}"
+    attr_similarity = f"public.word_similarity({term_value}, s.attributes)"
+    score = (
+        f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity}"
+        f" WHEN {attr_like} THEN 0.25 * {attr_similarity} ELSE 0 END"
+    )
     return (
-        f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity} ELSE 0 END",
-        f"({like} OR s.search_vector @@ {tsquery})",
+        score,
+        f"({like} OR {attr_like} OR s.search_vector @@ {tsquery})",
     )
 
 
@@ -137,7 +143,8 @@ def build_search_cte(
 
     The rows are the `entity_search` rows with `folder_path` and `rank`.
     A term matches the beginning of a word, or (3+ characters) anywhere in
-    the literals (path, names, labels). All terms of a group must match,
+    the literals (path, names, labels) and the free-text attributes other
+    than the description. All terms of a group must match,
     any group may (see `parse_query`). Accents are ignored.
     Returns None when the text has no terms.
 

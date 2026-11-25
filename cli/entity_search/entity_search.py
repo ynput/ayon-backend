@@ -21,6 +21,7 @@ CREATE TABLE entity_search (
         (CASE WHEN entity_type = 'comment' THEN entity_id END) STORED
         REFERENCES activities(id) ON DELETE CASCADE,
     literals TEXT, -- names and labels, matched from any position
+    attributes TEXT, -- free-text attributes but description, from any position
     search_vector tsvector NOT NULL, -- other texts, matched by words
     updated_at TIMESTAMPTZ -- copied from the source row
 );
@@ -28,6 +29,8 @@ CREATE TABLE entity_search (
 CREATE INDEX entity_search_vector_idx ON entity_search USING gin(search_vector);
 CREATE INDEX entity_search_literals_idx ON entity_search
     USING gin(literals public.gin_trgm_ops);
+CREATE INDEX entity_search_attributes_idx ON entity_search
+    USING gin(attributes public.gin_trgm_ops);
 CREATE INDEX entity_search_folder_idx ON entity_search(folder_id);
 CREATE INDEX entity_search_task_idx ON entity_search(task_id)
     WHERE task_id IS NOT NULL;

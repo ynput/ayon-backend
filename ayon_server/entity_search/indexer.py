@@ -2,9 +2,9 @@
 
 Every entity type has a source: a SELECT returning its search rows
 (entity_id, folder_id, task_id, product_id, version_id, literals,
-search_vector, updated_at). A row is indexed when it is missing or its
-`updated_at` differs from the source, so the same code serves the backfill,
-the repair sweep and single updates.
+attributes, search_vector, updated_at). A row is indexed when it is missing
+or its `updated_at` differs from the source, so the same code serves the
+backfill, the repair sweep and single updates.
 
 A row also depends on its parents: the folder path is part of its
 literals and the links follow moved parents. When a row's folder,
@@ -34,8 +34,8 @@ def text_vector(expr: str, weight: str) -> str:
     punctuation ("camel", "case", "render", "exr"). Underscores become hyphens:
     the parser keeps hyphenated words whole and also splits them. Accents are
     removed (on the query side too). The weight is the search tier:
-    A = names, B = descriptions and comments, C = other attributes,
-    task assignees and comment authors (user names).
+    A = names, B = descriptions and comments, C = task assignees and
+    comment authors (user names).
     """
     text = f"public.unaccent(coalesce({expr}, ''))"
     whole = f"to_tsvector('simple', translate({text}, '_', '-'))"
@@ -53,11 +53,18 @@ def name_vector(*exprs: str) -> str:
     return text_vector(f"concat_ws(' ', {', '.join(exprs)})", "A")
 
 
-def attribute_vector(entity_type: str) -> str:
-    """Return a tsvector of the description and free-text attributes of `e`.
+def description_vector() -> str:
+    """Return a tsvector of the description of `e`: prose, matched by words."""
+    return text_vector("e.attrib->>'description'", "B")
 
-    Free-text attributes are strings without an enum. Their names are part
-    of the query: they come from the attribute definitions, which rarely change.
+
+def attribute_text(entity_type: str) -> str:
+    """Return the free-text attributes of `e` but the description.
+
+    They hold codes and paths rather than prose, so like the literals they
+    are not split and are matched anywhere. Free-text attributes are strings
+    without an enum. Their names are part of the query: they come from the
+    attribute definitions, which rarely change.
     """
     # Imported here: the entities import the indexer to enqueue their saves
     from ayon_server.entities.core.attrib import attribute_library
@@ -66,14 +73,14 @@ def attribute_vector(entity_type: str) -> str:
         f"e.attrib->>'{attr['name']}'"
         for attr in attribute_library[entity_type]
         if attr.get("type") == "string"
-        and attr["name"] != "description"  # has its own, higher weight
+        and attr["name"] != "description"  # see description_vector
         and attr["name"].isalnum()  # always true, but it is inlined into SQL
         and not attr.get("enum")
         and not attr.get("enumResolver")
     ]
-    description = text_vector("e.attrib->>'description'", "B")
-    attributes_text = f"concat_ws(' ', {', '.join(attributes) or 'NULL'})"
-    return f"{description} || {text_vector(attributes_text, 'C')}"
+    if not attributes:
+        return "NULL"
+    return f"nullif({literal_text(*attributes)}, '')"
 
 
 #
@@ -98,8 +105,9 @@ def get_folder_source() -> str:
     return f"""
         SELECT e.id, e.id, NULL::uuid, NULL::uuid, NULL::uuid,
             {literal_text("pa.path", "e.label")},
+            {attribute_text("folder")},
             {name_vector("e.name", "e.label")}
-            || {attribute_vector("folder")},
+            || {description_vector()},
             e.updated_at
         FROM folders e
         JOIN paths pa ON pa.id = e.id
@@ -110,8 +118,9 @@ def get_task_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, e.id, NULL::uuid, NULL::uuid,
             {literal_text("pa.path", "e.name", "e.label", "e.task_type")},
+            {attribute_text("task")},
             {name_vector("e.name", "e.label", "e.task_type")}
-            || {attribute_vector("task")}
+            || {description_vector()}
             || {text_vector("array_to_string(e.assignees, ' ')", "C")},
             e.updated_at
         FROM tasks e
@@ -123,8 +132,9 @@ def get_product_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, NULL::uuid, e.id, NULL::uuid,
             {literal_text("pa.path", "e.name")},
+            {attribute_text("product")},
             {name_vector("e.name")}
-            || {attribute_vector("product")},
+            || {description_vector()},
             e.updated_at
         FROM products e
         JOIN paths pa ON pa.id = e.folder_id
@@ -141,8 +151,9 @@ def get_version_source() -> str:
     return f"""
         SELECT e.id, p.folder_id, NULL::uuid, e.product_id, e.id,
             {literal_text("pa.path", "p.name", version_name)},
+            {attribute_text("version")},
             {name_vector(version_name)}
-            || {attribute_vector("version")},
+            || {description_vector()},
             e.updated_at
         FROM versions e
         JOIN products p ON p.id = e.product_id
@@ -161,7 +172,7 @@ def get_comment_source() -> str:
     body = r"regexp_replace(e.body, '\]\([^)]*\)', ' ', 'g')"
     return f"""
         SELECT e.id, COALESCE(t.folder_id, p.folder_id, f.id), t.id, p.id, v.id,
-            NULL,
+            NULL, NULL,
             {text_vector(body, "B")} || {text_vector("e.data->>'author'", "C")},
             e.updated_at
         FROM activities e
@@ -203,11 +214,11 @@ def build_upsert_query(entity_type: str) -> str:
         {FOLDER_PATHS_CTE}
         INSERT INTO entity_search (
             entity_id, folder_id, task_id, product_id, version_id,
-            literals, search_vector, updated_at, entity_type
+            literals, attributes, search_vector, updated_at, entity_type
         )
         SELECT src.*, '{entity_type}' FROM ({get_source(entity_type)}) AS src (
             entity_id, folder_id, task_id, product_id, version_id,
-            literals, search_vector, updated_at
+            literals, attributes, search_vector, updated_at
         )
         WHERE NOT EXISTS (
             SELECT 1 FROM entity_search s
@@ -222,6 +233,7 @@ def build_upsert_query(entity_type: str) -> str:
             product_id = EXCLUDED.product_id,
             version_id = EXCLUDED.version_id,
             literals = EXCLUDED.literals,
+            attributes = EXCLUDED.attributes,
             search_vector = EXCLUDED.search_vector,
             updated_at = EXCLUDED.updated_at
     """
