@@ -3,6 +3,8 @@ from typing import Annotated, cast
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
+from ayon_server.entity_search import ENTITY_TYPES as SEARCH_ENTITY_TYPES
+from ayon_server.entity_search.search import build_search_cte
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
@@ -128,16 +130,46 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
-    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    search: Annotated[
+        str | None,
+        argdesc("Fuzzy text search filter", "Use `textSearch`"),
+    ] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
-    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
+    task_search: Annotated[
+        str | None,
+        argdesc(
+            "Fuzzy search folders by tasks",
+            'Use `textSearch` with `textSearchScope: ["task"]`',
+        ),
+    ] = None,
     global_search: Annotated[
         str | None,
         argdesc(
             """
             Fuzzy text search matching folders by their own fields
             or by any of their tasks (same as the REST folder search)
+            """,
+            'Use `textSearch` with `textSearchScope: ["folder", "task"]`',
+        ),
+    ] = None,
+    text_search: Annotated[
+        str | None,
+        argdesc(
+            """
+            Folders with an entity of `textSearchScope` matching all words
+            (paths, names, labels and attributes anywhere; descriptions
+            and comments from the beginning of a word). Comma separates
+            alternatives.
+            """
+        ),
+    ] = None,
+    text_search_scope: Annotated[
+        list[str] | None,
+        argdesc(
+            """
+            Entity types searched by `textSearch`: folder (default), task,
+            product, version, comment
             """
         ),
     ] = None,
@@ -483,15 +515,26 @@ async def get_folders(
             """
         )
 
-    # TODO(next release): replace the LIKE-based `search`, `task_search` and
-    # `global_search` with the entity_search index
-    # (ayon_server.entity_search.search.build_search_cte) and add `search_scope`.
+    # `search`, `task_search` and `global_search` are deprecated
     if search:
         if cond := build_search_conditions(
             search,
             ["folders.name", "folders.label", "hierarchy.path"],
         ):
             sql_conditions.append(cond)
+
+    if text_search:
+        scope = text_search_scope or ["folder"]
+        if unknown := set(scope) - set(SEARCH_ENTITY_TYPES):
+            raise BadRequestException(f"Unknown textSearchScope: {sorted(unknown)}")
+        # The folder ACL is applied by the conditions above, not by the search
+        if search_cte := build_search_cte(
+            project_name, text_search, entity_types=scope, limit=None
+        ):
+            sql_cte.append(f"text_search_hits AS ({search_cte})")
+            sql_conditions.append(
+                "folders.id IN (SELECT folder_id FROM text_search_hits)"
+            )
 
     #
     # Filter

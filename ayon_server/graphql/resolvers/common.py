@@ -58,9 +58,13 @@ class ColumnMetadata:
     nested_sub_type: ColumnMetadataDataType | None = None
 
 
-def argdesc(description: str) -> StrawberryArgumentAnnotation:
+def argdesc(
+    description: str, deprecation_reason: str | None = None
+) -> StrawberryArgumentAnnotation:
     description = "\n".join([line.strip() for line in description.split("\n")])
-    return strawberry.argument(description=description)
+    return strawberry.argument(
+        description=description, deprecation_reason=deprecation_reason
+    )
 
 
 def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
