@@ -3,7 +3,6 @@ from typing import Annotated, cast
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
-from ayon_server.entity_search.search import build_search_cte
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
@@ -33,6 +32,7 @@ from .common import (
     EntityVisibility,
     FieldInfo,
     argdesc,
+    build_search_conditions,
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
@@ -128,39 +128,18 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
-    search: Annotated[
-        str | None,
-        argdesc(
-            """
-            Text search: folders whose entities of `searchScope` match all words
-            (paths, names, labels anywhere; descriptions, attributes, comments
-            from the beginning of a word)
-            """
-        ),
-    ] = None,
-    search_scope: Annotated[
-        list[str] | None,
-        argdesc(
-            """
-            Entity types searched by `search`: folder (default), task,
-            product, version, comment
-            """
-        ),
-    ] = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
-    task_search: Annotated[
+    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
+    global_search: Annotated[
         str | None,
         argdesc(
             """
-            Deprecated: use `search` with `searchScope: ["task"]`.
-            Matches the tasks of `taskFilter`.
+            Fuzzy text search matching folders by their own fields
+            or by any of their tasks (same as the REST folder search)
             """
         ),
-    ] = None,
-    global_search: Annotated[
-        str | None,
-        argdesc('Deprecated: use `search` with `searchScope: ["folder", "task"]`'),
     ] = None,
     include_parents: Annotated[
         bool,
@@ -504,16 +483,15 @@ async def get_folders(
             """
         )
 
-    # Folders with a matching entity of the search scope. The folder ACL
-    # is applied by the conditions above, not by the search.
-    if global_search:  # deprecated
-        search, search_scope = global_search, ["folder", "task"]
+    # TODO(next release): replace the LIKE-based `search`, `task_search` and
+    # `global_search` with the entity_search index
+    # (ayon_server.entity_search.search.build_search_cte) and add `search_scope`.
     if search:
-        if search_cte := build_search_cte(
-            project_name, search, entity_types=search_scope or ["folder"], limit=None
+        if cond := build_search_conditions(
+            search,
+            ["folders.name", "folders.label", "hierarchy.path"],
         ):
-            sql_cte.append(f"search_hits AS ({search_cte})")
-            sql_conditions.append("folders.id IN (SELECT folder_id FROM search_hits)")
+            sql_conditions.append(cond)
 
     #
     # Filter
@@ -583,14 +561,12 @@ async def get_folders(
             ):
                 task_conditions.append(tfilter)
 
-        if task_search:  # deprecated
-            if task_search_cte := build_search_cte(
-                project_name, task_search, entity_types=["task"], limit=None
+        if task_search:
+            if cond := build_search_conditions(
+                task_search,
+                ["tasks.name", "tasks.label", "tasks.task_type", "ex.path"],
             ):
-                sql_cte.append(f"task_search_hits AS ({task_search_cte})")
-                task_conditions.append(
-                    "tasks.id IN (SELECT entity_id FROM task_search_hits)"
-                )
+                task_conditions.append(cond)
 
         if task_conditions:
             sql_cte.append(
@@ -611,6 +587,41 @@ async def get_folders(
                 """
                 INNER JOIN filtered_tasks ft
                 ON ft.folder_id = folders.id
+                """
+            )
+
+    if global_search:
+        # folders matching the search themselves or by any of their tasks
+        task_search_cond = build_search_conditions(
+            global_search,
+            ["tasks.name", "tasks.label", "tasks.task_type", "e.path"],
+        )
+        folder_search_cond = build_search_conditions(
+            global_search,
+            ["f.name", "f.label", "e.path"],
+        )
+        if task_search_cond and folder_search_cond:
+            sql_cte.append(
+                f"""
+                searched_folders AS (
+                    SELECT tasks.folder_id
+                    FROM project_{project_name}.tasks AS tasks
+                    INNER JOIN project_{project_name}.exported_attributes AS e
+                        ON tasks.folder_id = e.folder_id
+                    WHERE {task_search_cond}
+                    UNION
+                    SELECT f.id AS folder_id
+                    FROM project_{project_name}.folders AS f
+                    INNER JOIN project_{project_name}.exported_attributes AS e
+                        ON f.id = e.folder_id
+                    WHERE {folder_search_cond}
+                )
+                """
+            )
+            sql_filter_joins.append(
+                """
+                INNER JOIN searched_folders sf
+                ON sf.folder_id = folders.id
                 """
             )
 
@@ -774,8 +785,8 @@ async def get_folders(
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
     #
-    print("Folder query")
-    print(query)
+    # print("Folder query")
+    # print(query)
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
