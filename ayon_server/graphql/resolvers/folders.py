@@ -3,8 +3,6 @@ from typing import Annotated, cast
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
-from ayon_server.entity_search import ENTITY_TYPES as SEARCH_ENTITY_TYPES
-from ayon_server.entity_search.search import build_search_cte
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
@@ -28,6 +26,8 @@ from .common import (
     ARGIds,
     ARGIncludeInternalFolder,
     ARGLast,
+    ARGTextSearch,
+    ARGTextSearchScope,
     ARGVisibility,
     AttributeFilterInput,
     ColumnMetadata,
@@ -35,6 +35,7 @@ from .common import (
     FieldInfo,
     argdesc,
     build_search_conditions,
+    build_text_search,
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
@@ -153,26 +154,8 @@ async def get_folders(
             'Use `textSearch` with `textSearchScope: ["folder", "task"]`',
         ),
     ] = None,
-    text_search: Annotated[
-        str | None,
-        argdesc(
-            """
-            Folders with an entity of `textSearchScope` matching all words
-            (paths, names, labels and attributes anywhere; descriptions
-            and comments from the beginning of a word). Comma separates
-            alternatives.
-            """
-        ),
-    ] = None,
-    text_search_scope: Annotated[
-        list[str] | None,
-        argdesc(
-            """
-            Entity types searched by `textSearch`: folder (default), task,
-            product, version, comment
-            """
-        ),
-    ] = None,
+    text_search: ARGTextSearch = None,
+    text_search_scope: ARGTextSearchScope = None,
     include_parents: Annotated[
         bool,
         argdesc(
@@ -524,17 +507,11 @@ async def get_folders(
             sql_conditions.append(cond)
 
     if text_search:
-        scope = text_search_scope or ["folder"]
-        if unknown := set(scope) - set(SEARCH_ENTITY_TYPES):
-            raise BadRequestException(f"Unknown textSearchScope: {sorted(unknown)}")
-        # The folder ACL is applied by the conditions above, not by the search
-        if search_cte := await build_search_cte(
-            project_name, text_search, entity_types=scope, limit=None
+        if ts := await build_text_search(
+            project_name, "folder", text_search, text_search_scope
         ):
-            sql_cte.append(f"text_search_hits AS ({search_cte})")
-            sql_conditions.append(
-                "folders.id IN (SELECT folder_id FROM text_search_hits)"
-            )
+            sql_cte.append(ts[0])
+            sql_conditions.append(ts[1])
 
     #
     # Filter

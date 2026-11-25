@@ -10,7 +10,12 @@ from ayon_server.access.utils import folder_access_list
 from ayon_server.config import ayonconfig
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
-from ayon_server.exceptions import ForbiddenException, ServiceUnavailableException
+from ayon_server.entity_search.search import build_search_cte
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -87,6 +92,26 @@ ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence
 ARGIncludeInternalFolder = Annotated[
     bool,
     argdesc("Whether to include the AYON internal folder and its descendants"),
+]
+ARGTextSearch = Annotated[
+    str | None,
+    argdesc(
+        """
+        Entities with a match of `textSearchScope` for all words (paths, names,
+        labels and attributes anywhere; descriptions and comments from the
+        beginning of a word). Comma separates alternatives.
+        """
+    ),
+]
+ARGTextSearchScope = Annotated[
+    list[str] | None,
+    argdesc(
+        """
+        Entity types searched by `textSearch`, the queried type by default.
+        Folders: folder, task, product, version, comment. Tasks: task, comment.
+        Products: product, version, comment. Versions: version, comment.
+        """
+    ),
 ]
 ARGVisibility = Annotated[
     EntityVisibility,
@@ -591,3 +616,36 @@ def build_search_conditions(
         return f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
 
     return None
+
+
+# Search rows carry the ids of the entities they belong to (see entity_search)
+TEXT_SEARCH_SCOPES = {
+    "folder": ["folder", "task", "product", "version", "comment"],
+    "task": ["task", "comment"],
+    "product": ["product", "version", "comment"],
+    "version": ["version", "comment"],
+}
+
+
+async def build_text_search(
+    project_name: str, entity_type: str, text: str, scope: list[str] | None
+) -> tuple[str, str] | None:
+    """Return the CTE and the condition selecting entities by textSearch.
+
+    Access is not checked here: it is applied by the resolver conditions.
+    Returns None when the text has no searchable words.
+    """
+    allowed = TEXT_SEARCH_SCOPES[entity_type]
+    scope = scope or [entity_type]
+    if unknown := set(scope) - set(allowed):
+        raise BadRequestException(
+            f"Unknown textSearchScope for {entity_type}s: {sorted(unknown)}"
+            f" (use {', '.join(allowed)})"
+        )
+    cte = await build_search_cte(project_name, text, entity_types=scope, limit=None)
+    if not cte:
+        return None
+    return (
+        f"text_search_hits AS ({cte})",
+        f"{entity_type}s.id IN (SELECT {entity_type}_id FROM text_search_hits)",
+    )

@@ -43,9 +43,12 @@ from ayon_server.types import (
 from ayon_server.utils import SQLTool
 
 from .common import (
+    ARGTextSearch,
+    ARGTextSearchScope,
     ARGVisibility,
     EntityVisibility,
     build_search_conditions,
+    build_text_search,
 )
 from .field_stats import (
     MetricTargetInput,
@@ -390,6 +393,8 @@ async def get_versions(
         str | None,
         argdesc("Fuzzy text search filter"),
     ] = None,
+    text_search: ARGTextSearch = None,
+    text_search_scope: ARGTextSearchScope = None,
     filter: Annotated[
         str | None,
         argdesc("Filter tasks using QueryFilter"),
@@ -710,6 +715,13 @@ async def get_versions(
             version_check=True,
         ):
             sql_conditions.append(cond)
+
+    if text_search:
+        if ts := await build_text_search(
+            project_name, "version", text_search, text_search_scope
+        ):
+            sql_cte.append(ts[0])
+            sql_conditions.append(ts[1])
 
     #
     # Filter
