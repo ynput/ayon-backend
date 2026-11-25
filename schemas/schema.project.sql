@@ -237,6 +237,9 @@ CREATE TABLE exported_attributes(
   active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE INDEX exported_attributes_path_idx
+  ON exported_attributes USING GIN (path public.gin_trgm_ops);
+
 -----------
 -- TASKS --
 -----------

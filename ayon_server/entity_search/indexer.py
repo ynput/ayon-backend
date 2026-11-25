@@ -6,10 +6,12 @@ attributes, search_vector, updated_at). A row is indexed when it is missing
 or its `updated_at` differs from the source, so the same code serves the
 backfill, the repair sweep and single updates.
 
-A row also depends on its parents: the folder path is part of its
-literals and the links follow moved parents. When a row's folder,
-product or literals change, the rows below it are marked outdated
-(`updated_at = NULL`) and indexed again.
+The folder path is not stored: the search matches it in
+`exported_attributes`, so renaming or moving a folder changes no rows.
+The links follow moved parents and version literals contain the product
+name: when a task, product or version row's folder, product or literals
+change, the rows below it are marked outdated (`updated_at = NULL`) and
+indexed again.
 """
 
 __all__ = ["ENTITY_TYPES", "backfill", "index_entities"]
@@ -44,7 +46,7 @@ def text_vector(expr: str, weight: str) -> str:
 
 
 def literal_text(*exprs: str) -> str:
-    """Return the path, names and labels: not split, matched anywhere."""
+    """Return the names and labels: not split, matched anywhere."""
     return f"lower(public.unaccent(concat_ws(' ', {', '.join(exprs)})))"
 
 
@@ -87,16 +89,14 @@ def attribute_text(entity_type: str) -> str:
 # Sources
 #
 
-# Folder paths (the `paths` CTE used by the sources), from the folders table:
-# the hierarchy view may not be refreshed yet when the indexer runs.
-# The internal folder is hidden in the app, so nothing below it is indexed.
-FOLDER_PATHS_CTE = f"""
-    WITH RECURSIVE paths AS (
-        SELECT id, name::text AS path FROM folders
+# Folders joined by the sources. The internal folder is hidden in the app,
+# so nothing below it is indexed.
+INDEXED_FOLDERS_CTE = f"""
+    WITH RECURSIVE indexed_folders AS (
+        SELECT id FROM folders
         WHERE parent_id IS NULL AND name <> '{AYON_INTERNAL_FOLDER_NAME}'
         UNION ALL
-        SELECT f.id, pa.path || '/' || f.name
-        FROM folders f JOIN paths pa ON f.parent_id = pa.id
+        SELECT f.id FROM folders f JOIN indexed_folders i ON f.parent_id = i.id
     )
 """
 
@@ -104,40 +104,40 @@ FOLDER_PATHS_CTE = f"""
 def get_folder_source() -> str:
     return f"""
         SELECT e.id, e.id, NULL::uuid, NULL::uuid, NULL::uuid,
-            {literal_text("pa.path", "e.label")},
+            {literal_text("e.name", "e.label")},
             {attribute_text("folder")},
             {name_vector("e.name", "e.label")}
             || {description_vector()},
             e.updated_at
         FROM folders e
-        JOIN paths pa ON pa.id = e.id
+        JOIN indexed_folders i ON i.id = e.id
     """
 
 
 def get_task_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, e.id, NULL::uuid, NULL::uuid,
-            {literal_text("pa.path", "e.name", "e.label", "e.task_type")},
+            {literal_text("e.name", "e.label", "e.task_type")},
             {attribute_text("task")},
             {name_vector("e.name", "e.label", "e.task_type")}
             || {description_vector()}
             || {text_vector("array_to_string(e.assignees, ' ')", "C")},
             e.updated_at
         FROM tasks e
-        JOIN paths pa ON pa.id = e.folder_id
+        JOIN indexed_folders i ON i.id = e.folder_id
     """
 
 
 def get_product_source() -> str:
     return f"""
         SELECT e.id, e.folder_id, NULL::uuid, e.id, NULL::uuid,
-            {literal_text("pa.path", "e.name")},
+            {literal_text("e.name")},
             {attribute_text("product")},
             {name_vector("e.name")}
             || {description_vector()},
             e.updated_at
         FROM products e
-        JOIN paths pa ON pa.id = e.folder_id
+        JOIN indexed_folders i ON i.id = e.folder_id
     """
 
 
@@ -150,14 +150,14 @@ def get_version_source() -> str:
     )
     return f"""
         SELECT e.id, p.folder_id, NULL::uuid, e.product_id, e.id,
-            {literal_text("pa.path", "p.name", version_name)},
+            {literal_text("p.name", version_name)},
             {attribute_text("version")},
             {name_vector(version_name)}
             || {description_vector()},
             e.updated_at
         FROM versions e
         JOIN products p ON p.id = e.product_id
-        JOIN paths pa ON pa.id = p.folder_id
+        JOIN indexed_folders i ON i.id = p.folder_id
     """
 
 
@@ -185,7 +185,7 @@ def get_comment_source() -> str:
             v.product_id,
             CASE WHEN r.entity_type = 'product' THEN r.entity_id END
         )
-        JOIN paths pa ON pa.id = COALESCE(t.folder_id, p.folder_id, f.id)
+        JOIN indexed_folders i ON i.id = COALESCE(t.folder_id, p.folder_id, f.id)
         WHERE e.activity_type = 'comment'
     """
 
@@ -211,7 +211,7 @@ def build_upsert_query(entity_type: str) -> str:
     $1 = batch size, $2 = entity ids or NULL for all.
     """
     query = f"""
-        {FOLDER_PATHS_CTE}
+        {INDEXED_FOLDERS_CTE}
         INSERT INTO entity_search (
             entity_id, folder_id, task_id, product_id, version_id,
             literals, attributes, search_vector, updated_at, entity_type
@@ -254,21 +254,13 @@ SELECT_INHERITED_VALUES = """
 def build_mark_dependents_outdated_query(entity_type: str) -> str:
     """Return the query marking the rows below the entities ($1) outdated.
 
-    A folder's subtree has a new path (comments have none, their links stay),
-    a product's versions and comments a new folder, the comments of a task
-    or version a new folder or product. Returns the marked rows.
+    A product's versions and comments get a new folder or product name,
+    the comments of a task or version a new folder or product.
+    Returns the marked rows.
     """
     return f"""
-        WITH RECURSIVE subtree AS (
-            SELECT id FROM folders WHERE '{entity_type}' = 'folder' AND id = ANY($1)
-            UNION
-            SELECT f.id FROM folders f JOIN subtree st ON f.parent_id = st.id
-        )
         UPDATE entity_search SET updated_at = NULL
-        WHERE entity_id <> ALL($1) AND (
-            (folder_id IN (SELECT id FROM subtree) AND entity_type <> 'comment')
-            OR {entity_type}_id = ANY($1)
-        )
+        WHERE entity_id <> ALL($1) AND {entity_type}_id = ANY($1)
         RETURNING entity_type, entity_id
     """
 
@@ -333,7 +325,8 @@ async def index_entities(
     detected then). With them, the rows below entities which moved or were
     renamed are indexed again. Returns the number of indexed rows of the type.
     """
-    if entity_ids is None or entity_type == "comment":
+    # Nothing below a folder or a comment takes values from its row
+    if entity_ids is None or entity_type in ("folder", "comment"):
         return await index_outdated_rows(
             project_name, entity_type, entity_ids, batch_size
         )

@@ -11,8 +11,9 @@ MIN_INFIX_LENGTH = 3  # shorter patterns cannot use the trigram index
 
 # Every term scores by where it matches the beginning of a word: 3 in the
 # names (weight A), 2 in descriptions and comments (B), 1 in user names (C),
-# otherwise by where it matches anywhere: at most 0.5 in the literals (path,
-# names), at most 0.25 in the other free-text attributes. The scores are
+# otherwise by where it matches anywhere: at most 0.5 in the literals (names,
+# labels), at most 0.25 in the folder path (not for comments) or the
+# free-text attributes. The scores are
 # averaged over the terms. Within a tier, folders come first, then tasks,
 # products and versions; among equal scores, the shortest literals win.
 SEARCH_CTE = """
@@ -101,7 +102,7 @@ def parse_query(text: str) -> list[list[str]]:
     return groups
 
 
-def build_term(term: str) -> tuple[str, str]:
+def build_term(schema: str, term: str) -> tuple[str, str]:
     """Return the score and the condition of one term."""
     # Underscores become hyphens, as in the index (see indexer.text_vector)
     lexeme = f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
@@ -120,13 +121,22 @@ def build_term(term: str) -> tuple[str, str]:
     similarity = f"public.word_similarity({term_value}, s.literals)"
     attr_like = f"s.attributes LIKE {pattern}"
     attr_similarity = f"public.word_similarity({term_value}, s.attributes)"
+    # Folder names are ASCII: the path needs no unaccent and ILIKE can use
+    # the trigram index. ANY(ARRAY(...)) keeps it an index condition on s.
+    path_match = (
+        f"(s.entity_type <> 'comment' AND s.folder_id = ANY(ARRAY("
+        f"SELECT folder_id FROM {schema}.exported_attributes"
+        f" WHERE path ILIKE {pattern})))"
+    )
+    path_similarity = f"public.word_similarity({term_value}, lower(hi.path))"
     score = (
         f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity}"
+        f" WHEN {path_match} THEN 0.25 * {path_similarity}"
         f" WHEN {attr_like} THEN 0.25 * {attr_similarity} ELSE 0 END"
     )
     return (
         score,
-        f"({like} OR {attr_like} OR s.search_vector @@ {tsquery})",
+        f"({like} OR {path_match} OR {attr_like} OR s.search_vector @@ {tsquery})",
     )
 
 
@@ -143,9 +153,9 @@ def build_search_cte(
 
     The rows are the `entity_search` rows with `folder_path` and `rank`.
     A term matches the beginning of a word, or (3+ characters) anywhere in
-    the literals (path, names, labels) and the free-text attributes other
-    than the description. All terms of a group must match,
-    any group may (see `parse_query`). Accents are ignored.
+    the literals (names, labels), the folder path (not for comments) and
+    the free-text attributes other than the description. All terms of a
+    group must match, any group may (see `parse_query`). Accents are ignored.
     Returns None when the text has no terms.
 
     `folder_access` limits the rows to folder paths (LIKE patterns),
@@ -157,9 +167,10 @@ def build_search_cte(
     if not groups:
         return None
 
+    schema = f"project_{project_name}"
     group_scores, group_conditions = [], []
     for terms in groups:
-        scores, conditions = zip(*map(build_term, terms))
+        scores, conditions = zip(*(build_term(schema, term) for term in terms))
         group_scores.append(f"({' + '.join(scores)}) / {len(terms)}")
         group_conditions.append(f"({' AND '.join(conditions)})")
 
@@ -177,7 +188,7 @@ def build_search_cte(
         )
 
     return SEARCH_CTE.format(
-        schema=f"project_{project_name}",
+        schema=schema,
         score=f"GREATEST({', '.join(group_scores)})",
         # Parenthesized: the access filters below must apply to every group
         conditions=f"({' OR '.join(group_conditions)})",
