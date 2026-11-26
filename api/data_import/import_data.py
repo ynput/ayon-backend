@@ -1137,7 +1137,7 @@ async def _remap_single_column(
         value_mapping: Pre-built value mapping dict for this column
         fields: Available importable columns (used only if
                 importable_column_by_key is not provided)
-        preview: Validate only, do not create new enum items
+        preview: Validate only, do not create new items
     """
     target_column_name = column_name or mapping.target_key
     csv_column_name = mapping.source_key
@@ -1236,7 +1236,7 @@ async def _remap_row(
         column_mapping: User-defined column mappings
         entity_type: Known entity type of a hierarchy row, used to read a
             combined folder/task type column without an entity type column
-        preview: Validate only, do not create new enum items
+        preview: Validate only, do not create new items
     """
     # Create lookup dictionaries for efficient access
     source_mapping_by_key = {mapping.source_key: mapping for mapping in column_mapping}
