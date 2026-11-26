@@ -33,13 +33,35 @@ WITH_COMPONENTS = """{% extends "base.jinja" %}
 
 
 @pytest.mark.anyio
+async def test_the_text_version_comes_from_the_plain_form_of_the_blocks() -> None:
+    text = await EmailTemplate().render_template(
+        "password_reset.jinja", {**CONTEXT, "full_name": "<b>Carol</b>"}, plain=True
+    )
+    assert text == "\n".join(
+        [
+            "Hi <b>Carol</b>",
+            "",
+            (
+                "It seems that you have requested a password reset"
+                " for your account for Ayon."
+            ),
+            "",
+            "Please click the button below to reset your password.",
+            "",
+            "Reset password: https://ayon.test/reset?t=1",
+            "",
+            "If you did not request a password reset, please ignore this email.",
+        ]
+    )
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     "template",
     ["user_invite.jinja", "password_reset.jinja", "token_renew.jinja"],
 )
 async def test_every_email_has_a_text_version_with_its_link(template: str) -> None:
-    html = await EmailTemplate().render_template(template, CONTEXT)
-    text = html_to_text(html)
+    text = await EmailTemplate().render_template(template, CONTEXT, plain=True)
     link = next(
         CONTEXT[k]
         for k in ("accept_link", "reset_url", "invite_link")
@@ -68,28 +90,28 @@ async def test_values_are_escaped() -> None:
 
 @pytest.mark.anyio
 async def test_the_building_blocks() -> None:
-    html = await EmailTemplate().render(
-        WITH_COMPONENTS,
-        {
-            "preview": "Shown in the list",
-            "title": "Alice commented",
-            "comment": "Looks <good>",
-            "url": "https://ayon.test/a?b=1&c=2",
-            "rows": [("Project", "demo"), ("Task", "comp")],
-        },
-    )
+    values = {
+        "preview": "Shown in the list",
+        "title": "Alice commented",
+        "comment": "Looks <good>\nsecond line",
+        "url": "https://ayon.test/a?b=1&c=2",
+        "rows": [("Project", "demo"), ("Task", "comp")],
+    }
+    html = await EmailTemplate().render(WITH_COMPONENTS, values)
     assert "Looks &lt;good&gt;" in html
     assert 'href="https://ayon.test/a?b=1&amp;c=2"' in html
-    assert html_to_text(html) == "\n".join(
+    text = await EmailTemplate().render(WITH_COMPONENTS, values, plain=True)
+    assert text == "\n".join(
         [
             "Alice commented",
             "",
-            "Looks <good>",
+            "> Looks <good>",
+            "> second line",
             "",
-            "Open (https://ayon.test/a?b=1&c=2)",
+            "Open: https://ayon.test/a?b=1&c=2",
             "",
-            "Project demo",
-            "Task comp",
+            "Project: demo",
+            "Task: comp",
             "",
             "Why you got this.",
         ]

@@ -1,10 +1,13 @@
 {#
   Building blocks of AYON emails. A template extends base.jinja and uses them
   through `ui`, e.g. `{{ ui.heading("Title") }}` in the content block.
-  Values are escaped; the plain text version is made from the HTML when sent.
+  Every block has an HTML form and a plain text form: EmailTemplate renders
+  the template once for each, the plain one with `__plain__` set.
+  Values are escaped in the HTML version.
 #}
 
 {% macro footer() -%}
+{% if not __plain__ %}
 <tr>
   <td
     align="center"
@@ -20,11 +23,13 @@
     </p>
   </td>
 </tr>
+{% else %}{{ caller() }}{% endif %}
 {%- endmacro %}
 
 
 {# a button, as a row of the main table (the call_to_action block) #}
 {% macro call_to_action(text, url) -%}
+{% if not __plain__ %}
   <tr>
     <td align="center" style="padding:20px;">
       <a
@@ -43,32 +48,51 @@
         >{{ text }}</a>
     </td>
   </tr>
+{% else %}
+  {{ text }}: {{ url }}
+{% endif %}
 {%- endmacro %}
 
 
-{% macro paragraph() -%}
+
+{% macro paragraph() -%}{% if not __plain__ %}
 <p style="margin:5px 0 0 0; font-size:14px;">
   {{ caller() }}
 </p>
+{% else %}
+{{ caller() }}
+{% endif %}{% endmacro %}
+
+
+{# a value in bold within a paragraph, e.g. a user name #}
+{% macro strong(text) -%}
+{% if not __plain__ %}<strong>{{ text }}</strong>{% else %}{{ text }}{% endif %}
 {%- endmacro %}
 
 
 {# the line mail clients show next to the subject in a list; hidden in the email #}
 {% macro preheader(text) -%}
+{% if not __plain__ %}
 <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">{{ text }}</div>
+{% endif %}
 {%- endmacro %}
 
 
 {# the title of the email, e.g. the name of a review session #}
 {% macro heading(text) -%}
+{% if not __plain__ %}
 <p style="margin:0; font-size:20px; line-height:1.35; font-weight:normal;">
   {{ text }}
 </p>
+{% else %}
+{{ text }}
+{% endif %}
 {%- endmacro %}
 
 
 {# quoted text, e.g. a comment #}
 {% macro quote() -%}
+{% if not __plain__ %}
 <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top:20px;">
   <tr>
     <td
@@ -77,11 +101,16 @@
     >{{ caller() }}</td>
   </tr>
 </table>
+{% else %}
+{% for line in caller().strip().splitlines() %}> {{ line }}
+{% endfor %}
+{% endif %}
 {%- endmacro %}
 
 
 {# label and value pairs, e.g. [("Project", "demo")], as a row of the main table #}
 {% macro details(rows) -%}
+{% if not __plain__ %}
 <tr>
   <td align="center" style="padding:0 40px 20px 40px;">
     <table cellpadding="4" cellspacing="0" border="0" style="font-size:14px; color:#373737;">
@@ -94,4 +123,8 @@
     </table>
   </td>
 </tr>
+{% else %}
+{% for label, value in rows %}{{ label }}: {{ value }}
+{% endfor %}
+{% endif %}
 {%- endmacro %}

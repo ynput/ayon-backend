@@ -6,11 +6,11 @@
   {% endcall %}
 
   {% call ui.paragraph() %}
-    You have been invited to join <strong>{{ studio_name }}</strong> AYON instance.
+    You have been invited to join {{ ui.strong(studio_name) }} AYON instance.
   {% endcall %}
 
   {% call ui.paragraph() %}
-    Your account has been created with user name <strong>{{ user_name }}</strong>.
+    Your account has been created with user name {{ ui.strong(user_name) }}.
 
     {% if password_enabled %}
       Please click the button below to set your password and sign in. 

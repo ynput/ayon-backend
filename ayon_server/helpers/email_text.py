@@ -1,7 +1,9 @@
-"""The plain text version of an HTML email.
+"""A plain text version for an HTML email that comes without one.
 
 Mail clients show it when they do not render HTML, and spam filters score an
-email without it lower. It is derived from the HTML, so every template gets one.
+email without it lower. AYON's own templates render theirs from the plain form
+of their building blocks (`EmailTemplate.render(..., plain=True)`); this is the
+fallback for HTML that has none, e.g. a template a caller passes in.
 """
 
 import re

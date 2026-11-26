@@ -1,4 +1,5 @@
 import asyncio
+import re
 import smtplib
 import ssl
 from concurrent.futures import ThreadPoolExecutor
@@ -151,6 +152,7 @@ async def send_mail(
         raise AyonException("Email is not configured")
 
     if html and not text:
+        # the templates in static/email render a text version of their own
         text = html_to_text(html)
 
     recipient_list: list[str] = []
@@ -202,45 +204,59 @@ async def get_studio_logo_url(base_url: str | None) -> str:
 
 
 class EmailTemplate:
+    """Render AYON emails from the templates in static/email.
+
+    `plain=True` renders the plain text version of the same template: the
+    building blocks of components.jinja2 have a text form for it (`__plain__`).
+    """
+
     def __init__(self) -> None:
         # TODO: async rendering
         # Values are escaped: names, comments and other user input end up in emails.
         # Pass markupsafe.Markup for a value that is HTML already.
-        self.env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader("static/email"), autoescape=True
-        )
+        loader = jinja2.FileSystemLoader("static/email")
+        self.env = jinja2.Environment(loader=loader, autoescape=True)
+        # plain text is not HTML, nothing to escape there
+        self.plain_env = jinja2.Environment(loader=loader, autoescape=False)
+
+    async def _context(
+        self, context: dict[str, Any] | None, base_url: str | None, plain: bool
+    ) -> dict[str, Any]:
+        return {
+            "base_url": base_url,
+            "studio_logo_url": await get_studio_logo_url(base_url),
+            **(context or {}),
+            "__plain__": plain,
+        }
 
     async def render(
         self,
         template: str,
         context: dict[str, Any] | None = None,
         base_url: str | None = None,
+        *,
+        plain: bool = False,
     ) -> str:
-        if context is None:
-            context = {}
-        # Render the template string
-        template_obj = self.env.from_string(template)
-
-        full_context = {
-            "base_url": base_url,
-            "studio_logo_url": await get_studio_logo_url(base_url),
-            **context,
-        }
-
-        return template_obj.render(full_context)
+        env = self.plain_env if plain else self.env
+        template_obj = env.from_string(template)
+        result = template_obj.render(await self._context(context, base_url, plain))
+        return tidy_text(result) if plain else result
 
     async def render_template(
         self,
         template_name: str,
         context: dict[str, Any] | None = None,
         base_url: str | None = None,
+        *,
+        plain: bool = False,
     ) -> str:
-        if context is None:
-            context = {}
-        template = self.env.get_template(template_name)
-        full_context = {
-            "base_url": base_url,
-            "studio_logo_url": await get_studio_logo_url(base_url),
-            **context,
-        }
-        return template.render(full_context)
+        env = self.plain_env if plain else self.env
+        template = env.get_template(template_name)
+        result = template.render(await self._context(context, base_url, plain))
+        return tidy_text(result) if plain else result
+
+
+def tidy_text(text: str) -> str:
+    """Drop the indentation of the template and repeated empty lines."""
+    lines = [line.strip() for line in text.splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()

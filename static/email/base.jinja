@@ -1,4 +1,11 @@
 {% import "components.jinja2" as ui with context %}
+{% if __plain__ %}
+{{ self.content() }}
+
+{{ self.call_to_action() }}
+
+{% call ui.footer() %}{{ self.footer() }}{% endcall %}
+{% else %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -59,4 +66,4 @@
     </table>
   </body>
 </html>
-
+{% endif %}
