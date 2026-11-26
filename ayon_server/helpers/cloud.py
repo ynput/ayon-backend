@@ -336,6 +336,30 @@ class CloudUtils:
             return []
 
     @classmethod
+    async def get_addon_updates(
+        cls,
+        addons: dict[str, str],
+        blacklist: list[str] | None = None,
+    ) -> list[dict[str, str]]:
+        """Ask Ynput Cloud which server addons to install or update.
+
+        `addons` are the production bundle addons (name -> version).
+        Returns a list of {"name", "version", "url"}. Raises on failure.
+        """
+        headers = await cls.get_api_headers()  # raises in offline mode
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            res = await client.post(
+                f"{ayonconfig.ynput_cloud_api_url}/api/ayon/addon-updates",
+                headers=headers,
+                json={"addons": addons, "blacklist": blacklist or []},
+            )
+        if res.status_code >= 400:
+            raise AyonException(
+                f"Unable to get addon updates [ERR {res.status_code}]: {res.text}"
+            )
+        return res.json().get("addons", [])
+
+    @classmethod
     def is_official_download_link(cls, url: str) -> bool:
         """Check if the given URL is an official download link."""
 
