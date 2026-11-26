@@ -107,6 +107,18 @@ async def aux_table_update(
                 data,
                 original_name,
             )
+            if table == "task_types":
+                # Tasks are renamed by a cascade, without updated_at:
+                # the next sweep re-indexes their search rows
+                await Postgres.execute(
+                    f"""
+                    UPDATE project_{project_name}.entity_search s
+                    SET updated_at = NULL
+                    FROM project_{project_name}.tasks t
+                    WHERE t.task_type = $1 AND s.entity_id = t.id
+                    """,
+                    name,
+                )
 
             del old_data[original_name]
             renamed = True

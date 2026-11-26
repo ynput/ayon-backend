@@ -169,6 +169,7 @@ async def build_search_cte(
     limit: int | None = 50,
     folder_access: list[str] | None = None,
     task_access: tuple[list[str], str | None] | None = None,
+    comment_categories: list[str] | None = None,
 ) -> str | None:
     """Return a query selecting the best search hits, without arguments.
 
@@ -181,7 +182,9 @@ async def build_search_cte(
 
     `folder_access` limits the rows to folder paths (LIKE patterns),
     `task_access` limits the rows of tasks and their comments to folder
-    paths, or to tasks assigned to the given user. None means no limit.
+    paths, or to tasks assigned to the given user, `comment_categories`
+    limits the comments to these categories and uncategorized ones.
+    None means no limit.
     With `limit=None`, all hits are returned unordered (to filter by them).
     """
     groups = parse_query(text)
@@ -215,6 +218,13 @@ async def build_search_cte(
             f" {assigned})"
         )
 
+    if comment_categories is not None:
+        filters.append(
+            f"AND (s.activity_id IS NULL OR EXISTS (SELECT 1 FROM {schema}.activities a"
+            " WHERE a.id = s.activity_id AND (a.data->>'category' IS NULL"
+            f" OR a.data->>'category' = ANY({sql_string_array(comment_categories)}))))"
+        )
+
     return SEARCH_CTE.format(
         schema=schema,
         score=f"GREATEST({', '.join(group_scores)})",
@@ -238,6 +248,7 @@ async def search(
     limit: int = 50,
     folder_access: list[str] | None = None,
     task_access: tuple[list[str], str | None] | None = None,
+    comment_categories: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the best matches for all whitespace-separated terms of the text.
 
@@ -250,6 +261,7 @@ async def search(
         limit=limit,
         folder_access=folder_access,
         task_access=task_access,
+        comment_categories=comment_categories,
     )
     if not cte:
         return []

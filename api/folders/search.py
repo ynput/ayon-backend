@@ -183,7 +183,7 @@ async def search_folders(
 
     if payload.text_search:
         if ts := await build_text_search(
-            project_name, "folder", payload.text_search, payload.text_search_scope
+            user, project_name, "folder", payload.text_search, payload.text_search_scope
         ):
             sql_cte.append(ts[0])
             sql_conditions.append(ts[1])

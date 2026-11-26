@@ -181,6 +181,64 @@ def test_text_search_follows_folder_access(
         api.delete(group_url)
 
 
+def test_text_search_hides_sibling_tasks_and_categories(
+    api: httpx.Client,
+    other_user: httpx.Client,
+    temp_project: TempProject,
+    tree: dict[str, str],
+) -> None:
+    """Hidden tasks and comments do not reveal their texts through the folder."""
+    p = temp_project
+    other_name = other_user.get("/api/users/me").json()["name"]
+    p.create(
+        "task",
+        name="compositing",
+        taskType=p.task_types[0],
+        folderId=tree["sh010"],
+        attrib={"description": "secretword"},
+    )
+    response = api.post(
+        f"/api/projects/{p.name}/tasks/{tree['task']}/activities",
+        json={
+            "activityType": "comment",
+            "body": "classified plan",
+            "data": {"category": "internal"},
+        },
+    )
+    assert response.status_code == 201, response.text
+    result = p.op("update", "task", tree["task"], {"assignees": [other_name]})
+    assert result["success"], result
+
+    group = f"apitest_{uuid.uuid4().hex[:8]}"
+    group_url = f"/api/accessGroups/{group}/_"
+    response = api.put(
+        group_url,
+        json={
+            "read": {"enabled": True, "access_list": [{"access_type": "assigned"}]},
+            "advanced": {"show_sibling_tasks": False},
+        },
+    )
+    assert response.status_code == 204, response.text
+    try:
+        response = api.patch(
+            f"/api/users/{other_name}/accessGroups",
+            json={"accessGroups": [{"project": p.name, "accessGroups": [group]}]},
+        )
+        assert response.status_code == 204, response.text
+        search_until(api, p.name, "secretword", ["task"], ["/shots/sh010"])
+        search_until(api, p.name, "classified", ["comment"], ["/shots/sh010"])
+        search_until(other_user, p.name, "lighting", ["task"], ["/shots/sh010"])
+
+        assert search(other_user, p.name, "secretword", ["task"]) == []
+        assert search(other_user, p.name, "retake", ["comment"]) == ["/shots/sh010"]
+        assert search(other_user, p.name, "classified", ["comment"]) == []
+        tasks = search_ids(other_user, p.name, "tasks", "classified", ["comment"])
+        assert tasks == set()
+    finally:
+        api.delete(group_url)
+        p.op("update", "task", tree["task"], {"assignees": []})
+
+
 def test_moved_product_takes_its_versions(
     api: httpx.Client, temp_project: TempProject, tree: dict[str, str]
 ) -> None:

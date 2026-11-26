@@ -121,13 +121,22 @@ async def fix_table(
         changed += len(invalid)
 
     if updates and not dry_run:
+        query = f"""
+            UPDATE {table} SET attrib = (attrib || $1) - $2::text[]
+            WHERE {key_column} = $3
+        """
+        if table.startswith("project_"):
+            # attrib changes without updated_at: the next sweep re-indexes the row
+            schema = table.split(".")[0]
+            query = f"""
+                WITH fixed AS ({query} RETURNING id)
+                UPDATE {schema}.entity_search SET updated_at = NULL
+                WHERE entity_id IN (SELECT id FROM fixed)
+            """
         async with Postgres.transaction():
             for row_key, fixes, removed in updates:
                 await Postgres.execute(
-                    f"""
-                    UPDATE {table} SET attrib = (attrib || $1) - $2::text[]
-                    WHERE {key_column} = $3
-                    """,
+                    query,
                     fixes,
                     removed,
                     row_key,

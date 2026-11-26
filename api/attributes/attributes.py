@@ -11,6 +11,7 @@ from ayon_server.attributes.models import (
 )
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.entity_search import indexed_attributes, mark_attributes_outdated
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -73,9 +74,13 @@ async def apply_attribute_changes(
     on all other instances (the reload is a no-op on this one).
 
     Stored values of the attributes, whose definitions changed, are fixed
-    in the background (see `fix_attribute_values`).
+    in the background (see `fix_attribute_values`). Search rows are marked
+    outdated when the set of searchable attributes changes.
     """
+    indexed_before = indexed_attributes()
     changed = await attribute_library.reload()
+    if changed:
+        await mark_attributes_outdated(indexed_before)
     if changed and background_tasks is not None:
         background_tasks.add_task(fix_attribute_values, attribute_names=sorted(changed))
     await EventStream.dispatch(

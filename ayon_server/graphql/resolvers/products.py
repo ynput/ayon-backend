@@ -432,7 +432,11 @@ async def get_products(
 
     if text_search:
         if ts := await build_text_search(
-            project_name, "product", text_search, text_search_scope
+            info.context["user"],
+            project_name,
+            "product",
+            text_search,
+            text_search_scope,
         ):
             sql_cte.append(ts[0])
             sql_conditions.append(ts[1])

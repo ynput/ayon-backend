@@ -11,12 +11,16 @@ The folder path is not stored: the search matches it in
 The links follow moved parents and version literals contain the product
 name: when a task, product or version row's folder, product or literals
 change, the rows below it are marked outdated (`updated_at = NULL`) and
-indexed again.
+indexed again, in the same statement.
 """
 
-__all__ = ["ENTITY_TYPES", "backfill", "index_entities"]
-
-from typing import Any
+__all__ = [
+    "ENTITY_TYPES",
+    "backfill",
+    "index_entities",
+    "indexed_attributes",
+    "mark_attributes_outdated",
+]
 
 from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
@@ -60,26 +64,36 @@ def description_vector() -> str:
     return text_vector("e.attrib->>'description'", "B")
 
 
-def attribute_text(entity_type: str) -> str:
-    """Return the free-text attributes of `e` but the description.
+def indexed_attributes() -> dict[str, list[str]]:
+    """Return {entity type: names of the attributes in `attribute_text`}.
 
-    They hold codes and paths rather than prose, so like the literals they
-    are not split and are matched anywhere. Free-text attributes are strings
-    without an enum. Their names are part of the query: they come from the
-    attribute definitions, which rarely change.
+    Free-text attributes are strings without an enum, but the description.
     """
     # Imported here: the entities import the indexer to enqueue their saves
     from ayon_server.entities.core.attrib import attribute_library
 
-    attributes = [
-        f"e.attrib->>'{attr['name']}'"
-        for attr in attribute_library[entity_type]
-        if attr.get("type") == "string"
-        and attr["name"] != "description"  # see description_vector
-        and attr["name"].isalnum()  # always true, but it is inlined into SQL
-        and not attr.get("enum")
-        and not attr.get("enumResolver")
-    ]
+    return {
+        entity_type: [
+            attr["name"]
+            for attr in attribute_library[entity_type]
+            if attr.get("type") == "string"
+            and attr["name"] != "description"  # see description_vector
+            and attr["name"].isalnum()  # always true, but it is inlined into SQL
+            and not attr.get("enum")
+            and not attr.get("enum_resolver")
+        ]
+        for entity_type in ("folder", "task", "product", "version")
+    }
+
+
+def attribute_text(entity_type: str) -> str:
+    """Return the free-text attributes of `e` but the description.
+
+    They hold codes and paths rather than prose, so like the literals they
+    are not split and are matched anywhere. Their names are part of
+    the query: they come from the attribute definitions, which rarely change.
+    """
+    attributes = [f"e.attrib->>'{name}'" for name in indexed_attributes()[entity_type]]
     if not attributes:
         return "NULL"
     return f"nullif({literal_text(*attributes)}, '')"
@@ -146,7 +160,8 @@ def get_version_source() -> str:
     # relation and would cascade-delete the row when the task is removed.
     version_name = (
         "CASE WHEN e.version < 0 THEN 'HERO'"
-        " ELSE 'v' || lpad(e.version::text, 3, '0') END"
+        " ELSE 'v' || lpad(e.version::text, greatest(3, length(e.version::text)), '0')"
+        " END"
     )
     return f"""
         SELECT e.id, p.folder_id, NULL::uuid, e.product_id, e.id,
@@ -205,111 +220,74 @@ def get_source(entity_type: str) -> str:
     raise ValueError(f"Unsupported entity type for search: {entity_type}")
 
 
+# Entities whose rows give values to the rows below them (see the module doc)
+PARENT_TYPES = {"task", "product", "version"}
+
+
 def build_upsert_query(entity_type: str) -> str:
     """Return the query indexing a batch of outdated rows.
 
-    $1 = batch size, $2 = entity ids or NULL for all.
+    $1 = batch size, $2 = entity ids or NULL for all. Returns the number of
+    indexed rows and the rows below moved or renamed entities, which the same
+    statement marks outdated ("<entity type>:<entity id>"), so a lost queue
+    or an interrupted run cannot leave them stale. All parts of the statement
+    see the rows as they were before it (`old`).
     """
-    query = f"""
-        {INDEXED_FOLDERS_CTE}
-        INSERT INTO entity_search (
-            entity_id, folder_id, task_id, product_id, version_id,
-            literals, attributes, search_vector, updated_at, entity_type
-        )
-        SELECT src.*, '{entity_type}' FROM ({get_source(entity_type)}) AS src (
-            entity_id, folder_id, task_id, product_id, version_id,
-            literals, attributes, search_vector, updated_at
-        )
-        WHERE NOT EXISTS (
-            SELECT 1 FROM entity_search s
-            WHERE s.entity_id = src.entity_id
-            AND s.updated_at IS NOT DISTINCT FROM src.updated_at
-        )
-        AND ($2::uuid[] IS NULL OR src.entity_id = ANY($2))
-        LIMIT $1
-        ON CONFLICT (entity_id) DO UPDATE SET
-            folder_id = EXCLUDED.folder_id,
-            task_id = EXCLUDED.task_id,
-            product_id = EXCLUDED.product_id,
-            version_id = EXCLUDED.version_id,
-            literals = EXCLUDED.literals,
-            attributes = EXCLUDED.attributes,
-            search_vector = EXCLUDED.search_vector,
-            updated_at = EXCLUDED.updated_at
-    """
-    return query
+    columns = (
+        "entity_id, folder_id, task_id, product_id, version_id,"
+        " literals, attributes, search_vector, updated_at"
+    )
+    marked, dependents = "", "'{}'::text[]"
+    if entity_type in PARENT_TYPES:
+        marked = f"""
+        , marked AS (
+            UPDATE entity_search d SET updated_at = NULL
+            FROM outdated o
+            JOIN entity_search old ON old.entity_id = o.entity_id
+            WHERE d.{entity_type}_id = o.entity_id AND d.entity_id <> o.entity_id
+            AND (
+                old.folder_id IS DISTINCT FROM o.folder_id
+                OR old.product_id IS DISTINCT FROM o.product_id
+                OR old.literals IS DISTINCT FROM o.literals
+            )
+            RETURNING d.entity_type, d.entity_id
+        )"""
+        dependents = "ARRAY(SELECT entity_type || ':' || entity_id FROM marked)"
 
-
-#
-# Dependent rows
-#
-
-# What the rows below an entity take from its row
-SELECT_INHERITED_VALUES = """
-    SELECT entity_id, folder_id, product_id, literals FROM entity_search
-    WHERE entity_id = ANY($1::uuid[])
-"""
-
-
-def build_mark_dependents_outdated_query(entity_type: str) -> str:
-    """Return the query marking the rows below the entities ($1) outdated.
-
-    A product's versions and comments get a new folder or product name,
-    the comments of a task or version a new folder or product.
-    Returns the marked rows.
-    """
     return f"""
-        UPDATE entity_search SET updated_at = NULL
-        WHERE entity_id <> ALL($1) AND {entity_type}_id = ANY($1)
-        RETURNING entity_type, entity_id
+        {INDEXED_FOLDERS_CTE},
+        outdated AS (
+            SELECT * FROM ({get_source(entity_type)}) AS src ({columns})
+            WHERE NOT EXISTS (
+                SELECT 1 FROM entity_search s
+                WHERE s.entity_id = src.entity_id
+                AND s.updated_at IS NOT DISTINCT FROM src.updated_at
+            )
+            AND ($2::uuid[] IS NULL OR src.entity_id = ANY($2))
+            LIMIT $1
+        ),
+        upserted AS (
+            INSERT INTO entity_search ({columns}, entity_type)
+            SELECT {columns}, '{entity_type}' FROM outdated
+            ON CONFLICT (entity_id) DO UPDATE SET
+                folder_id = EXCLUDED.folder_id,
+                task_id = EXCLUDED.task_id,
+                product_id = EXCLUDED.product_id,
+                version_id = EXCLUDED.version_id,
+                literals = EXCLUDED.literals,
+                attributes = EXCLUDED.attributes,
+                search_vector = EXCLUDED.search_vector,
+                updated_at = EXCLUDED.updated_at
+            RETURNING 1
+        )
+        {marked}
+        SELECT (SELECT count(*) FROM upserted) AS indexed, {dependents} AS dependents
     """
 
 
 #
 # Indexing
 #
-
-
-async def fetch_from_project(project_name: str, query: str, *args: Any) -> list[Any]:
-    async with Postgres.transaction():
-        await Postgres.set_project_schema(project_name)
-        return await Postgres.fetch(query, *args, timeout=600)
-
-
-async def index_outdated_rows(
-    project_name: str,
-    entity_type: str,
-    entity_ids: list[str] | None,
-    batch_size: int,
-) -> int:
-    """Index outdated rows in batches, each committed on its own."""
-    query = build_upsert_query(entity_type)
-    total = 0
-    while True:
-        async with Postgres.transaction():
-            await Postgres.set_project_schema(project_name)
-            status = await Postgres.execute(query, batch_size, entity_ids, timeout=600)
-        count = int(status.split()[-1])  # "INSERT 0 <count>"
-        total += count
-        if count < batch_size:
-            return total
-        logger.debug(f"[{project_name}] Indexed {total} {entity_type}s for search")
-
-
-async def reindex_dependents(
-    project_name: str,
-    entity_type: str,
-    changed_ids: list[str],
-    batch_size: int,
-) -> None:
-    """Index the rows below moved or renamed entities again."""
-    query = build_mark_dependents_outdated_query(entity_type)
-    outdated: dict[str, list[str]] = {}
-    for row in await fetch_from_project(project_name, query, changed_ids):
-        outdated.setdefault(row["entity_type"], []).append(row["entity_id"])
-    for dependent_type in ENTITY_TYPES:
-        if ids := outdated.get(dependent_type):
-            await index_outdated_rows(project_name, dependent_type, ids, batch_size)
 
 
 async def index_entities(
@@ -319,28 +297,32 @@ async def index_entities(
     *,
     batch_size: int = 10000,
 ) -> int:
-    """Index missing or outdated rows of one entity type.
+    """Index missing or outdated rows of one entity type (all without ids).
 
-    Without `entity_ids`, the whole project is swept (moved parents are not
-    detected then). With them, the rows below entities which moved or were
-    renamed are indexed again. Returns the number of indexed rows of the type.
+    Batches are committed one at a time. The rows below moved or renamed
+    entities are indexed again afterwards. Returns the number of indexed
+    rows of the type.
     """
-    # Nothing below a folder or a comment takes values from its row
-    if entity_ids is None or entity_type in ("folder", "comment"):
-        return await index_outdated_rows(
-            project_name, entity_type, entity_ids, batch_size
-        )
+    query = build_upsert_query(entity_type)
+    total = 0
+    dependents: dict[str, list[str]] = {}
+    while True:
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            row = await Postgres.fetchrow(query, batch_size, entity_ids, timeout=600)
+        total += row["indexed"]
+        for dependent in row["dependents"]:
+            dependent_type, dependent_id = dependent.split(":")
+            dependents.setdefault(dependent_type, []).append(dependent_id)
+        if row["indexed"] < batch_size:
+            break
+        logger.debug(f"[{project_name}] Indexed {total} {entity_type}s for search")
 
-    before = await fetch_from_project(project_name, SELECT_INHERITED_VALUES, entity_ids)
-    total = await index_outdated_rows(project_name, entity_type, entity_ids, batch_size)
-    after = await fetch_from_project(project_name, SELECT_INHERITED_VALUES, entity_ids)
-
-    after_by_id = {row["entity_id"]: row for row in after}
-    changed_ids = [
-        row["entity_id"] for row in before if after_by_id.get(row["entity_id"]) != row
-    ]
-    if changed_ids:
-        await reindex_dependents(project_name, entity_type, changed_ids, batch_size)
+    for dependent_type in ENTITY_TYPES:  # versions before their comments
+        if ids := dependents.get(dependent_type):
+            await index_entities(
+                project_name, dependent_type, ids, batch_size=batch_size
+            )
     return total
 
 
@@ -352,3 +334,24 @@ async def backfill(project_name: str, *, batch_size: int = 10000) -> dict[str, i
         )
         for entity_type in ENTITY_TYPES
     }
+
+
+async def mark_attributes_outdated(before: dict[str, list[str]]) -> None:
+    """Mark the rows outdated whose indexed attributes changed.
+
+    `before` = `indexed_attributes()` before the attribute definitions changed.
+    The rows are indexed again by the next sweep.
+    """
+    from ayon_server.helpers.project_list import get_project_list
+
+    after = indexed_attributes()
+    if not (types := [t for t in after if after[t] != before.get(t)]):
+        return
+    for project in await get_project_list():
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project.name}.entity_search SET updated_at = NULL
+            WHERE entity_type = ANY($1)
+            """,
+            types,
+        )

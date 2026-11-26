@@ -1,12 +1,14 @@
 from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
+from ayon_server.access.task_access import FullAccess, create_task_acl
 from ayon_server.access.utils import folder_access_list
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.config import ayonconfig
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
@@ -22,6 +24,9 @@ from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, json_dumps
 
 from .pagination import OrderBySequence, encode_cursor
+
+if TYPE_CHECKING:
+    from ayon_server.entities import UserEntity
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -628,11 +633,18 @@ TEXT_SEARCH_SCOPES = {
 
 
 async def build_text_search(
-    project_name: str, entity_type: str, text: str, scope: list[str] | None
+    user: "UserEntity",
+    project_name: str,
+    entity_type: str,
+    text: str,
+    scope: list[str] | None,
 ) -> tuple[str, str] | None:
     """Return the CTE and the condition selecting entities by textSearch.
 
-    Access is not checked here: it is applied by the resolver conditions.
+    The access to the returned entities is applied by the resolver
+    conditions. Here, hits of tasks hidden by `show_sibling_tasks` and of
+    comments in unreadable categories are left out, so they cannot reveal
+    their texts through the entity they belong to.
     Returns None when the text has no searchable words.
     """
     allowed = TEXT_SEARCH_SCOPES[entity_type]
@@ -642,7 +654,33 @@ async def build_text_search(
             f"Unknown textSearchScope for {entity_type}s: {sorted(unknown)}"
             f" (use {', '.join(allowed)})"
         )
-    cte = await build_search_cte(project_name, text, entity_types=scope, limit=None)
+
+    task_access = None
+    comment_categories = None
+    if user.is_guest and "comment" in scope:
+        # shortcut: guests see comments through entity lists, not supported here
+        raise ForbiddenException("Guests cannot search comments")
+    if not user.is_manager:
+        if not user.permissions(project_name).advanced.show_sibling_tasks:
+            access_groups = user.data.get("accessGroups", {}).get(project_name, [])
+            try:
+                paths, assigned = await create_task_acl(project_name, access_groups)
+            except FullAccess:
+                pass
+            else:
+                task_access = (sorted(paths), user.name if assigned else None)
+        comment_categories = await ActivityCategories.get_accessible_categories(
+            user, project_name=project_name
+        )
+
+    cte = await build_search_cte(
+        project_name,
+        text,
+        entity_types=scope,
+        limit=None,
+        task_access=task_access,
+        comment_categories=comment_categories,
+    )
     if not cte:
         return None
     return (
