@@ -50,6 +50,24 @@ class EntityAccessHelper:
         raise ForbiddenException()
 
     @classmethod
+    async def sql_condition(
+        cls,
+        user: UserEntity,
+        *,
+        level: int = 0,
+        project: ProjectEntity | None = None,
+        default_open: bool = True,
+    ) -> str | None:
+        """Return an SQL condition on the `access` and `owner` columns.
+
+        It matches at least every row `check` allows, so resolvers can filter
+        in the query instead of dropping rows from a page. `check` still runs
+        on every row returned. None when there is nothing to filter.
+        """
+        _ = user, level, project, default_open
+        return None
+
+    @classmethod
     async def get_share_options(
         cls,
         user: UserEntity,

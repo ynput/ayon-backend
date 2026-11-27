@@ -23,6 +23,7 @@ from ayon_server.graphql.resolvers.pagination import (
     with_tiebreakers,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool, json_loads
 
@@ -97,6 +98,14 @@ async def get_entity_lists(
                 OR (access->'__guests__')::INTEGER > 0
                 )
                 """)
+
+    if access_condition := await EntityAccessHelper.sql_condition(
+        user,
+        level=EntityAccessHelper.READ,
+        project=project,
+        default_open=True,
+    ):
+        sql_conditions.append(access_condition)
 
     #
     # Filtering
