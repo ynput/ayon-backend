@@ -275,6 +275,40 @@ def test_text_search_hierarchy_task_access(
         api.delete(group_url)
 
 
+def test_guests_cannot_use_text_search(
+    api: httpx.Client, temp_project: TempProject
+) -> None:
+    name = f"apitest_{uuid.uuid4().hex[:8]}"
+    password = uuid.uuid4().hex
+    # The versions resolver lets guests in through their entity lists
+    guest_access = [
+        {"projectName": temp_project.name, "type": "entityList", "id": uuid.uuid4().hex}
+    ]
+    response = api.put(
+        f"/api/users/{name}",
+        json={
+            "password": password,
+            "data": {"isGuest": True, "guestAccess": guest_access},
+        },
+    )
+    assert response.status_code == 204, response.text
+    try:
+        response = api.post(
+            "/api/auth/login", json={"name": name, "password": password}
+        )
+        assert response.status_code == 200, response.text
+        headers = {"Authorization": f"Bearer {response.json()['token']}"}
+        with httpx.Client(base_url=api.base_url, headers=headers) as guest:
+            query = (
+                f'{{ project(name: "{temp_project.name}") {{ versions('
+                'textSearch: "retake") { edges { node { id } } } } }'
+            )
+            response = guest.post("/graphql", json={"query": query})
+            assert "Guests cannot use text search" in response.text, response.text
+    finally:
+        api.delete(f"/api/users/{name}")
+
+
 def test_moved_product_takes_its_versions(
     api: httpx.Client, temp_project: TempProject, tree: dict[str, str]
 ) -> None:

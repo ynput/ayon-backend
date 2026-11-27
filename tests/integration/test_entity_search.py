@@ -115,14 +115,23 @@ async def _sweep_follows_changes(monkeypatch) -> None:
         await backfill(PROJECT)
         assert await _literals(ids["task"]) == "light relighting"
 
-        # A change of the searchable attributes marks the rows of the type
-        before = indexed_attributes()
-        before["folder"] = [*before["folder"], "removedAttribute"]
+        # An attribute which stops being searchable marks only the entities
+        # with its value (one becoming searchable works the same way)
         monkeypatch.setattr(
             project_list,
             "get_project_list",
             _async_value([SimpleNamespace(name=PROJECT)]),
         )
+        before = indexed_attributes()
+        before["folder"] = [*before["folder"], "removedAttribute"]
+        await mark_attributes_outdated(before)
+        assert await _literals(ids["sh010"]) is not None  # has no value
+        await Postgres.execute(
+            'UPDATE folders SET attrib = \'{"removedAttribute": "x"}\','
+            " updated_at = updated_at + interval '1 second' WHERE id = $1",
+            ids["sh010"],
+        )
+        await backfill(PROJECT)
         await mark_attributes_outdated(before)
         assert await _literals(ids["sh010"]) is None
         assert await _literals(ids["task"]) is not None

@@ -353,18 +353,27 @@ async def mark_attributes_outdated(before: dict[str, list[str]]) -> None:
     """Mark the rows outdated whose indexed attributes changed.
 
     `before` = `indexed_attributes()` before the attribute definitions changed.
+    Only entities with a value of an attribute which became searchable or
+    stopped being searchable are marked (a new attribute marks none).
     The rows are indexed again by the next sweep.
     """
     from ayon_server.helpers.project_list import get_project_list
 
     after = indexed_attributes()
-    if not (types := [t for t in after if after[t] != before.get(t)]):
+    changed = {
+        entity_type: sorted(set(names) ^ set(before.get(entity_type, [])))
+        for entity_type, names in after.items()
+    }
+    if not (changed := {t: names for t, names in changed.items() if names}):
         return
     for project in await get_project_list():
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project.name}.entity_search SET updated_at = NULL
-            WHERE entity_type = ANY($1)
-            """,
-            types,
-        )
+        schema = f"project_{project.name}"
+        for entity_type, names in changed.items():
+            await Postgres.execute(
+                f"""
+                UPDATE {schema}.entity_search s SET updated_at = NULL
+                FROM {schema}.{entity_type}s e
+                WHERE e.id = s.entity_id AND e.attrib ?| $1
+                """,
+                names,
+            )

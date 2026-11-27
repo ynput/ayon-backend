@@ -659,15 +659,13 @@ async def build_text_search(
     comment_categories = None
     readable_attributes = None  # as in graphql.utils.process_attrib_data
     if user.is_guest:
-        readable_attributes = []
-    elif not user.is_manager and (perms := user.permissions(project_name)):
+        # Guests see entities through entity lists only
+        raise ForbiddenException("Guests cannot use text search")
+    if not user.is_manager:
+        perms = user.permissions(project_name)
         if perms.attrib_read.enabled:
             readable_attributes = perms.attrib_read.attributes
-    if user.is_guest and "comment" in scope:
-        # shortcut: guests see comments through entity lists, not supported here
-        raise ForbiddenException("Guests cannot search comments")
-    if not user.is_manager:
-        if not user.permissions(project_name).advanced.show_sibling_tasks:
+        if not perms.advanced.show_sibling_tasks:
             access_groups = user.data.get("accessGroups", {}).get(project_name, [])
             try:
                 paths, assigned = await create_task_acl(project_name, access_groups)
