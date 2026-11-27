@@ -18,6 +18,7 @@ import os
 import sys
 from collections.abc import Callable, Coroutine, Iterator
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
@@ -25,6 +26,7 @@ BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."
 sys.path.insert(0, BACKEND_DIR)
 
 from ayon_server.lib.postgres import Postgres  # noqa: E402
+from ayon_server.lib.redis import Redis  # noqa: E402
 
 Runner = Callable[[Coroutine[Any, Any, Any]], Any]
 
@@ -66,3 +68,32 @@ def run() -> Iterator[Runner]:
         loop.run_until_complete(_disconnect())
     finally:
         loop.close()
+
+
+@pytest.fixture
+def redis(run: Runner) -> Iterator[None]:
+    """Connect to Redis (AYON_REDIS_URL), skip the test when it is not available.
+
+    The keys get a random prefix and are deleted afterwards,
+    so a shared Redis is safe to use.
+    """
+
+    async def connect() -> None:
+        await Redis.connect()
+
+    async def cleanup() -> None:
+        for key in await Redis.redis_pool.keys(f"{Redis.prefix}*"):
+            await Redis.redis_pool.delete(key)
+
+    try:
+        run(connect())
+    except ConnectionError as e:
+        pytest.skip(f"Redis is not available: {e}")
+
+    original_prefix = Redis.prefix
+    Redis.prefix = f"test-{uuid4().hex}-"
+    try:
+        yield
+    finally:
+        run(cleanup())
+        Redis.prefix = original_prefix

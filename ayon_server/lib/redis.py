@@ -102,6 +102,15 @@ def _make_cache_key(
     return f"{ns}:{key}"
 
 
+# Lua scripts run atomically: no other command can run between the check and SREM
+SREM_IF_MISSING = """
+if redis.call('EXISTS', KEYS[2]) == 0 then
+    return redis.call('SREM', KEYS[1], ARGV[1])
+end
+return 0
+"""
+
+
 class Redis:
     connected: bool = False
     redis_pool: aioredis.Redis
@@ -252,6 +261,46 @@ class Redis:
         await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
 
     @classmethod
+    async def sadd(cls, namespace: str, key: str, *members: str) -> None:
+        """Add members to a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.sadd(f"{cls.prefix}{namespace}-{key}", *members)
+
+    @classmethod
+    async def srem(cls, namespace: str, key: str, *members: str) -> None:
+        """Remove members from a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.srem(f"{cls.prefix}{namespace}-{key}", *members)
+
+    @classmethod
+    async def smembers(cls, namespace: str, key: str) -> list[str]:
+        """Get all members of a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        members = await cls.redis_pool.smembers(f"{cls.prefix}{namespace}-{key}")
+        return [m.decode() if isinstance(m, bytes) else str(m) for m in members]
+
+    @classmethod
+    async def srem_if_missing(cls, namespace: str, key: str, member: str) -> None:
+        """Remove `member` from the set `key`, unless the key `member` exists.
+
+        Both keys are in the same namespace. The check and the removal
+        are atomic, so a concurrent writer recreating the `member` key
+        can't have its member removed.
+        """
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.eval(
+            SREM_IF_MISSING,
+            2,
+            f"{cls.prefix}{namespace}-{key}",
+            f"{cls.prefix}{namespace}-{member}",
+            member,
+        )
+
+    @classmethod
     async def pubsub(cls) -> PubSub:
         """Create a Redis pubsub connection"""
         if not cls.connected:
@@ -271,7 +320,14 @@ class Redis:
     async def keys(cls, namespace: str) -> list[str]:
         if not cls.connected:
             await cls.connect()
-        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        # SCAN instead of KEYS: KEYS blocks Redis while walking the whole keyspace.
+        # SCAN may return a key more than once, hence the set.
+        keys = {
+            key
+            async for key in cls.redis_pool.scan_iter(
+                match=f"{cls.prefix}{namespace}-*", count=1000
+            )
+        }
         result = []
         for key in keys:
             if isinstance(key, bytes):
@@ -290,9 +346,8 @@ class Redis:
         a key nobody reads anymore. Bumped first, the key is outside the namespace.
         """
         await cls.incr("generation", namespace)
-        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
-        for key in keys:
-            await cls.redis_pool.delete(key)
+        for key in await cls.keys(namespace):
+            await cls.delete(namespace, key)
 
     @classmethod
     async def iterate(cls, namespace: str):
@@ -302,9 +357,14 @@ class Redis:
         if not cls.connected:
             await cls.connect()
 
+        seen: set[bytes] = set()
         async for key in cls.redis_pool.scan_iter(
             match=f"{cls.prefix}{namespace}-*", count=1000
         ):
+            # SCAN may return a key more than once
+            if key in seen:
+                continue
+            seen.add(key)
             key_without_ns = key.decode("ascii").removeprefix(
                 f"{cls.prefix}{namespace}-"
             )
