@@ -271,7 +271,14 @@ class Redis:
     async def keys(cls, namespace: str) -> list[str]:
         if not cls.connected:
             await cls.connect()
-        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        # SCAN instead of KEYS: KEYS blocks Redis while walking the whole keyspace.
+        # SCAN may return a key more than once, hence the set.
+        keys = {
+            key
+            async for key in cls.redis_pool.scan_iter(
+                match=f"{cls.prefix}{namespace}-*", count=1000
+            )
+        }
         result = []
         for key in keys:
             if isinstance(key, bytes):
@@ -290,9 +297,8 @@ class Redis:
         a key nobody reads anymore. Bumped first, the key is outside the namespace.
         """
         await cls.incr("generation", namespace)
-        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
-        for key in keys:
-            await cls.redis_pool.delete(key)
+        for key in await cls.keys(namespace):
+            await cls.delete(namespace, key)
 
     @classmethod
     async def iterate(cls, namespace: str):
@@ -302,9 +308,14 @@ class Redis:
         if not cls.connected:
             await cls.connect()
 
+        seen: set[bytes] = set()
         async for key in cls.redis_pool.scan_iter(
             match=f"{cls.prefix}{namespace}-*", count=1000
         ):
+            # SCAN may return a key more than once
+            if key in seen:
+                continue
+            seen.add(key)
             key_without_ns = key.decode("ascii").removeprefix(
                 f"{cls.prefix}{namespace}-"
             )
