@@ -63,15 +63,13 @@ class BackgroundInstaller(BackgroundWorker):
         logger.info(f"Background installer: processing {topic}", event_id=event_id)
 
         if topic == "addon.install":
-            await unpack_addon(
-                event_id,
-                AddonZipInfo(**summary),
-            )
-            self.restart_needed = True
+            zip_info = AddonZipInfo(**summary)
+            await self.activate_addon(zip_info, await unpack_addon(event_id, zip_info))
 
         elif topic == "addon.install_from_url":
-            await install_addon_from_url(event_id, summary["url"])
-            self.restart_needed = True
+            await self.activate_addon(
+                *await install_addon_from_url(event_id, summary["url"])
+            )
 
         elif topic == "dependency_package.install_from_url":
             await download_dependency_package(event_id, summary["url"])
@@ -84,12 +82,27 @@ class BackgroundInstaller(BackgroundWorker):
             event_id=event_id,
         )
 
-        if no_queue:
+        if no_queue and self.restart_needed:
             await require_server_restart(
                 None, "Restart the server to apply the addon changes."
             )
         else:
             create_background_task(handle_need_restart(self))
+
+    async def activate_addon(
+        self, zip_info: AddonZipInfo, replaced: bool | None
+    ) -> None:
+        if replaced is False:
+            # A new version: every server loads it live (see lifespan.py)
+            await EventStream.dispatch(
+                "addon.hot_load",
+                description=f"Loading addon {zip_info.name} {zip_info.version}",
+                summary={"name": zip_info.name, "version": zip_info.version},
+            )
+            return
+        # Loaded modules cannot be replaced, and a failed unpack may have
+        # removed the previous files: restart
+        self.restart_needed = True
 
     async def run(self) -> None:
         # load past unprocessed events

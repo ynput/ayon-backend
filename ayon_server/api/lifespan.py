@@ -10,7 +10,10 @@ from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.readiness import set_ready
 from ayon_server.api.static import addon_static_router
-from ayon_server.api.system import clear_server_restart_required
+from ayon_server.api.system import (
+    clear_server_restart_required,
+    require_server_restart,
+)
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
@@ -335,9 +338,15 @@ async def _startup(app: "FastAPI") -> None:
 
         # Subscribed once ready: a version installed before is loaded from disk
         async def hot_load_addon(event: "EventModel") -> None:
-            await load_addon_version(
-                app, event.summary["name"], event.summary["version"]
-            )
+            name, version = event.summary["name"], event.summary["version"]
+            try:
+                await load_addon_version(app, name, version)
+            except Exception as e:
+                # e.g. a legacy addon or one requesting a restart
+                logger.warning(f"Unable to load addon {name} {version} live: {e}")
+                await require_server_restart(
+                    None, f"Restart the server to load addon {name} {version}"
+                )
 
         EventStream.subscribe("addon.hot_load", hot_load_addon, all_nodes=True)
 
