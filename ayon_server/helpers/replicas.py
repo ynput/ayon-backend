@@ -9,6 +9,9 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils import json_dumps
 
 REPLICA_NS = "replicas"
+# Set of replica ids, so readers don't have to scan the whole Redis keyspace.
+# Liveness is still the per-replica key TTL; the set is only a directory.
+REPLICA_INDEX = "index"
 
 
 class ReplicaInfo(OPModel):
@@ -42,27 +45,32 @@ class ServerReplicas:
 
     @classmethod
     async def save(cls, info: ReplicaInfo, ttl: int) -> None:
+        # key first, so a reader never finds an id without its key
         await Redis.set_json(REPLICA_NS, info.id, info.model_dump(), ttl=ttl)
+        await Redis.sadd(REPLICA_NS, REPLICA_INDEX, info.id)
 
     @classmethod
     async def delete(cls, replica_id: str) -> None:
         await Redis.delete(REPLICA_NS, replica_id)
+        await Redis.srem(REPLICA_NS, REPLICA_INDEX, replica_id)
 
     @classmethod
     async def count(cls) -> int:
-        return len(await Redis.keys(REPLICA_NS))
+        return len([r async for r in cls.iter()])
 
     @classmethod
     async def iter(cls) -> AsyncGenerator[ReplicaInfo]:
-        for key in await Redis.keys(REPLICA_NS):
-            # the key may expire between listing and reading it
-            if (data := await Redis.get_json(REPLICA_NS, key)) is None:
+        for replica_id in await Redis.smembers(REPLICA_NS, REPLICA_INDEX):
+            if (data := await Redis.get_json(REPLICA_NS, replica_id)) is None:
+                # Key expired: the replica died without a clean shutdown.
+                # If it is merely late, its next heartbeat adds it back.
+                await Redis.srem(REPLICA_NS, REPLICA_INDEX, replica_id)
                 continue
             try:
                 yield ReplicaInfo(**data)
             except ValidationError:
                 # e.g. a replica of a different version during a rolling update
-                logger.debug(f"Invalid replica info for {key}")
+                logger.debug(f"Invalid replica info for {replica_id}")
 
     @classmethod
     async def out_of_sync(cls) -> int:
