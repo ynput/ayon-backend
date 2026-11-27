@@ -209,18 +209,21 @@ async def delete_user(
     return EmptyResponse()
 
 
-@router.patch("/{user_name}", dependencies=[NoDelegatedAccess])
-async def patch_user(
+def apply_user_patch_rules(
     payload: UserPatchModel,
-    user: CurrentUser,
-    user_name: UserName,
-) -> EmptyResponse:
+    user: UserEntity,
+    target_user: UserEntity,
+) -> None:
+    """Limit a patch of `target_user` to what `user` may change.
+
+    Drops the fields `user` may not change and raises when the patch
+    is not allowed. Used by the users API and the users import.
+    """
     if payload.data is None:
         payload.data = {}
     payload.data["updatedBy"] = user.name
-    target_user = await UserEntity.load(user_name)
 
-    if user_name == user.name and (not user.is_manager):
+    if target_user.name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
         payload.data = {}
@@ -251,6 +254,16 @@ async def patch_user(
         raise BadRequestException("Guest users cannot be modified this way")
 
     validate_user_data(payload.data)
+
+
+@router.patch("/{user_name}", dependencies=[NoDelegatedAccess])
+async def patch_user(
+    payload: UserPatchModel,
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
+    target_user = await UserEntity.load(user_name)
+    apply_user_patch_rules(payload, user, target_user)
 
     attrib_dict = payload.attrib.model_dump(exclude_unset=True)
     avatar_changed = False
