@@ -94,7 +94,7 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
     the :class:`Subtask` model to validate and normalize each subtask entry,
     and enforces uniqueness of subtask ``id`` and ``name`` values. If the
     list is empty or missing, the ``subtasks`` key is removed from the
-    ``data`` mapping. Additionally, if ``data.subtaskSyncId`` is falsy or
+    ``data`` mapping. Additionally, if ``data.subtaskSyncID`` is falsy or
     missing, it is set explicitly to ``None``.
 
     The input ``payload_dict`` is mutated in place; the function does not
@@ -110,7 +110,7 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         BadRequestException: If there are duplicate subtask IDs or names.
     """
     if "data" not in payload_dict:
-        # nothing in data, so neither subtasks or subtaskSyncId
+        # nothing in data, so neither subtasks or subtaskSyncID
         return
 
     if "subtasks" not in payload_dict["data"]:
@@ -144,5 +144,5 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
 
         payload_dict["data"]["subtasks"] = result
 
-        if "subtaskSyncId" not in payload_dict["data"]:
+        if "subtaskSyncID" not in payload_dict["data"]:
             payload_dict["data"]["subtaskSyncID"] = time.time()
