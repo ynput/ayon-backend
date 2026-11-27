@@ -1,61 +1,47 @@
-import httpx
-
-from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.download_addon import download_addon
 from ayon_server.helpers.get_downloaded_addons import get_downloaded_addons
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.version import __version__ as ayon_version
 from maintenance.maintenance_task import StudioMaintenanceTask
 
 
-async def get_download_url(addon_name: str, addon_version: str) -> str:
-    if ayonconfig.offline_mode:
-        raise AyonException("Cannot get download URL in offline mode")
-    headers = await CloudUtils.get_api_headers()
-    headers["X-Ayon-Version"] = ayon_version
-
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        endpoint = f"addons/{addon_name}/{addon_version}"
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v2/market/{endpoint}",
-            headers=headers,
-        )
-        data = res.json()
-        return data["url"]
-
-
 async def download_addons() -> None:
-    await Redis.delete("global", "required-addons")
-    required_addons = await CloudUtils.get_required_addons()
+    res = await Postgres.fetchrow(
+        "SELECT data->'addons' AS addons FROM public.bundles WHERE is_production"
+    )
+    addons = {k: v for k, v in ((res and res["addons"]) or {}).items() if v}
 
-    if not required_addons:
+    try:
+        # TODO: blacklist from config (not part of the POC)
+        updates = await CloudUtils.get_addon_updates(addons, blacklist=[])
+    except Exception as e:
+        logger.debug(f"Failed to get addon updates: {e}")
         return
 
+    # Startup applies these to the production bundle (lifespan.addon_update)
+    await Redis.set_json(
+        "global", "addon-updates", [[u["name"], u["version"]] for u in updates]
+    )
+
     downloaded_addons = get_downloaded_addons()
-    for addon_name, addon_version in required_addons:
-        # Do we have the required addon downloaded?
-
-        # Running as maintenance task. Ensure addon is downloaded,
-        # and trigger "restart required" after downloading.
-        if (addon_name, addon_version) not in downloaded_addons:
-            try:
-                url = await get_download_url(addon_name, addon_version)
-            except Exception:
-                logger.debug(
-                    f"Failed to get download URL for {addon_name} {addon_version}"
-                )
-                continue
-
+    for update in updates:
+        addon_name, addon_version = update["name"], update["version"]
+        if (addon_name, addon_version) in downloaded_addons:
+            continue
+        try:
+            # Installer triggers "restart required" after the download
             await download_addon(
                 addon_name=addon_name,
                 addon_version=addon_version,
-                url=url,
+                url=update["url"],
                 no_queue=True,
             )
-            logger.debug(f"Downloaded required addon {addon_name} {addon_version}")
+        except Exception as e:
+            logger.warning(f"Failed to download {addon_name} {addon_version}: {e}")
+            continue
+        logger.debug(f"Downloaded addon update {addon_name} {addon_version}")
 
 
 class AutoUpdate(StudioMaintenanceTask):
