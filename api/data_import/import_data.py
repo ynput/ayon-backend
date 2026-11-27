@@ -427,6 +427,7 @@ async def import_data(
                 fields,
                 column_mapping,
                 entity_type=entity_type if import_type == "hierarchy" else None,
+                preview=preview,
             )
             comment = import_entity_data.pop(COMMENT_COLUMN, None)
             comment_category = import_entity_data.pop(COMMENT_CATEGORY_COLUMN, None)
@@ -1119,6 +1120,7 @@ async def _remap_single_column(
     importable_column_by_key: dict[str, ImportableColumn] | None = None,
     value_mapping: dict[str, ColumnValueMapping] | None = None,
     fields: list[ImportableColumn] | None = None,
+    preview: bool = False,
 ) -> None:
     """Remap a single CSV column value based on its mapping.
 
@@ -1135,6 +1137,7 @@ async def _remap_single_column(
         value_mapping: Pre-built value mapping dict for this column
         fields: Available importable columns (used only if
                 importable_column_by_key is not provided)
+        preview: Validate only, do not create new items
     """
     target_column_name = column_name or mapping.target_key
     csv_column_name = mapping.source_key
@@ -1201,6 +1204,7 @@ async def _remap_single_column(
                 replacement_mapping_action,
                 enum_name=getattr(importable_column, "enum_name", None),
                 project_name=project_name,
+                preview=preview,
             )
 
         # Store the value in import_entity_data
@@ -1220,6 +1224,7 @@ async def _remap_row(
     fields: list[ImportableColumn],
     column_mapping: list[ColumnMapping],
     entity_type: str | None = None,
+    preview: bool = False,
 ) -> None:
     """Remap CSV row data to match target schema based on column mapping.
 
@@ -1231,6 +1236,7 @@ async def _remap_row(
         column_mapping: User-defined column mappings
         entity_type: Known entity type of a hierarchy row, used to read a
             combined folder/task type column without an entity type column
+        preview: Validate only, do not create new items
     """
     # Create lookup dictionaries for efficient access
     source_mapping_by_key = {mapping.source_key: mapping for mapping in column_mapping}
@@ -1291,6 +1297,7 @@ async def _remap_row(
                 column_name=column_name,
                 importable_column_by_key=importable_column_by_key,
                 value_mapping=value_mapping_by_key.get(mapping.target_key),
+                preview=preview,
             )
         except Exception as exp:
             error_msg = str(exp)
@@ -1394,6 +1401,7 @@ async def _validate_enum_value(
     replacement_action: str | None,
     enum_name: str | None = None,
     project_name: str | None = None,
+    preview: bool = False,
 ) -> None:
     """Validate that a value matches an allowed enum value.
 
@@ -1403,6 +1411,7 @@ async def _validate_enum_value(
         replacement_action: Action to take if value not found
         enum_name: The enum resolver name (for creating new items)
         project_name: The project name (for creating new items)
+        preview: Validate only, do not create new enum items
 
     Raises:
         BadRequestException: If value is not in enum and not handled by 'create' action
@@ -1429,6 +1438,10 @@ async def _validate_enum_value(
                     "Cannot create enum items: enum name not provided. "
                     "Ensure the field has an associated enum resolver."
                 )
+
+            if preview:
+                # The item is created by the import itself, not by its preview
+                return
 
             # Create new enum items
             new_item = EnumItem(
