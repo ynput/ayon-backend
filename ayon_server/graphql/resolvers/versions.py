@@ -193,7 +193,7 @@ def available_joins(project_name: str) -> dict[str, str]:
                 FROM project_{project_name}.versions lv_inner
                 WHERE lv_inner.product_id = versions.product_id
                 AND lv_inner.version >= 0
-                ORDER BY lv_inner.creation_order DESC
+                ORDER BY lv_inner.version DESC
                 LIMIT 1
             ) lv ON true
             """,
@@ -205,7 +205,7 @@ def available_joins(project_name: str) -> dict[str, str]:
                 WHERE v.product_id = versions.product_id
                 AND v.version >= 0
                 AND v.status IN (SELECT name FROM done_statuses)
-                ORDER BY v.creation_order DESC
+                ORDER BY v.version DESC
                 LIMIT 1
             ) ldv ON true
             """,
