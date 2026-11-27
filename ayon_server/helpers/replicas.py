@@ -63,8 +63,8 @@ class ServerReplicas:
         for replica_id in await Redis.smembers(REPLICA_NS, REPLICA_INDEX):
             if (data := await Redis.get_json(REPLICA_NS, replica_id)) is None:
                 # Key expired: the replica died without a clean shutdown.
-                # If it is merely late, its next heartbeat adds it back.
-                await Redis.srem(REPLICA_NS, REPLICA_INDEX, replica_id)
+                # Conditional, so a heartbeat landing right now keeps its id.
+                await Redis.srem_if_missing(REPLICA_NS, REPLICA_INDEX, replica_id)
                 continue
             try:
                 yield ReplicaInfo(**data)

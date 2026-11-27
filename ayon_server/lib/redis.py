@@ -102,6 +102,15 @@ def _make_cache_key(
     return f"{ns}:{key}"
 
 
+# Lua scripts run atomically: no other command can run between the check and SREM
+SREM_IF_MISSING = """
+if redis.call('EXISTS', KEYS[2]) == 0 then
+    return redis.call('SREM', KEYS[1], ARGV[1])
+end
+return 0
+"""
+
+
 class Redis:
     connected: bool = False
     redis_pool: aioredis.Redis
@@ -272,6 +281,24 @@ class Redis:
             await cls.connect()
         members = await cls.redis_pool.smembers(f"{cls.prefix}{namespace}-{key}")
         return [m.decode() if isinstance(m, bytes) else str(m) for m in members]
+
+    @classmethod
+    async def srem_if_missing(cls, namespace: str, key: str, member: str) -> None:
+        """Remove `member` from the set `key`, unless the key `member` exists.
+
+        Both keys are in the same namespace. The check and the removal
+        are atomic, so a concurrent writer recreating the `member` key
+        can't have its member removed.
+        """
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.eval(
+            SREM_IF_MISSING,
+            2,
+            f"{cls.prefix}{namespace}-{key}",
+            f"{cls.prefix}{namespace}-{member}",
+            member,
+        )
 
     @classmethod
     async def pubsub(cls) -> PubSub:
