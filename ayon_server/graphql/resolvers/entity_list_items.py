@@ -30,6 +30,7 @@ from .common import (
     get_resolved_attrib_expression,
     resolve,
 )
+from .featured_versions import featured_version_id_expression
 from .field_stats import (
     MetricTargetInput,
     generate_field_stats,
@@ -126,6 +127,7 @@ async def get_entity_list_items(
     sort_by: list[str] | None = None,
     filter: str | None = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    featured_only: list[str] | None = None,
     accessible_only: bool = False,
     calculate_statistics: Annotated[
         bool, argdesc("Whether to calculate column statistics")
@@ -548,6 +550,19 @@ async def get_entity_list_items(
             skippable=True,
         )
         sql_conditions.append(paging_conds)
+
+    #
+    # Featured versions (hero / latest done / latest)
+    #
+
+    if featured_only is not None:
+        if entity_type != "version":
+            raise BadRequestException("featuredOnly is supported for version lists")
+        if not featured_only:
+            return EntityListItemsConnection(edges=[])
+        featured_id = featured_version_id_expression(project_name, featured_only, "e")
+        sql_columns.append(f"{featured_id} AS _featured_version_id")
+        sql_conditions.append("entity_id = _featured_version_id")
 
     #
     # Filtering
