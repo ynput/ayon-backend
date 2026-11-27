@@ -23,6 +23,7 @@ __all__ = [
     "batched",
     "create_background_task",
     "run_blocking_coro",
+    "maybe_run_async",
     "server_url_from_request",
     "now",
     "as_utc",
@@ -53,6 +54,7 @@ from .utils import (
     dict_exclude,
     dict_patch,
     dict_remove_path,
+    maybe_run_async,
     now,
     run_blocking_coro,
 )

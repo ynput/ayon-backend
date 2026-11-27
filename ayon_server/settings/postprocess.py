@@ -16,6 +16,7 @@ from ayon_server.models.field_info import (
 )
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import SimpleValue, camelize
+from ayon_server.utils import maybe_run_async
 
 
 async def process_functional_enum(
@@ -42,10 +43,7 @@ async def process_functional_enum(
         else:
             ctx_data[key] = None
 
-    if inspect.iscoroutinefunction(enum_resolver):
-        enum = await enum_resolver(**ctx_data)
-    else:
-        enum = enum_resolver(**ctx_data)
+    enum = await maybe_run_async(enum_resolver, **ctx_data)
 
     enum_values: list[SimpleValue] = []
     enum_labels: dict[SimpleValue, str] = {}

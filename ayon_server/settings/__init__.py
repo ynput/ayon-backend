@@ -25,6 +25,12 @@ __all__ = [
 
 # Deprecated, use SettingsField. Kept for backwards compatibility
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
+
+# isort: split
+# The above first: modules imported below (via ayon_server.entities)
+# import them back from this partially initialized package
+
 from ayon_server.settings.enum import (
     anatomy_presets_enum,
     anatomy_template_items_enum,
@@ -47,5 +53,4 @@ from ayon_server.settings.overrides import (
     list_overrides,
 )
 from ayon_server.settings.pydantic_compat import Field
-from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, normalize_name

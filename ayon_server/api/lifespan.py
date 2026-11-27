@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import inspect
 import os
 import traceback
 from contextlib import asynccontextmanager
@@ -21,7 +20,7 @@ from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_exception, log_traceback, logger
-from ayon_server.utils import slugify
+from ayon_server.utils import maybe_run_async, slugify
 from maintenance.scheduler import MaintenanceScheduler
 
 if TYPE_CHECKING:
@@ -109,14 +108,6 @@ def init_addon_version_endpoints(target_app: "FastAPI", addon: BaseServerAddon) 
             name=f"{addon_name}_{version}_docs",
             operation_id=slugify(f"{addon_name}_{version}_api_docs", separator="_"),
         )
-
-
-async def maybe_run_async(func, *args, **kwargs) -> None:
-    """Run a function, whether it's async or not."""
-    if inspect.iscoroutinefunction(func):
-        await func(*args, **kwargs)
-    else:
-        func(*args, **kwargs)
 
 
 async def run_addon_hook(addon: BaseServerAddon, hook: str) -> dict[str, str] | None:

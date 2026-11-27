@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.api import lifespan
+from ayon_server.background import replica_heartbeat
 from ayon_server.exceptions import AyonException
 
 pytestmark = pytest.mark.anyio
@@ -107,6 +108,19 @@ async def test_failure_unloads(addons_dir: Path, app: FastAPI, setup: str) -> No
     assert "1.1.0" not in AddonLibrary.getinstance()["foo"].versions
     assert AddonLibrary.is_broken("foo", "1.1.0")
     assert len(app.router.routes) == routes
+
+
+async def test_failure_in_heartbeat(
+    addons_dir: Path, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_addon(addons_dir, "foo", "1.1.0", setup="raise RuntimeError('boom')")
+    with pytest.raises(AyonException):
+        await lifespan.load_addon_version(app, "foo", "1.1.0")
+
+    monkeypatch.setattr(replica_heartbeat, "is_ready", lambda: True)
+    info = replica_heartbeat.ReplicaHeartbeat().get_info()
+    assert info.addons["foo"] == ["1.0.0"]
+    assert info.broken == {"foo": {"1.1.0": "boom"}}
 
 
 async def test_legacy_rejected(addons_dir: Path, app: FastAPI) -> None:

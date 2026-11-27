@@ -26,11 +26,15 @@ class ReplicaHeartbeat(BackgroundWorker):
 
     def get_info(self) -> ReplicaInfo:
         addons: dict[str, list[str]] = {}
+        broken: dict[str, dict[str, str]] = {}
         # Accessing definition.versions before startup finishes would
         # trigger addon initialization from here, so only list them once ready
         if ready := is_ready():
             for name, definition in AddonLibrary.items():
                 addons[name] = list(definition.versions)
+            library = AddonLibrary.getinstance()
+            for (name, version), reason in library.broken_addons.items():
+                broken.setdefault(name, {})[version] = reason.get("error", "")
         return ReplicaInfo(
             id=self.replica_id,
             hostname=socket.gethostname(),
@@ -38,6 +42,7 @@ class ReplicaHeartbeat(BackgroundWorker):
             boot_time=BOOT_TIME,
             ready=ready,
             addons=addons,
+            broken=broken,
         )
 
     async def run(self):
