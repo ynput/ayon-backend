@@ -139,6 +139,8 @@ async def migrate_server_addon_settings(
     source_version: str,
     target_version: str,
     *,
+    source_variant: str = "production",
+    target_variant: str = "production",
     user: UserEntity | None = None,
 ) -> None:
     try:
@@ -150,14 +152,15 @@ async def migrate_server_addon_settings(
 
     logger.info(
         f"Migrating server addon settings for {addon_name} "
-        f"from {source_version} to {target_version}"
+        f"from {source_version} ({source_variant}) "
+        f"to {target_version} ({target_variant})"
     )
 
     events = await migrate_addon_settings(
         source_addon,
         target_addon,
-        source_variant="production",
-        target_variant="production",
+        source_variant=source_variant,
+        target_variant=target_variant,
         with_projects=True,
     )
     if events:

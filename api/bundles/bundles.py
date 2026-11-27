@@ -523,16 +523,30 @@ async def update_bundle(
         # TODO
         pass
 
-    if bundle.is_production and server_bundle_migrations:
+    if server_bundle_migrations:
         for addon_name, previous_version, new_version in server_bundle_migrations:
             if not (previous_version and new_version):
                 continue
-            await migrate_server_addon_settings(
-                addon_name,
-                previous_version,
-                new_version,
-                user=user if user else None,
-            )
+
+            if bundle.is_production:
+                await migrate_server_addon_settings(
+                    addon_name,
+                    previous_version,
+                    new_version,
+                    user=user if user else None,
+                    source_variant="production",
+                    target_variant="production",
+                )
+
+            if bundle.is_staging:
+                await migrate_server_addon_settings(
+                    addon_name,
+                    previous_version,
+                    new_version,
+                    user=user if user else None,
+                    source_variant="staging",
+                    target_variant="staging",
+                )
 
     return EmptyResponse(status_code=204)
 
