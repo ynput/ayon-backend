@@ -7,6 +7,7 @@ import aiocache
 import psutil
 
 from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.replicas import ServerReplicas
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -46,6 +47,13 @@ class SystemMetricsData(OPModel):
         example=123456,
     )
     redis_size_total: int = Field(0, title="Total redis size", example=123456)
+    replicas: int = Field(0, title="Running server replicas", example=2)
+    replicas_out_of_sync: int = Field(
+        0,
+        title="Out of sync replicas",
+        description="Ready replicas with different build or addons than the rest",
+        example=0,
+    )
     storage_utilization_total: int = Field(
         0,
         title="Total storage utilization",
@@ -106,6 +114,12 @@ class SystemMetrics:
         except Exception:
             cbo_count = 0
 
+        try:
+            replicas = await ServerReplicas.count()
+            replicas_out_of_sync = await ServerReplicas.out_of_sync()
+        except Exception:
+            replicas = replicas_out_of_sync = 0
+
         return [
             Metric("cpu_usage", psutil.cpu_percent()),
             Metric("memory_usage", mem_usage),
@@ -116,6 +130,8 @@ class SystemMetrics:
             Metric("runtime_seconds", time.time() - self.run_time),
             Metric("redis_size_total", redis_size),
             Metric("asyncio_tasks", len(asyncio.all_tasks())),
+            Metric("replicas", replicas),
+            Metric("replicas_out_of_sync", replicas_out_of_sync),
             Metric(
                 "concurrent_background_operations",
                 cbo_count,
