@@ -252,6 +252,28 @@ class Redis:
         await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
 
     @classmethod
+    async def sadd(cls, namespace: str, key: str, *members: str) -> None:
+        """Add members to a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.sadd(f"{cls.prefix}{namespace}-{key}", *members)
+
+    @classmethod
+    async def srem(cls, namespace: str, key: str, *members: str) -> None:
+        """Remove members from a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.srem(f"{cls.prefix}{namespace}-{key}", *members)
+
+    @classmethod
+    async def smembers(cls, namespace: str, key: str) -> list[str]:
+        """Get all members of a set in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        members = await cls.redis_pool.smembers(f"{cls.prefix}{namespace}-{key}")
+        return [m.decode() if isinstance(m, bytes) else str(m) for m in members]
+
+    @classmethod
     async def pubsub(cls) -> PubSub:
         """Create a Redis pubsub connection"""
         if not cls.connected:
