@@ -72,10 +72,14 @@ def make_replica(replica_id: str, **kwargs) -> ReplicaInfo:
     return ReplicaInfo(**(data | kwargs))
 
 
+async def alive() -> list[ReplicaInfo]:
+    return [r async for r in ServerReplicas.iter()]
+
+
 def test_replicas(run, redis) -> None:
     async def scenario() -> None:
-        assert await ServerReplicas.count() == 0
-        assert await ServerReplicas.out_of_sync() == 0
+        assert await alive() == []
+        assert ServerReplicas.out_of_sync([]) == 0
 
         a = make_replica("a")
         await ServerReplicas.save(a, ttl=30)
@@ -85,25 +89,25 @@ def test_replicas(run, redis) -> None:
         # starting replicas have no addons yet and don't count as out of sync
         await ServerReplicas.save(make_replica("d", ready=False, addons={}), ttl=30)
 
-        replicas = {r.id: r async for r in ServerReplicas.iter()}
+        replicas = {r.id: r for r in await alive()}
         assert sorted(replicas) == ["a", "b", "c", "d"]
         assert replicas["a"] == a
-        assert await ServerReplicas.count() == 4
-        assert await ServerReplicas.out_of_sync() == 1
+        assert ServerReplicas.out_of_sync(list(replicas.values())) == 1
 
         # Clean shutdown
         await ServerReplicas.delete("c")
-        assert await ServerReplicas.count() == 3
-        assert await ServerReplicas.out_of_sync() == 0
+        replicas = await alive()
+        assert len(replicas) == 3
+        assert ServerReplicas.out_of_sync(replicas) == 0
 
         # Died without a clean shutdown: the key expires, the reader prunes the id
         await Redis.delete(REPLICA_NS, "b")
-        assert await ServerReplicas.count() == 2
+        assert len(await alive()) == 2
         assert sorted(await Redis.smembers(REPLICA_NS, REPLICA_INDEX)) == ["a", "d"]
 
         # A late heartbeat brings it back
         await ServerReplicas.save(make_replica("b"), ttl=30)
-        assert await ServerReplicas.count() == 3
+        assert len(await alive()) == 3
 
     run(scenario())
 

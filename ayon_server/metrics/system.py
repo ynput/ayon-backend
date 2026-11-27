@@ -47,7 +47,12 @@ class SystemMetricsData(OPModel):
         example=123456,
     )
     redis_size_total: int = Field(0, title="Total redis size", example=123456)
-    replicas: int = Field(0, title="Running server replicas", example=2)
+    replicas: int = Field(
+        0,
+        title="Running server processes",
+        description="Server processes (gunicorn workers across all replicas)",
+        example=2,
+    )
     replicas_out_of_sync: int = Field(
         0,
         title="Out of sync replicas",
@@ -115,8 +120,9 @@ class SystemMetrics:
             cbo_count = 0
 
         try:
-            replicas = await ServerReplicas.count()
-            replicas_out_of_sync = await ServerReplicas.out_of_sync()
+            replica_list = [r async for r in ServerReplicas.iter()]
+            replicas = len(replica_list)
+            replicas_out_of_sync = ServerReplicas.out_of_sync(replica_list)
         except Exception:
             replicas = replicas_out_of_sync = 0
 

@@ -1,7 +1,7 @@
 from collections import Counter
 from collections.abc import AsyncGenerator
 
-from pydantic import ConfigDict, ValidationError
+from pydantic import ValidationError
 
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -15,8 +15,6 @@ REPLICA_INDEX = "index"
 
 
 class ReplicaInfo(OPModel):
-    model_config = ConfigDict(frozen=True)
-
     id: str = Field(..., title="Replica ID", description="Generated on start")
     hostname: str = Field(..., title="Hostname", example="ayon-server-7f9c")
     version: str = Field(..., title="Server version", example="1.17.9+202611271250")
@@ -28,11 +26,6 @@ class ReplicaInfo(OPModel):
         description="Addon name to list of loaded versions. Empty until ready.",
         example={"core": ["1.0.0", "1.1.0"]},
     )
-
-    def __hash__(self) -> int:
-        # Only what must match across replicas, so differing hashes = drift.
-        # (frozen alone doesn't make it hashable: addons is a dict)
-        return hash(json_dumps(self.model_dump(include={"version", "addons"})))
 
 
 class ServerReplicas:
@@ -55,10 +48,6 @@ class ServerReplicas:
         await Redis.srem(REPLICA_NS, REPLICA_INDEX, replica_id)
 
     @classmethod
-    async def count(cls) -> int:
-        return len([r async for r in cls.iter()])
-
-    @classmethod
     async def iter(cls) -> AsyncGenerator[ReplicaInfo]:
         for replica_id in await Redis.smembers(REPLICA_NS, REPLICA_INDEX):
             if (data := await Redis.get_json(REPLICA_NS, replica_id)) is None:
@@ -72,15 +61,20 @@ class ServerReplicas:
                 # e.g. a replica of a different version during a rolling update
                 logger.debug(f"Invalid replica info for {replica_id}")
 
-    @classmethod
-    async def out_of_sync(cls) -> int:
+    @staticmethod
+    def out_of_sync(replicas: list[ReplicaInfo]) -> int:
         """Number of ready replicas that differ from the majority
 
         Replicas that are still starting are ignored (their addon list is empty).
         Anything above 0 for longer than a rolling update means some replicas
         run a different build or addon set.
         """
-        hashes = Counter([hash(r) async for r in cls.iter() if r.ready])
-        if not hashes:
+        # Only what must match across replicas
+        builds = Counter(
+            json_dumps(r.model_dump(include={"version", "addons"}))
+            for r in replicas
+            if r.ready
+        )
+        if not builds:
             return 0
-        return hashes.total() - hashes.most_common(1)[0][1]
+        return builds.total() - builds.most_common(1)[0][1]
