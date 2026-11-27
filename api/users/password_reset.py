@@ -71,11 +71,18 @@ async def password_reset_request(payload: PasswordResetRequestModel):
         tplvars,
         base_url=server_url,
     )
+    text = await template.render_template(
+        "password_reset.jinja",
+        tplvars,
+        base_url=server_url,
+        plain=True,
+    )
     subject = "Ayon password reset request"
 
     await user.save()
     await user.send_mail(
         subject=subject,
+        text=text,
         html=body,
     )
     logger.info(f"Sent password reset email to {payload.email}")

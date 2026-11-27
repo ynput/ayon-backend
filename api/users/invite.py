@@ -80,12 +80,19 @@ async def invite_user(
         tplvars,
         base_url=server_url,
     )
+    text = await template.render_template(
+        "user_invite.jinja",
+        tplvars,
+        base_url=server_url,
+        plain=True,
+    )
 
     subject = f"You have been invited to join {studio_name} Ayon server"
 
     await user.save()
     await user.send_mail(
         subject=subject,
+        text=text,
         html=body,
     )
     logger.info(f"Sent invitation email to {user.attrib.email}")

@@ -108,12 +108,18 @@ async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
         ctx,
         base_url=base_url,
     )
+    text = await template.render_template(
+        "token_renew.jinja",
+        ctx,
+        base_url=base_url,
+        plain=True,
+    )
     subject = payload.subject or "Ayon access link renewal"
     logger.debug(
         f"Sending guest exted email to {payload.email}: "
         f"redirect to {payload.redirect_url}"
     )
-    await send_mail([payload.email], subject, html=body)
+    await send_mail([payload.email], subject, text=text, html=body)
 
 
 async def create_guest_user_session(
