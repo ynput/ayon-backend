@@ -162,6 +162,7 @@ async def migrate_server_addon_settings(
         source_variant=source_variant,
         target_variant=target_variant,
         with_projects=True,
+        with_site_settings=target_variant == "production",
     )
     if events:
         user_name = user.name if user else None

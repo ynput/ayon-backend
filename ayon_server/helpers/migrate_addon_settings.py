@@ -13,6 +13,8 @@ async def _migrate_addon_settings(
     source_variant: str,
     target_variant: str,
     with_projects: bool,
+    *,
+    with_site_settings: bool = True,
 ) -> list[dict[str, Any]]:
     """Migrate settings from source to target addon.
 
@@ -206,6 +208,9 @@ async def _migrate_addon_settings(
 
         # Project site settings
 
+        if not with_site_settings:
+            continue
+
         site_info = await Postgres.fetch(
             f"""
             SELECT site_id, user_name, data
@@ -270,6 +275,8 @@ async def migrate_addon_settings(
     source_variant: str = "production",
     target_variant: str = "production",
     with_projects: bool = True,
+    *,
+    with_site_settings: bool = True,
 ) -> list[dict[str, Any]]:
     """Migrate settings from source to target addon.
 
@@ -283,4 +290,5 @@ async def migrate_addon_settings(
             source_variant,
             target_variant,
             with_projects,
+            with_site_settings=with_site_settings,
         )
