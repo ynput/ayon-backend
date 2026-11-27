@@ -8,7 +8,7 @@ from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.redis import Redis
-from ayon_server.types import Field, OPModel
+from ayon_server.types import ClientType, Field, OPModel
 from ayon_server.utils.hashing import create_uuid
 
 ActionEntityType = Literal[
@@ -135,6 +135,21 @@ class ActionContext(OPModel):
         ),
     ] = None
 
+    client_type: Annotated[
+        ClientType | None,
+        Field(
+            title="Client Type",
+            description=(
+                "The type of the client that lists or runs the actions: "
+                "'web' for the AYON web frontend, 'desktop' for desktop "
+                "tools such as the launcher. It is a hint set by the client, "
+                "not verified by the server. None when the client "
+                "does not send it."
+            ),
+            example="web",
+        ),
+    ] = None
+
     form_data: Annotated[
         dict[str, Any] | None,
         Field(
@@ -239,6 +254,7 @@ class ActionContext(OPModel):
             self.entity_type,
             self.entity_subtypes,
             elength,
+            self.client_type,
         )
         return hash(hash_base)
 
