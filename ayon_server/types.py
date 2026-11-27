@@ -21,6 +21,7 @@ from ayon_server.utils import camelize  # backwards compatibility
 #
 
 Platform = Literal["windows", "linux", "darwin"]
+ClientType = Literal["web", "desktop"]
 SimpleValue = str | int | float | bool
 
 AccessType = Literal[
