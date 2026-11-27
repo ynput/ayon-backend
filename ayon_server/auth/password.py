@@ -57,6 +57,28 @@ async def clear_failed_login(ip_address: str):
     await Redis.delete("login-failed-ip", ip_address)
 
 
+# Account lock: stops guessing one password from many IP addresses.
+# It is temporary, so an attacker cannot lock a user out for good.
+
+
+async def check_account_lock(name: str) -> None:
+    failed_attempts = await Redis.get("login-failed-user", name)
+    if failed_attempts is None:
+        return
+    if int(failed_attempts) >= ayonconfig.max_failed_login_attempts:
+        await EventStream.dispatch(
+            "user.log_fail",
+            description=f"Attempt to log in to locked account {name}",
+            summary={"user": name},
+        )
+        raise ForbiddenException("Too many failed login attempts")
+
+
+async def set_account_failed_login(name: str) -> None:
+    # The lock lasts failed_login_ban_time since the last failed attempt
+    await Redis.incr("login-failed-user", name, ttl=ayonconfig.failed_login_ban_time)
+
+
 class PasswordAuth:
     @classmethod
     async def login(
@@ -76,6 +98,8 @@ class PasswordAuth:
             await check_failed_login(get_real_ip_from_request(request))
 
         name = name.strip()
+        # Checked before the password, so the right password does not unlock it
+        await check_account_lock(name.lower())
 
         # name active attrib data
 
@@ -87,6 +111,8 @@ class PasswordAuth:
             name.lower(),
         )
         if not result:
+            # Counted for unknown names too: the lock must not reveal who exists
+            await set_account_failed_login(name.lower())
             raise ForbiddenException("Invalid login/password combination")
 
         user = UserEntity.from_record(result[0])
@@ -105,8 +131,10 @@ class PasswordAuth:
         if pass_hash != hash_password(password, pass_salt):
             if request is not None:
                 await set_failed_login(get_real_ip_from_request(request))
+            await set_account_failed_login(name.lower())
             raise ForbiddenException("Invalid login/password combination")
 
+        await Redis.delete("login-failed-user", name.lower())
         if request is not None:
             await clear_failed_login(get_real_ip_from_request(request))
         return await Session.create(user, request)
