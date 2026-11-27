@@ -5,37 +5,12 @@ and are deleted afterwards, so a shared Redis is safe to use.
 """
 
 import asyncio
-from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
 from ayon_server.lib.redis import Redis
-
-
-@pytest.fixture
-def redis(run) -> Iterator[None]:
-    async def connect() -> None:
-        await Redis.connect()
-
-    async def cleanup() -> None:
-        for key in await Redis.redis_pool.keys(f"{Redis.prefix}*"):
-            await Redis.redis_pool.delete(key)
-
-    try:
-        run(connect())
-    except ConnectionError as e:
-        pytest.skip(f"Redis is not available: {e}")
-
-    original_prefix = Redis.prefix
-    Redis.prefix = f"test-{uuid4().hex}-"
-    try:
-        yield
-    finally:
-        run(cleanup())
-        Redis.prefix = original_prefix
 
 
 def test_delete_ns_bumps_the_generation(run, redis) -> None:
