@@ -7,6 +7,7 @@ INDEXES = {
     "folder_type_idx": "folders(folder_type);",
     "folder_status_idx": "folders(status);",
     "hierarchy_path_idx": "hierarchy(path);",
+    "exported_attributes_path_idx": "exported_attributes USING gin(path public.gin_trgm_ops);",  # noqa: E501
     "task_type_idx": "tasks(task_type);",
     "task_status_idx": "tasks(status);",
     "task_assignees_idx": "tasks USING gin(assignees);",
@@ -44,6 +45,7 @@ class AddMissingProjectIndexes(ProjectMaintenanceTask):
                 'products',
                 'representations',
                 'hierarchy',
+                'exported_attributes',
                 'activities',
                 'activity_references'
             );

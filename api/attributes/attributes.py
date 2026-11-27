@@ -11,6 +11,7 @@ from ayon_server.attributes.models import (
 )
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.entity_search import indexed_attributes, mark_attributes_outdated
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -73,9 +74,16 @@ async def apply_attribute_changes(
     on all other instances (the reload is a no-op on this one).
 
     Stored values of the attributes, whose definitions changed, are fixed
-    in the background (see `fix_attribute_values`).
+    in the background (see `fix_attribute_values`), as is marking the search
+    rows outdated when the set of searchable attributes changes (a no-op
+    otherwise; `changed` does not include deleted attributes).
     """
+    indexed_before = indexed_attributes()
     changed = await attribute_library.reload()
+    if background_tasks is not None:
+        background_tasks.add_task(mark_attributes_outdated, indexed_before)
+    else:
+        await mark_attributes_outdated(indexed_before)
     if changed and background_tasks is not None:
         background_tasks.add_task(fix_attribute_values, attribute_names=sorted(changed))
     await EventStream.dispatch(
@@ -242,11 +250,13 @@ async def patch_attribute_config(
 
 @router.delete("/{attribute_name}", status_code=204)
 async def delete_attribute(
-    user: CurrentUser, attribute_name: AttributeName
+    user: CurrentUser,
+    attribute_name: AttributeName,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     await remove_attribute(attribute_name)
-    await apply_attribute_changes(user.name)
+    await apply_attribute_changes(user.name, background_tasks)
     return EmptyResponse()

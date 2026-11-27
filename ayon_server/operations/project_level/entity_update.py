@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.entity_search import entity_indexer
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.helpers.thumbnails.invalidate_thumbnail import (
@@ -212,6 +213,7 @@ async def update_project_level_entity(
 
     await entity.pre_save(False)
     await Postgres.execute(query, *params)
+    await entity_indexer.enqueue(project_name, entity.entity_type, entity.id)
 
     if version_thumbnail_changed:
         # Folders and tasks may inherit the version thumbnail,

@@ -10,6 +10,7 @@ from ayon_server.activities.utils import (
     extract_mentions,
     is_body_with_checklist,
 )
+from ayon_server.entity_search import entity_indexer
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
@@ -158,6 +159,8 @@ async def update_activity(
             """
 
         await Postgres.execute(query, body, activity_tags, activity_data, activity_id)
+        if res[0]["activity_type"] == "comment":
+            await entity_indexer.enqueue(project_name, "comment", activity_id)
 
         if files is not None:
             await Postgres.execute(

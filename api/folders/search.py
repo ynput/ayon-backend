@@ -3,7 +3,9 @@ from typing import Annotated
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.graphql.resolvers.common import (
+    TEXT_SEARCH_SCOPES,
     build_search_conditions,
+    build_text_search,
     get_resolved_attrib_expression,
 )
 from ayon_server.lib.postgres import Postgres
@@ -24,7 +26,9 @@ class FolderSearchRequest(OPModel):
         str | None,
         Field(
             title="Text search",
-            description="'fulltext' search used to resolve the tasks",
+            description="'fulltext' search used to resolve the tasks"
+            " (deprecated: use textSearch with textSearchScope ['task'])",
+            deprecated=True,
         ),
     ] = None
 
@@ -40,7 +44,9 @@ class FolderSearchRequest(OPModel):
         str | None,
         Field(
             title="Folder Text search",
-            description="'fulltext' search used to resolve the folders",
+            description="'fulltext' search used to resolve the folders"
+            " (deprecated: use textSearch)",
+            deprecated=True,
         ),
     ] = None
 
@@ -48,7 +54,28 @@ class FolderSearchRequest(OPModel):
         str | None,
         Field(
             title="Global Text search",
-            description="Unified 'fulltext' search applied to both tasks and folders",
+            description="Unified 'fulltext' search applied to both tasks and folders"
+            " (deprecated: use textSearch with textSearchScope ['folder', 'task'])",
+            deprecated=True,
+        ),
+    ] = None
+
+    text_search: Annotated[
+        str | None,
+        Field(
+            title="Text search",
+            description="Folders with a match of `textSearchScope` for all words"
+            " (paths, names, labels and attributes anywhere; descriptions and"
+            " comments from the beginning of a word). Comma separates alternatives.",
+        ),
+    ] = None
+
+    text_search_scope: Annotated[
+        list[str] | None,
+        Field(
+            title="Text search scope",
+            description="Entity types searched by `textSearch` (folder by default)",
+            example=TEXT_SEARCH_SCOPES["folder"],
         ),
     ] = None
 
@@ -153,6 +180,13 @@ async def search_folders(
             ON s.folder_id = folders.id
             """
         )
+
+    if payload.text_search:
+        if ts := await build_text_search(
+            user, project_name, "folder", payload.text_search, payload.text_search_scope
+        ):
+            sql_cte.append(ts[0])
+            sql_conditions.append(ts[1])
 
     #
     # Filtering by tasks

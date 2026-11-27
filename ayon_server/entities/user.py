@@ -315,10 +315,17 @@ class UserEntity(TopLevelEntity[UserModel]):
         projects = await get_project_list()
         async with Postgres.acquire(force_new=True):
             for project in projects:
+                # The search rows are marked outdated (assignees are indexed)
                 query = f"""
-                    UPDATE project_{project.name}.tasks SET
-                    assignees = array_remove(assignees, '{self.name}')
-                    WHERE '{self.name}' = any(assignees)
+                    WITH unassigned AS (
+                        UPDATE project_{project.name}.tasks SET
+                        assignees = array_remove(assignees, '{self.name}')
+                        WHERE '{self.name}' = any(assignees)
+                        RETURNING id
+                    )
+                    UPDATE project_{project.name}.entity_search
+                    SET updated_at = NULL
+                    WHERE entity_id IN (SELECT id FROM unassigned)
                 """
                 try:
                     await Postgres.execute(query)

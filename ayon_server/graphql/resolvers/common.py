@@ -1,22 +1,32 @@
 from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
+from ayon_server.access.task_access import FullAccess, create_task_acl
 from ayon_server.access.utils import folder_access_list
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.config import ayonconfig
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.core.attrib import INHERITING_ENTITY_TYPES, resolve_attrib
-from ayon_server.exceptions import ForbiddenException, ServiceUnavailableException
+from ayon_server.entity_search.search import build_search_cte
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, json_dumps
 
 from .pagination import OrderBySequence, encode_cursor
+
+if TYPE_CHECKING:
+    from ayon_server.entities import UserEntity
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -58,9 +68,13 @@ class ColumnMetadata:
     nested_sub_type: ColumnMetadataDataType | None = None
 
 
-def argdesc(description: str) -> StrawberryArgumentAnnotation:
+def argdesc(
+    description: str, deprecation_reason: str | None = None
+) -> StrawberryArgumentAnnotation:
     description = "\n".join([line.strip() for line in description.split("\n")])
-    return strawberry.argument(description=description)
+    return strawberry.argument(
+        description=description, deprecation_reason=deprecation_reason
+    )
 
 
 def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
@@ -83,6 +97,26 @@ ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence
 ARGIncludeInternalFolder = Annotated[
     bool,
     argdesc("Whether to include the AYON internal folder and its descendants"),
+]
+ARGTextSearch = Annotated[
+    str | None,
+    argdesc(
+        """
+        Entities with a match of `textSearchScope` for all words (paths, names,
+        labels and attributes anywhere; descriptions and comments from the
+        beginning of a word). Comma separates alternatives.
+        """
+    ),
+]
+ARGTextSearchScope = Annotated[
+    list[str] | None,
+    argdesc(
+        """
+        Entity types searched by `textSearch`, the queried type by default.
+        Folders: folder, task, product, version, comment. Tasks: task, comment.
+        Products: product, version, comment. Versions: version, comment.
+        """
+    ),
 ]
 ARGVisibility = Annotated[
     EntityVisibility,
@@ -587,3 +621,76 @@ def build_search_conditions(
         return f"({SQLTool.conditions(t1_conds, 'OR', add_where=False)})"
 
     return None
+
+
+# Search rows carry the ids of the entities they belong to (see entity_search)
+TEXT_SEARCH_SCOPES = {
+    "folder": ["folder", "task", "product", "version", "comment"],
+    "task": ["task", "comment"],
+    "product": ["product", "version", "comment"],
+    "version": ["version", "comment"],
+}
+
+
+async def build_text_search(
+    user: "UserEntity",
+    project_name: str,
+    entity_type: str,
+    text: str,
+    scope: list[str] | None,
+) -> tuple[str, str] | None:
+    """Return the CTE and the condition selecting entities by textSearch.
+
+    The access to the returned entities is applied by the resolver
+    conditions. Here, hits of tasks hidden by `show_sibling_tasks`, of
+    comments in unreadable categories and of unreadable attributes are left
+    out, so they cannot reveal their texts through the entity they belong to.
+    Returns None when the text has no searchable words.
+    """
+    allowed = TEXT_SEARCH_SCOPES[entity_type]
+    scope = scope or [entity_type]
+    if unknown := set(scope) - set(allowed):
+        raise BadRequestException(
+            f"Unknown textSearchScope for {entity_type}s: {sorted(unknown)}"
+            f" (use {', '.join(allowed)})"
+        )
+
+    task_access = None
+    comment_categories = None
+    readable_attributes = None  # as in graphql.utils.process_attrib_data
+    if user.is_guest:
+        # Guests see entities through entity lists only
+        raise ForbiddenException("Guests cannot use text search")
+    if not user.is_manager:
+        perms = user.permissions(project_name)
+        if perms.attrib_read.enabled:
+            readable_attributes = perms.attrib_read.attributes
+        if not perms.advanced.show_sibling_tasks:
+            access_groups = user.data.get("accessGroups", {}).get(project_name, [])
+            try:
+                paths, assigned = await create_task_acl(project_name, access_groups)
+            except FullAccess:
+                pass
+            else:
+                # The paths are quoted for an SQL array literal
+                paths = {path.strip('"') for path in paths}
+                task_access = (sorted(paths), user.name if assigned else None)
+        comment_categories = await ActivityCategories.get_accessible_categories(
+            user, project_name=project_name
+        )
+
+    cte = await build_search_cte(
+        project_name,
+        text,
+        entity_types=scope,
+        limit=None,
+        task_access=task_access,
+        comment_categories=comment_categories,
+        readable_attributes=readable_attributes,
+    )
+    if not cte:
+        return None
+    return (
+        f"text_search_hits AS ({cte})",
+        f"{entity_type}s.id IN (SELECT {entity_type}_id FROM text_search_hits)",
+    )

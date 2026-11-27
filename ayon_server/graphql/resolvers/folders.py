@@ -26,6 +26,8 @@ from .common import (
     ARGIds,
     ARGIncludeInternalFolder,
     ARGLast,
+    ARGTextSearch,
+    ARGTextSearchScope,
     ARGVisibility,
     AttributeFilterInput,
     ColumnMetadata,
@@ -33,6 +35,7 @@ from .common import (
     FieldInfo,
     argdesc,
     build_search_conditions,
+    build_text_search,
     create_child_folder_ctes,
     create_folder_access_list,
     get_has_links_conds,
@@ -128,19 +131,31 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
-    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    search: Annotated[
+        str | None,
+        argdesc("Fuzzy text search filter", "Use `textSearch`"),
+    ] = None,
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Filter folders by tasks")] = None,
-    task_search: Annotated[str | None, argdesc("Fuzzy search folders by tasks")] = None,
+    task_search: Annotated[
+        str | None,
+        argdesc(
+            "Fuzzy search folders by tasks",
+            'Use `textSearch` with `textSearchScope: ["task"]`',
+        ),
+    ] = None,
     global_search: Annotated[
         str | None,
         argdesc(
             """
             Fuzzy text search matching folders by their own fields
             or by any of their tasks (same as the REST folder search)
-            """
+            """,
+            'Use `textSearch` with `textSearchScope: ["folder", "task"]`',
         ),
     ] = None,
+    text_search: ARGTextSearch = None,
+    text_search_scope: ARGTextSearchScope = None,
     include_parents: Annotated[
         bool,
         argdesc(
@@ -483,12 +498,20 @@ async def get_folders(
             """
         )
 
+    # `search`, `task_search` and `global_search` are deprecated
     if search:
         if cond := build_search_conditions(
             search,
             ["folders.name", "folders.label", "hierarchy.path"],
         ):
             sql_conditions.append(cond)
+
+    if text_search:
+        if ts := await build_text_search(
+            info.context["user"], project_name, "folder", text_search, text_search_scope
+        ):
+            sql_cte.append(ts[0])
+            sql_conditions.append(ts[1])
 
     #
     # Filter
