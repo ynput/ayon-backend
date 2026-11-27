@@ -3,7 +3,10 @@ __all__ = ["build_search_cte", "search"]
 import re
 from typing import Any
 
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
+
+from .indexer import indexed_attributes
 
 MAX_TERMS = 8
 MIN_TERM_LENGTH = 2  # shorter terms match nearly everything
@@ -125,28 +128,42 @@ async def get_path_folders(schema: str, term: str) -> str | None:
     return f"'{{{','.join(str(row['folder_id']) for row in rows)}}}'::uuid[]"
 
 
-def build_term(term: str, path_folders: str | None) -> tuple[str, str]:
+def build_term(
+    term: str,
+    path_folders: str | None,
+    *,
+    hide_description: bool = False,
+    attribute_types: list[str] | None = None,
+) -> tuple[str, str]:
     """Return the score and the condition of one term.
 
     `path_folders` are the folders whose path contains the term
-    (see `get_path_folders`).
+    (see `get_path_folders`). `hide_description` leaves out the descriptions,
+    `attribute_types` limits the free-text attributes to these entity types
+    (None = all).
     """
     # Underscores become hyphens, as in the index (see indexer.text_vector)
     lexeme = f"translate(public.unaccent({sql_string(prefix_lexeme(term))}), '_', '-')"
-    tsquery = f"to_tsquery('simple', {lexeme})"
-    vector_score = (
-        f"WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'A') THEN 3"
-        f" WHEN s.search_vector @@ to_tsquery('simple', {lexeme} || 'B') THEN 2"
-        f" WHEN s.search_vector @@ {tsquery} THEN 1"
-    )
+    names = f"s.search_vector @@ to_tsquery('simple', {lexeme} || 'A')"
+    prose = f"s.search_vector @@ to_tsquery('simple', {lexeme} || 'B')"
+    vector = f"s.search_vector @@ to_tsquery('simple', {lexeme})"
+    if hide_description:
+        # Weight B: descriptions of entities, but bodies of comments
+        prose = f"(s.entity_type = 'comment' AND {prose})"
+        others = f"s.search_vector @@ to_tsquery('simple', {lexeme} || 'AC')"
+        vector = f"({others} OR {prose})"
+    vector_score = f"WHEN {names} THEN 3 WHEN {prose} THEN 2 WHEN {vector} THEN 1"
     if len(term) < MIN_INFIX_LENGTH:
-        return f"CASE {vector_score} ELSE 0 END", f"s.search_vector @@ {tsquery}"
+        return f"CASE {vector_score} ELSE 0 END", vector
 
     term_value = f"lower(public.unaccent({sql_string(term)}))"
     pattern = f"lower(public.unaccent({sql_string(like_pattern(term))}))"
     like = f"s.literals LIKE {pattern}"
     similarity = f"public.word_similarity({term_value}, s.literals)"
     attr_like = f"s.attributes LIKE {pattern}"
+    if attribute_types is not None:
+        types = sql_string_array(attribute_types)
+        attr_like = f"(s.entity_type = ANY({types}) AND {attr_like})"
     infix = attr_like
     if path_folders:
         # ANY keeps it an index condition on entity_search (folder_id)
@@ -158,7 +175,7 @@ def build_term(term: str, path_folders: str | None) -> tuple[str, str]:
         f"CASE {vector_score} WHEN {like} THEN 0.5 * {similarity}"
         f" WHEN {infix} THEN 0.25 ELSE 0 END"
     )
-    return score, f"({like} OR {infix} OR s.search_vector @@ {tsquery})"
+    return score, f"({like} OR {infix} OR {vector})"
 
 
 async def build_search_cte(
@@ -170,6 +187,7 @@ async def build_search_cte(
     folder_access: list[str] | None = None,
     task_access: tuple[list[str], str | None] | None = None,
     comment_categories: list[str] | None = None,
+    readable_attributes: list[str] | None = None,
 ) -> str | None:
     """Return a query selecting the best search hits, without arguments.
 
@@ -183,8 +201,10 @@ async def build_search_cte(
     `folder_access` limits the rows to folder paths (LIKE patterns),
     `task_access` limits the rows of tasks and their comments to folder
     paths, or to tasks assigned to the given user, `comment_categories`
-    limits the comments to these categories and uncategorized ones.
-    None means no limit.
+    limits the comments to these categories and uncategorized ones,
+    `readable_attributes` leaves out the description and the free-text
+    attributes of entity types with any other attribute.
+    None means no limit. Nothing in the internal folder matches.
     With `limit=None`, all hits are returned unordered (to filter by them).
     """
     groups = parse_query(text)
@@ -197,15 +217,26 @@ async def build_search_cte(
         for term in {term for terms in groups for term in terms}
         if len(term) >= MIN_INFIX_LENGTH
     }
+    term_access: dict[str, Any] = {}
+    if readable_attributes is not None:
+        term_access["hide_description"] = "description" not in readable_attributes
+        term_access["attribute_types"] = [
+            entity_type
+            for entity_type, names in indexed_attributes().items()
+            if set(names) <= set(readable_attributes)
+        ]
     group_scores, group_conditions = [], []
     for terms in groups:
         scores, conditions = zip(
-            *(build_term(term, path_folders.get(term)) for term in terms)
+            *(build_term(term, path_folders.get(term), **term_access) for term in terms)
         )
         group_scores.append(f"({' + '.join(scores)}) / {len(terms)}")
         group_conditions.append(f"({' AND '.join(conditions)})")
 
-    filters = []
+    # Rows moved under the internal folder stay until the next sweep
+    filters = [
+        f"AND split_part(hi.path, '/', 1) <> {sql_string(AYON_INTERNAL_FOLDER_NAME)}"
+    ]
     if entity_types:
         filters.append(f"AND s.entity_type = ANY({sql_string_array(entity_types)})")
     if folder_access is not None:
@@ -249,6 +280,7 @@ async def search(
     folder_access: list[str] | None = None,
     task_access: tuple[list[str], str | None] | None = None,
     comment_categories: list[str] | None = None,
+    readable_attributes: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the best matches for all whitespace-separated terms of the text.
 
@@ -262,6 +294,7 @@ async def search(
         folder_access=folder_access,
         task_access=task_access,
         comment_categories=comment_categories,
+        readable_attributes=readable_attributes,
     )
     if not cte:
         return []

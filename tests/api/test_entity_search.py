@@ -239,6 +239,42 @@ def test_text_search_hides_sibling_tasks_and_categories(
         p.op("update", "task", tree["task"], {"assignees": []})
 
 
+def test_text_search_hierarchy_task_access(
+    api: httpx.Client,
+    other_user: httpx.Client,
+    temp_project: TempProject,
+    tree: dict[str, str],
+) -> None:
+    """Tasks readable through the hierarchy are found with sibling tasks hidden."""
+    p = temp_project
+    other_name = other_user.get("/api/users/me").json()["name"]
+    group = f"apitest_{uuid.uuid4().hex[:8]}"
+    group_url = f"/api/accessGroups/{group}/_"
+    response = api.put(
+        group_url,
+        json={
+            "read": {
+                "enabled": True,
+                "access_list": [{"access_type": "hierarchy", "path": "shots"}],
+            },
+            "advanced": {"show_sibling_tasks": False},
+        },
+    )
+    assert response.status_code == 204, response.text
+    try:
+        response = api.patch(
+            f"/api/users/{other_name}/accessGroups",
+            json={"accessGroups": [{"project": p.name, "accessGroups": [group]}]},
+        )
+        assert response.status_code == 204, response.text
+        search_until(other_user, p.name, "sh010", ["folder"], ["/shots/sh010"])
+        assert search(other_user, p.name, "lighting", ["task"]) == ["/shots/sh010"]
+        tasks = search_ids(other_user, p.name, "tasks", "lighting", ["task"])
+        assert tasks == {tree["task"]}
+    finally:
+        api.delete(group_url)
+
+
 def test_moved_product_takes_its_versions(
     api: httpx.Client, temp_project: TempProject, tree: dict[str, str]
 ) -> None:

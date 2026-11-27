@@ -642,9 +642,9 @@ async def build_text_search(
     """Return the CTE and the condition selecting entities by textSearch.
 
     The access to the returned entities is applied by the resolver
-    conditions. Here, hits of tasks hidden by `show_sibling_tasks` and of
-    comments in unreadable categories are left out, so they cannot reveal
-    their texts through the entity they belong to.
+    conditions. Here, hits of tasks hidden by `show_sibling_tasks`, of
+    comments in unreadable categories and of unreadable attributes are left
+    out, so they cannot reveal their texts through the entity they belong to.
     Returns None when the text has no searchable words.
     """
     allowed = TEXT_SEARCH_SCOPES[entity_type]
@@ -657,6 +657,12 @@ async def build_text_search(
 
     task_access = None
     comment_categories = None
+    readable_attributes = None  # as in graphql.utils.process_attrib_data
+    if user.is_guest:
+        readable_attributes = []
+    elif not user.is_manager and (perms := user.permissions(project_name)):
+        if perms.attrib_read.enabled:
+            readable_attributes = perms.attrib_read.attributes
     if user.is_guest and "comment" in scope:
         # shortcut: guests see comments through entity lists, not supported here
         raise ForbiddenException("Guests cannot search comments")
@@ -668,6 +674,8 @@ async def build_text_search(
             except FullAccess:
                 pass
             else:
+                # The paths are quoted for an SQL array literal
+                paths = {path.strip('"') for path in paths}
                 task_access = (sorted(paths), user.name if assigned else None)
         comment_categories = await ActivityCategories.get_accessible_categories(
             user, project_name=project_name
@@ -680,6 +688,7 @@ async def build_text_search(
         limit=None,
         task_access=task_access,
         comment_categories=comment_categories,
+        readable_attributes=readable_attributes,
     )
     if not cte:
         return None

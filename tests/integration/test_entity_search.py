@@ -7,6 +7,7 @@ so changed rows get a later `updated_at` explicitly.
 
 from types import SimpleNamespace
 
+from ayon_server.helpers.hierarchy_cache import AYON_INTERNAL_FOLDER_NAME
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -175,6 +176,63 @@ def test_sweep_follows_changes(run, monkeypatch) -> None:
 
 def test_repaired_values_are_reindexed(run) -> None:
     _rolled_back(run, _repaired_values_are_reindexed())
+
+
+async def _hits(text: str, **kwargs) -> list[str]:
+    from ayon_server.entity_search.search import build_search_cte
+
+    cte = await build_search_cte(PROJECT, text, limit=None, **kwargs)
+    assert cte
+    return [row["entity_type"] for row in await Postgres.fetch(cte)]
+
+
+async def _hidden_matches() -> None:
+    from ayon_server.entities.core.attrib import attribute_library
+    from ayon_server.entity_search import backfill, indexed_attributes
+
+    names = indexed_attributes()["folder"]
+    async with Postgres.transaction():
+        ids = await _create_project()
+        attrib = {"description": "hushword"}
+        if names:
+            attrib[names[0]] = "zebracode"
+        await Postgres.execute(
+            "UPDATE folders SET attrib = $1 WHERE id = $2", attrib, ids["sh010"]
+        )
+        await backfill(PROJECT)
+
+        # Unreadable descriptions and attributes do not match
+        assert await _hits("hushword") == ["folder"]
+        assert await _hits("hushword", readable_attributes=[]) == []
+        assert await _hits("hushword", readable_attributes=["description"]) == [
+            "folder"
+        ]
+        if names:
+            readable = [attr["name"] for attr in attribute_library["folder"]]
+            assert await _hits("zebracode") == ["folder"]
+            assert await _hits("zebracode", readable_attributes=["description"]) == []
+            assert await _hits("zebracode", readable_attributes=readable) == ["folder"]
+
+        # Rows moved under the internal folder do not match, the sweep removes them
+        internal = create_uuid()
+        await Postgres.execute(
+            "INSERT INTO folders (id, name, folder_type, status)"
+            " VALUES ($1, $2, 'Shot', 'Todo')",
+            internal,
+            AYON_INTERNAL_FOLDER_NAME,
+        )
+        await Postgres.execute(
+            "UPDATE folders SET parent_id = $1 WHERE id = $2", internal, ids["sh010"]
+        )
+        await Postgres.execute("REFRESH MATERIALIZED VIEW hierarchy")
+        assert await _hits("light, renderMain, hushword") == []
+        await backfill(PROJECT)
+        assert await Postgres.fetchrow("SELECT 1 FROM entity_search") is None
+        raise Rollback()
+
+
+def test_hidden_matches(run) -> None:
+    _rolled_back(run, _hidden_matches())
 
 
 def test_dynamic_enums_are_not_free_text(run, monkeypatch) -> None:

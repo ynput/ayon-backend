@@ -327,7 +327,20 @@ async def index_entities(
 
 
 async def backfill(project_name: str, *, batch_size: int = 10000) -> dict[str, int]:
-    """Index everything which is missing or outdated in the project."""
+    """Index everything which is missing or outdated in the project.
+
+    Rows of entities moved under the internal folder are removed first.
+    """
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        await Postgres.execute(
+            f"""
+            {INDEXED_FOLDERS_CTE}
+            DELETE FROM entity_search
+            WHERE folder_id NOT IN (SELECT id FROM indexed_folders)
+            """,
+            timeout=600,
+        )
     return {
         entity_type: await index_entities(
             project_name, entity_type, batch_size=batch_size
