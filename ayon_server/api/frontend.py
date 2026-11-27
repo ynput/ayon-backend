@@ -4,7 +4,8 @@ from functools import cache
 import fastapi
 from starlette.exceptions import HTTPException
 from starlette.staticfiles import StaticFiles
-from starlette.types import Scope
+from starlette.types import Receive, Scope, Send
+from starlette.websockets import WebSocketClose
 
 from ayon_server.config import ayonconfig
 
@@ -32,6 +33,13 @@ def get_index() -> fastapi.responses.HTMLResponse:
 
 
 class FrontendFiles(StaticFiles):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # As the router default it also gets unmatched websockets (http only here)
+        if scope["type"] != "http":
+            await WebSocketClose()(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
     async def get_response(self, path: str, scope: Scope) -> fastapi.responses.Response:
         # For the root path, return the index.html file
         # from the server cache (it shouldn't change during runtime)
@@ -58,7 +66,7 @@ class FrontendFiles(StaticFiles):
             # the same as a 404 below.
             pass
 
-        # Frontend is mounted to /, so we need to handle 404 errors
+        # Frontend serves every unmatched path, so we need to handle 404 errors
         # for the /api/ and /addons/ paths (in order to trigger the
         # correct 404 handler instead of falling back to the index.html)
 
@@ -75,8 +83,12 @@ class FrontendFiles(StaticFiles):
 
 
 def init_frontend(target_app: fastapi.FastAPI) -> None:
-    """Initialize frontend endpoints."""
+    """Serve the frontend for every path no route matches.
+
+    A router default instead of a mount on /, so routes added later
+    (addons loaded at runtime) still take precedence.
+    """
     frontend_dir = os.path.abspath(ayonconfig.frontend_dir)
     if not os.path.isdir(frontend_dir):
         return
-    target_app.mount("/", FrontendFiles(directory=frontend_dir, html=True))
+    target_app.router.default = FrontendFiles(directory=frontend_dir, html=True)

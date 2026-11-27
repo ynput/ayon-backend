@@ -327,7 +327,7 @@ async def _startup(app: "FastAPI") -> None:
         logger.trace("Initializing addon static file serving", nodb=True)
         init_addon_static(app)
 
-        # Frontend must be initialized last (since it is mounted to /)
+        # Frontend serves unmatched paths (router default, order does not matter)
         logger.trace("Initializing frontend", nodb=True)
         init_frontend(app)
 
