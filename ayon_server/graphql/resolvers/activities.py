@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Annotated
 
 from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.activities.notification_delivery import get_inbox_importance
 from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
@@ -80,6 +81,13 @@ async def get_activities(
     ] = None,
     filter: Annotated[
         str | None, argdesc("Filter activities using QueryFilter")
+    ] = None,
+    important: Annotated[
+        bool | None,
+        argdesc(
+            "Only the important (or only the other) part of the inbox "
+            "of the user who sends the query"
+        ),
     ] = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
@@ -349,6 +357,12 @@ async def get_activities(
         ):
             sql_conditions.append(fcond)
 
+    if important is not None:
+        # the same split as the inbox of the user shows
+        sql_conditions.append(
+            await get_inbox_importance(user.name, important=important)
+        )
+
     #
     # Pagination
     #
@@ -377,7 +391,7 @@ async def get_activities(
     query = f"""
         {cte}
         SELECT {cursor}, *
-        FROM project_{project_name}.activity_feed
+        FROM project_{project_name}.activity_feed t
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
