@@ -62,18 +62,42 @@ class AddonLibrary:
                 continue
 
             try:
-                definition = ServerAddonDefinition(self, addon_dir)
+                self._add_definition(addon_dir)
             except Exception:
                 log_traceback(f"Unable to initialize {addon_dir}")
-                continue
-            if not definition.versions:
-                continue
-
-            self.data[definition.name] = definition
-            if definition.restart_requested:
-                self.restart_requested = True
 
         self.log_deprecations()
+
+    def _add_definition(self, addon_dir: str) -> ServerAddonDefinition | None:
+        """Load an addon directory with all its versions"""
+        definition = ServerAddonDefinition(self, addon_dir)
+        if not definition.versions:
+            return None
+        self.data[definition.name] = definition
+        if definition.restart_requested:
+            self.restart_requested = True
+        return definition
+
+    @classmethod
+    def load_version(cls, addon_name: str, addon_version: str) -> BaseServerAddon:
+        """Load an addon version installed after startup.
+
+        Idempotent. A new addon gets its definition, otherwise
+        the version is added to the existing one. Raises on failure.
+        """
+        instance = cls.getinstance()
+        if (addons_dir := instance.get_addons_dir()) is None:
+            raise NotFoundException("Addons directory does not exist")
+        addon_dir = os.path.join(addons_dir, addon_name)
+        definition = instance.data.get(addon_name) or instance._add_definition(
+            addon_dir
+        )
+        if definition is None:
+            raise NotFoundException(f"Addon {addon_name} has no versions")
+        addon = definition.load_version(os.path.join(addon_dir, addon_version))
+        instance.broken_addons.pop((addon_name, addon.version), None)
+        cls.clear_active_versions_cache()
+        return addon
 
     def log_deprecations(self) -> None:
         """Log a summary of deprecated features used by the addons."""

@@ -62,6 +62,8 @@ app = FastAPI(
     # so the names of the generated client types do not change.
     separate_input_output_schemas=False,
     generate_unique_id_function=lambda route: route.name,
+    # No 307 to the slash variant: unmatched paths go to the frontend (404 for API)
+    redirect_slashes=False,
     **app_meta,
 )
 

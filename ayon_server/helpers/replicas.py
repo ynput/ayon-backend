@@ -26,6 +26,12 @@ class ReplicaInfo(OPModel):
         description="Addon name to list of loaded versions. Empty until ready.",
         example={"core": ["1.0.0", "1.1.0"]},
     )
+    broken: dict[str, dict[str, str]] = Field(
+        default_factory=dict,
+        title="Broken addons",
+        description="Addon name to {version: error} of versions that failed to load",
+        example={"core": {"1.2.0": "Restart requested during setup"}},
+    )
 
 
 class ServerReplicas:

@@ -11,6 +11,7 @@ __all__ = [
 
 import asyncio
 import datetime
+import inspect
 import itertools
 import threading
 from collections.abc import Iterable
@@ -104,6 +105,13 @@ def run_blocking_coro(coro) -> Any:
     thread.start()
     thread.join()
     return result["output"]
+
+
+async def maybe_run_async(func, *args, **kwargs) -> Any:
+    """Call a function, awaiting it if it is async, and return its result"""
+    if inspect.iscoroutinefunction(func):
+        return await func(*args, **kwargs)
+    return func(*args, **kwargs)
 
 
 def now():

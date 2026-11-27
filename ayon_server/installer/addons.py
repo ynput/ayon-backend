@@ -190,7 +190,8 @@ def get_addon_zip_info(path: str) -> AddonZipInfo:
     return zip_info
 
 
-def unpack_addon_sync(zip_info: AddonZipInfo) -> None:
+def unpack_addon_sync(zip_info: AddonZipInfo) -> bool:
+    """Unpack the addon, return True if it replaced an existing version"""
     zip_path = zip_info.zip_path
     assert zip_path is not None, "zip_path is not set"
     addon_root_dir = ayonconfig.addons_dir
@@ -201,7 +202,8 @@ def unpack_addon_sync(zip_info: AddonZipInfo) -> None:
         with AddonArchive(zip_path) as archive:
             archive.extract_all(tmpdirname)
 
-        if os.path.isdir(target_dir):
+        replaced = os.path.isdir(target_dir)
+        if replaced:
             logger.info(f"Removing existing addon {zip_info.name} {zip_info.version}")
             shutil.rmtree(target_dir)
 
@@ -224,10 +226,13 @@ def unpack_addon_sync(zip_info: AddonZipInfo) -> None:
 
         else:
             shutil.move(os.path.join(tmpdirname, "addon"), target_dir)
+    return replaced
 
 
-async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
+async def unpack_addon(event_id: str, zip_info: AddonZipInfo) -> bool | None:
     """Unpack the addon from the zip file and install it
+
+    Returns True if it replaced an existing version, None if it failed.
 
     Unpacking is done in a separate thread to avoid blocking the main thread
     (unzipping is a synchronous operation and it is also cpu-bound)
@@ -250,7 +255,7 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
     try:
         with ThreadPoolExecutor() as executor:
             task = loop.run_in_executor(executor, unpack_addon_sync, zip_info)
-            await asyncio.gather(task)
+            (replaced,) = await asyncio.gather(task)
     except Exception as e:
         logger.error(f"Error while unpacking addon: {e}")
         await EventStream.update(
@@ -260,7 +265,7 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
             sender="background-installer",
             sender_type="system",
         )
-        return
+        return None
     finally:
         try:
             os.remove(zip_path)
@@ -274,10 +279,11 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
         sender="background-installer",
         sender_type="system",
     )
+    return replaced
 
 
-async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
-    """Download the addon zip file from the URL and install it"""
+async def install_addon_from_url(event_id: str, url: str) -> tuple[AddonZipInfo, bool]:
+    """Download and install the addon, return it and whether it replaced one"""
 
     log_url = shorten_url_string(url, 50)
 
@@ -349,7 +355,7 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
                 unpack_addon_sync,
                 zip_info,
             )
-            await asyncio.gather(task)
+            (replaced,) = await asyncio.gather(task)
 
     await EventStream.update(
         event_id,
@@ -359,4 +365,4 @@ async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
         sender_type="system",
     )
 
-    return zip_info
+    return zip_info, replaced

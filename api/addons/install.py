@@ -123,14 +123,9 @@ async def get_installed_addons_list(
         LIMIT 100
     """
 
-    last_change: datetime | None = None
     items = []
     async for row in Postgres.iterate(query):
         summary = row["summary"] or {}
-        if last_change is None:
-            last_change = row["updated_at"]
-        else:
-            last_change = max(last_change, row["updated_at"])
         items.append(
             AddonInstallListItemModel(
                 id=row["id"],
@@ -145,22 +140,9 @@ async def get_installed_addons_list(
             )
         )
 
-    # Check if a restart is required
-    if last_change is None:
-        restart_required = False
-    else:
-        res = await Postgres.fetch(
-            """
-                SELECT id FROM events
-                WHERE topic = 'server.started'
-                AND created_at > $1
-                ORDER BY created_at DESC
-                LIMIT 1
-            """,
-            last_change,
-        )
-
-        restart_required = not bool(res)
+    # Set by installs that cannot be loaded live (see BackgroundInstaller)
+    query = "SELECT 1 FROM events WHERE topic = 'server.restart_required'"
+    restart_required = bool(await Postgres.fetch(query))
 
     return AddonInstallListResponseModel(
         items=items,

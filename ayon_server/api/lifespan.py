@@ -1,30 +1,35 @@
 import asyncio
 import contextlib
-import inspect
 import os
 import traceback
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from ayon_server.addons import AddonLibrary
+from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import messaging
 from ayon_server.api.readiness import set_ready
 from ayon_server.api.static import addon_static_router
-from ayon_server.api.system import clear_server_restart_required
+from ayon_server.api.system import (
+    clear_server_restart_required,
+    require_server_restart,
+)
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
+from ayon_server.exceptions import AyonException
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_exception, log_traceback, logger
-from ayon_server.utils import slugify
+from ayon_server.utils import maybe_run_async, slugify
 from maintenance.scheduler import MaintenanceScheduler
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+
+    from ayon_server.events import EventModel
 
 maintenance_scheduler = MaintenanceScheduler()
 
@@ -41,81 +46,110 @@ async def load_access_groups() -> None:
 
 
 def init_addon_endpoints(target_app: "FastAPI") -> None:
-    library = AddonLibrary.getinstance()
-    for addon_name, addon_definition in library.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-
-            if hasattr(addon, "ws"):
-                target_app.add_api_websocket_route(
-                    f"/api/addons/{addon_name}/{version}/ws",
-                    addon.ws,
-                    name=f"{addon_name}_{version}_ws",
-                )
-
-            for router in addon.routers:
-                target_app.include_router(
-                    router,
-                    prefix=f"/api/addons/{addon_name}/{version}",
-                    tags=[f"{addon_definition.friendly_name} {version}"],
-                    include_in_schema=ayonconfig.openapi_include_addon_endpoints,
-                    generate_unique_id_function=lambda x: slugify(
-                        f"{addon_name}_{version}_{x.name}", separator="_"
-                    ),
-                )
-
-            for endpoint in addon.endpoints:
-                path = endpoint["path"].lstrip("/")
-                first_element = path.split("/")[0]
-                # TODO: site settings? other routes?
-                if first_element in ["settings", "schema", "overrides"]:
-                    logger.error(f"Unable to assing path to endpoint: {path}")
-                    continue
-
-                path = f"/api/addons/{addon_name}/{version}/{path}"
-                target_app.add_api_route(
-                    path,
-                    endpoint["handler"],
-                    include_in_schema=ayonconfig.openapi_include_addon_endpoints,
-                    methods=[endpoint["method"]],
-                    name=endpoint["name"],
-                    tags=[f"{addon_definition.friendly_name} {version}"],
-                    operation_id=slugify(
-                        f"{addon_name}_{version}_{endpoint['name']}",
-                        separator="_",
-                    ),
-                )
-
-            if addon.endpoints or addon.routers:
-                target_app.add_api_route(
-                    f"/api/addons/{addon_name}/{version}/openapi.json",
-                    addon.get_openapi,
-                    include_in_schema=False,
-                    methods=["GET"],
-                    name=f"{addon_name}_{version}_openapi",
-                    operation_id=slugify(
-                        f"{addon_name}_{version}_openapi", separator="_"
-                    ),
-                )
-
-                target_app.add_api_route(
-                    f"/api/addons/{addon_name}/{version}/api-docs",
-                    addon.get_api_docs,
-                    include_in_schema=False,
-                    methods=["GET"],
-                    name=f"{addon_name}_{version}_docs",
-                    operation_id=slugify(
-                        f"{addon_name}_{version}_api_docs", separator="_"
-                    ),
-                )
+    for _, addon_definition in AddonLibrary.items():
+        for addon in addon_definition.versions.values():
+            init_addon_version_endpoints(target_app, addon)
 
 
-async def maybe_run_async(func, *args, **kwargs) -> None:
-    """Run a function, whether it's async or not."""
-    if inspect.iscoroutinefunction(func):
-        await func(*args, **kwargs)
-    else:
-        func(*args, **kwargs)
+def init_addon_version_endpoints(target_app: "FastAPI", addon: BaseServerAddon) -> None:
+    addon_name, version = addon.definition.name, addon.version
+    if hasattr(addon, "ws"):
+        target_app.add_api_websocket_route(
+            f"/api/addons/{addon_name}/{version}/ws",
+            addon.ws,
+            name=f"{addon_name}_{version}_ws",
+        )
+
+    for router in addon.routers:
+        target_app.include_router(
+            router,
+            prefix=f"/api/addons/{addon_name}/{version}",
+            tags=[f"{addon.definition.friendly_name} {version}"],
+            include_in_schema=ayonconfig.openapi_include_addon_endpoints,
+            generate_unique_id_function=lambda x: slugify(
+                f"{addon_name}_{version}_{x.name}", separator="_"
+            ),
+        )
+
+    for endpoint in addon.endpoints:
+        path = endpoint["path"].lstrip("/")
+        first_element = path.split("/")[0]
+        # TODO: site settings? other routes?
+        if first_element in ["settings", "schema", "overrides"]:
+            logger.error(f"Unable to assing path to endpoint: {path}")
+            continue
+
+        path = f"/api/addons/{addon_name}/{version}/{path}"
+        target_app.add_api_route(
+            path,
+            endpoint["handler"],
+            include_in_schema=ayonconfig.openapi_include_addon_endpoints,
+            methods=[endpoint["method"]],
+            name=endpoint["name"],
+            tags=[f"{addon.definition.friendly_name} {version}"],
+            operation_id=slugify(
+                f"{addon_name}_{version}_{endpoint['name']}",
+                separator="_",
+            ),
+        )
+
+    if addon.endpoints or addon.routers:
+        target_app.add_api_route(
+            f"/api/addons/{addon_name}/{version}/openapi.json",
+            addon.get_openapi,
+            include_in_schema=False,
+            methods=["GET"],
+            name=f"{addon_name}_{version}_openapi",
+            operation_id=slugify(f"{addon_name}_{version}_openapi", separator="_"),
+        )
+
+        target_app.add_api_route(
+            f"/api/addons/{addon_name}/{version}/api-docs",
+            addon.get_api_docs,
+            include_in_schema=False,
+            methods=["GET"],
+            name=f"{addon_name}_{version}_docs",
+            operation_id=slugify(f"{addon_name}_{version}_api_docs", separator="_"),
+        )
+
+
+async def run_addon_hook(addon: BaseServerAddon, hook: str) -> dict[str, str] | None:
+    """Run the addon pre_setup or setup, return the reason when it fails"""
+    try:
+        await maybe_run_async(getattr(addon, hook))
+    except AssertionError as e:
+        logger.error(f"Unable to {hook} addon {addon.name} {addon.version}: {e}")
+        return {"error": str(e)}
+    except Exception as e:
+        log_traceback(f"Error during {addon.name} {addon.version} {hook}")
+        return {"error": str(e), "traceback": traceback.format_exc()}
+    return None
+
+
+async def load_addon_version(
+    target_app: "FastAPI", addon_name: str, addon_version: str
+) -> None:
+    """Load an addon version installed after startup in this process.
+
+    Same steps as the startup: import, pre_setup, setup, endpoints.
+    Idempotent. On failure the version is unloaded and the error raised;
+    one that requests a restart counts as a failure (cannot be loaded live).
+    """
+    if (definition := AddonLibrary.get(addon_name)) and definition.get(addon_version):
+        return
+
+    addon = AddonLibrary.load_version(addon_name, addon_version)
+    for hook in ("pre_setup", "setup"):
+        if (reason := await run_addon_hook(addon, hook)) is None and (
+            addon.restart_requested
+        ):
+            reason = {"error": f"Restart requested during {hook}"}
+        if reason:
+            AddonLibrary.unload_addon(addon_name, addon.version, reason=reason)
+            raise AyonException(f"Unable to load {addon}: {reason['error']}")
+
+    init_addon_version_endpoints(target_app, addon)
+    await AddonLibrary.clear_addon_list_cache()
 
 
 def init_addon_static(target_app: "FastAPI") -> None:
@@ -261,53 +295,16 @@ async def _startup(app: "FastAPI") -> None:
 
     restart_requested = False
     bad_addons = {}
-    for addon_name, addon in addon_records:
-        for version in addon.versions.values():
-            try:
-                await maybe_run_async(version.pre_setup)
-
-                if (not restart_requested) and version.restart_requested:
+    for hook in ("pre_setup", "setup"):
+        for addon_name, addon in addon_records:
+            for version in addon.versions.values():
+                if reason := await run_addon_hook(version, hook):
+                    bad_addons[(addon_name, version.version)] = reason
+                elif (not restart_requested) and version.restart_requested:
                     logger.warning(
-                        f"Restart requested during addon {addon_name} pre-setup."
+                        f"Restart requested during addon {addon_name} {hook}."
                     )
                     restart_requested = True
-            except AssertionError as e:
-                logger.error(
-                    f"Unable to pre-setup addon {addon_name} {version.version}: {e}"
-                )
-                reason = {"error": str(e)}
-                bad_addons[(addon_name, version.version)] = reason
-            except Exception as e:
-                log_traceback(f"Error during {addon_name} {version.version} pre-setup")
-                reason = {
-                    "error": str(e),
-                    "traceback": traceback.format_exc(),
-                }
-                bad_addons[(addon_name, version.version)] = reason
-
-    for addon_name, addon in addon_records:
-        for version in addon.versions.values():
-            try:
-                await maybe_run_async(version.setup)
-
-                if (not restart_requested) and version.restart_requested:
-                    logger.warning(
-                        f"Restart requested during addon {addon_name} setup."
-                    )
-                    restart_requested = True
-            except AssertionError as e:
-                logger.error(
-                    f"Unable to setup addon {addon_name} {version.version}: {e}"
-                )
-                reason = {"error": str(e)}
-                bad_addons[(addon_name, version.version)] = reason
-            except Exception as e:
-                log_traceback(f"Error during {addon_name} {version.version} setup")
-                reason = {
-                    "error": str(e),
-                    "traceback": traceback.format_exc(),
-                }
-                bad_addons[(addon_name, version.version)] = reason
 
     for _addon_name, _addon_version in bad_addons:
         reason = bad_addons[(_addon_name, _addon_version)]
@@ -327,7 +324,7 @@ async def _startup(app: "FastAPI") -> None:
         logger.trace("Initializing addon static file serving", nodb=True)
         init_addon_static(app)
 
-        # Frontend must be initialized last (since it is mounted to /)
+        # Frontend serves unmatched paths (router default, order does not matter)
         logger.trace("Initializing frontend", nodb=True)
         init_frontend(app)
 
@@ -338,6 +335,20 @@ async def _startup(app: "FastAPI") -> None:
         logger.info("Server is now ready to connect")
         app.state.ready = True
         set_ready(True)
+
+        # Subscribed once ready: a version installed before is loaded from disk
+        async def hot_load_addon(event: "EventModel") -> None:
+            name, version = event.summary["name"], event.summary["version"]
+            try:
+                await load_addon_version(app, name, version)
+            except Exception as e:
+                # e.g. a legacy addon or one requesting a restart
+                logger.warning(f"Unable to load addon {name} {version} live: {e}")
+                await require_server_restart(
+                    None, f"Restart the server to load addon {name} {version}"
+                )
+
+        EventStream.subscribe("addon.hot_load", hot_load_addon, all_nodes=True)
 
         if start_event is not None:
             await EventStream.update(
